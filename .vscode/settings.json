@@ -1,0 +1,20 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/dist-electron": true,
+    "**/dist-renderer": true,
+    "**/release": true,
+    "artifacts": true,
+    ".codegraph": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/dist-electron": true,
+    "**/dist-renderer": true,
+    "**/release": true,
+    "artifacts": true,
+    ".codegraph": true
+  }
+}

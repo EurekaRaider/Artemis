@@ -1,3 +1,5 @@
+[English / 简体中文](architecture-zh-CN.md)
+
 # Architecture
 
 ## Runtime boundaries
@@ -202,9 +204,9 @@ batches group once by thread and duplicate-only batches retain object identity.
 `history-visibility.ts` shares scroll/IntersectionObserver scheduling per scroller.
 The derived-session cache is limited to eight sessions and an estimated 64 MiB.
 
-`node scripts/benchmark-history.mjs` compares the merged baseline with current
+`node scripts/benchmarks/benchmark-history.mjs` compares the merged baseline with current
 source using the same synthetic 1,500-turn history. It records initial load,
-49 cursor pages and returned bytes under `artifacts/performance/`; local numbers
+49 cursor pages and returned bytes under `artifacts/benchmarks/`; local numbers
 are not Windows or public-runner acceptance. Main and renderer still contain
 composition and feature coordination; module boundaries must be preserved as
 further services move out of these entry points.

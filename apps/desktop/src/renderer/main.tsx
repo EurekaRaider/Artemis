@@ -1,16 +1,16 @@
-import { AppearanceProvider } from "./AppearanceProvider.js";
-import { bootstrapAppearance } from "./appearance-controller.js";
+import { AppearanceProvider } from "./appearance/AppearanceProvider.js";
+import { bootstrapAppearance } from "./appearance/appearance-controller.js";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { App } from "./App.js";
-import { bootstrapDesktopSkin } from "./desktop-skin-bootstrap.js";
-import "./i18n.js";
+import { App } from "./app/App.js";
+import { bootstrapDesktopSkin } from "./appearance/desktop-skin-bootstrap.js";
+import "./app/i18n.js";
 import "@artemis/ui/styles.css";
-import "./styles.css";
-import "./prototype-migration.css";
+import "./styles/styles.css";
+import "./styles/prototype-migration.css";
 import "@artemis/theme-artemis/theme.css";
-import "./appearance.css";
+import "./appearance/appearance.css";
 
 performance.mark?.("artemis:renderer-entry");
 

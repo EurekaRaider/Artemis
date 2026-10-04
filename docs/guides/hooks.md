@@ -1,3 +1,5 @@
+[English / 简体中文](hooks-en.md)
+
 # Artemis 钩子开发指南
 
 钩子是在现有 Pi 生命周期中触发的本地命令脚本。它使用当前桌面用户的文件与网络权限，不自动提权，也不受可执行扩展的 **Full local access** 开关控制。
@@ -49,7 +51,7 @@ manifest 可通过 `hooks` 声明 `./` 开头的相对路径、路径数组、�
 
 ```sh
 npm run build:core
-npx vitest run apps/desktop/test/hooks-service.test.ts packages/agent-host/test/hooks-bridge.test.ts apps/desktop/test/hooks-settings.test.tsx
+npx vitest run apps/desktop/test/main/hooks/hooks-service.test.ts packages/agent-host/test/runtime/hooks-bridge.test.ts apps/desktop/test/renderer/hooks/hooks-settings.test.tsx
 npm run typecheck
 npm run build
 ```

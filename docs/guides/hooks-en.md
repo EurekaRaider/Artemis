@@ -1,3 +1,5 @@
+[English / 简体中文](hooks.md)
+
 # Artemis Hooks
 
 Hooks are explicitly trusted local command scripts attached to the existing Pi lifecycle. They run as the current desktop user, with filesystem and network access, without automatic administrator elevation. The extension **Full local access** setting does not control hooks.
@@ -72,10 +74,10 @@ A manifest may declare `"hooks": "./hooks/hooks.json"`, an array of relative pat
 
 ```sh
 npm run build:core
-npx vitest run apps/desktop/test/hooks-service.test.ts packages/agent-host/test/hooks-bridge.test.ts apps/desktop/test/hooks-settings.test.tsx
+npx vitest run apps/desktop/test/main/hooks/hooks-service.test.ts packages/agent-host/test/runtime/hooks-bridge.test.ts apps/desktop/test/renderer/hooks/hooks-settings.test.tsx
 npm run typecheck
 npm run build
-node apps/desktop/scripts/verify-hooks-native.mjs
+node apps/desktop/scripts/verify/native/verify-hooks-native.mjs
 ```
 
 The service tests execute real platform-native processes, including timeout and cancellation. Run them on both macOS and Windows; a passing mock or protocol test does not prove native Windows behavior. Packaged-app verification must separately check Settings, the three shortcuts, content-change invalidation and native command execution from the installed application.

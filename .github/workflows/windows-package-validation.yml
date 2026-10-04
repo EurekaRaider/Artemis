@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
-      - run: node scripts/normalize-windows-checkout.mjs
+      - run: node scripts/ci/normalize-windows-checkout.mjs
       - run: npm ci
       - run: npm run package:win
         env:
@@ -23,7 +23,7 @@ jobs:
         run: npm run verify:win-native -w @artemis/desktop
       - name: Verify installed Unicode path and Design sandbox
         working-directory: apps/desktop
-        run: node scripts/verify-windows-installed.mjs
+        run: node scripts/verify/native/verify-windows-installed.mjs
       - uses: actions/upload-artifact@v6
         if: always()
         with:

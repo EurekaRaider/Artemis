@@ -1,18 +1,7 @@
-// S0 design-plugin prototype: plugin manifest, binding, restricted profile
-// schemas, and the persisted prompt-submission ledger contract.
-//
-// This module is intentionally a decision-prototype slice of the full proposal
-// in docs/projects/design-mode-proposal/implementation-proposal.md (§5, §6,
-// §7, §9). It exists to validate:
-//   1. A generic host can parse artemis.plugin.json packages without business
-//      branches for specific plugins.
-//   2. Restricted execution profiles are fixed per thread from creation and
-//      reject privilege escalation both at tool-list level and at the actual
-//      dispatch entry.
-//   3. Prompt submissions carry a persistent submissionId/payloadHash ledger
-//      that survives restarts and never blind-replays external side effects.
-//
-// The schemas here are drafts for S0 only; S1 freezes the real migration.
+// Design-plugin manifest, binding, restricted execution profile, and persisted
+// prompt-submission ledger contracts. Restricted profiles remain fixed per
+// thread; submissions retain their identity across restarts without blindly
+// replaying external side effects.
 
 import { z } from "zod";
 

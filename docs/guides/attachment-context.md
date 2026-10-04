@@ -1,3 +1,5 @@
+[English / 简体中文](attachment-context-zh-CN.md)
+
 # Attachment context protection
 
 Artemis accepts up to 20 images and 10 documents per message. Image originals are

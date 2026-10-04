@@ -1,0 +1,519 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, describe, expect, it } from "vitest";
+import type { AgentPayload, BrokerExecutionRequest } from "@artemis/protocol";
+
+import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
+
+interface InspectableTool {
+  name: string;
+  execute(
+    toolCallId: string,
+    parameters: Record<string, unknown>,
+  ): Promise<unknown>;
+}
+
+interface InspectableThread {
+  executeTools: InspectableTool[];
+  currentTurnId?: string;
+  currentMode?: "work" | "plan" | "review";
+  session: {
+    prompt(text: string): Promise<void>;
+    _emit(event: unknown): void;
+  };
+}
+
+const cleanupPaths: string[] = [];
+
+async function activateMcpTool(
+  thread: InspectableThread | undefined,
+  query: string,
+  toolName: string,
+): Promise<InspectableTool | undefined> {
+  const discovery = thread?.executeTools.find(
+    (tool) => tool.name === "search_mcp_tools",
+  );
+  await discovery?.execute("discover-mcp", { query, limit: 10 });
+  return thread?.executeTools.find((tool) => tool.name === toolName);
+}
+
+afterEach(async () => {
+  await Promise.all(
+    cleanupPaths
+      .splice(0)
+      .map((path) => rm(path, { recursive: true, force: true })),
+  );
+});
+
+describe("MCP task workspace propagation", () => {
+  it("keeps MCP schemas inactive until a bounded discovery activates matches", async () => {
+    const workspacePath = await mkdtemp(join(tmpdir(), "artemis-mcp-lazy-"));
+    cleanupPaths.push(workspacePath);
+    const host = new ArtemisAgentHost({ async request() {} }, { emit() {} });
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "codegraph",
+          serverName: "CodeGraph",
+          transport: "stdio",
+          piName: "codegraph_status",
+          toolName: "status",
+          description: "Inspect graph status",
+          inputSchema: {
+            type: "object",
+            properties: { verbose: { type: "boolean" } },
+          },
+          readOnly: true,
+          destructive: false,
+        },
+        {
+          serverId: "drive",
+          serverName: "Drive",
+          transport: "streamable-http",
+          piName: "drive_search",
+          toolName: "search",
+          description: "Search files",
+          inputSchema: {
+            type: "object",
+            properties: { query: { type: "string" } },
+          },
+          readOnly: true,
+          destructive: false,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-lazy-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-lazy-thread")!;
+
+    expect(thread.executeTools.map((tool) => tool.name)).toContain(
+      "search_mcp_tools",
+    );
+    expect(thread.executeTools.map((tool) => tool.name)).not.toContain(
+      "codegraph_status",
+    );
+
+    const discovery = thread.executeTools.find(
+      (tool) => tool.name === "search_mcp_tools",
+    );
+    await discovery?.execute("discover-mcp", { query: "graph", limit: 5 });
+
+    expect(thread.executeTools.map((tool) => tool.name)).toContain(
+      "codegraph_status",
+    );
+    expect(thread.executeTools.map((tool) => tool.name)).not.toContain(
+      "drive_search",
+    );
+
+    (thread.session as unknown as { compact(): Promise<void> }).compact =
+      async () => {};
+    await host.compact("mcp-lazy-thread");
+    expect(thread.executeTools.map((tool) => tool.name)).not.toContain(
+      "codegraph_status",
+    );
+    host.dispose();
+  });
+
+  it("includes the opened task workspace in every MCP broker request", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-task-workspace-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const requests: BrokerExecutionRequest[] = [];
+    const host = new ArtemisAgentHost(
+      {
+        async request(request) {
+          requests.push(request);
+          return {
+            approved: true,
+            data: { output: "indexed", isError: false },
+          };
+        },
+      },
+      { emit() {} },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "codegraph",
+          serverName: "CodeGraph",
+          transport: "stdio",
+          piName: "codegraph_codegraph_status",
+          toolName: "codegraph_status",
+          description: "Inspect the current project graph",
+          inputSchema: {
+            type: "object",
+            properties: {
+              projectPath: { type: "string" },
+            },
+          },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-workspace-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-workspace-thread");
+    expect(thread).toBeDefined();
+    if (thread) {
+      thread.currentTurnId = "turn-1";
+      thread.currentMode = "work";
+    }
+    const tool = await activateMcpTool(
+      thread,
+      "graph status",
+      "codegraph_codegraph_status",
+    );
+    expect(tool).toBeDefined();
+
+    await tool?.execute("mcp-call", {
+      arguments: { projectPath: workspacePath },
+      model_approval: {
+        risk: "low",
+        explicit_user_request: false,
+        reason: "Read-only project graph inspection.",
+      },
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      kind: "mcp.call",
+      threadId: "mcp-workspace-thread",
+      workspacePath,
+      serverId: "codegraph",
+      toolName: "codegraph_status",
+      arguments: { projectPath: workspacePath },
+      modelApproval: {
+        risk: "low",
+        explicitUserRequest: false,
+        reason: "Read-only project graph inspection.",
+      },
+    });
+
+    host.dispose();
+  });
+
+  it("emits metadata-only usage when the parent invokes an MCP tool", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-usage-event-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const payloads: AgentPayload[] = [];
+    const host = new ArtemisAgentHost(
+      { async request() {} },
+      {
+        emit(_threadId, _turnId, payload) {
+          payloads.push(payload);
+        },
+      },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "codegraph",
+          serverName: "CodeGraph",
+          transport: "stdio",
+          piName: "codegraph_codegraph_status",
+          toolName: "codegraph_status",
+          description: "Inspect the current project graph",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-usage-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-usage-thread")!;
+    thread.session.prompt = async () => {
+      thread.session._emit({
+        type: "tool_execution_start",
+        toolCallId: "mcp-call-1",
+        toolName: "codegraph_codegraph_status",
+        args: { credential: "must-not-be-copied" },
+      });
+    };
+
+    await host.prompt(
+      "mcp-usage-thread",
+      "turn-1",
+      "Inspect the graph.",
+      "work",
+    );
+
+    const usage = payloads.find((payload) => payload.type === "mcp.tool.used");
+    expect(usage).toEqual({
+      type: "mcp.tool.used",
+      toolCallId: "mcp-call-1",
+      serverId: "codegraph",
+      serverName: "CodeGraph",
+      toolName: "codegraph_status",
+      agentId: "parent",
+    });
+    expect(usage).not.toHaveProperty("input");
+    expect(usage).not.toHaveProperty("output");
+    host.dispose();
+  });
+
+  it("keeps readable server-qualified names when MCP servers expose the same tool name", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-name-collision-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          return { approved: true };
+        },
+      },
+      { emit() {} },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "first",
+          serverName: "First",
+          transport: "stdio",
+          piName: "first_search",
+          toolName: "search",
+          description: "Search the first source",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+        {
+          serverId: "second",
+          serverName: "Second",
+          transport: "stdio",
+          piName: "second_search",
+          toolName: "search",
+          description: "Search the second source",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-collision-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-collision-thread");
+    await activateMcpTool(thread, "search", "first_search");
+    const names = thread?.executeTools.map((tool) => tool.name) ?? [];
+
+    expect(names).not.toContain("search");
+    expect(names).toEqual(
+      expect.arrayContaining(["first_search", "second_search"]),
+    );
+
+    host.dispose();
+  });
+
+  it("keeps brokered MCP images as Pi image content", async () => {
+    const workspacePath = await mkdtemp(
+      join(tmpdir(), "artemis-mcp-image-content-"),
+    );
+    cleanupPaths.push(workspacePath);
+    const imageData = Buffer.from("image-bytes").toString("base64");
+    const host = new ArtemisAgentHost(
+      {
+        async request() {
+          return {
+            approved: true,
+            data: {
+              content: [
+                { type: "text", text: "Rendered preview" },
+                { type: "image", data: imageData, mimeType: "image/png" },
+              ],
+              isError: false,
+              metrics: {
+                imageBytes: 11,
+                imageCount: 1,
+                omittedContentCount: 0,
+                textBytes: 16,
+              },
+            },
+          };
+        },
+      },
+      { emit() {} },
+    );
+    await host.configure({
+      credentials: {},
+      mcpTools: [
+        {
+          serverId: "renderer",
+          serverName: "Renderer",
+          transport: "stdio",
+          piName: "renderer_render",
+          toolName: "render",
+          description: "Render a preview",
+          inputSchema: { type: "object", properties: {} },
+          readOnly: true,
+        },
+      ],
+    });
+    await host.openThread({
+      threadId: "mcp-image-thread",
+      workspacePath,
+      target: "local",
+    });
+    const thread = (
+      host as unknown as { threads: Map<string, InspectableThread> }
+    ).threads.get("mcp-image-thread");
+    if (thread) {
+      thread.currentTurnId = "turn-1";
+      thread.currentMode = "work";
+    }
+    const tool = await activateMcpTool(thread, "render", "renderer_render");
+
+    await expect(
+      tool?.execute("mcp-call", {
+        arguments: {},
+        model_approval: {
+          risk: "low",
+          explicit_user_request: false,
+          reason: "Read-only preview rendering.",
+        },
+      }),
+    ).resolves.toMatchObject({
+      content: [
+        { type: "text", text: "Rendered preview" },
+        { type: "image", data: imageData, mimeType: "image/png" },
+      ],
+    });
+
+    host.dispose();
+  });
+
+  it.each([
+    ["x".repeat(600 * 1024), true],
+    ["中".repeat(600 * 1024), true],
+    ["x".repeat(150 * 1024), false],
+  ])(
+    "budgets MCP text in tokens rather than bytes (%#)",
+    async (body, truncated) => {
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-text-budget-"),
+      );
+      cleanupPaths.push(workspacePath);
+      const oversized = `${body}TAIL_SENTINEL`;
+      const host = new ArtemisAgentHost(
+        {
+          async request() {
+            return {
+              approved: true,
+              data: {
+                content: [{ type: "text", text: oversized }],
+                isError: false,
+                metrics: {
+                  imageBytes: 0,
+                  imageCount: 0,
+                  omittedContentCount: 0,
+                  textBytes: Buffer.byteLength(oversized),
+                },
+              },
+            };
+          },
+        },
+        { emit() {} },
+      );
+      await host.configure({
+        credentials: {},
+        selection: {
+          providerId: "budget-test",
+          modelId: "model",
+          thinkingLevel: "off",
+        },
+        providers: [
+          {
+            id: "budget-test",
+            name: "Budget test",
+            baseUrl: "http://127.0.0.1:1/v1",
+            models: [
+              {
+                id: "model",
+                name: "Model",
+                input: ["text"],
+                reasoning: false,
+                contextWindow: 128000,
+                maxTokens: 16000,
+              },
+            ],
+          },
+        ],
+        mcpTools: [
+          {
+            serverId: "large",
+            serverName: "Large",
+            transport: "stdio",
+            piName: "large_read",
+            toolName: "read",
+            description: "Return large text",
+            inputSchema: { type: "object", properties: {} },
+            readOnly: true,
+          },
+        ],
+      });
+      await host.openThread({
+        threadId: "mcp-large-thread",
+        workspacePath,
+        target: "local",
+      });
+      const thread = (
+        host as unknown as { threads: Map<string, InspectableThread> }
+      ).threads.get("mcp-large-thread");
+      if (thread) {
+        thread.currentTurnId = "turn-1";
+        thread.currentMode = "work";
+      }
+      const tool = await activateMcpTool(thread, "large", "large_read");
+      const result = (await tool?.execute("mcp-call", {
+        arguments: {},
+        model_approval: {
+          risk: "low",
+          explicit_user_request: false,
+          reason: "Read-only content retrieval.",
+        },
+      })) as {
+        content: Array<{ type: string; text?: string }>;
+      };
+      const text =
+        result.content.find((item) => item.type === "text")?.text ?? "";
+
+      if (truncated) {
+        expect(Buffer.byteLength(text)).toBeLessThan(
+          Buffer.byteLength(oversized),
+        );
+        expect(text).toContain("MCP output truncated by Artemis");
+      } else {
+        expect(text === oversized).toBe(true);
+      }
+      expect(text).toContain("TAIL_SENTINEL");
+
+      host.dispose();
+    },
+  );
+});

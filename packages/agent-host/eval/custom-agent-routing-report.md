@@ -1,3 +1,5 @@
+[English / 简体中文](custom-agent-routing-report-zh-CN.md)
+
 # Custom sub-agent automatic-delegation evaluation
 
 D#152 PR5. Fixed synthetic task set (`eval/custom-agent-routing-cases.ts`)
@@ -57,7 +59,7 @@ ARTEMIS_EVAL_UPDATE=1 npx vitest run test/custom-agent-routing-eval.test.ts
 With the automatic catalog empty every case degenerates to a free role:
 correct-selection 0.0%, miss rate 100.0% on should-pick, false-positive
 0.0%, duplicate work 0. This baseline is derived analytically and pinned
-by the empty-catalog control in `test/custom-agent-routing.test.ts`.
+by the empty-catalog control in `test/runtime/custom-agent-routing.test.ts`.
 
 ## Probabilistic (model-semantic) comparison
 

@@ -1,7 +1,7 @@
-import { driveSmokeWorkspaceDockEvidence } from "./smoke-workspace-dock.js";
-import { createDesktopUpdateService } from "./desktop-update-service.js";
+import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-dock.js";
+import { createDesktopUpdateService } from "./updates/desktop-update-service.js";
 import { readFileSync as readStartupFile } from "node:fs";
-import { createDesignHandoffHandler } from "./design-plugin-handoff.js";
+import { createDesignHandoffHandler } from "./design/design-plugin-handoff.js";
 import {
   deleteDesignDocument,
   readDesignDocumentLedger,
@@ -9,30 +9,30 @@ import {
   requireDesignDocumentId,
   resolveDesignDocumentDirectory,
   resolveHeadVersionEntry,
-} from "./design-plugin-document-files.js";
-import { DesignPanelHost } from "./design-plugin-panel-host.js";
+} from "./design/design-plugin-document-files.js";
+import { DesignPanelHost } from "./design/design-plugin-panel-host.js";
 import {
   closeWorkspaceTabMenu,
   setWorkspaceTabMenuHandlers,
   showWorkspaceTabMenu,
   workspaceTabMenuParent,
-} from "./workspace-tab-menu-window.js";
+} from "./workspace/workspace-tab-menu-window.js";
 import {
   createDispatchPluginTool,
   type PluginDispatch,
-} from "./design-plugin-dispatch.js";
-import { createDesignPackRuntime } from "./design-pack-runtime.js";
+} from "./design/design-plugin-dispatch.js";
+import { createDesignPackRuntime } from "./design/design-pack-runtime.js";
 import {
   designPluginRevisionsRoot,
   ensureThreadDataRoot,
   migrateLegacyDesignPluginRevisions,
-} from "./design-plugin-thread-data.js";
-import { PanelSendEntryService } from "./design-plugin-send-entry.js";
-import { ProviderLoginService } from "./provider-login-service.js";
+} from "./design/design-plugin-thread-data.js";
+import { PanelSendEntryService } from "./design/design-plugin-send-entry.js";
+import { ProviderLoginService } from "./settings/provider-login-service.js";
 import { isExecutionMode } from "@artemis/protocol";
-import { AppearanceService } from "./appearance-service.js";
-import { HooksService, type HookContext } from "./hooks-service.js";
-import { migratePluginUserData } from "./plugin-data-migration.js";
+import { AppearanceService } from "./appearance/appearance-service.js";
+import { HooksService, type HookContext } from "./hooks/hooks-service.js";
+import { migratePluginUserData } from "./plugins/plugin-data-migration.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
 import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
@@ -41,23 +41,23 @@ import { homedir as hookHomeDir } from "node:os";
 import type { HookQuery, HookInvocation } from "@artemis/protocol";
 import { ipcMain } from "electron";
 import { imText } from "@artemis/gateway";
-import { ImPermissionError, imRequiresApproval } from "./im-policy.js";
-import { ThreadHistoryService } from "./thread-history-service.js";
+import { ImPermissionError, imRequiresApproval } from "./im/im-policy.js";
+import { ThreadHistoryService } from "./conversation/thread-history-service.js";
 import type { ThreadHistoryCursor } from "../shared/thread-history.js";
-import { statusText } from "../shared/status-text.js";
-import { uiText } from "../shared/ui-text.js";
-import { installWorkspaceHistoryShortcuts } from "./workspace-history-shortcuts.js";
+import { statusText } from "../shared/i18n/status-text.js";
+import { uiText } from "../shared/i18n/ui-text.js";
+import { installWorkspaceHistoryShortcuts } from "./workspace/workspace-history-shortcuts.js";
 import {
   WorkspacePdfPreview,
   WORKSPACE_PDF_SCHEME,
-} from "./workspace-pdf-preview.js";
+} from "./workspace/workspace-pdf-preview.js";
 import { createHash } from "node:crypto";
 import {
   WorkspaceVideoPreview,
   WORKSPACE_VIDEO_SCHEME,
-} from "./workspace-video-preview.js";
-import { AttachmentStore } from "./attachment-store.js";
-import { WorkspaceHtmlPreview } from "./workspace-html-preview.js";
+} from "./workspace/workspace-video-preview.js";
+import { AttachmentStore } from "./conversation/attachment-store.js";
+import { WorkspaceHtmlPreview } from "./workspace/workspace-html-preview.js";
 import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
 import {
   customAgentRequestFingerprint,
@@ -65,22 +65,25 @@ import {
   validateCustomAgentSendReference,
   validateCustomAgentTasks,
   validateCustomAgentToolPolicy,
-} from "./custom-agent-validation.js";
+} from "./settings/custom-agent-validation.js";
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
-import { SleepPrevention } from "./sleep-prevention.js";
-import { ImService } from "./im-service.js";
-import { readProjectFileForPreview } from "./design-plugin-project-files.js";
-import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
+import { SleepPrevention } from "./platform/sleep-prevention.js";
+import { ImService } from "./im/im-service.js";
+import { readProjectFileForPreview } from "./design/design-plugin-project-files.js";
+import {
+  turnRecoveryContext,
+  type TurnCheckpoint,
+} from "./conversation/turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
 import { imManagementSchema, reduceAgentEvents } from "@artemis/protocol";
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { ensureProjectGitWatcher } from "./project-git-watcher.js";
+import { ensureProjectGitWatcher } from "./workspace/project-git-watcher.js";
 import {
   TaskNotifications,
   registerTaskNotifications,
-} from "./task-notifications.js";
+} from "./conversation/task-notifications.js";
 import { constants as fsConstants } from "node:fs";
 import {
   appendFile,
@@ -128,7 +131,7 @@ import {
   type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
-import { sandboxEscalationError } from "./sandbox-escalation.js";
+import { sandboxEscalationError } from "./security/sandbox-escalation.js";
 import { appendPromptFiles } from "@artemis/agent-host/turn-prompt";
 import {
   evaluateModePolicy,
@@ -204,39 +207,42 @@ import {
   worktreeCommandSchema,
 } from "@artemis/protocol";
 
-import { AgentProcess, type AgentProcessHandlers } from "./agent-process.js";
+import {
+  AgentProcess,
+  type AgentProcessHandlers,
+} from "./agent/agent-process.js";
 import {
   AgentCapacityController,
   type AgentCapacityChange,
   currentAgentCapacityHardware,
   reclaimableMemoryPercent,
   SystemCpuSampler,
-} from "./agent-capacity-controller.js";
-import { partitionAgentHostEvents } from "./agent-event-routing.js";
-import { TaskSourceImageStore } from "./task-source-images.js";
+} from "./agent/agent-capacity-controller.js";
+import { partitionAgentHostEvents } from "./agent/agent-event-routing.js";
+import { TaskSourceImageStore } from "./conversation/task-source-images.js";
 import {
   cleanupGoalObjective as cleanupGoalObjectiveFile,
   materializeGoalObjective as materializeGoalObjectiveFile,
   readGoalObjective as readGoalObjectiveFile,
-} from "./goal-objective.js";
+} from "./conversation/goal-objective.js";
 import {
   automationAuthorizationFingerprint,
   automationMayAutoApprove,
-} from "./automation-authorization.js";
+} from "./automation/automation-authorization.js";
 import {
   nextAutomationOccurrence,
   validateAutomationSchedule,
-} from "./automation-schedule.js";
-import { AutomationScheduler } from "./automation-scheduler.js";
+} from "./automation/automation-schedule.js";
+import { AutomationScheduler } from "./automation/automation-scheduler.js";
 import {
   effectiveApprovalRisk,
   modelMayAutoApprove,
   shouldAutoApprove,
-} from "./approval-mode.js";
+} from "./security/approval-mode.js";
 import {
   PendingApprovalRegistry,
   createApprovalFingerprint,
-} from "./approval-policy.js";
+} from "./security/approval-policy.js";
 import {
   PendingMultiUserInputRegistry,
   PendingUserInputRegistry,
@@ -244,14 +250,14 @@ import {
   isMultiQuestionUserInputRequest,
   prepareMultiQuestionUserInputRegistration,
   prepareSingleQuestionUserInputRegistration,
-} from "./user-input-policy.js";
+} from "./security/user-input-policy.js";
 import {
   externalHttpUrl,
   isPdfViewerStreamNavigationAllowed,
   isRendererNavigationAllowed,
-} from "./navigation-policy.js";
-import { OfficeDocumentService } from "./office-document-service.js";
-import { createOfficeWorkbench } from "./office-workbench.js";
+} from "./workspace/navigation-policy.js";
+import { OfficeDocumentService } from "./office/office-document-service.js";
+import { createOfficeWorkbench } from "./office/office-workbench.js";
 
 let officeWorkbench: ReturnType<typeof createOfficeWorkbench> | undefined;
 function getOfficeWorkbench() {
@@ -291,26 +297,26 @@ import {
   readLocalTextFile,
   resolveLocalFilePath,
   writeLocalTextFile,
-} from "./local-file-access.js";
+} from "./workspace/local-file-access.js";
 import {
   deletePiSessionTranscript,
   piSessionsRoot,
-} from "./pi-session-delete.js";
-import { RecoverableTurnQueues } from "./recoverable-turn-queue.js";
+} from "./conversation/pi-session-delete.js";
+import { RecoverableTurnQueues } from "./conversation/recoverable-turn-queue.js";
 import {
   GOAL_CONTINUATION_RETRY_DELAY_MILLISECONDS,
   goalFailureBlocker,
   goalFailureDisposition,
-} from "./goal-continuation.js";
+} from "./conversation/goal-continuation.js";
 import {
   commitProjectChanges,
   createGitBranch,
   inspectGitBranches,
   pushProjectBranch,
   switchGitBranch,
-} from "./git-branches.js";
-import { inspectProjectPullRequest } from "./github-pull-request.js";
-import { getReviewDiff, mutateReviewDiff } from "./git-review.js";
+} from "./workspace/git-branches.js";
+import { inspectProjectPullRequest } from "./workspace/github-pull-request.js";
+import { getReviewDiff, mutateReviewDiff } from "./workspace/git-review.js";
 import {
   attachPermanentWorktree,
   branchizeManagedWorktree,
@@ -319,52 +325,55 @@ import {
   removeManagedWorktree as removeManagedWorktreeFromGit,
   inspectWorktreeCleanup,
   restoreWorktreeSnapshot,
-} from "./git-worktree.js";
-import { WorktreeCapacity } from "./worktree-capacity.js";
-import { AppStore } from "./store.js";
-import { TurnChangeSetService } from "./turn-change-set.js";
+} from "./workspace/git-worktree.js";
+import { WorktreeCapacity } from "./workspace/worktree-capacity.js";
+import { AppStore } from "./settings/store.js";
+import { TurnChangeSetService } from "./workspace/turn-change-set.js";
 import {
   DiagnosticBundleService,
   parseContextOverflowTokens,
   type TurnLatencySample,
-} from "./diagnostic-bundle.js";
-import { EncryptedSettingsStore } from "./encrypted-settings-store.js";
-import { ConfigurationImportService } from "./configuration-import.js";
-import { GlobalInstructionsStore } from "./global-instructions-store.js";
+} from "./platform/diagnostic-bundle.js";
+import { EncryptedSettingsStore } from "./settings/encrypted-settings-store.js";
+import { ConfigurationImportService } from "./settings/configuration-import.js";
+import { GlobalInstructionsStore } from "./settings/global-instructions-store.js";
 import {
   GLOBAL_MEMORY_MAX_BYTES,
   MemoryStore,
   PROJECT_MEMORY_MAX_BYTES,
-} from "./memory-store.js";
-import { recallMemoryForTurn } from "./memory-recall.js";
-import { McpClientManager } from "./mcp-client-manager.js";
+} from "./memory/memory-store.js";
+import { recallMemoryForTurn } from "./memory/memory-recall.js";
+import { McpClientManager } from "./mcp/mcp-client-manager.js";
 import type {
   McpConnectionAuthentication,
   McpConnectOptions,
-} from "./mcp-client-manager.js";
+} from "./mcp/mcp-client-manager.js";
 import {
   McpConfigStore,
   validateMcpServerConfig,
   assertCredentialTargetUnchanged,
-} from "./mcp-config-store.js";
-import { importMcpServers } from "./mcp-import.js";
+} from "./mcp/mcp-config-store.js";
+import { importMcpServers } from "./mcp/mcp-import.js";
 import {
   customModelThinkingLevels,
   filterVisibleModels,
   loadBundledModelCatalog,
   mergeBundledModelCatalog,
-} from "./model-catalog.js";
+} from "./settings/model-catalog.js";
 import {
   SecureMcpOAuthProvider,
   startMcpOAuthCallback,
-} from "./mcp-oauth-provider.js";
-import { McpOAuthStore } from "./mcp-oauth-store.js";
-import { McpSecretStore } from "./mcp-secret-store.js";
-import { ResourceCatalogService } from "./resource-catalog.js";
-import { ArtemisPluginService } from "./artemis-plugin-service.js";
-import { assertPublicOAuthBrowserUrl } from "./connector-oauth-network.js";
-import { ConnectorService, connectorBinding } from "./connector-service.js";
-import { ConnectorVault } from "./connector-vault.js";
+} from "./mcp/mcp-oauth-provider.js";
+import { McpOAuthStore } from "./mcp/mcp-oauth-store.js";
+import { McpSecretStore } from "./mcp/mcp-secret-store.js";
+import { ResourceCatalogService } from "./plugins/resource-catalog.js";
+import { ArtemisPluginService } from "./plugins/artemis-plugin-service.js";
+import { assertPublicOAuthBrowserUrl } from "./connectors/connector-oauth-network.js";
+import {
+  ConnectorService,
+  connectorBinding,
+} from "./connectors/connector-service.js";
+import { ConnectorVault } from "./connectors/connector-vault.js";
 import {
   CONNECTOR_AUTH_META,
   type ConnectorConnectInput,
@@ -373,7 +382,7 @@ import {
 import {
   preparePackagedNodePtyRuntime,
   type PreparedNodePtyRuntime,
-} from "./node-pty-runtime.js";
+} from "./terminal/node-pty-runtime.js";
 import {
   AutomaticTaskTitles,
   formatImTaskTitle,
@@ -381,9 +390,9 @@ import {
   deriveTaskTitle,
   isAutomaticTaskTitle,
   shouldGenerateTaskTitle,
-} from "./task-title.js";
-import { mainText } from "./i18n.js";
-import { I18N_RESOURCES } from "../shared/i18n-resources.js";
+} from "./conversation/task-title.js";
+import { mainText } from "./settings/i18n.js";
+import { I18N_RESOURCES } from "../shared/i18n/i18n-resources.js";
 import {
   assertConversationTarget,
   conversationApprovalScopes,
@@ -393,29 +402,29 @@ import {
   copyTemporaryConversationWorkspace,
   ensureTemporaryConversationWorkspace,
   removeTemporaryConversationWorkspace,
-} from "./temporary-conversation.js";
+} from "./conversation/temporary-conversation.js";
 import {
   configureNodePtyRuntime,
   TerminalService,
-} from "./terminal-service.js";
-import { ReleaseUpdateManager } from "./release-update-manager.js";
-import { TrustedExtensionManager } from "./trusted-extension-manager.js";
-import { TrustedExtensionStore } from "./trusted-extension-store.js";
+} from "./terminal/terminal-service.js";
+import { ReleaseUpdateManager } from "./updates/release-update-manager.js";
+import { TrustedExtensionManager } from "./plugins/trusted-extension-manager.js";
+import { TrustedExtensionStore } from "./plugins/trusted-extension-store.js";
 import {
   listWorkspaceDirectory,
   readWorkspaceFile,
   readWorkspaceImage,
   readWorkspaceTextFile,
   writeWorkspaceFile,
-} from "./workspace-text-file.js";
+} from "./workspace/workspace-text-file.js";
 import {
   resolveWorkspaceFileLink,
   type ResolvedWorkspaceFileLink,
-} from "./workspace-file-link.js";
+} from "./workspace/workspace-file-link.js";
 import {
   applyWorkspaceChangeBundle,
   createWorkspaceChangeBundle,
-} from "./workspace-handoff.js";
+} from "./workspace/workspace-handoff.js";
 import {
   IPC,
   type AddReviewCommentInput,
@@ -476,12 +485,12 @@ import {
 import {
   BROWSER_SESSION_PARTITION,
   withBrowserAcceptLanguage,
-} from "../shared/browser-locale.js";
-import { resolveAppLocale } from "../shared/locales.js";
+} from "../shared/i18n/browser-locale.js";
+import { resolveAppLocale } from "../shared/i18n/locales.js";
 import {
   createStartupTiming,
   type StartupTimingMark,
-} from "./startup-timing.js";
+} from "./platform/startup-timing.js";
 
 const { autoUpdater } = electronUpdater;
 const smokeMode = Boolean(process.env.ARTEMIS_SMOKE_SCREENSHOT);
@@ -13970,7 +13979,7 @@ async function seedSmokeUserInputTransportFixture(): Promise<void> {
 // D#76 PR10C multi-question UI smoke seeding (A8). Unlike the #124
 // transport driver, this fixture only SEEDS state; the interactive evidence
 // (real CDP Input-level clicks and keys, Q1 -> Q2 -> Q3) is driven by
-// scripts/verify-user-input-multi-ui.mjs against the real renderer. The
+// scripts/verify/ui/verify-user-input-multi-ui.mjs against the real renderer. The
 // multi card rides the exact #124 smoke channel (a real registry
 // registration plus a real user-input.requested payload through
 // emitPayload), the legacy regression card rides the real single-question
@@ -14459,7 +14468,7 @@ function seedSmokeTurnChangesFixture(): void {
         {
           path: binary
             ? "apps/desktop/src/renderer/reference.png"
-            : "apps/desktop/src/renderer/App.tsx",
+            : "apps/desktop/src/renderer/app/App.tsx",
           status: "modified" as const,
           additions: binary ? 0 : 218,
           deletions: 0,
@@ -14475,14 +14484,14 @@ function seedSmokeTurnChangesFixture(): void {
           binary: false,
         },
         {
-          path: "apps/desktop/src/renderer/composer-drafts.ts",
+          path: "apps/desktop/src/renderer/conversation/composer-drafts.ts",
           status: "modified" as const,
           additions: 50,
           deletions: 2,
           binary: false,
         },
         {
-          path: "apps/desktop/src/renderer/timeline-scroll.ts",
+          path: "apps/desktop/src/renderer/conversation/timeline-scroll.ts",
           status: "modified" as const,
           additions: 17,
           deletions: 0,
@@ -14517,7 +14526,7 @@ function seedSmokeTurnChangesFixture(): void {
       type: "tool.started",
       toolCallId: "turn-changes-tool",
       toolName: "read",
-      input: { path: "apps/desktop/src/renderer/App.tsx" },
+      input: { path: "apps/desktop/src/renderer/app/App.tsx" },
     },
     {
       type: "tool.completed",
@@ -14795,7 +14804,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
           binary: false,
         },
         {
-          path: "apps/desktop/src/renderer/App.tsx",
+          path: "apps/desktop/src/renderer/app/App.tsx",
           status: "modified",
           additions: 84,
           deletions: 61,

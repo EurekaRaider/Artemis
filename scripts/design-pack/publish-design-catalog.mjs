@@ -1,4 +1,4 @@
-import { proposeCatalog } from "../catalog-pull-request.mjs";
+import { proposeCatalog } from "../ui/catalog-pull-request.mjs";
 // Publish the merged design-pack catalog to the release host's main branch
 // (the URL the app's update check reads; mirrors publish-office-catalog.mjs).
 // Merges rather than replaces: existing pack manifests stay, the artemis-design

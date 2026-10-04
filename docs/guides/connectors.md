@@ -1,3 +1,5 @@
+[English / 简体中文](connectors-zh-CN.md)
+
 # Connectors v1
 
 Artemis connects directly to official services. It does not need an Artemis

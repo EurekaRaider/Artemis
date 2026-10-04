@@ -1,4 +1,4 @@
-import { proposeCatalog } from "../catalog-pull-request.mjs";
+import { proposeCatalog } from "../ui/catalog-pull-request.mjs";
 import { readFile } from "node:fs/promises";
 const repo = "EurekaRaider/ArtemisRelease";
 const endpoint = `https://api.github.com/repos/${repo}/contents/office-runtime/catalog.json`;

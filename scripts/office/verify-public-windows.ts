@@ -11,8 +11,8 @@ import {
 } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { createOfficeWorkbench } from "../../apps/desktop/src/main/office-workbench.js";
-import { UnoOfficeEngine } from "../../apps/desktop/src/main/office-uno-engine.js";
+import { createOfficeWorkbench } from "../../apps/desktop/src/main/office/office-workbench.js";
+import { UnoOfficeEngine } from "../../apps/desktop/src/main/office/office-uno-engine.js";
 if (process.platform !== "win32" || !process.env.LOCALAPPDATA)
   throw Error("Windows user profile required");
 for (const name of await readdir(process.env.LOCALAPPDATA)) {

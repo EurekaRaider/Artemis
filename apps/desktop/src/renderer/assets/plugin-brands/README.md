@@ -1,3 +1,5 @@
+[English / 简体中文](README-zh-CN.md)
+
 # Plugin brand fallbacks
 
 These PNGs are copied without modification from the matching

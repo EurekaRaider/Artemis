@@ -1,3 +1,5 @@
+[English / 简体中文](plugin-development-en.md)
+
 # 插件开发
 
 Artemis 使用 `artemis.plugin.json` 声明插件。v2 的公共元数据为 `schemaVersion`、`kind`、`id`、`name`、`version` 和可选 `description`。资源插件与交互插件共用元数据，各自拥有独立的能力声明；现有 v1 插件继续由兼容层读取，不要求立即迁移。

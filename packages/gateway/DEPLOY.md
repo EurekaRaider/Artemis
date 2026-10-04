@@ -1,3 +1,5 @@
+[English / 简体中文](DEPLOY-en.md)
+
 # Artemis Gateway
 
 普通用户请在 Artemis 设置 → IM 连接点击“一键启动并注册”。无需源码、Node.js、npm、命令行或单独部署。
@@ -22,12 +24,4 @@ Artemis 的 Slack 设置提供应用清单，可直接导入，自动配置 Sock
 
 Slack Socket Mode、企业微信和飞书长连接只需出站网络；飞书也可选择 HTTPS 回调。每个连接只启用一种传输，切换时先停止旧订阅。飞书按钮需订阅 card.action.trigger，Typing 需消息表情读写权限。
 
-## English
-
-For personal use, choose **Start and register automatically** in Artemis IM settings. It needs no source checkout, separate runtime or terminal.
-
-For a shared server, install Node.js 24+, extract this package and run `node gateway.mjs` in its directory. The first launch generates `.env.gateway` with two independent secrets. Later launches reuse it. Read the administrator token from that file to register desktop devices; keep the file private. Configure an HTTPS reverse proxy for access from other computers or Feishu callbacks. Back up the data directory and configuration together while the service is stopped.
-
-Slack needs only the bot token and an app-level token with `connections:write`. Import the manifest supplied in Artemis to configure permissions, message events and Socket Mode. Use plain chat commands such as `pair CODE` and `new TASK` without a leading slash.
-
-Feishu defaults to a long connection with outbound network access only. HTTPS callbacks remain available; one connection owns exactly one ingress transport. Existing callback configurations without a transport field remain callbacks. Subscribe to `im.message.receive_v1` and `card.action.trigger`, enable message resource and reaction permissions as needed, and stop the legacy desktop subscription before migration. Importing credentials does not import identities, grants or pending approvals.
+飞书默认使用仅需出站网络的长连接，也支持 HTTPS 回调；一个连接只能使用一种接入传输。没有 transport 字段的旧回调配置仍按回调处理。订阅 `im.message.receive_v1` 和 `card.action.trigger`，按需启用消息资源及表情权限，迁移前停止旧桌面订阅。导入凭据不会导入身份、授权或待处理审批。

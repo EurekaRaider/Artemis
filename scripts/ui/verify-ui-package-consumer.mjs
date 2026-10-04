@@ -1,0 +1,931 @@
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = fileURLToPath(new URL("../../", import.meta.url));
+const npm = process.platform === "win32" ? process.execPath : "npm";
+const npmArguments =
+  process.platform === "win32"
+    ? [
+        process.env.npm_execpath ??
+          join(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js"),
+      ]
+    : [];
+const consumer = await mkdtemp(join(tmpdir(), "artemis-ui-consumer-"));
+
+function run(command, args, cwd = root) {
+  const result = spawnSync(command, args, {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      npm_config_cache: join(consumer, ".npm-cache"),
+    },
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(" ")} failed with ${String(result.status)}: ${result.error?.message ?? ""}\n${result.stdout ?? ""}${result.stderr ?? ""}`,
+    );
+  }
+  return result.stdout.trim();
+}
+
+function runNpm(args, cwd = root) {
+  return run(npm, [...npmArguments, ...args], cwd);
+}
+
+function runEsbuild(args, cwd = consumer) {
+  return process.platform === "win32"
+    ? run(
+        process.execPath,
+        [join(root, "node_modules/esbuild/bin/esbuild"), ...args],
+        cwd,
+      )
+    : run(join(root, "node_modules/.bin/esbuild"), args, cwd);
+}
+
+async function pack(packagePath, auditPublicFiles) {
+  const output = runNpm([
+    "pack",
+    "--json",
+    "--pack-destination",
+    consumer,
+    join(root, packagePath),
+  ]);
+  const result = JSON.parse(output)[0];
+  if (auditPublicFiles) {
+    const paths = result.files.map((entry) => entry.path);
+    for (const path of paths) {
+      if (path !== "package.json" && !path.startsWith("dist/")) {
+        throw new Error(
+          `${packagePath} tarball contains a non-artifact file: ${path}`,
+        );
+      }
+      if (/(^|\/)(?:src|test|tests)(\/|$)|\.env(?:\.|$)/u.test(path)) {
+        throw new Error(
+          `${packagePath} tarball leaks source/test/secret path: ${path}`,
+        );
+      }
+    }
+    for (const expected of auditPublicFiles) {
+      if (!paths.includes(expected)) {
+        throw new Error(`${packagePath} tarball is missing ${expected}`);
+      }
+    }
+  }
+  return join(consumer, result.filename);
+}
+
+async function textFilesBelow(directory) {
+  const files = [];
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...(await textFilesBelow(path)));
+    else if (/\.(?:css|d\.ts|js|json|map)$/u.test(entry.name)) files.push(path);
+  }
+  return files;
+}
+
+try {
+  const tarballs = [
+    await pack("packages/theme-contract", [
+      "dist/index.js",
+      "dist/index.d.ts",
+      "dist/schema/manifest.schema.json",
+      "dist/schema/tokens.schema.json",
+      "dist/schema/integrity.schema.json",
+    ]),
+    await pack("packages/ui", [
+      "dist/index.js",
+      "dist/index.d.ts",
+      "dist/conformance.js",
+      "dist/conformance.d.ts",
+      "dist/conversation.js",
+      "dist/conversation.d.ts",
+      "dist/data.js",
+      "dist/data.d.ts",
+      "dist/actions.js",
+      "dist/actions.d.ts",
+      "dist/forms.js",
+      "dist/forms.d.ts",
+      "dist/icons.js",
+      "dist/icons.d.ts",
+      "dist/feedback.js",
+      "dist/feedback.d.ts",
+      "dist/layout.js",
+      "dist/layout.d.ts",
+      "dist/management.js",
+      "dist/management.d.ts",
+      "dist/navigation.js",
+      "dist/navigation.d.ts",
+      "dist/patterns.js",
+      "dist/patterns.d.ts",
+      "dist/professional.js",
+      "dist/professional.d.ts",
+      "dist/surfaces.js",
+      "dist/surfaces.d.ts",
+      "dist/workspace.js",
+      "dist/workspace.d.ts",
+      "dist/workflow.js",
+      "dist/workflow.d.ts",
+      "dist/styles.css",
+    ]),
+    await pack("packages/theme-artemis", [
+      "dist/index.js",
+      "dist/index.d.ts",
+      "dist/manifest.json",
+      "dist/tokens.light.json",
+      "dist/tokens.dark.json",
+      "dist/tokens.contrast.json",
+      "dist/integrity.json",
+      "dist/theme.css",
+    ]),
+    await pack("node_modules/react"),
+    await pack("node_modules/react-dom"),
+    await pack("node_modules/scheduler"),
+    await pack("node_modules/@types/react"),
+    await pack("node_modules/csstype"),
+  ];
+
+  await writeFile(
+    join(consumer, "package.json"),
+    `${JSON.stringify({ name: "artemis-ui-consumer", private: true, type: "module" }, null, 2)}\n`,
+    "utf8",
+  );
+  runNpm(
+    [
+      "install",
+      "--offline",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      ...tarballs,
+    ],
+    consumer,
+  );
+
+  await writeFile(
+    join(consumer, "consumer.ts"),
+    `import type { ReactNode } from "react";\nimport { UI_CONTRACT_VERSION, validateComponentContract, type ArtemisUiRootAttributes, type ComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Button, IconButton, type ActionIconSize, type ActionTone } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { CONVERSATION_COMPONENT_CONTRACTS, ConversationMessage, type ConversationComponentState } from "@artemis/ui/conversation";\nimport { DATA_COMPONENT_CONTRACTS, DataHeatmap, DataStat, DataSurface, type DataState } from "@artemis/ui/data";\nimport { FEEDBACK_COMPONENT_CONTRACTS, InlineNotice, Toast, type FeedbackTone } from "@artemis/ui/feedback";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField, type FormControlSize, type SelectOption } from "@artemis/ui/forms";\nimport { ArtemisIcon, ARTEMIS_ICON_NAMES, type ArtemisIconName } from "@artemis/ui/icons";\nimport { LAYOUT_COMPONENT_CONTRACTS, PanelHeader, SplitPane, type LayoutState } from "@artemis/ui/layout";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs, type NavigationControlSize, type TabOption } from "@artemis/ui/navigation";\nimport { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, TaskPlan, ToolActivity, type AgentTeamMember, type PatternState, type ResultDisclosureProps, type RunModeOption, type TaskPlanProps, type ToolActivityProps, type UserInputOption } from "@artemis/ui/patterns";\nimport { ApplicationShell, ComposerSurface, SURFACE_COMPONENT_CONTRACTS, type SurfaceState } from "@artemis/ui/surfaces";\nimport { validateSkinManifest, type SkinManifest } from "@artemis/theme-contract";\nimport { artemisThemeManifest } from "@artemis/theme-artemis";\nconst attributes: ArtemisUiRootAttributes = {\n  "data-artemis-skin": "com.artemis.default",\n  "data-artemis-theme": "light",\n  "data-artemis-contrast": "normal",\n};\nconst manifest: SkinManifest = artemisThemeManifest;\nconst contract: ComponentContract = CONFORMANCE_PROBE_CONTRACT;\nconst iconSize: ActionIconSize = "xl";\nconst iconName: ArtemisIconName = ARTEMIS_ICON_NAMES[0];\nconst tone: ActionTone = "success";\nconst feedbackTone: FeedbackTone = "warning";\nconst layoutState: LayoutState = "ready";\nconst patternState: PatternState = "pending";\nconst conversationState: ConversationComponentState = "streaming";\nconst dataState: DataState = "loading";\nconst surfaceState: SurfaceState = "collapsed";\nconst formSize: FormControlSize = "comfortable";\nconst navigationSize: NavigationControlSize = "compact";\nconst option: SelectOption<"one"> = { value: "one", label: "One" };\nconst tabOption: TabOption<"one"> = { id: "one-tab", panelId: "one-panel", value: "one", label: "One" };\nconst richPatternLabel = {} as ReactNode;\n// @ts-expect-error run-mode labels are string-owned\nconst invalidRunModeLabel: RunModeOption<"plan"> = { label: richPatternLabel, value: "plan" };\n// @ts-expect-error user-input labels are string-owned\nconst invalidInputLabel: UserInputOption = { id: "one", label: richPatternLabel };\n// @ts-expect-error agent-team labels are string-owned\nconst invalidMemberLabel: AgentTeamMember = { id: "one", label: richPatternLabel, state: "completed", statusLabel: "Completed" };\n// @ts-expect-error controlled ToolActivity cannot also declare defaultExpanded\nconst invalidToolOwnership: ToolActivityProps = { children: "Details", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Tool", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Tool" };\n// @ts-expect-error controlled TaskPlan cannot also declare defaultExpanded\nconst invalidPlanOwnership: TaskPlanProps = { collapseLabel: "Collapse", currentStepId: "one", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Plan", onExpandedChange() {}, progressLabel: "Step 1", state: "active", statusLabel: "Active", steps: [{ id: "one", label: "One", status: "pending", statusLabel: "Pending" }], stepsLabel: "Steps" };\n// @ts-expect-error controlled ResultDisclosure cannot also declare defaultExpanded\nconst invalidResultOwnership: ResultDisclosureProps = { children: "Result", collapseLabel: "Collapse", defaultExpanded: true, expandLabel: "Expand", expanded: false, label: "Result", onExpandedChange() {}, state: "completed", statusLabel: "Completed", summary: "Result" };\nvoid invalidRunModeLabel;\nvoid invalidInputLabel;\nvoid invalidMemberLabel;\nvoid invalidToolOwnership;\nvoid invalidPlanOwnership;\nvoid invalidResultOwnership;\nvoid ConformanceProbe;\nvoid ConversationMessage;\nvoid DataHeatmap;\nvoid DataStat;\nvoid DataSurface;\nvoid ArtemisIcon;\nvoid iconName;\nvoid Button;\nvoid IconButton;\nvoid InlineNotice;\nvoid Toast;\nvoid PanelHeader;\nvoid SplitPane;\nvoid ApprovalCard;\nvoid TaskPlan;\nvoid ToolActivity;\nvoid ApplicationShell;\nvoid ComposerSurface;\nvoid Checkbox;\nvoid SearchField;\nvoid Select;\nvoid Switch;\nvoid TextField;\nvoid SegmentedControl;\nvoid Tabs;\nif (UI_CONTRACT_VERSION !== 1 || !validateSkinManifest(manifest).valid || !validateComponentContract(contract).valid || attributes["data-artemis-theme"] !== "light" || ACTION_COMPONENT_CONTRACTS.icon.sizes.at(-1) !== iconSize || ACTION_COMPONENT_CONTRACTS.status.tones?.at(2) !== tone || FEEDBACK_COMPONENT_CONTRACTS.toast.tones?.at(3) !== feedbackTone || LAYOUT_COMPONENT_CONTRACTS.toolbar.states.at(0) !== layoutState || PATTERN_COMPONENT_CONTRACTS.approvalCard.states.at(0) !== patternState || CONVERSATION_COMPONENT_CONTRACTS.conversationMessage.states.at(2) !== conversationState || DATA_COMPONENT_CONTRACTS.dataSurface.states.at(1) !== dataState || SURFACE_COMPONENT_CONTRACTS.navigationSidebar.states.at(-1) !== surfaceState || FORM_COMPONENT_CONTRACTS.textField.sizes.at(-1) !== formSize || NAVIGATION_COMPONENT_CONTRACTS.tabs.sizes.at(0) !== navigationSize || option.value !== "one" || tabOption.value !== "one") throw new Error("invalid contract");\n`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "pattern-label-types.ts"),
+    `import { createElement } from "react";
+import type { AgentActivityProps, AgentTeamMember, RunModeOption, UserInputOption } from "@artemis/ui/patterns";
+
+const icon = createElement("span", null, "icon");
+const validRunMode: RunModeOption<"plan"> = { icon, label: "Plan", labelVisibility: "hidden", value: "plan" };
+const validInput: UserInputOption = { icon, id: "plan", label: "Plan", labelVisibility: "hidden" };
+const validMember: AgentTeamMember = { icon, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+const validInteractiveActivity: AgentActivityProps = { label: "Open validator", onActivate() {}, state: "running", statusLabel: "Running", title: "Validator" };
+
+// @ts-expect-error root activation and nested actions are mutually exclusive
+const invalidInteractiveActivity: AgentActivityProps = { actions: createElement("button"), label: "Open validator", onActivate() {}, state: "running", statusLabel: "Running", title: "Validator" };
+
+// @ts-expect-error hidden run-mode labels reject empty-string icons
+const invalidRunModeEmpty: RunModeOption<"plan"> = { icon: "", label: "Plan", labelVisibility: "hidden", value: "plan" };
+// @ts-expect-error hidden run-mode labels reject numeric icons
+const invalidRunModeZero: RunModeOption<"plan"> = { icon: 0, label: "Plan", labelVisibility: "hidden", value: "plan" };
+// @ts-expect-error hidden run-mode labels require an icon
+const invalidRunModeMissing: RunModeOption<"plan"> = { label: "Plan", labelVisibility: "hidden", value: "plan" };
+
+// @ts-expect-error hidden user-input labels reject empty-string icons
+const invalidInputEmpty: UserInputOption = { icon: "", id: "plan", label: "Plan", labelVisibility: "hidden" };
+// @ts-expect-error hidden user-input labels reject numeric icons
+const invalidInputZero: UserInputOption = { icon: 0, id: "plan", label: "Plan", labelVisibility: "hidden" };
+// @ts-expect-error hidden user-input labels require an icon
+const invalidInputMissing: UserInputOption = { id: "plan", label: "Plan", labelVisibility: "hidden" };
+
+// @ts-expect-error hidden agent-team labels reject empty-string icons
+const invalidMemberEmpty: AgentTeamMember = { icon: "", id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+// @ts-expect-error hidden agent-team labels reject numeric icons
+const invalidMemberZero: AgentTeamMember = { icon: 0, id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+// @ts-expect-error hidden agent-team labels require an icon
+const invalidMemberMissing: AgentTeamMember = { id: "validator", label: "Validator", labelVisibility: "hidden", state: "running", statusLabel: "Running" };
+
+void validRunMode;
+void validInput;
+void validMember;
+void validInteractiveActivity;
+void invalidInteractiveActivity;
+void invalidRunModeEmpty;
+void invalidRunModeZero;
+void invalidRunModeMissing;
+void invalidInputEmpty;
+void invalidInputZero;
+void invalidInputMissing;
+void invalidMemberEmpty;
+void invalidMemberZero;
+void invalidMemberMissing;
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "workspace-consumer.ts"),
+    `import { createElement } from "react";
+import {
+  WORKSPACE_COMPONENT_CONTRACTS,
+  WorkspaceDock,
+  WorkspaceEditorToolbar,
+  WorkspaceSourceEditor,
+  type WorkspaceComponentState,
+  type WorkspaceEditorToolbarProps,
+} from "@artemis/ui/workspace";
+
+const state: WorkspaceComponentState = "dirty";
+const toolbar: WorkspaceEditorToolbarProps = {
+  dirty: true,
+  onSave() {},
+  path: "README.md",
+  readOnly: false,
+  saveLabel: "Save",
+  savedLabel: "Saved",
+  saveState: "idle",
+  savingLabel: "Saving",
+  unsavedLabel: "Unsaved",
+};
+const dock = createElement(WorkspaceDock, { children: "Content", label: "Workspace", open: true });
+const editor = createElement(WorkspaceEditorToolbar, toolbar, createElement(WorkspaceSourceEditor, { label: "Source", language: "markdown", value: "# README" }));
+if (!Object.isFrozen(WORKSPACE_COMPONENT_CONTRACTS) || state !== "dirty") throw new Error("invalid workspace contract");
+void dock;
+void editor;
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "workflow-consumer.ts"),
+    `import { createElement } from "react";
+import {
+  EnvironmentControl,
+  EnvironmentTrigger,
+  GoalEditorInput,
+  GoalEditorSurface,
+  ReviewSurface,
+  SourcesSurface,
+  WORKFLOW_COMPONENT_CONTRACTS,
+  type WorkflowComponentState,
+} from "@artemis/ui/workflow";
+
+const state: WorkflowComponentState = "stale";
+const review = createElement(ReviewSurface, { children: "Diff", label: "Review" });
+const environment = createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { controls: "environment-panel", expanded: false, icon: "Environment", label: "Environment" }));
+const goal = createElement(GoalEditorSurface, { children: createElement(GoalEditorInput, { "aria-label": "Objective", value: "Ship" }), label: "Goal", state });
+const sources = createElement(SourcesSurface, { children: "Source", label: "Sources" });
+if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("invalid workflow contract");
+void review;
+void environment;
+void goal;
+void sources;
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "professional-consumer.ts"),
+    `import { createElement } from "react";
+import {
+  BrowserAddressForm,
+  BrowserAddressInput,
+  BrowserGoButton,
+  BrowserSurface,
+  BrowserViewport,
+  PROFESSIONAL_COMPONENT_CONTRACTS,
+  TerminalHeader,
+  TerminalHost,
+  TerminalSurface,
+  TerminalViewport,
+  type ProfessionalComponentState,
+} from "@artemis/ui/professional";
+
+const state: ProfessionalComponentState = "connecting";
+const terminal = createElement(TerminalSurface, { children: undefined, label: "Terminal", state }, createElement(TerminalHeader, { detail: "zsh", heading: "Terminal" }), createElement(TerminalViewport, null, createElement(TerminalHost)));
+const browser = createElement(BrowserSurface, { children: undefined, label: "Browser", state: "ready" }, createElement(BrowserAddressForm, { children: undefined, label: "Address" }, createElement(BrowserAddressInput, { label: "Address", value: "about:blank" }), createElement(BrowserGoButton, { label: "Go" })), createElement(BrowserViewport, { children: undefined, label: "Document" }, "Document"));
+if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("invalid professional contract");
+void terminal;
+void browser;
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "management-consumer.ts"),
+    `import { createElement } from "react";
+import { TextAreaField } from "@artemis/ui/forms";
+import {
+  MANAGEMENT_COMPONENT_CONTRACTS,
+  ManagementCard,
+  ManagementHeader,
+  ManagementRow,
+  ManagementSection,
+  McpEditorSurface,
+  ResourceSurface,
+  SettingsSurface,
+  type ManagementState,
+} from "@artemis/ui/management";
+
+const state: ManagementState = "busy";
+const header = createElement(ManagementHeader, { title: "Settings" });
+const field = createElement(TextAreaField, { defaultValue: "Synthetic", label: "Instructions" });
+const section = createElement(ManagementSection, { children: field, title: "Provider" });
+const settings = createElement(SettingsSurface, { children: section, header, label: "Settings", navigation: "Navigation", state });
+const resource = createElement(ResourceSurface, { children: createElement(ManagementCard, null, createElement(ManagementRow, { title: "Resource" })), label: "Resources" });
+const mcp = createElement(McpEditorSurface, { actions: "Save", children: "Editor", header, label: "MCP editor" });
+if (!Object.isFrozen(MANAGEMENT_COMPONENT_CONTRACTS)) throw new Error("invalid management contract");
+void settings;
+void resource;
+void mcp;
+`,
+    "utf8",
+  );
+  await writeFile(
+    join(consumer, "tsconfig.json"),
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          strict: true,
+          target: "ES2024",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          skipLibCheck: true,
+          noEmit: true,
+        },
+        include: [
+          "consumer.ts",
+          "pattern-label-types.ts",
+          "workspace-consumer.ts",
+          "workflow-consumer.ts",
+          "professional-consumer.ts",
+          "management-consumer.ts",
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+  run(
+    process.execPath,
+    [join(root, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"],
+    consumer,
+  );
+
+  await writeFile(
+    join(consumer, "consumer.mjs"),
+    `import { createHash } from "node:crypto";\nimport { readFile } from "node:fs/promises";\nimport { fileURLToPath } from "node:url";\nimport { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { UI_CONTRACT_VERSION, validateComponentContract } from "@artemis/ui";\nimport { ACTION_COMPONENT_CONTRACTS, Badge, Button, IconButton, Status } from "@artemis/ui/actions";\nimport { CONFORMANCE_PROBE_CONTRACT, ConformanceProbe } from "@artemis/ui/conformance";\nimport { FORM_COMPONENT_CONTRACTS, Checkbox, SearchField, Select, Switch, TextField } from "@artemis/ui/forms";\nimport { validateSkinIntegrity, validateSkinPackage } from "@artemis/theme-contract";\nimport { artemisThemeManifest, artemisTokenDocuments } from "@artemis/theme-artemis";\nconst publicPaths = [\n  "@artemis/ui/styles.css",\n  "@artemis/theme-contract/schema/manifest.json",\n  "@artemis/theme-contract/schema/tokens.json",\n  "@artemis/theme-contract/schema/integrity.json",\n  "@artemis/theme-artemis/manifest.json",\n  "@artemis/theme-artemis/tokens.light.json",\n  "@artemis/theme-artemis/tokens.dark.json",\n  "@artemis/theme-artemis/tokens.contrast.json",\n  "@artemis/theme-artemis/integrity.json",\n  "@artemis/theme-artemis/theme.css",\n];\nfor (const path of publicPaths) {\n  const content = await readFile(fileURLToPath(import.meta.resolve(path)), "utf8");\n  if (content.length === 0) throw new Error(\`empty public export: \${path}\`);\n}\nif (!validateSkinPackage({ manifest: artemisThemeManifest, tokenDocuments: artemisTokenDocuments }).valid) throw new Error("skin validation failed");\nconst integrity = JSON.parse(await readFile(fileURLToPath(import.meta.resolve("@artemis/theme-artemis/integrity.json")), "utf8"));\nif (!validateSkinIntegrity(integrity, artemisThemeManifest).valid) throw new Error("integrity validation failed");\nfor (const [file, expectedHash] of Object.entries(integrity.files)) {\n  const content = await readFile(fileURLToPath(import.meta.resolve("@artemis/theme-artemis/" + file)));\n  const actualHash = createHash("sha256").update(content).digest("hex");\n  if (actualHash !== expectedHash) throw new Error("integrity hash mismatch: " + file);\n}\nconst probeMarkup = renderToStaticMarkup(createElement(ConformanceProbe, { label: "Outside probe", defaultValue: "peer-ok" }));\nconst actionMarkup = [\n  renderToStaticMarkup(createElement(Button, { label: "Button outside" }, "Button")),\n  renderToStaticMarkup(createElement(IconButton, { label: "Outside icon button", icon: createElement("svg") })),\n  renderToStaticMarkup(createElement(Badge, { tone: "success" }, "Complete")),\n  renderToStaticMarkup(createElement(Status, { live: "polite" }, "Running")),\n].join("");\nconst formMarkup = [\n  renderToStaticMarkup(createElement(TextField, { label: "Outside field", defaultValue: "value" })),\n  renderToStaticMarkup(createElement(SearchField, { label: "Outside search", defaultValue: "query" })),\n  renderToStaticMarkup(createElement(Select, { label: "Outside select", value: "one", options: [{ value: "one", label: "One" }], onValueChange() {} })),\n  renderToStaticMarkup(createElement(Checkbox, { label: "Outside checkbox", defaultChecked: true })),\n  renderToStaticMarkup(createElement(Switch, { label: "Outside switch", defaultChecked: true })),\n].join("");\nif (UI_CONTRACT_VERSION !== 1 || !validateComponentContract(CONFORMANCE_PROBE_CONTRACT).valid || !Object.isFrozen(ACTION_COMPONENT_CONTRACTS) || !Object.isFrozen(FORM_COMPONENT_CONTRACTS) || !probeMarkup.includes('data-artemis-component="conformance-probe"') || !probeMarkup.includes('data-part="control"') || !actionMarkup.includes('data-artemis-component="button"') || !actionMarkup.includes('data-artemis-component="icon-button"') || !actionMarkup.includes('data-artemis-component="badge"') || !actionMarkup.includes('data-artemis-component="status"') || !formMarkup.includes('data-artemis-component="text-field"') || !formMarkup.includes('data-artemis-component="search-field"') || !formMarkup.includes('data-artemis-component="select"') || !formMarkup.includes('data-artemis-component="checkbox"') || !formMarkup.includes('data-artemis-component="switch"')) throw new Error("peer/component resolution failed");\nconsole.log("outside consumer resolved JS, types, actions/conformance/forms subpaths, CSS, schema, integrity, token data, and React peers");\n`,
+    "utf8",
+  );
+  run(process.execPath, ["consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "navigation-consumer.mjs"),
+    `import { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { NAVIGATION_COMPONENT_CONTRACTS, SegmentedControl, Tabs } from "@artemis/ui/navigation";\nconst tabs = renderToStaticMarkup(createElement(Tabs, { label: "Outside tabs", value: "one", onValueChange() {}, options: [{ id: "outside-tab", panelId: "outside-panel", value: "one", label: "One" }] }));\nconst segmented = renderToStaticMarkup(createElement(SegmentedControl, { label: "Outside segmented", value: "one", onValueChange() {}, options: [{ value: "one", label: "One" }] }));\nif (!Object.isFrozen(NAVIGATION_COMPONENT_CONTRACTS) || !tabs.includes('data-artemis-component="tabs"') || !tabs.includes('aria-controls="outside-panel"') || !segmented.includes('data-artemis-component="segmented-control"') || !segmented.includes('aria-pressed="true"')) throw new Error("navigation peer/component resolution failed");\n`,
+    "utf8",
+  );
+  run(process.execPath, ["navigation-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "feedback-layout-consumer.mjs"),
+    `import { createElement } from "react";\nimport { renderToStaticMarkup } from "react-dom/server";\nimport { FEEDBACK_COMPONENT_CONTRACTS, EmptyState, InlineNotice, LoadingState, Toast } from "@artemis/ui/feedback";\nimport { LAYOUT_COMPONENT_CONTRACTS, ListRow, PanelHeader, ScrollArea, SplitPane, Toolbar } from "@artemis/ui/layout";\nconst feedback = [\n  renderToStaticMarkup(createElement(InlineNotice, { tone: "success" }, "Connected")),\n  renderToStaticMarkup(createElement(Toast, { tone: "warning" }, "Review required")),\n  renderToStaticMarkup(createElement(EmptyState, { title: "No tasks", description: "Create one" })),\n  renderToStaticMarkup(createElement(LoadingState, { label: "Loading" })),\n].join("");\nconst layout = [\n  renderToStaticMarkup(createElement(Toolbar, { label: "Outside toolbar", actions: createElement("button", null, "Run") }, "Workspace")),\n  renderToStaticMarkup(createElement(ListRow, { label: "Outside row", selected: true })),\n  renderToStaticMarkup(createElement(PanelHeader, { title: "Outside panel" })),\n  renderToStaticMarkup(createElement(ScrollArea, { label: "Outside scroll" }, "Content")),\n  renderToStaticMarkup(createElement(SplitPane, { label: "Outside resize", minimumSize: 120, maximumSize: 360, size: 200, onSizeChange() {}, primary: "One", secondary: "Two" })),\n].join("");\nif (!Object.isFrozen(FEEDBACK_COMPONENT_CONTRACTS) || !Object.isFrozen(LAYOUT_COMPONENT_CONTRACTS) || !feedback.includes('data-artemis-component="inline-notice"') || !feedback.includes('data-artemis-component="toast"') || !feedback.includes('data-artemis-component="empty-state"') || !feedback.includes('data-artemis-component="loading-state"') || !layout.includes('data-artemis-component="toolbar"') || !layout.includes('data-artemis-component="list-row"') || !layout.includes('data-artemis-component="panel-header"') || !layout.includes('data-artemis-component="scroll-area"') || !layout.includes('role="separator"')) throw new Error("feedback/layout peer/component resolution failed");\n`,
+    "utf8",
+  );
+  run(process.execPath, ["feedback-layout-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "patterns-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { PATTERN_COMPONENT_CONTRACTS, ApprovalCard, ContextUsage, ResultDisclosure, RunModeControl, TaskPlan, ToolActivity, TurnStatus, UserInput } from "@artemis/ui/patterns";
+const approval = renderToStaticMarkup(createElement(ApprovalCard, { actions: createElement("button", null, "Approve"), label: "Approval", state: "pending", statusLabel: "Pending", title: "Run command" }));
+const tool = renderToStaticMarkup(createElement(ToolActivity, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Tool", state: "completed", statusLabel: "Completed", summary: "Read files" }, "Details"));
+const plan = renderToStaticMarkup(createElement(TaskPlan, { collapseLabel: "Collapse", currentStepId: "one", expandLabel: "Expand", label: "Step 1", progressLabel: "Step 1", state: "active", statusLabel: "In progress", steps: [{ id: "one", label: "Inspect", status: "pending", statusLabel: "Not started" }], stepsLabel: "Task steps" }));
+const other = [
+  renderToStaticMarkup(createElement(RunModeControl, { label: "Mode", onValueChange() {}, options: [{ label: "Plan", value: "plan" }], statusLabel: "Ready", value: "plan" })),
+  renderToStaticMarkup(createElement(ContextUsage, { label: "Context", percent: 25, statusLabel: "Ready", valueLabel: "25%" })),
+  renderToStaticMarkup(createElement(UserInput, { label: "Input", onOptionSelect() {}, options: [{ id: "one", label: "One" }], question: "Choose", state: "pending", statusLabel: "Pending" })),
+  renderToStaticMarkup(createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" })),
+  renderToStaticMarkup(createElement(ResultDisclosure, { collapseLabel: "Collapse", expandLabel: "Expand", label: "Result", state: "completed", statusLabel: "Completed", summary: "Complete" }, "Result")),
+].join("");
+if (!Object.isFrozen(PATTERN_COMPONENT_CONTRACTS) || !approval.includes('data-artemis-component="approval-card"') || !tool.includes('data-artemis-component="tool-activity"') || !plan.includes('data-artemis-component="task-plan"') || !other.includes('data-artemis-component="run-mode-control"') || !other.includes('data-artemis-component="context-usage"') || !other.includes('data-artemis-component="user-input"') || !other.includes('data-artemis-component="turn-status"') || !other.includes('data-artemis-component="result-disclosure"')) throw new Error("pattern peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["patterns-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "conversation-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { CONVERSATION_COMPONENT_CONTRACTS, ConversationMessage, ConversationSurface, QueuedMessageGroup, QueuedMessageItem, TimelineSurface, TimelineTurn, TimelineViewport, TurnChangeSummary, TurnExecutionDisclosure } from "@artemis/ui/conversation";
+const timeline = renderToStaticMarkup(createElement(ConversationSurface, { label: "Conversation" }, createElement(TimelineViewport, { label: "History" }, createElement(TimelineSurface, null, createElement(TimelineTurn, { state: "running" }, createElement(ConversationMessage, { kind: "assistant", state: "streaming" }, "Reply"), createElement(TurnExecutionDisclosure, { label: "Worked", summary: "Worked" }, "Details"), createElement(TurnChangeSummary, { header: "Changes", label: "Changes", state: "ready" }, "One file"))))));
+const queue = renderToStaticMarkup(createElement(QueuedMessageGroup, { heading: "Queue", label: "Queue" }, createElement(QueuedMessageItem, { index: 1 }, "Message")));
+if (!Object.isFrozen(CONVERSATION_COMPONENT_CONTRACTS) || !timeline.includes('data-artemis-component="conversation-surface"') || !timeline.includes('data-artemis-component="timeline-viewport"') || !timeline.includes('data-artemis-component="timeline"') || !timeline.includes('data-artemis-component="timeline-turn"') || !timeline.includes('data-artemis-component="conversation-message"') || !timeline.includes('data-artemis-component="turn-execution-disclosure"') || !timeline.includes('data-artemis-component="turn-change-summary"') || !queue.includes('data-artemis-component="queued-message-group"') || !queue.includes('data-artemis-component="queued-message-item"')) throw new Error("conversation peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["conversation-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "surfaces-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ActivityBar, ActivityBarItem, ApplicationShell, ApplicationShellResizer, ComposerSurface, NavigationSidebar, SURFACE_COMPONENT_CONTRACTS } from "@artemis/ui/surfaces";
+const shell = renderToStaticMarkup(createElement(ApplicationShell, { sidebarOpen: true, sidebarSize: 252 }, "Workspace"));
+const surfaces = [
+  renderToStaticMarkup(createElement(ActivityBar, { brand: "Artemis", footer: "Settings", label: "Activity" }, createElement(ActivityBarItem, { icon: "Folder", label: "Projects", selected: true }))),
+  renderToStaticMarkup(createElement(NavigationSidebar, { footer: "Profile", header: "Tasks", label: "Projects", open: true }, "Task one")),
+  renderToStaticMarkup(createElement(ApplicationShellResizer, { label: "Resize projects", open: true })),
+  renderToStaticMarkup(createElement(ComposerSurface, { label: "Prompt composer" }, "Prompt")),
+].join("");
+if (!Object.isFrozen(SURFACE_COMPONENT_CONTRACTS) || !shell.includes('data-artemis-component="application-shell"') || !surfaces.includes('data-artemis-component="activity-bar"') || !surfaces.includes('data-artemis-component="activity-bar-item"') || !surfaces.includes('data-artemis-component="navigation-sidebar"') || !surfaces.includes('data-artemis-component="application-shell-resizer"') || !surfaces.includes('data-artemis-component="composer-surface"')) throw new Error("surface peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["surfaces-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "workspace-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { WORKSPACE_COMPONENT_CONTRACTS, WorkspaceDock, WorkspaceEditorToolbar, WorkspaceSourceEditor, WorkspaceTab, WorkspaceTabBar, WorkspaceTabPane } from "@artemis/ui/workspace";
+const tabs = renderToStaticMarkup(createElement(WorkspaceDock, { label: "Workspace", open: true }, createElement(WorkspaceTabBar, { label: "Workspace tabs" }, createElement(WorkspaceTab, { active: true, closeIcon: createElement("span"), closeLabel: "Close README", id: "readme-tab", label: "README.md", onClose() {}, onSelect() {}, panelId: "readme-panel", tabIndex: 0 })), createElement(WorkspaceTabPane, { active: true, id: "readme-panel", labelledBy: "readme-tab" }, "README")));
+const editor = renderToStaticMarkup(createElement(WorkspaceEditorToolbar, { dirty: true, onSave() {}, path: "README.md", readOnly: false, saveLabel: "Save", savedLabel: "Saved", saveState: "idle", savingLabel: "Saving", unsavedLabel: "Unsaved" }, createElement(WorkspaceSourceEditor, { label: "Source", language: "markdown", value: "# README" })));
+if (!Object.isFrozen(WORKSPACE_COMPONENT_CONTRACTS) || !tabs.includes('data-artemis-component="workspace-dock"') || !tabs.includes('data-artemis-component="workspace-tab-bar"') || !tabs.includes('aria-controls="readme-panel"') || !editor.includes('data-artemis-component="workspace-editor-toolbar"') || !editor.includes('data-artemis-component="workspace-source-editor"')) throw new Error("workspace peer/component resolution failed");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["workspace-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "workflow-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { EnvironmentControl, EnvironmentTrigger, GoalEditorSurface, ReviewSurface, SourcesSurface, WORKFLOW_COMPONENT_CONTRACTS } from "@artemis/ui/workflow";
+const html = [
+  renderToStaticMarkup(createElement(ReviewSurface, { label: "Review" }, "Diff")),
+  renderToStaticMarkup(createElement(EnvironmentControl, { open: false }, createElement(EnvironmentTrigger, { controls: "environment-panel", expanded: false, icon: "Environment", label: "Environment" }))),
+  renderToStaticMarkup(createElement(GoalEditorSurface, { label: "Goal", state: "ready" }, "Goal")),
+  renderToStaticMarkup(createElement(SourcesSurface, { label: "Sources" }, "Source")),
+].join("");
+for (const marker of ["review-surface", "environment-control", "goal-editor", "sources-surface"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("workflow peer/component resolution failed: " + marker);
+if (!Object.isFrozen(WORKFLOW_COMPONENT_CONTRACTS)) throw new Error("workflow contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["workflow-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "professional-consumer.mjs"),
+    `import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { BrowserAddressForm, BrowserAddressInput, BrowserGoButton, BrowserSurface, BrowserViewport, PROFESSIONAL_COMPONENT_CONTRACTS, TerminalHeader, TerminalHost, TerminalSurface, TerminalViewport } from "@artemis/ui/professional";
+const html = [
+  renderToStaticMarkup(createElement(TerminalSurface, { label: "Terminal", state: "ready" }, createElement(TerminalHeader, { detail: "zsh", heading: "Terminal" }), createElement(TerminalViewport, null, createElement(TerminalHost)))),
+  renderToStaticMarkup(createElement(BrowserSurface, { label: "Browser", state: "ready" }, createElement(BrowserAddressForm, { label: "Address" }, createElement(BrowserAddressInput, { label: "Address", value: "about:blank" }), createElement(BrowserGoButton, { label: "Go" })), createElement(BrowserViewport, { label: "Document" }, createElement("div", { "data-consumer-browser-document": true }, "Document")))),
+].join("");
+for (const marker of ["terminal-surface", "terminal-header", "terminal-viewport", "terminal-host", "browser-surface", "browser-address-form", "browser-address-input", "browser-go-button", "browser-viewport"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("professional peer/component resolution failed: " + marker);
+const css = await readFile(fileURLToPath(import.meta.resolve("@artemis/ui/styles.css")), "utf8");
+if (!html.includes("data-consumer-browser-document") || !css.includes('[data-artemis-component="browser-viewport"]') || !css.includes('> [data-part="content"]') || !css.includes("> *") || css.includes(".browser-frame")) throw new Error("public Browser child layout depends on a consumer-private selector");
+if (!Object.isFrozen(PROFESSIONAL_COMPONENT_CONTRACTS)) throw new Error("professional contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["professional-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "management-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Button } from "@artemis/ui/actions";
+import { TextAreaField } from "@artemis/ui/forms";
+import { MANAGEMENT_COMPONENT_CONTRACTS, ManagementCard, ManagementHeader, ManagementRow, ManagementSection, McpEditorSurface, ResourceSurface, SettingsSurface } from "@artemis/ui/management";
+const header = createElement(ManagementHeader, { title: "Settings" });
+const section = createElement(ManagementSection, { title: "Provider" }, createElement(TextAreaField, { defaultValue: "Synthetic", label: "Instructions" }));
+const html = [
+  renderToStaticMarkup(createElement(SettingsSurface, { header, label: "Settings", navigation: "Navigation" }, section)),
+  renderToStaticMarkup(createElement(ResourceSurface, { label: "Resources" }, createElement(ManagementCard, null, createElement(ManagementRow, { title: "Resource" })))),
+  renderToStaticMarkup(createElement(McpEditorSurface, { actions: createElement(Button, null, "Save"), header, label: "MCP editor" }, "Editor")),
+].join("");
+for (const marker of ["settings-surface", "resource-surface", "management-header", "management-section", "management-card", "management-row", "mcp-editor-surface", "textarea-field"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("management peer/component resolution failed: " + marker);
+if (!Object.isFrozen(MANAGEMENT_COMPONENT_CONTRACTS)) throw new Error("management contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["management-consumer.mjs"], consumer);
+  await writeFile(
+    join(consumer, "data-consumer.mjs"),
+    `import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { DATA_COMPONENT_CONTRACTS, DataHeatmap, DataStat, DataSurface } from "@artemis/ui/data";
+const heatmap = createElement(DataHeatmap, { cells: [{ id: "one", label: "One token", level: 1, periodKey: "week-one" }], columns: 1, label: "Activity", onActiveCellChange() {}, rows: 1 });
+const html = renderToStaticMarkup(createElement(DataSurface, { label: "Usage" }, createElement(DataStat, { label: "Tokens", value: "1" }), heatmap));
+for (const marker of ["data-surface", "data-stat", "data-heatmap"]) if (!html.includes('data-artemis-component="' + marker + '"')) throw new Error("data peer/component resolution failed: " + marker);
+if (!Object.isFrozen(DATA_COMPONENT_CONTRACTS)) throw new Error("data contract is mutable");
+`,
+    "utf8",
+  );
+  run(process.execPath, ["data-consumer.mjs"], consumer);
+  runNpm(["ls", "--all", "react", "react-dom"], consumer);
+
+  await writeFile(
+    join(consumer, "tree-shake.ts"),
+    `import { createElement } from "react";\nimport { Button } from "@artemis/ui/actions";\nexport const TreeShakeButton = () => createElement(Button, { label: "Action tree-shaken" }, "Action");\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=tree-shake.js",
+    ],
+    consumer,
+  );
+  const treeShaken = await readFile(join(consumer, "tree-shake.js"), "utf8");
+  const retainedUnusedMarkers = ["icon-button", "badge", "status"].filter(
+    (marker) => treeShaken.includes(marker),
+  );
+  if (
+    !treeShaken.includes("data-artemis-component") ||
+    !treeShaken.includes("button") ||
+    retainedUnusedMarkers.length > 0
+  ) {
+    throw new Error(
+      `Button-only bundle retained unused action markers: ${retainedUnusedMarkers
+        .map((marker) => {
+          const index = treeShaken.indexOf(marker);
+          return `${marker} (${treeShaken.slice(Math.max(0, index - 40), index + marker.length + 40)})`;
+        })
+        .join(", ")}`,
+    );
+  }
+
+  await writeFile(
+    join(consumer, "form-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { TextField } from "@artemis/ui/forms";\nexport const TreeShakeTextField = () => createElement(TextField, { label: "Form tree-shaken", defaultValue: "value" });\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "form-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=form-tree-shake.js",
+    ],
+    consumer,
+  );
+  const formTreeShaken = await readFile(
+    join(consumer, "form-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedFormMarkers = [
+    "search-field",
+    "select",
+    "checkbox",
+    "switch",
+  ].filter((marker) => formTreeShaken.includes(marker));
+  if (
+    !formTreeShaken.includes("data-artemis-component") ||
+    !formTreeShaken.includes("text-field") ||
+    retainedUnusedFormMarkers.length > 0
+  ) {
+    throw new Error(
+      `TextField-only bundle retained unused form markers: ${retainedUnusedFormMarkers.join(", ")}`,
+    );
+  }
+
+  await writeFile(
+    join(consumer, "navigation-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { Tabs } from "@artemis/ui/navigation";\nexport const TreeShakeTabs = () => createElement(Tabs, { label: "Navigation tree-shaken", value: "one", onValueChange() {}, options: [{ id: "one-tab", panelId: "one-panel", value: "one", label: "One" }] });\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "navigation-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=navigation-tree-shake.js",
+    ],
+    consumer,
+  );
+  const navigationTreeShaken = await readFile(
+    join(consumer, "navigation-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !navigationTreeShaken.includes("data-artemis-component") ||
+    !navigationTreeShaken.includes("tabs") ||
+    navigationTreeShaken.includes("segmented-control")
+  ) {
+    throw new Error("Tabs-only bundle retained unused segmented-control JS");
+  }
+
+  await writeFile(
+    join(consumer, "feedback-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { InlineNotice } from "@artemis/ui/feedback";\nexport const TreeShakeNotice = () => createElement(InlineNotice, null, "Notice");\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "feedback-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--external:react-dom",
+      "--external:react-dom/*",
+      "--outfile=feedback-tree-shake.js",
+    ],
+    consumer,
+  );
+  const feedbackTreeShaken = await readFile(
+    join(consumer, "feedback-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !feedbackTreeShaken.includes("inline-notice") ||
+    ["confirmation", "loading-state", "error-state"].some((marker) =>
+      feedbackTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("InlineNotice-only bundle retained unused feedback JS");
+  }
+
+  await writeFile(
+    join(consumer, "layout-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { PanelHeader } from "@artemis/ui/layout";\nexport const TreeShakePanelHeader = () => createElement(PanelHeader, { title: "Panel" });\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "layout-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=layout-tree-shake.js",
+    ],
+    consumer,
+  );
+  const layoutTreeShaken = await readFile(
+    join(consumer, "layout-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !layoutTreeShaken.includes("panel-header") ||
+    ["list-row", "scroll-area", "split-pane"].some((marker) =>
+      layoutTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("PanelHeader-only bundle retained unused layout JS");
+  }
+
+  await writeFile(
+    join(consumer, "pattern-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { TurnStatus } from "@artemis/ui/patterns";\nexport const TreeShakeTurnStatus = () => createElement(TurnStatus, { label: "Turn", state: "running", statusLabel: "Working" });\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "pattern-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=pattern-tree-shake.js",
+    ],
+    consumer,
+  );
+  const patternTreeShaken = await readFile(
+    join(consumer, "pattern-tree-shake.js"),
+    "utf8",
+  );
+  if (
+    !patternTreeShaken.includes("turn-status") ||
+    ["approval-card", "tool-activity", "task-plan", "user-input"].some(
+      (marker) => patternTreeShaken.includes(marker),
+    )
+  ) {
+    throw new Error("TurnStatus-only bundle retained unused pattern JS");
+  }
+
+  await writeFile(
+    join(consumer, "conversation-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { ConversationMessage } from "@artemis/ui/conversation";\nexport const TreeShakeMessage = () => createElement(ConversationMessage, { kind: "assistant" }, "Reply");\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "conversation-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=conversation-tree-shake.js",
+    ],
+    consumer,
+  );
+  const conversationTreeShaken = await readFile(
+    join(consumer, "conversation-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedConversationMarkers = [
+    "conversation-surface",
+    "timeline-viewport",
+    "queued-message-group",
+    "turn-change-summary",
+  ].filter((marker) => conversationTreeShaken.includes(marker));
+  if (
+    !conversationTreeShaken.includes("conversation-message") ||
+    retainedUnusedConversationMarkers.length > 0
+  ) {
+    throw new Error(
+      `ConversationMessage-only bundle retained unused conversation JS: ${retainedUnusedConversationMarkers.join(", ")}`,
+    );
+  }
+
+  await writeFile(
+    join(consumer, "surface-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { ComposerSurface } from "@artemis/ui/surfaces";\nexport const TreeShakeComposer = () => createElement(ComposerSurface, { label: "Composer" }, "Prompt");\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "surface-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=surface-tree-shake.js",
+    ],
+    consumer,
+  );
+  const surfaceTreeShaken = await readFile(
+    join(consumer, "surface-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedSurfaceMarkers = [
+    "application-shell",
+    "activity-bar",
+    "navigation-sidebar",
+  ].filter((marker) => surfaceTreeShaken.includes(marker));
+  if (
+    !surfaceTreeShaken.includes("composer-surface") ||
+    retainedUnusedSurfaceMarkers.length > 0
+  ) {
+    throw new Error(
+      `ComposerSurface-only bundle retained unused surface JS: ${retainedUnusedSurfaceMarkers.join(", ")}`,
+    );
+  }
+
+  await writeFile(
+    join(consumer, "professional-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { TerminalSurface } from "@artemis/ui/professional";\nexport const TreeShakeTerminal = () => createElement(TerminalSurface, { label: "Terminal", state: "ready" }, "Terminal");\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "professional-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=professional-tree-shake.js",
+    ],
+    consumer,
+  );
+  const professionalTreeShaken = await readFile(
+    join(consumer, "professional-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedProfessionalMarkers = [
+    "terminal-header",
+    "terminal-state",
+    "browser-surface",
+    "browser-navigation-button",
+  ].filter((marker) => professionalTreeShaken.includes(marker));
+  if (
+    !professionalTreeShaken.includes("terminal-surface") ||
+    retainedUnusedProfessionalMarkers.length > 0
+  ) {
+    throw new Error(
+      `TerminalSurface-only bundle retained unused professional JS: ${retainedUnusedProfessionalMarkers.join(", ")}`,
+    );
+  }
+
+  await writeFile(
+    join(consumer, "management-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { ManagementCard } from "@artemis/ui/management";\nexport const TreeShakeManagementCard = () => createElement(ManagementCard, null, "Card");\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "management-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=management-tree-shake.js",
+    ],
+    consumer,
+  );
+  const managementTreeShaken = await readFile(
+    join(consumer, "management-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedManagementMarkers = [
+    "settings-surface",
+    "resource-surface",
+    "management-header",
+    "management-row",
+    "mcp-editor-surface",
+  ].filter((marker) => managementTreeShaken.includes(marker));
+  if (
+    !managementTreeShaken.includes("management-card") ||
+    retainedUnusedManagementMarkers.length > 0
+  ) {
+    throw new Error(
+      `ManagementCard-only bundle retained unused management JS: ${retainedUnusedManagementMarkers.join(", ")}`,
+    );
+  }
+
+  await writeFile(
+    join(consumer, "data-tree-shake.ts"),
+    `import { createElement } from "react";\nimport { DataStat } from "@artemis/ui/data";\nexport const TreeShakeDataStat = () => createElement(DataStat, { label: "Tokens", value: "1" });\n`,
+    "utf8",
+  );
+  runEsbuild(
+    [
+      "data-tree-shake.ts",
+      "--bundle",
+      "--format=esm",
+      "--minify",
+      "--platform=browser",
+      "--external:react",
+      "--external:react/*",
+      "--outfile=data-tree-shake.js",
+    ],
+    consumer,
+  );
+  const dataTreeShaken = await readFile(
+    join(consumer, "data-tree-shake.js"),
+    "utf8",
+  );
+  const retainedUnusedDataMarkers = ["data-surface", "data-heatmap"].filter(
+    (marker) => dataTreeShaken.includes(marker),
+  );
+  if (
+    !dataTreeShaken.includes("data-stat") ||
+    retainedUnusedDataMarkers.length > 0
+  ) {
+    throw new Error(
+      `DataStat-only bundle retained unused data JS: ${retainedUnusedDataMarkers.join(", ")}`,
+    );
+  }
+
+  const installedRoots = [
+    join(consumer, "node_modules/@artemis/theme-contract"),
+    join(consumer, "node_modules/@artemis/ui"),
+    join(consumer, "node_modules/@artemis/theme-artemis"),
+  ];
+  for (const installedRoot of installedRoots) {
+    for (const file of await textFilesBelow(installedRoot)) {
+      const content = await readFile(file, "utf8");
+      if (
+        content.includes(root) ||
+        /\/Users\/[^/]+|BEGIN (?:RSA |EC )?PRIVATE KEY|AKIA[0-9A-Z]{16}/u.test(
+          content,
+        )
+      ) {
+        throw new Error(
+          `installed tarball leaks an absolute path or secret: ${relative(consumer, file)}`,
+        );
+      }
+    }
+  }
+
+  console.log(
+    `UI package consumer verification passed outside the repository (${basename(consumer)}; 3 public tarballs; unused action/form/navigation/feedback/layout/pattern/conversation/surface/professional/management/data JS tree-shaken)`,
+  );
+} finally {
+  await rm(consumer, { recursive: true, force: true });
+}

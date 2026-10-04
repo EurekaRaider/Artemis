@@ -1,3 +1,5 @@
+[English / 简体中文](plugin-marketplaces-en.md)
+
 # 开发 Artemis 插件与 Git 插件商店
 
 简体中文 · [English](plugin-marketplaces-en.md) · [文档索引](../README.md)
@@ -295,8 +297,8 @@ PKCE verifier 留在宿主。签名不能替代适配器代码审查。
 7. 同时发布清单、插件内容和完整性文件。通过 Git 商店入口验收并确认指纹。
    清单字节或插件文件有任何修改都必须重新生成签名；格式化 JSON 也会改变哈希。
 
-精确格式以[宿主验签实现](../../apps/desktop/src/main/artemis-plugin-service.ts)和
-[测试中的 `signMarketplaceRepository` 参考实现](../../apps/desktop/test/artemis-plugin-service.test.ts)
+精确格式以[宿主验签实现](../../apps/desktop/src/main/plugins/artemis-plugin-service.ts)和
+[测试中的 `signMarketplaceRepository` 参考实现](../../apps/desktop/test/main/plugins/artemis-plugin-service.test.ts)
 为准。把该算法接入自己的发布工具，不要自行设计另一套签名格式；无需修改 Artemis。
 
 Artemis 会固定用户确认的密钥。换密钥或移除签名会使刷新失败，用户需要主动移除、
@@ -364,7 +366,7 @@ Artemis 通过 HTTPS 下载有上限的仓库归档，用户不需要安装 Git�
 | MCP 启动后退出                                         | 已安装路径、依赖、传输、stdout 协议、沙箱和网络设置；日志不能泄露秘密                |
 | 刷新失败仍显示旧条目                                   | 属于缓存保护，修复仓库后重新刷新                                                     |
 
-实现依据：[商店加载器](../../apps/desktop/src/main/artemis-plugin-service.ts)、
-[Skill 解析器](../../apps/desktop/src/main/resource-catalog.ts)、
-[本地化](../../apps/desktop/src/shared/plugin-localization.ts)、
+实现依据：[商店加载器](../../apps/desktop/src/main/plugins/artemis-plugin-service.ts)、
+[Skill 解析器](../../apps/desktop/src/main/plugins/resource-catalog.ts)、
+[本地化](../../apps/desktop/src/shared/i18n/plugin-localization.ts)、
 [Connector 契约](../../apps/desktop/src/shared/connectors.ts)。

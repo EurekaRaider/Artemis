@@ -15,10 +15,13 @@ function skinSmokeAliases(): Plugin {
   const appWrapper = requiredFixturePath("ARTEMIS_SKIN_SMOKE_APP_WRAPPER");
   const registry = requiredFixturePath("ARTEMIS_SKIN_SMOKE_REGISTRY");
   const xtermWrapper = requiredFixturePath("ARTEMIS_SKIN_SMOKE_XTERM_WRAPPER");
-  const productionApp = resolve(import.meta.dirname, "src/renderer/App.tsx");
+  const productionApp = resolve(
+    import.meta.dirname,
+    "src/renderer/app/App.tsx",
+  );
   const productionBootstrap = resolve(
     import.meta.dirname,
-    "src/renderer/desktop-skin-bootstrap.ts",
+    "src/renderer/appearance/desktop-skin-bootstrap.ts",
   );
 
   return {

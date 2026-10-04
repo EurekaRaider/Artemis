@@ -1,0 +1,327 @@
+import { describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
+import { feishuNativePost } from "../../../src/channels/feishu/feishu-native.js";
+import {
+  encodeNativeEnvelope,
+  decodeNativeEnvelope,
+} from "../../../src/channels/native-protocol.js";
+import {
+  Domain,
+  EventDispatcher,
+  type WSClient,
+} from "@larksuiteoapi/node-sdk";
+import {
+  channelConnectionSchema,
+  type ChannelConnection,
+} from "../../../src/channels/channels.js";
+import { FeishuSocketAdapter } from "../../../src/channels/feishu/feishu-socket.js";
+
+const config: Extract<ChannelConnection, { channel: "feishu" }> = {
+  id: "feishu",
+  name: "Feishu",
+  channel: "feishu",
+  tenantId: "tenant",
+  appId: "app",
+  botOpenId: "bot",
+  appSecret: "secret",
+  enabled: true,
+  transport: "websocket",
+};
+function envelope(overrides: Record<string, unknown> = {}) {
+  return {
+    schema: "2.0",
+    header: {
+      app_id: "app",
+      tenant_key: "tenant",
+      event_id: "evt",
+      event_type: "im.message.receive_v1",
+      ...overrides,
+    },
+    event: {
+      sender: { sender_type: "user", sender_id: { open_id: "alice" } },
+      message: {
+        message_id: "message",
+        chat_id: "chat",
+        chat_type: "p2p",
+        create_time: "1000",
+        message_type: "image",
+        content: JSON.stringify({ image_key: "image" }),
+      },
+    },
+  };
+}
+function fixture(
+  receive = vi.fn(),
+  receiveCard = vi.fn(),
+  receiveGroup = vi.fn(),
+) {
+  let dispatcher: EventDispatcher;
+  let state = "connecting";
+  const close = vi.fn();
+  const factory = vi.fn(
+    () =>
+      ({
+        start: async (params: { eventDispatcher: EventDispatcher }) => {
+          dispatcher = params.eventDispatcher;
+        },
+        close,
+        getConnectionStatus: () => ({ state, reconnectAttempts: 0 }),
+      }) as Pick<WSClient, "start" | "close" | "getConnectionStatus">,
+  );
+  const adapter = new FeishuSocketAdapter(
+    config,
+    receive,
+    factory,
+    receiveCard,
+    receiveGroup,
+  );
+  adapter.start();
+  return {
+    adapter,
+    receive,
+    receiveCard,
+    receiveGroup,
+    close,
+    factory,
+    setState: (next: string) => {
+      state = next;
+    },
+    push: (data: unknown = envelope()) =>
+      dispatcher.invoke(data, { needCheck: false }),
+  };
+}
+
+describe("Feishu Gateway long connection", () => {
+  it("normalizes app-scoped bot IDs only after the SDK subscription is authenticated", async () => {
+    const f = fixture();
+    const frame = {
+      version: 1 as const,
+      id: randomUUID(),
+      platform: "feishu" as const,
+      tenant: "tenant",
+      group: "group",
+      sender: "peer-self",
+      recipient: "own-bot-in-peer-app",
+      workflow: randomUUID(),
+      task: randomUUID(),
+      action: "probe" as const,
+      issuedAt: Date.now(),
+      expiresAt: Date.now() + 30000,
+      sequence: 0,
+      text: "",
+    };
+    const input = envelope();
+    input.event.sender = {
+      sender_type: "bot",
+      sender_id: { open_id: "peer-in-own-app" },
+    };
+    Object.assign(input.event.message, {
+      chat_type: "group",
+      chat_id: "group",
+      message_type: "post",
+      content: JSON.stringify(
+        feishuNativePost(encodeNativeEnvelope(frame), frame.recipient),
+      ),
+      mentions: [
+        {
+          key: "@_user_1",
+          id: { open_id: config.botOpenId },
+          name: "Receiver",
+        },
+      ],
+    });
+    await f.push({
+      ...input,
+      header: { ...input.header, app_id: "foreign-app" },
+    });
+    await f.push({
+      ...input,
+      header: { ...input.header, tenant_key: "foreign-tenant" },
+    });
+    expect(f.receive).not.toHaveBeenCalled();
+    await f.push(input);
+    expect(f.receive).toHaveBeenCalledOnce();
+    expect(
+      decodeNativeEnvelope(f.receive.mock.calls[0]![0].text),
+    ).toMatchObject({ sender: "peer-in-own-app", recipient: config.botOpenId });
+    f.adapter.stop();
+  });
+  it.each(["feishu", "lark"] as const)(
+    "clears a failed %s handshake after the SDK reconnects",
+    async (domain) => {
+      let state = "failed";
+      const adapter = new FeishuSocketAdapter(
+        { ...config, domain },
+        vi.fn(),
+        () =>
+          ({
+            start: async () => {
+              throw new Error("Handshake failed");
+            },
+            close: vi.fn(),
+            getConnectionStatus: () => ({ state, reconnectAttempts: 0 }),
+          }) as Pick<WSClient, "start" | "close" | "getConnectionStatus">,
+      );
+      adapter.start();
+      await Promise.resolve();
+      expect(adapter.status().state).toBe("error");
+      state = "connected";
+      expect(adapter.status()).toMatchObject({ state: "connected" });
+      expect(adapter.status().error).toBeUndefined();
+      state = "reconnecting";
+      expect(adapter.status().state).toBe("connecting");
+      adapter.stop();
+    },
+  );
+  it("uses the Lark SDK domain and gives a region-specific error without exposing credentials", () => {
+    const createSocket = vi.fn(() => ({
+      start: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+      getConnectionStatus: () => ({
+        state: "failed" as const,
+        reconnectAttempts: 0,
+      }),
+    }));
+    const adapter = new FeishuSocketAdapter(
+      { ...config, domain: "lark" },
+      vi.fn(),
+      createSocket,
+    );
+    adapter.start();
+    expect(createSocket).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: Domain.Lark }),
+    );
+    expect(adapter.status().error).toContain("open.larksuite.com");
+    expect(adapter.status().error).not.toContain(config.appSecret);
+    adapter.stop();
+  });
+  it("keeps legacy callback credentials mandatory and permits a socket without callback secrets", () => {
+    expect(channelConnectionSchema.safeParse(config).success).toBe(true);
+    expect(
+      channelConnectionSchema.safeParse({ ...config, transport: "webhook" })
+        .success,
+    ).toBe(false);
+    expect(
+      channelConnectionSchema.safeParse({ ...config, transport: undefined })
+        .success,
+    ).toBe(false);
+    expect(
+      channelConnectionSchema.safeParse({ ...config, transport: "both" })
+        .success,
+    ).toBe(false);
+  });
+  it("uses the SDK handshake state and closes exactly one subscription", () => {
+    const f = fixture();
+    expect(f.adapter.status().state).toBe("connecting");
+    f.adapter.start();
+    expect(f.factory).toHaveBeenCalledTimes(1);
+    f.setState("connected");
+    expect(f.adapter.status().state).toBe("connected");
+    f.setState("reconnecting");
+    expect(f.adapter.status().state).toBe("connecting");
+    f.setState("failed");
+    expect(f.adapter.status().state).toBe("error");
+    f.adapter.stop();
+    f.adapter.stop();
+    expect(f.close).toHaveBeenCalledExactlyOnceWith({ force: true });
+    expect(f.adapter.status().state).toBe("disabled");
+  });
+  it("retains the authenticated identity and message resource for a pure image", async () => {
+    const f = fixture();
+    await f.push();
+    expect(f.receive).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        messageId: "message",
+        text: "",
+        identity: {
+          channel: "feishu",
+          connectionId: "feishu",
+          tenantId: "tenant",
+          appId: "app",
+          userId: "alice",
+        },
+        conversation: { connectionId: "feishu", id: "chat", kind: "direct" },
+        attachments: [
+          { kind: "image", name: "image.png", resourceId: "image" },
+        ],
+      }),
+    );
+    f.adapter.stop();
+  });
+  it("rejects wrong app, tenant and late deliveries before the persistent receiver", async () => {
+    const f = fixture();
+    await f.push(envelope({ app_id: "other" }));
+    await f.push(envelope({ tenant_key: "other" }));
+    f.adapter.stop();
+    await f.push();
+    expect(f.receive).not.toHaveBeenCalled();
+  });
+  it("propagates persistence failure to SDK acknowledgement and accepts the platform retry", async () => {
+    const receive = vi.fn().mockImplementationOnce(() => {
+      throw new Error("disk full");
+    });
+    const f = fixture(receive);
+    await expect(f.push()).rejects.toThrow("could not be saved");
+    expect(f.adapter.status().state).toBe("error");
+    await f.push();
+    expect(receive).toHaveBeenCalledTimes(2);
+    f.adapter.stop();
+  });
+  it("dispatches card callbacks with authenticated identity and a retryable persistence failure", async () => {
+    const receiveCard = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error("disk full");
+      })
+      .mockReturnValue(true);
+    const f = fixture(vi.fn(), receiveCard);
+    const input = {
+      ...envelope({ event_type: "card.action.trigger" }),
+      event: {
+        operator: { open_id: "alice" },
+        context: { open_message_id: "om_card", open_chat_id: "chat" },
+        action: { value: { artemisApprovalToken: "token", decision: "yes" } },
+      },
+    };
+    await expect(f.push(input)).rejects.toThrow("could not be saved");
+    expect(await f.push(input)).toMatchObject({ toast: { type: "success" } });
+    expect(receiveCard).toHaveBeenLastCalledWith({
+      header: expect.objectContaining({
+        app_id: "app",
+        tenant_key: "tenant",
+        event_id: "evt",
+      }),
+      event: expect.objectContaining(input.event),
+    });
+    await f.push({ ...input, header: { ...input.header, app_id: "other" } });
+    expect(receiveCard).toHaveBeenCalledTimes(2);
+    expect(f.receive).not.toHaveBeenCalled();
+    f.adapter.stop();
+  });
+});
+
+it("delivers authenticated group events with retryable persistence and stops late callbacks", async () => {
+  const receiveGroup = vi.fn().mockImplementationOnce(() => {
+    throw new Error("disk");
+  });
+  const f = fixture(vi.fn(), vi.fn(), receiveGroup);
+  const event = {
+    ...envelope({
+      event_type: "im.chat.member.bot.deleted_v1",
+      create_time: String(Date.now()),
+    }),
+    event: { chat_id: "chat" },
+  };
+  await expect(f.push(event)).rejects.toThrow("could not be saved");
+  await f.push(event);
+  expect(receiveGroup).toHaveBeenCalledTimes(2);
+  expect(receiveGroup).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      event: expect.objectContaining({ chat_id: "chat" }),
+    }),
+  );
+  await f.push({ ...event, header: { ...event.header, tenant_key: "wrong" } });
+  f.adapter.stop();
+  await f.push(event);
+  expect(receiveGroup).toHaveBeenCalledTimes(2);
+});

@@ -1,3 +1,5 @@
+[English / 简体中文](readme-visuals-en.md)
+
 # README 视觉资产
 
 ## 本次采集
@@ -65,7 +67,7 @@ Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插�
 ```bash
 npm run build
 ARTEMIS_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
-  node scripts/capture-readme.mjs /tmp/artemis-readme-capture
+  node scripts/ui/capture-readme.mjs /tmp/artemis-readme-capture
 ```
 
 省略输出目录时，脚本写入 `docs/assets/images/`。建议先采集到临时目录，
@@ -105,7 +107,7 @@ IM 图以五个节点展示两台独立电脑通过同一个原生群交换任�
 各自授权和真实 IM 往返验证；持久等待、继续执行、取消待确认与未知状态分别说明。
 图中另行标注已配对主人单聊使用本地 Execute 权限和自动审批，支持无项目临时会话。
 
-语义依据为 `packages/agent-host/src/runtime.ts`、`packages/protocol/src/im.ts`、
+语义依据为 `packages/agent-host/src/runtime/runtime.ts`、`packages/protocol/src/im.ts`、
 桌面 `main.ts` / `im-service.ts`、当前 Connector v1 契约及原生群路由。
 Shell / Terminal 的桌面用户权限、MCP / 扩展的独立沙箱与群任务的受限工具分别表达。
 

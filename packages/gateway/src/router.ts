@@ -1,8 +1,11 @@
-import { imText } from "./im-localization.js";
+import { imText } from "./i18n/im-localization.js";
 import type { AppLocale } from "@artemis/protocol";
-import { splitSlackMarkdown } from "./slack-format.js";
-import { NativeCooperation } from "./native-cooperation.js";
-import { NATIVE_PREFIX, type NativeEnvelope } from "./native-protocol.js";
+import { splitSlackMarkdown } from "./channels/slack/slack-format.js";
+import { NativeCooperation } from "./groups/native-cooperation.js";
+import {
+  NATIVE_PREFIX,
+  type NativeEnvelope,
+} from "./channels/native-protocol.js";
 import { randomUUID } from "node:crypto";
 import {
   channelEventSchema,
@@ -22,9 +25,9 @@ import {
   type RemoteInvocationContext,
 } from "@artemis/protocol";
 import { GatewayStore, digest } from "./store.js";
-import { splitImText } from "./channels.js";
-import type { FeishuTyping } from "./feishu-typing.js";
-import type { FeishuApprovalCard } from "./feishu-approval.js";
+import { splitImText } from "./channels/channels.js";
+import type { FeishuTyping } from "./channels/feishu/feishu-typing.js";
+import type { FeishuApprovalCard } from "./channels/feishu/feishu-approval.js";
 
 export interface Delivery {
   locale?: AppLocale;

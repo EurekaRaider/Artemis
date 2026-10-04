@@ -1,3 +1,5 @@
+[English / 简体中文](README-zh-CN.md)
+
 # Artemis visual skin examples
 
 `plugins/ocean-visual-skins` is one native plugin containing two complete Skin v2 packages:

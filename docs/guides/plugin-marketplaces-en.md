@@ -1,3 +1,5 @@
+[English / 简体中文](plugin-marketplaces.md)
+
 # Build an Artemis plugin and Git marketplace
 
 [简体中文](plugin-marketplaces.md) · English · [Documentation index](../README.md)
@@ -325,9 +327,9 @@ Create `.artemis/integrity.json` after building the final plugin files:
    **Git marketplace** and confirm the fingerprint. Any catalog byte or plugin
    file change requires regeneration; even reformatting signed JSON changes hashes.
 
-The host's [signature verifier](../../apps/desktop/src/main/artemis-plugin-service.ts)
+The host's [signature verifier](../../apps/desktop/src/main/plugins/artemis-plugin-service.ts)
 and the `signMarketplaceRepository` reference implementation in
-[its tests](../../apps/desktop/test/artemis-plugin-service.test.ts) define the
+[its tests](../../apps/desktop/test/main/plugins/artemis-plugin-service.test.ts) define the
 exact format. Reuse that algorithm in your release tooling; do not invent a
 signature schema. Ordinary publishers do not need to modify Artemis source.
 
@@ -410,7 +412,7 @@ Your publishing tooling may impose stricter limits.
 | MCP starts then exits                                  | Installed paths, dependencies, transport, stdout protocol, sandbox/network settings; inspect logs without exposing secrets    |
 | Old entries after failed refresh                       | Expected cache protection; fix the repository and refresh again                                                               |
 
-Implementation references: [marketplace loader](../../apps/desktop/src/main/artemis-plugin-service.ts),
-[Skill parser](../../apps/desktop/src/main/resource-catalog.ts),
-[localization](../../apps/desktop/src/shared/plugin-localization.ts),
+Implementation references: [marketplace loader](../../apps/desktop/src/main/plugins/artemis-plugin-service.ts),
+[Skill parser](../../apps/desktop/src/main/plugins/resource-catalog.ts),
+[localization](../../apps/desktop/src/shared/i18n/plugin-localization.ts),
 [Connector contract](../../apps/desktop/src/shared/connectors.ts).

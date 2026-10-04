@@ -1,5 +1,7 @@
 # Security
 
+> Historical note: this document records an early pre-release implementation and contains outdated terminal and native-sandbox capability statements. Current execution boundaries are defined in [engineering guidance](AGENTS.md) and [architecture](docs/architecture.md).
+
 Artemis is pre-release software. Do not use it for untrusted or unattended
 work until the native execution security boundaries have been verified.
 

@@ -2367,9 +2367,7 @@
   </head>
   <body>
     <div class="design-panel-root">
-      <!-- 设计面板：结构严格对齐 docs/ui-prototype/artemis-ui.html 的 dockPanelDesign
-     （原型 468-745 行）与 workspace.js 1763-3040 行的全部交互。
-     类名一律沿用原型（design-ws-* / dz-* / mock-*），不自创。
+      <!-- 设计面板使用 design-ws-* / dz-* / mock-* 类名。
      安全约束（goal 冻结）：面板零 Node、零 IPC、零 fetch；候选经 MessagePort 上行；
      导出/版本历史/恢复/截图/交接全部是宿主动作。 -->
       <div aria-label="页面" class="design-ws-tabs" role="tablist">
@@ -3706,16 +3704,16 @@
         </div>
       </div>
       <script>
-        /* 设计面板脚本：结构对齐 docs/ui-prototype/workspace/workspace.js（1763-3040 行）。
+        /* 设计面板脚本。
    安全约束不变：零 fetch/IPC/父窗口访问；候选只经 MessagePort 上行；
    导出/版本历史/恢复/截图/交接是宿主动作。
-   与原型的核心差异（有意）：
+   实现边界：
    1. dzStage 渲染宿主下行的真实文档——文档经惰性净化后写入
       sandbox=allow-scripts 的沙箱帧（#dzDocFrame）srcdoc，外来节点绝不
       进面板自身 DOM；批注 hover/拾取经 DZ_BRIDGE_SRC 桥上报（与项目
       文件预览 #dzProjectFrame 同构）；
-   2. dzHandoff 语义按提案 §10.3 = 创建编码任务，非"编辑器打开文件夹"；
-   3. 「编辑」工具暂缺：依赖 §10.1 元素定位契约（未建）。 */
+   2. dzHandoff 用于创建编码任务，非"编辑器打开文件夹"；
+   3. 「编辑」工具暂缺：依赖尚未实现的元素定位契约。 */
         (function () {
           "use strict";
           function $(sel) {

@@ -2,12 +2,12 @@ import {
   retireGroup,
   retireKnownGroups,
   type RetiredGroup,
-} from "./group-retirement.js";
-import { authorizeNativeGroup } from "./native-authorization.js";
-import { imText } from "./im-localization.js";
+} from "./groups/group-retirement.js";
+import { authorizeNativeGroup } from "./authorization/native-authorization.js";
+import { imText } from "./i18n/im-localization.js";
 import type { AppLocale } from "@artemis/protocol";
-import { normalizeFeishuGroupEvent } from "./feishu-group-events.js";
-import { saveNativeGroup, retireLegacySpaces } from "./native-groups.js";
+import { normalizeFeishuGroupEvent } from "./channels/feishu/feishu-group-events.js";
+import { saveNativeGroup, retireLegacySpaces } from "./groups/native-groups.js";
 import {
   IM_SECURITY_VERSION,
   appLocaleSchema,
@@ -36,14 +36,17 @@ import {
 } from "@artemis/protocol";
 import { GatewayStore, sameSecret, digest } from "./store.js";
 import { GatewayRouter, type Delivery } from "./router.js";
-import { resolveSlackConnection, SlackAdapter } from "./slack.js";
-import { FeishuSocketAdapter } from "./feishu-socket.js";
-import { resolveFeishuConnection } from "./feishu-setup.js";
-import type { FeishuTyping } from "./feishu-typing.js";
+import {
+  resolveSlackConnection,
+  SlackAdapter,
+} from "./channels/slack/slack.js";
+import { FeishuSocketAdapter } from "./channels/feishu/feishu-socket.js";
+import { resolveFeishuConnection } from "./channels/feishu/feishu-setup.js";
+import type { FeishuTyping } from "./channels/feishu/feishu-typing.js";
 import {
   normalizeFeishuApproval,
   type FeishuApprovalCard,
-} from "./feishu-approval.js";
+} from "./channels/feishu/feishu-approval.js";
 import {
   ChannelRateLimit,
   ChannelUnavailable,
@@ -56,7 +59,7 @@ import {
   type ChannelAdapter,
   type ChannelConnection,
   type FeishuStreamCardState,
-} from "./channels.js";
+} from "./channels/channels.js";
 
 export interface GatewayOptions {
   databasePath: string;

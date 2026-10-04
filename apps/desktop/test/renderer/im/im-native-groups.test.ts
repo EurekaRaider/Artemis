@@ -1,0 +1,4368 @@
+import { imUserMessageText } from "../../../src/renderer/im/im-user-message.js";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
+import { afterEach, expect, it, vi } from "vitest";
+import {
+  imAuthorizationFingerprint,
+  imPolicyVersion,
+  imAuthorizationImpactVersion,
+  type ImAuthorizationCommand,
+  type ImAuthorizationOperation,
+  executionGrantSchema,
+  IM_SECURITY_VERSION,
+  type Thread,
+  type ChannelEvent,
+  type ImStatus,
+  type ImOutboundCandidate,
+  type AgentEvent,
+  type CollaborationSpace,
+} from "@artemis/protocol";
+import type { ArtemisGateway } from "@artemis/gateway";
+import type { Delivery } from "../../../../../packages/gateway/src/router.js";
+import { retireGroup } from "../../../../../packages/gateway/src/groups/group-retirement.js";
+import * as localAccess from "../../../src/main/im/im-local-access.js";
+import {
+  ImPermissionError,
+  imContentHash,
+} from "../../../src/main/im/im-policy.js";
+import {
+  ImService,
+  type ImTaskOperations,
+} from "../../../src/main/im/im-service.js";
+const cleanup: Array<() => Promise<void>> = [];
+afterEach(async () => {
+  vi.restoreAllMocks();
+  for (const fn of cleanup.splice(0).reverse()) await fn();
+});
+it.each(["idle", "running"] as const)(
+  "acknowledges remote cancellation of a %s assignment",
+  async (status) => {
+    const f = await fixture();
+    await f.authorize();
+    const owner = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      f.service.status().remoteTasks![0]!.group!.spaceId,
+    );
+    const nativeTaskId = randomUUID();
+    const request = {
+      ...owner,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      text: "Do the work",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: owner.deviceId,
+        coordinatorThreadId: owner.id,
+        mission: "Do the work",
+      },
+    };
+    await f.service.accept(request);
+    const thread = f.threads.find((t) => t.id === f.starts[0])!;
+    thread.status = status;
+    const cancel = vi.fn(async () => {
+      if (thread.status !== "running")
+        throw new Error("Task has no active turn.");
+      thread.status = "idle";
+    });
+    f.ops.cancel = cancel;
+    const cancellation = {
+      ...request,
+      id: randomUUID(),
+      text: "",
+      control: "cancel",
+    };
+    await f.service.accept(cancellation);
+    expect(cancel).toHaveBeenCalledTimes(status === "running" ? 1 : 0);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const replies = db
+        .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+        .all()
+        .map((r) => JSON.parse(String(r.value)))
+        .filter((r) => r.invocationId === cancellation.id);
+      expect(replies).toEqual([
+        expect.objectContaining({ final: true, outcome: "cancelled" }),
+      ]);
+    } finally {
+      db.close();
+    }
+  },
+);
+async function fixture(channel: "wecom" | "feishu" | "slack" = "slack") {
+  const root = await mkdtemp(join(tmpdir(), "artemis-native-"));
+  cleanup.push(() => rm(root, { recursive: true, force: true }));
+  const path = join(root, "project");
+  await mkdir(path);
+  const threads: Thread[] = [],
+    starts: string[] = [];
+  const ops: ImTaskOperations = {
+    projects: () => [
+      {
+        id: "p",
+        name: "Project",
+        path,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+    threads: () => threads,
+    thread: (id) => threads.find((t) => t.id === id),
+    ready: () => true,
+    events: () => [],
+    create: async (id, projectId, mode, title) => {
+      const t: Thread = {
+        id,
+        projectId: projectId ?? null,
+        mode,
+        title,
+        target: "local",
+        status: "idle",
+        pinned: false,
+        archived: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      threads.push(t);
+      return t;
+    },
+    start: async (id) => {
+      starts.push(id);
+    },
+    queue: async () => {},
+    close: async () => {},
+    cancel: async () => {},
+    approve: async () => {},
+    answer: () => {},
+  };
+  const service = new ImService(
+    root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    ops,
+  );
+  cleanup.push(() => service.close());
+  await service.manage({ action: "setup-local" });
+  await service.save({ ...service.status().settings, enabled: true });
+  // Inject authenticated adapter events into the actual local gateway; no provider credentials or network mocks.
+  const gateway = (
+    service as unknown as { localGateway: { gateway: ArtemisGateway } }
+  ).localGateway.gateway;
+  const identity = {
+    channel,
+    connectionId: "bot",
+    tenantId: "tenant",
+    appId: "app",
+    userId: "owner",
+  };
+  const pair = (await service.manage({ action: "pair" })) as { code: string };
+  gateway.store.pair(pair.code, identity);
+  await service.manage({ action: "refresh" });
+  const conversation = {
+    connectionId: "bot",
+    id: "room",
+    kind: "group" as const,
+  };
+  const event: ChannelEvent = {
+    version: 1,
+    messageId: randomUUID(),
+    identity,
+    conversation,
+    text: "first work",
+    timestamp: Date.now(),
+    mentioned: true,
+    bot: false,
+    attachments: [],
+  };
+  gateway.router.ingest(event);
+  gateway.router.processIncoming();
+  const grant = executionGrantSchema.parse({
+    projectId: "p",
+    expiresAt: Date.now() + 3600000,
+    security: {
+      version: IM_SECURITY_VERSION,
+      revision: "draft",
+      confirmedAt: Date.now(),
+      scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+    },
+  });
+  const authorize = () =>
+    service.manage({
+      action: "authorize-native-group",
+      conversation,
+      owner: identity,
+      name: "Test room",
+      grant,
+      confirmed: true,
+    });
+  return {
+    service,
+    gateway,
+    threads,
+    starts,
+    authorize,
+    event,
+    grant,
+    ops,
+    root,
+  };
+}
+it.each(["feishu", "slack"] as const)(
+  "%s retires group permissions but retains read-only conversation history across restart",
+  async (channel) => {
+    const f = await fixture(channel);
+    await f.authorize();
+    const before = f.service.status();
+    const thread = f.threads[0]!;
+    const groupId = before.remoteTasks![0]!.group!.spaceId;
+    const ownerScopes = before.settings.grants.flatMap(
+      (grant) =>
+        grant.security?.scopes.filter(
+          (scope) => scope.audience !== `space:${groupId}`,
+        ) ?? [],
+    );
+    retireGroup(f.gateway.store, f.event.conversation, "dissolved");
+    await f.service.manage({ action: "refresh" });
+    const after = f.service.status();
+    expect(after.spaces).toEqual([]);
+    expect(after.authorizationOperations).toEqual([]);
+    expect(
+      after.settings.grants.flatMap((grant) => grant.groups),
+    ).not.toContain(`space:${groupId}`);
+    expect(
+      after.settings.grants.flatMap((grant) => grant.security?.scopes ?? []),
+    ).toEqual(ownerScopes);
+    expect(
+      after.remoteTasks!.find((task) => task.threadId === thread.id)?.group,
+    ).toMatchObject({ retired: "dissolved", confirmed: false });
+    expect(f.threads).toContain(thread);
+    expect(() =>
+      f.service.desktopGroupContext(thread.id, "continue", "work"),
+    ).toThrow(/对话不可用/);
+    await expect(f.authorize()).rejects.toThrow();
+    await f.service.close();
+    const restarted = new ImService(
+      f.root,
+      {
+        isEncryptionAvailable: () => true,
+        encryptString: (s) => Buffer.from(s),
+        decryptString: (b) => b.toString(),
+      },
+      f.ops,
+    );
+    cleanup.push(() => restarted.close());
+    expect(
+      restarted
+        .status()
+        .remoteTasks!.find((task) => task.threadId === thread.id)?.group
+        ?.retired,
+    ).toBe("dissolved");
+    expect(() =>
+      restarted.desktopGroupContext(thread.id, "continue", "work"),
+    ).toThrow(/对话不可用/);
+  },
+);
+
+for (const channel of ["wecom", "feishu", "slack"] as const)
+  it(`${channel} creates one fixed entry only after authorization and runs group work in a child`, async () => {
+    const f = await fixture(channel);
+    expect(f.threads).toHaveLength(0);
+    expect(f.starts).toHaveLength(0);
+    await f.authorize();
+    expect(f.threads).toHaveLength(1);
+    const parent = f.threads[0]!.id;
+    await f.service.manage({ action: "refresh" });
+    await f.authorize();
+    expect(f.threads).toHaveLength(1);
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      f.service.status().remoteTasks![0]!.group!.spaceId,
+    );
+    await f.service.accept({
+      ...request,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      text: "new task",
+    });
+    await f.service.poll();
+    expect(f.starts).toHaveLength(1);
+    expect(f.starts[0]).not.toBe(parent);
+    expect(
+      f.service.status().remoteTasks?.find((t) => t.threadId === f.starts[0])
+        ?.parentThreadId,
+    ).toBe(parent);
+  });
+it("keeps local instructions private and deduplicates retries", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const threadId = f.threads[0]!.id;
+  const input = {
+    action: "native-group-input" as const,
+    threadId,
+    messageId: randomUUID(),
+    destination: "local" as const,
+    text: "private work",
+  };
+  await f.service.manage(input);
+  await f.service.manage(input);
+  expect(f.starts).toHaveLength(1);
+  const child = f.starts[0]!;
+  f.service.observe([
+    {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: child,
+      turnId: "turn",
+      timestamp: new Date().toISOString(),
+      sequence: 1,
+      payload: { type: "turn.completed", reason: "completed" },
+    },
+  ] as never);
+  expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+    "private work",
+  );
+  await expect(
+    f.service.manage({ ...input, text: "different" }),
+  ).rejects.toThrow(/编号/);
+});
+it("sending to the group queues a message without invoking Pi", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const threadId = f.threads[0]!.id;
+  await f.service.manage({
+    action: "native-group-input",
+    threadId,
+    messageId: randomUUID(),
+    destination: "group",
+    text: "hello group",
+  });
+  expect(f.starts).toHaveLength(0);
+  const state = (await f.service.manage({
+    action: "native-group-state",
+    threadId,
+  })) as { messages: Array<{ text: string }> };
+  expect(state.messages).toHaveLength(1);
+  expect(state.messages[0]?.text).toBe("hello group");
+});
+it("uses the assignment deadline only before execution and retains the project grant deadline", async () => {
+  const f = await fixture();
+  await f.authorize();
+  await f.service.manage({
+    action: "native-group-input",
+    threadId: f.threads[0]!.id,
+    messageId: randomUUID(),
+    destination: "local",
+    text: "long running work",
+  });
+  const now = Date.now();
+  vi.spyOn(Date, "now").mockReturnValue(now + 31 * 60000);
+  await f.service.manage({ action: "refresh" });
+  expect(() => f.service.authorizeThread(f.starts[0]!, "plan")).not.toThrow();
+  vi.spyOn(Date, "now").mockReturnValue(now + 61 * 60000);
+  expect(() => f.service.authorizeThread(f.starts[0]!, "plan")).toThrow();
+});
+
+it("queues group prompts with clean display text separate from private context", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const queue = vi.spyOn(f.ops, "queue");
+  const send = async (text: string) => {
+    f.gateway.router.ingest({
+      ...f.event,
+      messageId: randomUUID(),
+      timestamp: Date.now(),
+      text,
+    });
+    f.gateway.router.processIncoming();
+    await f.service.poll();
+  };
+  await send("first");
+  const child = f.starts[0]!;
+  f.threads.find((thread) => thread.id === child)!.status = "running";
+  await send("@Mino 请报告内存");
+  expect(queue).toHaveBeenCalledWith(
+    child,
+    expect.stringContaining("[IM provenance"),
+    [],
+    "@Mino 请报告内存",
+  );
+  expect(imUserMessageText(queue.mock.calls[0]![1])).toBe("@Mino 请报告内存");
+});
+
+it("commits terminal replies before emitting reentrant group activity", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const parent = f.threads[0]!.id;
+  const start = vi.spyOn(f.ops, "start");
+  f.gateway.router.ingest({
+    ...f.event,
+    messageId: randomUUID(),
+    timestamp: Date.now(),
+    text: "finish work",
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  const child = f.starts[0]!;
+  expect(f.threads.find((t) => t.id === child)?.projectId).toBe("p");
+  expect(start).toHaveBeenCalledWith(
+    child,
+    expect.stringContaining("[IM provenance"),
+    "plan",
+    [],
+    "finish work",
+    { channel: "slack", initialTitle: "Slack · finish work" },
+  );
+  const completed: AgentEvent = {
+    protocolVersion: 4,
+    eventId: randomUUID(),
+    threadId: child,
+    turnId: "turn",
+    timestamp: new Date().toISOString(),
+    seq: 2,
+    payload: {
+      type: "turn.completed",
+      reason: "completed",
+      finalPartId: "answer",
+    },
+  };
+  f.ops.events = () => [
+    {
+      ...completed,
+      eventId: randomUUID(),
+      seq: 1,
+      payload: {
+        type: "message.part.delta",
+        partId: "answer",
+        partType: "text",
+        delta: "Public final response",
+      },
+    },
+    completed,
+  ];
+  f.ops.groupActivity = vi.fn((id, taskId, phase) => {
+    f.service.observe([
+      {
+        ...completed,
+        eventId: randomUUID(),
+        threadId: id,
+        payload: { type: "im.group.activity", taskId, phase },
+      },
+    ]);
+  });
+  expect(() => f.service.observe([completed])).not.toThrow();
+  f.service.observe([completed]);
+  expect(f.ops.groupActivity).toHaveBeenCalledExactlyOnceWith(
+    parent,
+    child,
+    "completed",
+  );
+  await f.service.poll();
+  expect(JSON.stringify(f.gateway.store.pending("outgoing"))).toContain(
+    "Public final response",
+  );
+});
+
+it("does not reuse a device-wide Lark alias in a native Slack group", async () => {
+  const f = await fixture("slack");
+  await f.authorize();
+  const deviceId = f.service.status().settings.deviceId;
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  db.prepare("INSERT INTO im_state(namespace,id,value) VALUES(?,?,?)").run(
+    "member-labels",
+    JSON.stringify([deviceId, deviceId]),
+    JSON.stringify({ name: "Lark", deviceName: "My computer" }),
+  );
+  db.close();
+  let member = f.service.status().remoteTasks![0]!.group!.members[0]!;
+  expect(member.identity.channel).toBe("slack");
+  expect(member.name).toBe("owner");
+  expect(member.deviceName).toBe("My computer");
+  await f.service.manage({
+    action: "rename-group-member",
+    deviceId,
+    identity: f.event.identity,
+    name: "Slack owner",
+    deviceName: "My computer",
+  });
+  member = f.service.status().remoteTasks![0]!.group!.members[0]!;
+  expect(member.name).toBe("Slack owner");
+});
+
+it("executes an unpaired teammate request within the receiving group's project grant", async () => {
+  const f = await fixture();
+  await f.authorize();
+  f.gateway.router.ingest({
+    ...f.event,
+    identity: { ...f.event.identity, userId: "unpaired-teammate" },
+    messageId: "peer-task",
+    text: "Explain this project",
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  expect(f.starts).toHaveLength(1);
+  expect(f.threads.find((t) => t.id === f.starts[0])?.projectId).toBe("p");
+  f.gateway.router.ingest({
+    ...f.event,
+    identity: { ...f.event.identity, userId: "unpaired-teammate" },
+    messageId: "peer-control",
+    text: " /project elsewhere",
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  expect(f.starts).toHaveLength(1);
+});
+
+it("reuses the group's session across members and creates one only for explicit /new", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const send = async (messageId: string, userId: string, text: string) => {
+    f.gateway.router.ingest({
+      ...f.event,
+      identity: { ...f.event.identity, userId },
+      messageId,
+      text,
+      timestamp: Date.now(),
+    });
+    f.gateway.router.processIncoming();
+    await f.service.poll();
+  };
+  await send("one", "peer-a", "First question");
+  await send("two", "peer-b", "Follow up");
+  expect(f.starts).toHaveLength(2);
+  expect(f.starts[1]).toBe(f.starts[0]);
+  await send("three", "peer-b", "/new Separate task");
+  expect(f.starts).toHaveLength(3);
+  expect(f.starts[2]).not.toBe(f.starts[0]);
+  await send("four", "peer-a", "Continue new session");
+  expect(f.starts[3]).toBe(f.starts[2]);
+});
+it("continues a native bot assignment in its original session and treats slash text as task content", async () => {
+  const f = await fixture();
+  f.grant.mode = "work";
+  await f.authorize();
+  const owner = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    f.service.status().remoteTasks![0]!.group!.spaceId,
+  );
+  const assignment = (taskId?: string) => {
+    const nativeTaskId = randomUUID();
+    return {
+      ...owner,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      ...(taskId ? { taskId } : {}),
+      text: taskId ? "/new is literal bot content" : "First bot assignment",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: owner.deviceId,
+        coordinatorThreadId: owner.id,
+        mission: "Do the work",
+      },
+    };
+  };
+  await f.service.accept(assignment());
+  const original = f.starts[0]!;
+  expect(original).toBeTruthy();
+  expect(f.service.profile(original)?.collaborationRole).toBe("worker");
+  await expect(
+    f.service.operate(
+      original,
+      {
+        action: "collaborate",
+        command: {
+          action: "delegate",
+          participantId: "sender",
+          text: "Send it back",
+        },
+      },
+      "work",
+      "reverse-delegation",
+    ),
+  ).rejects.toThrow(/received assignment/);
+  const followUp = assignment(original);
+  await f.service.accept(followUp);
+  await f.service.accept(followUp);
+  expect(f.starts).toEqual([original, original]);
+  expect(f.threads).toHaveLength(2); // Group entry and one worker session.
+  // Renewing permission must continue the original session.
+  const settings = f.service.status().settings;
+  await f.service.save({
+    ...settings,
+    grants: settings.grants.map((g) => ({
+      ...g,
+      expiresAt: g.expiresAt + 60000,
+    })),
+  });
+  await f.service.accept(assignment(original));
+  expect(f.starts).toEqual([original, original, original]);
+  expect(f.threads).toHaveLength(2);
+  // Revocation still blocks execution without creating a replacement session.
+  await f.service.save({
+    ...f.service.status().settings,
+    defaultProjectId: "",
+    grants: [],
+  });
+  await f.service.accept(assignment(original));
+  expect(f.starts).toEqual([original, original, original]);
+  expect(f.threads).toHaveLength(2);
+});
+it("allows remote operations after cumulative usage exceeds legacy token budgets", async () => {
+  const f = await fixture();
+  f.grant.tokenBudget = 1024; // Persisted grants from older versions remain loadable.
+  await mkdir(join(f.root, "project", "src"));
+  f.grant.security!.scopes[0]!.readPaths = ["src"];
+  await f.authorize();
+  const request = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    f.service.status().remoteTasks![0]!.group!.spaceId,
+  );
+  await f.service.accept({
+    ...request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    text: "Work",
+  });
+  const threadId = f.starts[0]!;
+  expect(threadId).toBeTruthy();
+  f.service.observe([
+    {
+      protocolVersion: 4,
+      eventId: randomUUID(),
+      threadId,
+      turnId: "turn",
+      timestamp: new Date().toISOString(),
+      seq: 1,
+      payload: {
+        type: "assistant.usage",
+        inputTokens: 200000,
+        outputTokens: 1000,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        totalTokens: 201000,
+      },
+    },
+  ]);
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  try {
+    const row = db
+      .prepare("SELECT value FROM im_state WHERE namespace='bindings' AND id=?")
+      .get(threadId)!;
+    const binding = JSON.parse(String(row.value));
+    db.prepare(
+      "INSERT OR REPLACE INTO im_state(namespace,id,value) VALUES('usage',?,?)",
+    ).run(binding.request.id, JSON.stringify(1000000));
+  } finally {
+    db.close();
+  }
+  expect(() => f.service.authorizeThread(threadId, "plan")).not.toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      threadId,
+      { action: "read", path: "src" },
+      "plan",
+    ),
+  ).not.toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      threadId,
+      {
+        action: "collaborate",
+        command: { action: "status", text: "" },
+      },
+      "plan",
+    ),
+  ).toThrow(/Plan/);
+  await f.service.save({ ...f.service.status().settings, enabled: false });
+  expect(() => f.service.authorizeThread(threadId, "plan")).toThrow();
+});
+
+it("queries Slack bots in Plan without dispatching or requiring bot authorization", async () => {
+  const f = await fixture("slack");
+  await f.authorize();
+  const task = f.service.status().remoteTasks![0]!;
+  const spaceId = task.group!.spaceId;
+  f.gateway.store.put("native-group-info", spaceId, {
+    roster: {
+      complete: false,
+      error: "partial",
+      members: [
+        {
+          identity: { ...f.event.identity, userId: "U_JUPITER" },
+          name: "Jupiter",
+          kind: "bot",
+        },
+      ],
+    },
+  });
+  await f.service.manage({ action: "refresh" });
+  const outgoing = f.gateway.store.pending("outgoing");
+  for (const mode of ["plan"] as const) {
+    const result = await f.service.operate(
+      task.threadId,
+      { action: "participants" },
+      mode,
+      randomUUID(),
+    );
+    expect(result).toMatchObject({
+      spaceId,
+      complete: false,
+      error: "partial",
+      capability: "manual",
+      members: [
+        {
+          participantId: "U_JUPITER",
+          name: "Jupiter",
+          kind: "bot",
+          canAssign: false,
+        },
+      ],
+    });
+    await expect(
+      f.service.operate(
+        task.threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "delegate",
+            participantId: "U_JUPITER",
+            text: "Memory?",
+          },
+        },
+        mode,
+        randomUUID(),
+      ),
+    ).rejects.toThrow();
+  }
+  expect(f.gateway.store.pending("outgoing")).toEqual(outgoing);
+  expect(f.starts).toEqual([]);
+  await f.service.save({ ...f.service.status().settings, grants: [] });
+  await expect(
+    f.service.operate(
+      task.threadId,
+      { action: "participants" },
+      "plan",
+      randomUUID(),
+    ),
+  ).rejects.toThrow();
+});
+
+async function delegatedFixture(channel: "slack" | "feishu" = "slack") {
+  const f = await fixture(channel);
+  f.grant.mode = "work";
+  await f.authorize();
+  const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+  const group = f.gateway.store.get<
+    import("@artemis/protocol").CollaborationSpace
+  >("native-groups", groupId)!;
+  f.gateway.store.put("native-groups", groupId, {
+    ...group,
+    nativeGroup: { ...group.nativeGroup, capability: "events" },
+  });
+  await f.service.manage({ action: "refresh" });
+  const request = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    groupId,
+  );
+  await f.service.accept({
+    ...request,
+    text: "Ask Solar to analyze the project",
+  });
+  const threadId = f.starts.at(-1)!;
+  const thread = f.threads.find((t) => t.id === threadId)!;
+  thread.status = "running";
+  const task = {
+    version: 1,
+    id: "delegate-a",
+    groupId,
+    workflow: "workflow",
+    direction: "outgoing",
+    threadId,
+    invocationId: request.id,
+    peer: "solar",
+    state: "running",
+    text: "Analyze",
+    dependencies: [],
+    sequence: 1,
+    updatedAt: Date.now(),
+    envelope: { id: "attempt-a" },
+  };
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([task.groupId, task.id]),
+    task,
+  );
+  return { ...f, groupId, request, threadId, thread, task };
+}
+
+it.each(["slack", "feishu", "lark"] as const)(
+  "%s creates the receiver conversation on an explicit fresh dispatch after an unaccepted older assignment on the same desktop",
+  async (platform) => {
+    const f = await fixture(platform === "slack" ? "slack" : "feishu");
+    f.grant.mode = "work";
+    const receiverEvent = {
+      ...f.event,
+      messageId: randomUUID(),
+      identity: {
+        ...f.event.identity,
+        connectionId: "venus",
+        appId: "venus-app",
+      },
+      conversation: { ...f.event.conversation, connectionId: "venus" },
+    };
+    for (const [connectionId, botId, appId] of [
+      ["bot", "jupiter", "app"],
+      ["venus", "venus", "venus-app"],
+    ])
+      f.gateway.store.put("connections", connectionId!, {
+        sealed: f.gateway.store.seal({
+          id: connectionId,
+          channel: f.event.identity.channel,
+          domain: platform === "lark" ? "lark" : "feishu",
+          tenantId: "tenant",
+          appId,
+          botUserId: botId,
+          botOpenId: botId,
+          enabled: true,
+        }),
+      });
+    await f.authorize();
+    f.gateway.store.pair(
+      f.gateway.store.pairCode(f.service.status().settings.deviceId),
+      receiverEvent.identity,
+    );
+    f.gateway.router.ingest(receiverEvent);
+    f.gateway.router.processIncoming();
+    await f.service.manage({ action: "refresh" });
+    await f.service.manage({
+      action: "authorize-native-group",
+      conversation: receiverEvent.conversation,
+      owner: receiverEvent.identity,
+      name: "Test room",
+      grant: f.grant,
+      confirmed: true,
+    });
+    const groups = f.gateway.store.list<CollaborationSpace>("native-groups");
+    const sender = groups.find((g) => g.endpoints[0]!.connectionId === "bot")!;
+    const receiver = groups.find(
+      (g) => g.endpoints[0]!.connectionId === "venus",
+    )!;
+    for (const [group, peer] of [
+      [sender, "venus"],
+      [receiver, "jupiter"],
+    ] as const) {
+      f.gateway.store.put("native-groups", group.id, {
+        ...group,
+        nativeGroup: {
+          ...group.nativeGroup,
+          capability: "events",
+          allowedBots: [peer],
+        },
+      });
+      f.gateway.store.put("native-peers", group.id, [
+        { id: peer, name: peer, verifiedAt: Date.now() },
+      ]);
+    }
+    await f.service.manage({ action: "refresh" });
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      sender.id,
+    );
+    await f.service.accept({ ...request, text: "Ask Venus to report its RAM" });
+    const coordinator = f.starts.at(-1)!;
+    const command = {
+      action: "delegate" as const,
+      participantId: "venus",
+      text: "Report your computer's RAM",
+    };
+    const [old] = (await f.service.operate(
+      coordinator,
+      { action: "collaborate", command },
+      "work",
+      randomUUID(),
+    )) as Array<{ id: string; envelope: { id: string } }>;
+    // The provider accepted the old message, but the receiver never accepted it.
+    f.gateway.store.mark("outgoing", `native:${old!.envelope.id}`, "done");
+    await f.service.poll();
+    expect(f.starts).toEqual([coordinator]);
+    expect(f.gateway.router.native.tasks(receiver.id)).toEqual([]);
+    const oldWait = f.service
+      .status()
+      .remoteTasks!.find((t) => t.threadId === coordinator)!
+      .delegationWaits![0]!;
+    await f.service.manage({
+      action: "delegation-stop-wait",
+      waitId: oldWait.id,
+    });
+    const tasks = (await f.service.operate(
+      coordinator,
+      {
+        action: "collaborate",
+        command: { ...command, newTask: true },
+      },
+      "work",
+      randomUUID(),
+    )) as Array<{ id: string }>;
+    expect(tasks[0]!.id).not.toBe(old!.id);
+    const delivery = f.gateway.store
+      .pending<Delivery>("outgoing", Date.now(), "bot")
+      .find((item) => item.payload.native?.action === "delegate")!;
+    expect(delivery.payload.native?.platform).toBe(platform);
+    // Only the serialized IM message crosses into the other bot connection.
+    const incoming = {
+      ...receiverEvent,
+      messageId: randomUUID(),
+      timestamp: Date.now(),
+      identity: { ...receiverEvent.identity, userId: "jupiter" },
+      bot: true,
+      text: delivery.payload.text,
+    };
+    f.gateway.router.ingest(incoming);
+    f.gateway.store.mark("outgoing", delivery.id, "done");
+    await f.service.poll();
+    const worker = f.starts.at(-1)!;
+    expect(worker).not.toBe(coordinator);
+    expect(f.starts).toEqual([coordinator, worker]);
+    expect(
+      f.service.status().remoteTasks!.find((t) => t.threadId === worker)?.group
+        ?.spaceId,
+    ).toBe(receiver.id);
+    expect(f.gateway.router.native.tasks(receiver.id)).toEqual([
+      expect.objectContaining({
+        id: tasks[0]!.id,
+        direction: "incoming",
+        state: "running",
+        threadId: worker,
+      }),
+    ]);
+    f.gateway.router.ingest(incoming);
+    await f.service.poll();
+    expect(f.starts).toEqual([coordinator, worker]);
+  },
+);
+
+it.each(["slack", "feishu", "wecom"] as const)(
+  "keeps %s human follow-ups in one group task until an explicit new-task request",
+  async (channel) => {
+    const f = await fixture(channel);
+    await f.authorize();
+    const send = async (userId: string, text: string) => {
+      f.gateway.router.ingest({
+        ...f.event,
+        messageId: randomUUID(),
+        identity: { ...f.event.identity, userId },
+        text,
+        timestamp: Date.now(),
+      });
+      f.gateway.router.processIncoming();
+      await f.service.poll();
+    };
+    await send("owner", "Analyze the project");
+    const first = f.starts[0]!;
+    await send("second-owner", "Please include the test results");
+    await send("third-owner", "Also explain the findings");
+    expect(f.starts).toEqual([first, first, first]);
+    const firstThread = f.threads.find((t) => t.id === first)!;
+    firstThread.status = "running";
+    f.ops.queue = vi.fn(async () => {});
+    await send("second-owner", "One more detail while it is running");
+    expect(f.ops.queue).toHaveBeenCalledWith(
+      first,
+      expect.stringContaining("One more detail"),
+      [],
+      "One more detail while it is running",
+    );
+    expect(f.starts).toHaveLength(3);
+    firstThread.status = "idle";
+    f.ops.classifyControlIntent = vi.fn().mockResolvedValue("new-task");
+    await send("second-owner", "这是另一个任务，请单独新建对话分析文档");
+    const second = f.starts.at(-1)!;
+    expect(second).not.toBe(first);
+    f.ops.classifyControlIntent = vi.fn().mockResolvedValue("message");
+    await send("owner", "继续补充文档结论");
+    expect(f.starts.at(-1)).toBe(second);
+    await send("third-owner", "/new Explicit separate task");
+    expect(f.starts.at(-1)).not.toBe(second);
+    expect(f.starts.at(-1)).not.toBe(first);
+  },
+);
+
+it("parks delegated work, preserves intervening conversation, and resumes once after the turn is idle", async () => {
+  const f = await delegatedFixture();
+  const { threadId, thread, task } = f;
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  const result = await f.service.operate(
+    threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [task.id],
+        waitSeconds: 0,
+        text: "Review results",
+      },
+    },
+    "work",
+    randomUUID(),
+  );
+  expect(result).toMatchObject({ state: "waiting" });
+  expect(f.service.hasDelegationWait(threadId)).toBe(true);
+  // A real intervening message updates the invocation while this turn is busy.
+  await f.service.accept({
+    ...f.request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: threadId,
+    text: "What is two plus two?",
+  });
+  f.gateway.store.put("native-tasks", JSON.stringify([task.groupId, task.id]), {
+    ...task,
+    state: "completed",
+    result: "Solar result",
+  });
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+  expect(
+    f.service.status().remoteTasks!.find((t) => t.threadId === threadId)
+      ?.delegationWaits?.[0]?.state,
+  ).toBe("ready");
+  thread.status = "idle";
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(resume.mock.calls[0]?.[1]).toContain("newer user messages");
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it.each(["archived", "deleted", "revoked", "review", "busy", "queued"])(
+  "does not auto-resume when %s",
+  async (condition) => {
+    const f = await delegatedFixture();
+    const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+      async () => condition !== "queued",
+    );
+    f.ops.resumeDelegation = resume;
+    await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [f.task.id],
+          waitSeconds: 0,
+          text: "Review results",
+        },
+      },
+      "work",
+      randomUUID(),
+    );
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+      {
+        ...f.task,
+        state: "completed",
+        result: "Done",
+      },
+    );
+    f.thread.status = "idle";
+    if (condition === "archived") f.thread.archived = true;
+    if (condition === "deleted")
+      f.threads.splice(f.threads.indexOf(f.thread), 1);
+    if (condition === "revoked")
+      await f.service.save({ ...f.service.status().settings, grants: [] });
+    if (condition === "review") f.thread.mode = "review";
+    if (condition === "busy") f.thread.status = "waiting-approval";
+    await f.service.poll();
+    if (condition === "queued") {
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(f.service.hasDelegationWait(f.threadId)).toBe(true);
+      resume.mockResolvedValue(true);
+      await f.service.poll();
+      expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    } else expect(resume).not.toHaveBeenCalled();
+  },
+);
+
+it("cancels local continuation even if the remote cancellation cannot be delivered", async () => {
+  const f = await delegatedFixture();
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  const wait = (await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Review",
+      },
+    },
+    "work",
+    randomUUID(),
+  )) as { waitId: string };
+  await f.service
+    .manage({ action: "delegation-cancel", waitId: wait.waitId })
+    .catch(() => {});
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
+    ...f.task,
+    state: "completed",
+    result: "Late result",
+  });
+  f.thread.status = "idle";
+  await f.service.poll();
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  expect(resume).not.toHaveBeenCalled();
+});
+
+it("returns already available results synchronously without scheduling a second turn", async () => {
+  const f = await delegatedFixture();
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
+    ...f.task,
+    state: "completed",
+    result: "Fast result",
+  });
+  const result = await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 30,
+        text: "Review",
+      },
+    },
+    "work",
+    randomUUID(),
+  );
+  expect(result).toMatchObject({
+    state: "results",
+    tasks: [{ result: "Fast result" }],
+  });
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+});
+
+it("recovers a persisted wait and result after the IM service restarts", async () => {
+  const f = await delegatedFixture();
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Review after restart",
+      },
+    },
+    "work",
+    randomUUID(),
+  );
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
+    ...f.task,
+    state: "completed",
+    result: "Persisted result",
+  });
+  await f.service.close();
+  f.thread.status = "idle";
+  const restored = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restored.close());
+  await restored.manage({ action: "setup-local" });
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(resume.mock.calls[0]?.[1]).toContain("Persisted result");
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it("returns a result during the bounded short wait and replays the same tool receipt", async () => {
+  const f = await delegatedFixture();
+  const command = {
+    action: "wait" as const,
+    taskIds: [f.task.id],
+    waitSeconds: 1,
+    text: "Review",
+  };
+  const callId = randomUUID();
+  const timer = setTimeout(
+    () =>
+      f.gateway.store.put(
+        "native-tasks",
+        JSON.stringify([f.groupId, f.task.id]),
+        {
+          ...f.task,
+          state: "completed",
+          result: "Quick result",
+        },
+      ),
+    20,
+  );
+  try {
+    const result = await f.service.operate(
+      f.threadId,
+      { action: "collaborate", command },
+      "work",
+      callId,
+    );
+    expect(result).toMatchObject({
+      state: "results",
+      tasks: [{ result: "Quick result" }],
+    });
+    expect(
+      await f.service.operate(
+        f.threadId,
+        { action: "collaborate", command },
+        "work",
+        callId,
+      ),
+    ).toEqual(result);
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+it("keeps task ownership checks after an intervening message changes the invocation", async () => {
+  const f = await delegatedFixture();
+  await f.service.accept({
+    ...f.request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: f.threadId,
+    text: "Only inspect login now",
+  });
+  const status = await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: { action: "status", text: "" } },
+    "work",
+    randomUUID(),
+  );
+  expect(status).toMatchObject([{ id: f.task.id, invocationId: f.request.id }]);
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, "foreign"]), {
+    ...f.task,
+    id: "foreign",
+    threadId: "another-thread",
+  });
+  await expect(
+    f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: { action: "cancel", taskId: "foreign", text: "" },
+      },
+      "work",
+      randomUUID(),
+    ),
+  ).rejects.toThrow(/owned/);
+  // A completed task can be locally cancelled without sending another IM frame.
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
+    ...f.task,
+    state: "completed",
+    result: "Done",
+  });
+  await expect(
+    f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: { action: "cancel", taskId: f.task.id, text: "" },
+      },
+      "work",
+      randomUUID(),
+    ),
+  ).resolves.toMatchObject({ id: f.task.id, state: "completed" });
+});
+
+it.each(["desktop", "chat", "tool"] as const)(
+  "%s cancellation persists before delivery and prevents late continuation after restart",
+  async (entry) => {
+    const f = await delegatedFixture();
+    const resume = vi.fn(async () => true);
+    f.ops.resumeDelegation = resume;
+    const cancelContinuation = vi.fn(async () => {});
+    f.ops.cancelDelegationContinuation = cancelContinuation;
+    const wait = (await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [f.task.id],
+          waitSeconds: 0,
+          text: "Review",
+        },
+      },
+      "work",
+      randomUUID(),
+    )) as { waitId: string };
+    f.thread.status = "idle";
+    if (entry === "chat") {
+      await f.service.accept({
+        ...f.request,
+        id: randomUUID(),
+        messageId: randomUUID(),
+        text: `/stop ${f.threadId}`,
+      });
+    } else if (entry === "desktop") {
+      await f.service
+        .manage({ action: "delegation-cancel", waitId: wait.waitId })
+        .catch(() => {});
+    } else {
+      await f.service
+        .operate(
+          f.threadId,
+          {
+            action: "collaborate",
+            command: { action: "cancel", taskId: f.task.id, text: "" },
+          },
+          "work",
+          randomUUID(),
+        )
+        .catch(() => {});
+    }
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(cancelContinuation).toHaveBeenCalledWith(
+      f.threadId,
+      expect.arrayContaining([wait.waitId]),
+    );
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+      {
+        ...f.task,
+        state: "completed",
+        result: "Late",
+      },
+    );
+    await f.service.poll();
+    expect(resume).not.toHaveBeenCalled();
+    await f.service.close();
+    const restored = new ImService(
+      f.root,
+      {
+        isEncryptionAvailable: () => true,
+        encryptString: (s) => Buffer.from(s),
+        decryptString: (b) => b.toString(),
+      },
+      f.ops,
+    );
+    cleanup.push(() => restored.close());
+    await restored.manage({ action: "setup-local" });
+    await restored.poll();
+    expect(restored.hasDelegationWait(f.threadId)).toBe(false);
+    expect(resume).not.toHaveBeenCalled();
+  },
+);
+
+it("preserves cancellation when a continuation dispatch completes concurrently", async () => {
+  const f = await delegatedFixture();
+  const wait = (await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Review",
+      },
+    },
+    "work",
+    randomUUID(),
+  )) as { waitId: string };
+  const stopped = vi.fn(async () => {});
+  f.ops.cancelDelegationContinuation = stopped;
+  f.ops.resumeDelegation = async () => {
+    await f.service
+      .manage({ action: "delegation-cancel", waitId: wait.waitId })
+      .catch(() => {});
+    return true;
+  };
+  f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
+    ...f.task,
+    state: "completed",
+    result: "Ready",
+  });
+  f.thread.status = "idle";
+  await f.service.poll();
+  expect(stopped).toHaveBeenCalledWith(
+    f.threadId,
+    expect.arrayContaining([wait.waitId]),
+  );
+  expect(f.service.canResumeDelegation(wait.waitId)).toBe(false);
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  try {
+    const row = db
+      .prepare(
+        "SELECT value FROM im_state WHERE namespace='delegation-waits' AND id=?",
+      )
+      .get(wait.waitId) as { value: string };
+    expect(JSON.parse(row.value).state).toBe("cancelled");
+  } finally {
+    db.close();
+  }
+});
+
+async function automaticallyDelegatedFixture(
+  batch = false,
+  originTurnId?: string,
+  platform: "slack" | "feishu" | "lark" = "slack",
+) {
+  const f = await delegatedFixture(platform === "slack" ? "slack" : "feishu");
+  const group = f.gateway.store.get<
+    import("@artemis/protocol").CollaborationSpace
+  >("native-groups", f.groupId)!;
+  f.gateway.store.put("native-groups", f.groupId, {
+    ...group,
+    nativeGroup: { ...group.nativeGroup, allowedBots: ["solar"] },
+  });
+  f.gateway.store.put("native-peers", f.groupId, [
+    { id: "solar", name: "Solar", verifiedAt: Date.now() },
+  ]);
+  f.gateway.store.put("connections", "bot", {
+    sealed: f.gateway.store.seal({
+      id: "bot",
+      channel: f.event.identity.channel,
+      domain: platform === "lark" ? "lark" : "feishu",
+      tenantId: "tenant",
+      appId: "app",
+      botUserId: "jupiter",
+      botOpenId: "jupiter",
+      enabled: true,
+    }),
+  });
+  const command = batch
+    ? {
+        action: "delegate-many" as const,
+        newTask: true,
+        text: "",
+        assignments: [
+          { participantId: "solar", text: "Check disk" },
+          { participantId: "solar", text: "Check RAM" },
+        ],
+      }
+    : {
+        action: "delegate" as const,
+        newTask: true,
+        participantId: "solar",
+        text: "Check disk",
+      };
+  const callId = randomUUID();
+  const result = (await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command },
+    "work",
+    callId,
+    originTurnId,
+  )) as Array<typeof f.task>;
+  const waits = () =>
+    f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)!
+      .delegationWaits!;
+  return { ...f, command, callId, result, waits };
+}
+
+it.each(["slack", "feishu", "lark"] as const)(
+  "%s distinguishes transport delivery from peer acceptance and a stopped local wait",
+  async (platform) => {
+    const f = await automaticallyDelegatedFixture(false, undefined, platform);
+    const task = f.result[0]!;
+    const waitId = f.waits()[0]!.id;
+    f.gateway.store.mark("outgoing", `native:${task.envelope.id}`, "done");
+    const status = () =>
+      f.service.operate(
+        f.threadId,
+        { action: "collaborate", command: { action: "status", text: "" } },
+        "work",
+        randomUUID(),
+        randomUUID(),
+      );
+    expect(await status()).toMatchObject({
+      state: "waiting",
+      tasks: expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          state: "unknown",
+          reportedState: "sent",
+          delivery: "done",
+          localWait: { active: true, state: "waiting", waitId },
+          instruction: expect.stringContaining(
+            "does not confirm peer acceptance",
+          ),
+        }),
+      ]),
+    });
+    await f.service.manage({ action: "delegation-stop-wait", waitId });
+    expect(await status()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          delivery: "done",
+          localWait: { active: false, state: "inactive" },
+          instruction: expect.stringContaining(
+            "Do not claim automatic waiting",
+          ),
+        }),
+      ]),
+    );
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    await expect(
+      f.service.operate(
+        f.threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "message",
+            taskId: task.id,
+            text: "Say hello and reply to the earlier question",
+          },
+        },
+        "work",
+        randomUUID(),
+        randomUUID(),
+      ),
+    ).rejects.toThrow("Notes require an accepted, active task");
+    await expect(
+      f.service.operate(
+        f.threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "wait",
+            taskIds: [task.id],
+            text: "Wait for a reply to the note",
+            waitSeconds: 0,
+          },
+        },
+        "work",
+        randomUUID(),
+        randomUUID(),
+      ),
+    ).rejects.toThrow("Automatic waiting for this attempt has ended");
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(
+      f.gateway.router.native.tasks(f.groupId).filter((t) => t.id === task.id),
+    ).toHaveLength(1);
+  },
+);
+
+it("registers waiting immediately on successful dispatch without a wait tool and reuses it for explicit wait", async () => {
+  const f = await automaticallyDelegatedFixture();
+  expect(f.waits()).toHaveLength(1);
+  const id = f.waits()[0]!.id;
+  expect(f.waits()[0]).toMatchObject({
+    continuation: "Check disk",
+    state: "waiting",
+    taskIds: [f.result[0]!.id],
+  });
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "work",
+    f.callId,
+  );
+  expect(f.waits()).toHaveLength(1);
+  const waited = await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.result[0]!.id],
+        text: "Summarize latest requirements",
+        waitSeconds: 0,
+      },
+    },
+    "work",
+    randomUUID(),
+  );
+  expect(waited).toMatchObject({ waitId: id });
+  expect(f.waits()[0]!.continuation).toBe("Summarize latest requirements");
+});
+
+it("consumes only results actually returned by status and preserves the remaining batch wait", async () => {
+  const f = await automaticallyDelegatedFixture(true);
+  const resume = vi.fn(async () => true);
+  f.ops.resumeDelegation = resume;
+  expect(f.waits()).toHaveLength(2);
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([f.groupId, f.result[0]!.id]),
+    {
+      ...f.result[0],
+      state: "completed",
+      result: "Disk result from old protocol",
+    },
+  );
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: { action: "status", text: "" } },
+    "work",
+    randomUUID(),
+  );
+  expect(f.waits()).toHaveLength(1);
+  expect(f.waits()[0]!.taskIds).toEqual([f.result[1]!.id]);
+  f.thread.status = "idle";
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([f.groupId, f.result[1]!.id]),
+    {
+      ...f.result[1],
+      state: "completed",
+      result: "RAM result",
+    },
+  );
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it("does not resurrect automatic waits on dispatch replay after cancellation", async () => {
+  const f = await automaticallyDelegatedFixture();
+  await f.service
+    .manage({ action: "delegation-cancel", waitId: f.waits()[0]!.id })
+    .catch(() => {});
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "work",
+    f.callId,
+  );
+  expect(f.waits()).toHaveLength(0);
+});
+
+it("restores an automatically registered wait and resumes unread results once after restart", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const resume = vi.fn(async () => true);
+  f.ops.resumeDelegation = resume;
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([f.groupId, f.result[0]!.id]),
+    {
+      ...f.result[0],
+      state: "completed",
+      result: "Old-format peer result",
+    },
+  );
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+  await f.service.close();
+  f.thread.status = "idle";
+  const restored = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restored.close());
+  await restored.manage({ action: "setup-local" });
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(resume.mock.calls[0])).toContain(
+    "Old-format peer result",
+  );
+  await restored.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it("merges explicit batch waiting without retaining duplicate automatic continuations", async () => {
+  const f = await automaticallyDelegatedFixture(true);
+  await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: f.result.map((t) => t.id),
+        text: "Combine both results",
+        waitSeconds: 0,
+      },
+    },
+    "work",
+    randomUUID(),
+  );
+  expect(f.waits()).toHaveLength(1);
+  expect(f.waits()[0]!.taskIds).toHaveLength(2);
+});
+
+it("does not show a wait when dispatch is rejected", async () => {
+  const f = await delegatedFixture();
+  await expect(
+    f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "delegate",
+          participantId: "unknown",
+          text: "Analyze",
+        },
+      },
+      "work",
+      randomUUID(),
+    ),
+  ).rejects.toThrow();
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+});
+
+it("parks pending polling and cancels its original turn, blocking new dispatch from that turn", async () => {
+  const origin = randomUUID();
+  const f = await automaticallyDelegatedFixture(false, origin);
+  const cancelled = vi.fn(async () => {});
+  f.ops.cancelDelegationContinuation = cancelled;
+  const status = await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: { action: "status", text: "" } },
+    "work",
+    randomUUID(),
+    origin,
+  );
+  expect(status).toMatchObject({ parkDelegation: true, state: "waiting" });
+  await f.service.manage({
+    action: "delegation-cancel",
+    waitId: f.waits()[0]!.id,
+  });
+  expect(cancelled).toHaveBeenCalledWith(
+    f.threadId,
+    expect.arrayContaining([origin]),
+  );
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: f.command },
+      "work",
+      randomUUID(),
+      origin,
+    ),
+  ).rejects.toThrow("cancelled");
+  expect(f.waits()).toHaveLength(0);
+  await f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "work",
+    randomUUID(),
+    randomUUID(),
+  );
+  expect(f.waits()).toHaveLength(1);
+});
+
+it("cancels an in-flight dispatch that returns after its originating turn was cancelled", async () => {
+  const origin = randomUUID();
+  const f = await automaticallyDelegatedFixture(false, origin);
+  const service = f.service as unknown as {
+    http(path: string, method: string, body: unknown): Promise<Response>;
+  };
+  const original = service.http.bind(service);
+  let release!: () => void;
+  let accepted!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    accepted = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.spyOn(service, "http").mockImplementation(async (path, method, body) => {
+    const response = await original(path, method, body);
+    if (
+      path === "/v1/device/native-command" &&
+      (body as { command?: { action: string } }).command?.action === "delegate"
+    ) {
+      accepted();
+      await gate;
+    }
+    return response;
+  });
+  const pending = f.service.operate(
+    f.threadId,
+    { action: "collaborate", command: f.command },
+    "work",
+    randomUUID(),
+    origin,
+  );
+  await ready;
+  await f.service.manage({
+    action: "delegation-cancel",
+    waitId: f.waits()[0]!.id,
+  });
+  release();
+  const tasks = (await pending) as Array<{ id: string }>;
+  expect(f.waits()).toHaveLength(0);
+  expect(
+    f.gateway.store.get<{ state: string }>(
+      "native-tasks",
+      JSON.stringify([f.groupId, tasks[0]!.id]),
+    )?.state,
+  ).toBe("cancel-sent");
+});
+
+it("recovers the origin of an older wait from a real tool receipt when cancelling", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const origin = randomUUID();
+  f.ops.events = () =>
+    [
+      {
+        turnId: origin,
+        payload: {
+          type: "tool.completed",
+          toolCallId: f.callId,
+          output: JSON.stringify(f.result),
+          isError: false,
+        },
+      },
+    ] as AgentEvent[];
+  const stop = vi.fn(async () => {});
+  f.ops.cancelDelegationContinuation = stop;
+  await f.service.manage({
+    action: "delegation-cancel",
+    waitId: f.waits()[0]!.id,
+  });
+  expect(stop).toHaveBeenCalledWith(
+    f.threadId,
+    expect.arrayContaining([origin]),
+  );
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: f.command },
+      "work",
+      randomUUID(),
+      origin,
+    ),
+  ).rejects.toThrow("cancelled");
+});
+
+it.each(["cancelled", "failed", "rejected"] as const)(
+  "ends waiting on peer %s without waking the model or allowing automatic redispatch",
+  async (state) => {
+    const f = await automaticallyDelegatedFixture();
+    const resume = vi.fn(async () => true);
+    f.ops.resumeDelegation = resume;
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.result[0]!.id]),
+      {
+        ...f.result[0],
+        state,
+        result: "Peer stopped this task",
+      },
+    );
+    f.thread.status = "idle";
+    await f.service.poll();
+    expect(resume).not.toHaveBeenCalled();
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(f.waits()[0]).toMatchObject({
+      state: "interrupted",
+      reason: expect.stringContaining("Peer stopped"),
+    });
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "collaborate", command: f.command },
+        "work",
+        randomUUID(),
+        randomUUID(),
+      ),
+    ).rejects.toThrow("click Retry");
+    const waitId = f.waits()[0]!.id;
+    if (state === "cancelled") {
+      await f.service.accept({
+        ...f.request,
+        id: randomUUID(),
+        messageId: randomUUID(),
+        taskId: f.threadId,
+        text: `/retry ${waitId}`,
+      });
+    } else {
+      await f.service.manage({ action: "delegation-retry", waitId });
+    }
+    await f.service.poll();
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(resume.mock.calls[0])).toContain(
+      "explicitly authorized retry",
+    );
+    await f.service.poll();
+    expect(resume).toHaveBeenCalledTimes(1);
+  },
+);
+
+it.each(["wait", "status"] as const)(
+  "publishes one terminal rejection instead of stale model text after %s",
+  async (action) => {
+    const turnId = randomUUID();
+    const f = await automaticallyDelegatedFixture(false, turnId);
+    const events: AgentEvent[] = [
+      {
+        version: 1,
+        eventId: randomUUID(),
+        threadId: f.threadId,
+        turnId,
+        timestamp: new Date().toISOString(),
+        payload: {
+          type: "message.part.delta",
+          messageId: "message",
+          partId: "part",
+          partType: "text",
+          delta: "任务已发送给 Solar，现在等待它的结果。",
+        },
+      },
+    ];
+    f.ops.events = () => events;
+    f.ops.groupActivity = vi.fn();
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.result[0]!.id]),
+      {
+        ...f.result[0],
+        state: "rejected",
+        result: "Peer scope is not confirmed",
+      },
+    );
+    await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command:
+          action === "wait"
+            ? {
+                action,
+                taskIds: [f.result[0]!.id],
+                waitSeconds: 0,
+                text: "Review result",
+              }
+            : { action, text: "" },
+      },
+      "work",
+      randomUUID(),
+      turnId,
+    );
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    const finished: AgentEvent = {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: f.threadId,
+      turnId,
+      timestamp: new Date().toISOString(),
+      payload: { type: "turn.completed", reason: "completed", durationMs: 1 },
+    };
+    events.push(finished);
+    f.service.observe([finished]);
+    f.service.observe([finished]);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const replies = db
+        .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+        .all()
+        .map((row) => JSON.parse(String(row.value)))
+        .filter(
+          (reply) => reply.invocationId === f.request.id && !reply.started,
+        );
+      expect(replies).toHaveLength(1);
+      expect(replies[0]).toMatchObject({
+        final: true,
+        outcome: "failed",
+        status: "failed",
+      });
+      expect(replies[0].text).toContain("Peer scope is not confirmed");
+      expect(replies[0].text).not.toContain("现在等待");
+      expect(replies[0].text).not.toContain("/stopwait");
+    } finally {
+      db.close();
+    }
+    expect(f.ops.groupActivity).toHaveBeenCalledWith(
+      expect.any(String),
+      f.threadId,
+      "failed",
+    );
+  },
+);
+
+it.each(["/stop", "取消任务"])(
+  "handles %s from a group member with no accepted task before data permission checks",
+  async (text) => {
+    const f = await fixture();
+    await f.authorize();
+    const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      groupId,
+    );
+    await f.service.save({ ...f.service.status().settings, grants: [] });
+    f.ops.classifyControlIntent = vi.fn(async () => "cancel-current" as const);
+    const id = randomUUID();
+    await f.service.accept({
+      ...request,
+      id,
+      messageId: id,
+      text,
+      originator: { ...request.identity, userId: "member" },
+      sourceKind: "member",
+    });
+    expect(f.starts).toHaveLength(0);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const replies = db
+        .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+        .all()
+        .map((row) => JSON.parse(String(row.value)))
+        .filter((reply) => reply.invocationId === id);
+      expect(replies).toHaveLength(1);
+      expect(replies[0].text).toContain("没有可取消");
+    } finally {
+      db.close();
+    }
+  },
+);
+
+it("allows group members to stop only their own task after its data grant is revoked", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+  const owner = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    groupId,
+  );
+  const member = { ...owner.identity, userId: "member" };
+  await f.service.accept({
+    ...owner,
+    id: randomUUID(),
+    originator: member,
+    sourceKind: "member",
+    text: "Analyze",
+  });
+  const thread = f.threads.find((t) => t.id === f.starts[0])!;
+  thread.status = "running";
+  // A follow-up from another member cannot acquire control of the current task.
+  await f.service.accept({
+    ...owner,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: thread.id,
+    originator: { ...member, userId: "stranger" },
+    sourceKind: "member",
+    text: "Additional context",
+  });
+  await f.service.save({ ...f.service.status().settings, grants: [] });
+  thread.status = "running";
+  f.ops.cancel = vi.fn(async () => {
+    thread.status = "idle";
+  });
+  for (const userId of ["stranger", "member"]) {
+    await f.service.accept({
+      ...owner,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      originator: { ...member, userId },
+      sourceKind: "member",
+      text: `/stop ${thread.id}`,
+    });
+    expect(f.ops.cancel).toHaveBeenCalledTimes(userId === "member" ? 1 : 0);
+  }
+  expect(thread.status).toBe("idle");
+});
+
+it("sends a cancellation for an owned delegation after project access is revoked", async () => {
+  const f = await automaticallyDelegatedFixture();
+  await f.service.save({ ...f.service.status().settings, grants: [] });
+  await expect(
+    f.service.manage({
+      action: "native-cancel",
+      groupId: f.groupId,
+      taskId: f.result[0]!.id,
+      messageId: randomUUID(),
+    }),
+  ).resolves.toMatchObject({ state: "cancel-sent" });
+  const cancellation = f.gateway.store
+    .pending<import("@artemis/gateway").Delivery>("outgoing")
+    .find((item) => item.payload.native?.action === "cancel")!.payload;
+  expect(f.gateway.router.canDeliver(cancellation)).toBe(true);
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  await expect(
+    f.service.manage({
+      action: "native-cancel",
+      groupId: f.groupId,
+      taskId: "foreign",
+      messageId: randomUUID(),
+    }),
+  ).rejects.toThrow();
+});
+
+it.each(["/stop", "取消任务"])(
+  "routes a real group member's %s through Gateway to their own task",
+  async (text) => {
+    const f = await fixture();
+    await f.authorize();
+    const send = async (body: string) => {
+      f.gateway.router.ingest({
+        ...f.event,
+        messageId: randomUUID(),
+        identity: { ...f.event.identity, userId: "member" },
+        text: body,
+        timestamp: Date.now(),
+      });
+      f.gateway.router.processIncoming();
+      await f.service.poll();
+    };
+    await send("Do the work");
+    const thread = f.threads.find((t) => t.id === f.starts[0])!;
+    thread.status = "running";
+    f.ops.cancel = vi.fn(async () => {
+      thread.status = "idle";
+    });
+    f.ops.classifyControlIntent = vi.fn(async () => "cancel-current" as const);
+    await send(text);
+    expect(f.ops.cancel).toHaveBeenCalledOnce();
+    expect(f.starts).toHaveLength(1);
+    expect(
+      f.gateway.store
+        .pending<{ text: string }>("outgoing")
+        .some((item) => item.payload.text.includes("本地任务已停止")),
+    ).toBe(true);
+  },
+);
+
+it("queries unknown and recovered task heartbeats without rearming an interrupted wait", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const resume = vi.fn(async () => true);
+  f.ops.resumeDelegation = resume;
+  const task = f.result[0]!;
+  f.gateway.store.put("native-tasks", JSON.stringify([task.groupId, task.id]), {
+    ...task,
+    state: "failed",
+    result: "Interrupted",
+  });
+  f.thread.status = "idle";
+  await f.service.poll();
+  for (const fresh of [false, true]) {
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([task.groupId, task.id]),
+      {
+        ...task,
+        state: "running",
+        heartbeatAt: Date.now() - (fresh ? 0 : 240_000),
+      },
+    );
+    const status = await f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: { action: "status", text: "" } },
+      "work",
+      randomUUID(),
+      randomUUID(),
+    );
+    expect(status).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: task.id,
+          state: fresh ? "running" : "unknown",
+          reportedState: "running",
+          liveness: fresh ? "responsive" : "unknown",
+          localWait: {
+            active: false,
+            state: "interrupted",
+            waitId: f.waits()[0]!.id,
+          },
+          instruction: expect.stringContaining("choose Retry in Artemis"),
+        }),
+      ]),
+    );
+    await f.service.accept({
+      ...f.request,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      taskId: f.threadId,
+      text: `/status ${f.threadId}`,
+    });
+    expect(f.waits()[0]!.state).toBe("interrupted");
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    expect(resume).not.toHaveBeenCalled();
+  }
+});
+
+it.each(["slack", "feishu"] as const)(
+  "answers a %s reverse request in the original session and restores the user reply target",
+  async (channel) => {
+    const f = await delegatedFixture(channel);
+    await f.service.operate(
+      f.threadId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [f.task.id],
+          waitSeconds: 0,
+          text: "Finish the user's task",
+        },
+      },
+      "work",
+      randomUUID(),
+    );
+    const nativeTaskId = randomUUID();
+    const incoming = {
+      ...f.request,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      taskId: f.threadId,
+      text: "What deployment target should I use?",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: f.request.deviceId,
+        coordinatorThreadId: f.request.id,
+        mission: "Clarify deployment target",
+      },
+    };
+    await f.service.accept(incoming);
+    expect(f.starts).toHaveLength(1); // Never overwrite the running user's reply binding.
+    f.thread.status = "idle";
+    await f.service.poll();
+    expect(f.starts).toEqual([f.threadId, f.threadId]);
+    expect(f.threads).toHaveLength(2); // Group entry plus the shared conversation.
+    expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+    const resume = vi.fn(async () => true);
+    f.ops.resumeDelegation = resume;
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+      {
+        ...f.task,
+        state: "completed",
+        result: "Analysis ready",
+      },
+    );
+    await f.service.poll();
+    expect(resume).not.toHaveBeenCalled();
+    const completed = (eventId: string): AgentEvent => ({
+      version: 1,
+      eventId,
+      threadId: f.threadId,
+      turnId: eventId,
+      timestamp: new Date().toISOString(),
+      sequence: 1,
+      payload: { type: "turn.completed", reason: "completed", durationMs: 1 },
+    });
+    const peerReplyId = randomUUID();
+    f.service.observe([completed(peerReplyId)]);
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    const read = (namespace: string, id: string) =>
+      JSON.parse(
+        String(
+          db
+            .prepare("SELECT value FROM im_state WHERE namespace=? AND id=?")
+            .get(namespace, id)!.value,
+        ),
+      );
+    try {
+      expect(read("outbox", peerReplyId)).toMatchObject({
+        invocationId: incoming.id,
+        final: true,
+      });
+      expect(read("bindings", f.threadId).request.id).toBe(f.request.id);
+      await f.service.poll();
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(resume.mock.calls[0]![0]).toBe(f.threadId);
+      const userReplyId = randomUUID();
+      f.service.observe([completed(userReplyId)]);
+      expect(read("outbox", userReplyId)).toMatchObject({
+        invocationId: f.request.id,
+        final: true,
+      });
+    } finally {
+      db.close();
+    }
+  },
+);
+it("cancels a reverse assignment without cancelling the suspended user workflow", async () => {
+  const f = await delegatedFixture();
+  await f.service.operate(
+    f.threadId,
+    {
+      action: "collaborate",
+      command: {
+        action: "wait",
+        taskIds: [f.task.id],
+        waitSeconds: 0,
+        text: "Continue user work",
+      },
+    },
+    "work",
+    randomUUID(),
+  );
+  f.thread.status = "idle";
+  const nativeTaskId = randomUUID();
+  const request = {
+    ...f.request,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    nativeTaskId,
+    taskId: f.threadId,
+    text: "Peer question",
+    collaboration: {
+      taskId: nativeTaskId,
+      coordinatorDeviceId: f.request.deviceId,
+      coordinatorThreadId: f.request.id,
+      mission: "Peer question",
+    },
+  };
+  await f.service.accept(request);
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(false);
+  await f.service.accept({
+    ...request,
+    id: randomUUID(),
+    text: "",
+    control: "cancel",
+  });
+  expect(f.service.hasDelegationWait(f.threadId)).toBe(true);
+  expect(
+    f.gateway.store.get<{ state: string }>(
+      "native-tasks",
+      JSON.stringify([f.groupId, f.task.id]),
+    )?.state,
+  ).toBe("running");
+  expect(f.starts).toEqual([f.threadId, f.threadId]);
+});
+
+it("shares human and native group messages unless a native new conversation is explicit", async () => {
+  const f = await fixture("feishu");
+  f.grant.mode = "work";
+  await f.authorize();
+  const owner = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    f.service.status().remoteTasks![0]!.group!.spaceId,
+  );
+  await f.service.accept({ ...owner, text: "User task" });
+  const original = f.starts[0]!;
+  const nativeTaskId = randomUUID();
+  const assignment = {
+    ...owner,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    nativeTaskId,
+    text: "Peer question",
+    collaboration: {
+      taskId: nativeTaskId,
+      coordinatorDeviceId: owner.deviceId,
+      coordinatorThreadId: owner.id,
+      mission: "Peer question",
+    },
+  };
+  await f.service.accept(assignment);
+  expect(f.starts).toEqual([original, original]);
+  await f.service.accept({
+    ...assignment,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    nativeTaskId: randomUUID(),
+    nativeNewSession: true,
+    collaboration: { ...assignment.collaboration, taskId: randomUUID() },
+  });
+  const fresh = f.starts.at(-1)!;
+  expect(fresh).not.toBe(original);
+  await f.service.accept({
+    ...owner,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    text: "User follow-up",
+  });
+  expect(f.starts.at(-1)).toBe(fresh);
+});
+
+it("lets a receiving worker wait for a prerequisite and resume its own assignment once", async () => {
+  const f = await delegatedFixture();
+  f.thread.status = "idle";
+  const nativeTaskId = randomUUID();
+  const workerInvocationId = randomUUID();
+  await f.service.accept({
+    ...f.request,
+    id: workerInvocationId,
+    messageId: randomUUID(),
+    nativeTaskId,
+    text: "Analyze this project's deployment readiness",
+    collaboration: {
+      taskId: nativeTaskId,
+      coordinatorDeviceId: f.request.deviceId,
+      coordinatorThreadId: f.request.id,
+      mission: "Analyze this project's deployment readiness",
+    },
+  });
+  const workerId = f.starts.at(-1)!;
+  expect(workerId).toBe(f.threadId);
+  const worker = f.threads.find((t) => t.id === workerId)!;
+  const child = {
+    ...f.task,
+    id: randomUUID(),
+    threadId: workerId,
+    invocationId: workerInvocationId,
+    text: "Provide deployment constraints",
+  };
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([child.groupId, child.id]),
+    child,
+  );
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  worker.status = "running";
+  await expect(
+    f.service.operate(
+      workerId,
+      {
+        action: "collaborate",
+        command: {
+          action: "wait",
+          taskIds: [child.id],
+          waitSeconds: 0,
+          text: "Apply constraints to my own project",
+        },
+      },
+      "work",
+      randomUUID(),
+    ),
+  ).resolves.toMatchObject({ state: "waiting" });
+  f.gateway.store.put(
+    "native-tasks",
+    JSON.stringify([child.groupId, child.id]),
+    {
+      ...child,
+      state: "completed",
+      result: "Linux only",
+    },
+  );
+  worker.status = "idle";
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+  expect(resume.mock.calls[0]![0]).toBe(workerId);
+  await f.service.poll();
+  expect(resume).toHaveBeenCalledTimes(1);
+});
+
+it.each([false, true])(
+  "reconciles deleted native workers from receipts (binding cleaned: %s) even after sharing changed",
+  async (cleanBinding) => {
+    const f = await delegatedFixture();
+    f.thread.status = "idle";
+    const nativeTaskId = randomUUID();
+    const request = {
+      ...f.request,
+      id: randomUUID(),
+      messageId: randomUUID(),
+      nativeTaskId,
+      text: "Query local RAM",
+      collaboration: {
+        taskId: nativeTaskId,
+        coordinatorDeviceId: f.request.deviceId,
+        coordinatorThreadId: f.request.id,
+        mission: "Query local RAM",
+      },
+    };
+    await f.service.accept(request);
+    const workerId = f.starts.at(-1)!;
+    f.gateway.store.put("invocations", request.id, {
+      ...request,
+      conversation: {
+        ...request.conversation,
+        spaceRevision: "previous-sharing",
+      },
+    });
+    f.gateway.store.put(
+      "native-tasks",
+      JSON.stringify([f.groupId, nativeTaskId]),
+      {
+        ...f.task,
+        id: nativeTaskId,
+        invocationId: request.id,
+        threadId: workerId,
+        direction: "incoming",
+        state: "running",
+      },
+    );
+    f.threads.splice(
+      f.threads.findIndex((t) => t.id === workerId),
+      1,
+    );
+    if (cleanBinding) f.service.deleteThread(workerId);
+    await f.service.poll();
+    expect(
+      f.gateway.store.get<{ state: string }>(
+        "native-tasks",
+        JSON.stringify([f.groupId, nativeTaskId]),
+      )?.state,
+    ).toBe("cancelled");
+    await f.service.poll();
+    expect(f.starts.filter((id) => id === workerId)).toHaveLength(2);
+    expect(
+      f.gateway.store
+        .pending<{ native?: { task: string } }>("outgoing")
+        .filter((i) => i.payload.native?.task === nativeTaskId),
+    ).toHaveLength(0);
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "projects file-only scopes and denies only the rejected operation while legal work continues",
+  async () => {
+    const f = await delegatedFixture();
+    f.thread.status = "idle";
+    const root = join(f.root, "project");
+    await writeFile(join(root, "allowed.txt"), "allowed");
+    await mkdir(join(root, "first"));
+    await writeFile(join(root, ".env"), "secret");
+    const setScope = async (readPaths: string[]) => {
+      const settings = f.service.status().settings;
+      await f.service.save({
+        ...settings,
+        grants: settings.grants.map((g) => ({
+          ...g,
+          security: {
+            ...g.security!,
+            scopes: g.security!.scopes.map((s) => ({
+              ...s,
+              readPaths,
+              writePaths: [],
+              filePaths: readPaths.length ? ["allowed.txt"] : [],
+            })),
+          },
+        })),
+      });
+    };
+    await setScope(["allowed.txt"]);
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "read", path: "." },
+        "work",
+        randomUUID(),
+        "denied-turn",
+      ),
+    ).resolves.toEqual({
+      entries: [{ path: "allowed.txt", directory: false }],
+    });
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "read", path: "first/private.txt" },
+        "work",
+        randomUUID(),
+        "denied-turn",
+      ),
+    ).resolves.toMatchObject({
+      state: "operation-denied",
+      code: "scope-denied",
+      parkPermission: false,
+    });
+    await expect(
+      f.service.operate(
+        f.threadId,
+        {
+          action: "read",
+          path: "allowed.txt",
+        },
+        "work",
+        randomUUID(),
+        "denied-turn",
+      ),
+    ).resolves.toMatchObject({ output: "allowed" });
+    expect(
+      f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)
+        ?.permissionBlock,
+    ).toBeUndefined();
+    await setScope([]);
+    expect(f.service.hasPermissionBlock(f.threadId)).toBe(false);
+    const read = () =>
+      f.service.operate(
+        f.threadId,
+        { action: "read", path: "." },
+        "work",
+        randomUUID(),
+        "new-turn",
+      );
+    const listing = (await read()) as {
+      entries: Array<{ path: string; directory: boolean }>;
+    };
+    expect(listing.entries).toEqual(
+      expect.arrayContaining([
+        { path: "first", directory: true },
+        { path: "allowed.txt", directory: false },
+      ]),
+    );
+    expect(listing.entries.some((e) => e.path === ".env")).toBe(false);
+    await mkdir(join(root, "later"));
+    expect(await read()).toMatchObject({
+      entries: expect.arrayContaining([{ path: "later", directory: true }]),
+    });
+    expect(f.service.profile(f.threadId)).toBeDefined();
+  },
+);
+
+it("stops an interrupted wait locally without cancelling the peer or resuming late results", async () => {
+  const f = await automaticallyDelegatedFixture();
+  const wait = f.waits()[0]!;
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  const row = db
+    .prepare(
+      "select value from im_state where namespace='delegation-waits' and id=?",
+    )
+    .get(wait.id)!;
+  db.prepare(
+    "update im_state set value=? where namespace='delegation-waits' and id=?",
+  ).run(
+    JSON.stringify({ ...JSON.parse(String(row.value)), state: "interrupted" }),
+    wait.id,
+  );
+  db.close();
+  const resume = vi.fn<NonNullable<ImTaskOperations["resumeDelegation"]>>(
+    async () => true,
+  );
+  f.ops.resumeDelegation = resume;
+  const before = f.gateway.router.native
+    .tasks(f.groupId)
+    .map((t) => ({ id: t.id, state: t.state }));
+  await expect(
+    f.service.manage({ action: "delegation-stop-wait", waitId: wait.id }),
+  ).resolves.toEqual({ state: "cancelled", remoteCancelled: false });
+  expect(
+    f.gateway.router.native
+      .tasks(f.groupId)
+      .map((t) => ({ id: t.id, state: t.state })),
+  ).toEqual(before);
+  expect(
+    f.service.status().remoteTasks!.find((t) => t.threadId === f.threadId)
+      ?.delegationWaits,
+  ).toEqual([]);
+  f.thread.status = "idle";
+  for (const task of f.gateway.router.native.tasks(f.groupId))
+    if (task.direction === "outgoing")
+      f.gateway.store.put(
+        "native-tasks",
+        JSON.stringify([task.groupId, task.id]),
+        {
+          ...task,
+          state: "completed",
+          result: "Late result",
+        },
+      );
+  await f.service.poll();
+  expect(resume).not.toHaveBeenCalled();
+});
+
+it("reports system denials without blocking unrelated operations in the same turn", async () => {
+  const f = await delegatedFixture();
+  const error = new ImPermissionError(
+    "system-denied",
+    "System denied directory listing",
+  );
+  const blocked = f.service.blockPermission(f.threadId, error, "old-turn");
+  expect(blocked).toMatchObject({
+    state: "operation-denied",
+    parkPermission: false,
+  });
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threadId,
+      { action: "read", path: "." },
+      "work",
+      "old-turn",
+    ),
+  ).not.toThrow();
+  expect(f.service.hasPermissionBlock(f.threadId)).toBe(false);
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threadId,
+      { action: "read", path: "." },
+      "work",
+      "new-turn",
+    ),
+  ).not.toThrow();
+});
+
+it("keeps member discovery and coordination available while a local writer is busy", async () => {
+  const f = await delegatedFixture();
+  f.threads.push({
+    ...f.thread,
+    id: "local-writer",
+    status: "running",
+    mode: "work",
+  });
+  expect(() => f.service.authorizeThread(f.threadId, "work")).not.toThrow();
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "participants" },
+      "work",
+      randomUUID(),
+    ),
+  ).resolves.toHaveProperty("members");
+  await expect(
+    f.service.operate(
+      f.threadId,
+      { action: "collaborate", command: { action: "status", text: "" } },
+      "work",
+      randomUUID(),
+    ),
+  ).resolves.toBeDefined();
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threadId,
+      { action: "write", path: "denied.txt", content: "no" },
+      "plan",
+    ),
+  ).toThrow();
+});
+
+it("changes only the edited audience revision and keeps another audience active", async () => {
+  const f = await delegatedFixture();
+  const before = f.service.profile(f.threadId)!.security!.revision;
+  const settings = f.service.status().settings;
+  await f.service.save({
+    ...settings,
+    grants: settings.grants.map((g) => ({
+      ...g,
+      security: {
+        ...g.security!,
+        scopes: [
+          ...g.security!.scopes.filter((s) => s.audience !== "owner"),
+          {
+            audience: "owner",
+            readPaths: ["README.md"],
+            writePaths: [],
+            confirmedAt: 0,
+          },
+        ],
+      },
+    })),
+  });
+  expect(f.service.profile(f.threadId)!.security!.revision).toBe(before);
+  expect(() => f.service.authorizeThread(f.threadId, "work")).not.toThrow();
+});
+
+it("defaults to configured reads in an enabled group while write confirmation is pending", async () => {
+  const f = await fixture();
+  f.grant.mode = "work";
+  await f.authorize();
+  const settings = f.service.status().settings;
+  await f.service.save({
+    ...settings,
+    grants: settings.grants.map((grant) => ({
+      ...grant,
+      security: {
+        ...grant.security!,
+        scopes: grant.security!.scopes.map((scope) => ({
+          ...scope,
+          confirmedAt: 0,
+          readMode: "selected" as const,
+          readPaths: ["docs/public"],
+          writePaths: ["docs/public"],
+          filePaths: [],
+        })),
+      },
+    })),
+  });
+  f.gateway.router.ingest({
+    ...f.event,
+    messageId: randomUUID(),
+    text: "List the project directories",
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  expect(f.starts).toHaveLength(1);
+  const id = f.starts[0]!;
+  await expect(
+    f.service.operate(id, { action: "read", path: "." }, "work", randomUUID()),
+  ).resolves.toEqual({ entries: [{ path: "docs", directory: true }] });
+  for (const path of ["private.txt", "docs/public/.env"]) {
+    expect(() =>
+      f.service.authorizeOperation(id, { action: "read", path }, "work"),
+    ).toThrow();
+  }
+  expect(() =>
+    f.service.authorizeOperation(
+      id,
+      { action: "write", path: "docs/public/new.txt", content: "no" },
+      "work",
+    ),
+  ).toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      id,
+      { action: "shell", command: "ls", timeoutSeconds: 1 },
+      "work",
+    ),
+  ).toThrow();
+  const turnId = randomUUID();
+  const events: AgentEvent[] = [
+    {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: id,
+      turnId,
+      timestamp: new Date().toISOString(),
+      payload: {
+        type: "message.part.delta",
+        messageId: "read-result",
+        partId: "read-result",
+        partType: "text",
+        delta: "Default read result: docs",
+      },
+    },
+    {
+      version: 1,
+      eventId: randomUUID(),
+      threadId: id,
+      turnId,
+      timestamp: new Date().toISOString(),
+      payload: { type: "turn.completed", reason: "completed", durationMs: 1 },
+    },
+  ];
+  f.ops.events = () => events;
+  f.service.observe(events);
+  await f.service.poll();
+  expect(
+    f.gateway.store
+      .pending<{ text: string }>("outgoing")
+      .some((item) => item.payload.text.includes("Default read result: docs")),
+  ).toBe(true);
+});
+
+it("starts current-authorized group input independently of a stale implicit selection", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const send = async (text: string) => {
+    f.gateway.router.ingest({
+      ...f.event,
+      messageId: randomUUID(),
+      text,
+      timestamp: Date.now(),
+    });
+    f.gateway.router.processIncoming();
+    await f.service.poll();
+  };
+  await send("Old task");
+  const old = f.starts[0]!;
+  const groupId = f.service
+    .status()
+    .remoteTasks!.find((t) => t.threadId === old)!.group!.spaceId;
+  const group = f.gateway.store.get<
+    import("@artemis/protocol").CollaborationSpace
+  >("native-groups", groupId)!;
+  f.gateway.store.put("native-groups", groupId, {
+    ...group,
+    revision: randomUUID(),
+  });
+  await f.service.manage({ action: "refresh" });
+  await send("Not yet authorized");
+  expect(f.starts).toEqual([old]);
+  await f.authorize();
+  const targeted = f.gateway.router.groupConversationContext(
+    f.service.status().settings.deviceId,
+    groupId,
+  );
+  await f.service.accept({
+    ...targeted,
+    id: randomUUID(),
+    messageId: randomUUID(),
+    taskId: old,
+    text: "Continue the old task explicitly",
+  });
+  expect(f.starts).toEqual([old]);
+  await send("Current authorized request");
+  expect(f.starts).toHaveLength(2);
+  expect(f.starts[1]).not.toBe(old);
+  await send("Follow up");
+  expect(f.starts[2]).toBe(f.starts[1]);
+  expect(() =>
+    f.service.authorizeOperation(old, { action: "read", path: "." }, "plan"),
+  ).toThrow();
+});
+
+it.runIf(process.platform === "darwin")(
+  "queues an actual write behind a local writer, rechecks its scope, and cancels waiting work",
+  async () => {
+    const f = await delegatedFixture();
+    f.thread.status = "idle";
+    const settings = f.service.status().settings;
+    await f.service.save({
+      ...settings,
+      grants: settings.grants.map((g) => ({
+        ...g,
+        security: {
+          ...g.security!,
+          scopes: g.security!.scopes.map((s) => ({
+            ...s,
+            writeMode: "project",
+          })),
+        },
+      })),
+    });
+    const local = {
+      ...f.thread,
+      id: "local-writer",
+      status: "running" as const,
+    };
+    f.threads.push(local);
+    let finished = false;
+    const writing = f.service
+      .operate(
+        f.threadId,
+        { action: "write", path: "queued.txt", content: "OK" },
+        "work",
+        randomUUID(),
+      )
+      .then((result) => {
+        finished = true;
+        return result;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(finished).toBe(false);
+    await expect(
+      f.service.operate(
+        f.threadId,
+        { action: "participants" },
+        "work",
+        randomUUID(),
+      ),
+    ).resolves.toHaveProperty("members");
+    local.status = "idle";
+    await expect(writing).resolves.toMatchObject({ exitCode: 0 });
+    local.status = "running";
+    const cancelled = f.service.operate(
+      f.threadId,
+      { action: "write", path: "cancelled.txt", content: "NO" },
+      "work",
+      randomUUID(),
+    );
+    const rejected = expect(cancelled).rejects.toThrow();
+    f.service.cancelOperations(f.threadId);
+    await rejected;
+    const { readFile } = await import("node:fs/promises");
+    await expect(
+      readFile(join(f.root, "project", "cancelled.txt")),
+    ).rejects.toThrow();
+  },
+);
+
+it("preserves the model context for additive access and replaces it when readable data shrinks", async () => {
+  const f = await delegatedFixture();
+  f.thread.status = "idle";
+  await mkdir(join(f.root, "project", "src"));
+  await mkdir(join(f.root, "project", "docs"));
+  const setReads = async (readPaths: string[]) => {
+    const settings = f.service.status().settings;
+    await f.service.save({
+      ...settings,
+      grants: settings.grants.map((g) => ({
+        ...g,
+        security: {
+          ...g.security!,
+          scopes: g.security!.scopes.map((s) => ({
+            ...s,
+            readPaths,
+            filePaths: [],
+            confirmedAt: Date.now(),
+          })),
+        },
+      })),
+    });
+    return f.service.profile(f.threadId)!.security!;
+  };
+  const restricted = await setReads(["src"]);
+  const expanded = await setReads(["src", "docs"]);
+  expect(expanded.revision).not.toBe(restricted.revision);
+  expect(expanded.contextRevision).toBe(restricted.contextRevision);
+  const narrowed = await setReads(["docs"]);
+  expect(narrowed.contextRevision).not.toBe(expanded.contextRevision);
+  const close = vi.spyOn(f.ops, "close");
+  await f.service.prepareLocalTurn(f.threadId, randomUUID());
+  expect(close).toHaveBeenCalledWith(f.threadId);
+  expect(f.service.profile(f.threadId)!.security!.contextRevision).toBe(
+    narrowed.contextRevision,
+  );
+});
+
+async function pendingReply() {
+  const f = await fixture();
+  const events: AgentEvent[] = [];
+  f.ops.events = () => events;
+  await f.authorize();
+  const send = async (text: string) => {
+    f.gateway.router.ingest({
+      ...f.event,
+      text,
+      messageId: randomUUID(),
+      timestamp: Date.now(),
+    });
+    await f.service.poll();
+  };
+  await send("/new analyze");
+  const threadId = f.starts[0]!;
+  const secret = "Authorization: Bearer " + "q".repeat(32);
+  const envelope = (payload: AgentEvent["payload"]): AgentEvent => ({
+    protocolVersion: 4,
+    eventId: randomUUID(),
+    threadId,
+    turnId: "sensitive-turn",
+    seq: events.length + 1,
+    timestamp: new Date().toISOString(),
+    payload,
+  });
+  const answer = envelope({
+    type: "message.part.delta",
+    partId: "answer",
+    partType: "text",
+    delta: secret,
+  });
+  events.push(answer);
+  f.service.observe([
+    answer,
+    envelope({
+      type: "turn.completed",
+      reason: "completed",
+      finalPartId: "answer",
+    }),
+  ]);
+  await f.service.poll();
+  const items = (await f.service.manage({
+    action: "outbound-list",
+  })) as ImOutboundCandidate[];
+  expect(items).toHaveLength(1);
+  expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+    secret,
+  );
+  return { ...f, events, send, threadId, item: items[0]!, secret };
+}
+it("holds a credential result locally and approves the exact candidate only once without rerunning", async () => {
+  const f = await pendingReply();
+  const preview = await f.service.manage({
+    action: "outbound-preview",
+    id: f.item.id,
+  });
+  expect(JSON.stringify(preview)).toContain(f.secret);
+  await expect(
+    f.service.manage({
+      action: "outbound-resolve",
+      id: f.item.id,
+      contentHash: "changed",
+      approve: true,
+    }),
+  ).rejects.toThrow();
+  const approval = {
+    action: "outbound-resolve" as const,
+    id: f.item.id,
+    contentHash: f.item.contentHash,
+    approve: true,
+    text: "Reviewed safe result",
+  };
+  await f.service.manage(approval);
+  await f.service.poll();
+  await f.service.poll();
+  await expect(f.service.manage(approval)).rejects.toThrow();
+  expect(
+    f.gateway.store
+      .pending<{ text: string }>("outgoing")
+      .filter((x) => x.payload.text.includes("Reviewed safe result")),
+  ).toHaveLength(1);
+  expect(f.starts).toHaveLength(1);
+  expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+    f.secret,
+  );
+});
+it("retries an approved frozen reply after restart without duplicate delivery", async () => {
+  const f = await pendingReply();
+  await f.service.manage({
+    action: "outbound-resolve",
+    id: f.item.id,
+    contentHash: f.item.contentHash,
+    approve: true,
+    text: "ONCE_AFTER_RESTART",
+  });
+  const originalFetch = globalThis.fetch;
+  let lost = false;
+  const fetchSpy = vi
+    .spyOn(globalThis, "fetch")
+    .mockImplementation(async (...args) => {
+      const response = await originalFetch(...args);
+      if (!lost && String(args[0]).endsWith("/v1/device/reply")) {
+        lost = true;
+        throw new Error("Acknowledgement lost");
+      }
+      return response;
+    });
+  await f.service.poll();
+  fetchSpy.mockRestore();
+  await f.service.close();
+  const restored = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restored.close());
+  await restored.poll();
+  await restored.poll();
+  expect(
+    (
+      restored as unknown as { localGateway: { gateway: ArtemisGateway } }
+    ).localGateway.gateway.store
+      .pending<{ text: string }>("outgoing")
+      .filter((x) => x.payload.text.includes("ONCE_AFTER_RESTART")),
+  ).toHaveLength(1);
+  expect(f.starts).toHaveLength(1);
+});
+it("invalidates pending deliveries when a scope changes but keeps the conversation", async () => {
+  const f = await pendingReply();
+  const oldId = f.threadId;
+  await f.service.save({
+    ...f.service.status().settings,
+    grants: f.service.status().settings.grants.map((g) => ({
+      ...g,
+      security: {
+        ...g.security!,
+        scopes: g.security!.scopes.map((scope) => ({
+          ...scope,
+          readPaths: ["README.md"],
+          filePaths: ["README.md"],
+          writePaths: [],
+        })),
+      },
+    })),
+  });
+  await expect(
+    f.service.manage({
+      action: "outbound-resolve",
+      id: f.item.id,
+      contentHash: f.item.contentHash,
+      approve: true,
+    }),
+  ).rejects.toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      oldId,
+      { action: "read", path: "README.md" },
+      "plan",
+    ),
+  ).not.toThrow();
+  expect(() =>
+    f.service.authorizeOperation(
+      oldId,
+      { action: "read", path: "private.txt" },
+      "plan",
+    ),
+  ).toThrow();
+  await f.send("Continue after scope change");
+  expect(f.threads).toHaveLength(2);
+  expect(f.starts.at(-1)).toBe(oldId);
+  expect(f.starts).toHaveLength(2);
+  expect(JSON.stringify(f.gateway.store.pending("outgoing"))).not.toContain(
+    f.secret,
+  );
+});
+
+it("rejects an unconfirmed new group before creating any Gateway relationship", async () => {
+  const f = await fixture();
+  f.grant.security!.confirmedAt = 0;
+  await expect(f.authorize()).rejects.toThrow();
+  expect(f.gateway.store.list("native-groups")).toEqual([]);
+  expect(f.service.status().settings.grants).toEqual([]);
+  expect(f.threads).toEqual([]);
+});
+
+function authorizationCommand(
+  f: Awaited<ReturnType<typeof fixture>>,
+): ImAuthorizationCommand {
+  const settings = f.service.status().settings;
+  const command = {
+    version: 1 as const,
+    operationId: randomUUID(),
+    intent: "create" as const,
+    deviceId: settings.deviceId,
+    gatewayUrl: settings.gatewayUrl,
+    conversation: f.event.conversation,
+    owner: f.event.identity,
+    name: "Synthetic room",
+    projectId: "p",
+    expectedPolicyVersion: null,
+    expectedGroupVersion: null,
+    expectedScopeVersion: null,
+    expectedDeviceEnabled: settings.enabled,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      settings,
+      "p",
+      true,
+      true,
+    ),
+    policy: {
+      mode: "plan" as const,
+      approval: "ask" as const,
+      shell: false,
+      network: false,
+      expiresAt: f.grant.expiresAt,
+    },
+    scope: {
+      audience: "owner",
+      readMode: "project" as const,
+      readPaths: [],
+      writePaths: [],
+      confirmedAt: Date.now(),
+    },
+    enableService: true,
+  };
+  return {
+    ...command,
+    confirmationFingerprint: imAuthorizationFingerprint(command),
+  };
+}
+it("commits and replays narrow authorization without rolling versions or expiration", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const first = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(first).toMatchObject({
+    state: "complete",
+    phases: { local: "applied", activation: "applied", sync: "applied" },
+  });
+  const before = f.service.status().settings;
+  expect(
+    await f.service.manage({ action: "authorize-group", command }),
+  ).toEqual(first);
+  expect(f.service.status().settings).toEqual(before);
+  expect(f.gateway.store.list("native-groups")).toHaveLength(1);
+  const changed = { ...command, name: "Changed" };
+  changed.confirmationFingerprint = imAuthorizationFingerprint(changed);
+  await expect(
+    f.service.manage({ action: "authorize-group", command: changed }),
+  ).rejects.toThrow(/ID conflicts/);
+});
+it("rejects stale policy and empty selected scope before persisting an operation", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  command.scope.readMode = "selected";
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  await expect(
+    f.service.manage({ action: "authorize-group", command }),
+  ).rejects.toThrow();
+  expect(f.service.status().authorizationOperations).toEqual([]);
+  expect(f.gateway.store.list("native-groups")).toEqual([]);
+  command.scope.readMode = "project";
+  command.expectedPolicyVersion = "stale";
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  await expect(
+    f.service.manage({ action: "authorize-group", command }),
+  ).rejects.toThrow(/version conflict/);
+  expect(f.service.status().authorizationOperations).toEqual([]);
+});
+it.each(["prepare", "activate"])(
+  "reconciles a lost %s response using the Gateway journal",
+  async (phase) => {
+    const f = await fixture();
+    const command = authorizationCommand(f);
+    const original = globalThis.fetch;
+    let lost = false;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+      const response = await original(url, options);
+      if (
+        !lost &&
+        String(url).endsWith("/native-authorization") &&
+        JSON.parse(String(options?.body)).phase === phase
+      ) {
+        lost = true;
+        throw new Error("Injected response loss");
+      }
+      return response;
+    });
+    const failed = (await f.service.manage({
+      action: "authorize-group",
+      command,
+    })) as ImAuthorizationOperation;
+    expect(failed.state).toBe("pending");
+    expect(Object.values(failed.phases)).toContain("unknown");
+    const group = f.gateway.store.list<{ revision: string }>(
+      "native-groups",
+    )[0]!;
+    const resumed = (await f.service.manage({
+      action: "retry-group-authorization",
+      operationId: command.operationId,
+    })) as ImAuthorizationOperation;
+    expect(resumed.state).toBe("complete");
+    expect(resumed.group?.revision).toBe(group.revision);
+    expect(f.gateway.store.list("native-groups")).toHaveLength(1);
+  },
+);
+it("serializes double clicks and changes only the target scope without rebinding", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const [a, b] = (await Promise.all(
+    [1, 2].map(() => f.service.manage({ action: "authorize-group", command })),
+  )) as ImAuthorizationOperation[];
+  expect(a).toEqual(b);
+  const grant = f.service.status().settings.grants[0]!;
+  const scope = grant.security!.scopes[0]!;
+  const edit = {
+    ...command,
+    operationId: randomUUID(),
+    intent: "edit" as const,
+    expectedGroupVersion: a!.group!.revision!,
+    expectedScopeVersion: scope.revision!,
+    expectedPolicyVersion: imPolicyVersion(grant),
+    scope: {
+      ...scope,
+      readMode: "selected" as const,
+      readPaths: ["future.txt"],
+    },
+  };
+  delete (edit as Partial<ImAuthorizationCommand>).policy;
+  edit.confirmationFingerprint = imAuthorizationFingerprint(edit);
+  const changed = (await f.service.manage({
+    action: "authorize-group",
+    command: edit,
+  })) as ImAuthorizationOperation;
+  expect(changed).toMatchObject({
+    state: "complete",
+    phases: { binding: "not-needed", activation: "not-needed" },
+  });
+  expect(changed.group?.revision).toBe(a!.group!.revision);
+  expect(f.service.status().settings.grants[0]!.expiresAt).toBe(
+    grant.expiresAt,
+  );
+});
+
+it("recovers a committed operation after restart without repeating the local write", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const original = globalThis.fetch;
+  let fail = true;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    if (
+      fail &&
+      String(url).endsWith("/native-authorization") &&
+      JSON.parse(String(options?.body)).phase === "activate"
+    )
+      throw new Error("Injected activation outage");
+    return original(url, options);
+  });
+  const pending = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(pending.phases.local).toBe("applied");
+  expect(f.starts).toEqual([]);
+  const grant = f.service.status().settings.grants[0]!;
+  await f.service.close();
+  fail = false;
+  const restarted = new ImService(
+    f.root,
+    {
+      isEncryptionAvailable: () => true,
+      encryptString: (s) => Buffer.from(s),
+      decryptString: (b) => b.toString(),
+    },
+    f.ops,
+  );
+  cleanup.push(() => restarted.close());
+  restarted.start();
+  await vi.waitFor(() =>
+    expect(restarted.status().authorizationOperations?.[0]?.state).toBe(
+      "complete",
+    ),
+  );
+  expect(restarted.status().settings.grants[0]).toEqual(grant);
+});
+it("keeps a prepared group disabled when its owner is revoked before recovery", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const original = globalThis.fetch;
+  let lost = false;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    const response = await original(url, options);
+    if (!lost && String(url).endsWith("/native-authorization")) {
+      lost = true;
+      throw new Error("lost");
+    }
+    return response;
+  });
+  await f.service.manage({ action: "authorize-group", command });
+  f.gateway.store.delete(
+    "identities",
+    JSON.stringify([
+      command.owner.channel,
+      command.owner.connectionId,
+      command.owner.tenantId,
+      command.owner.appId,
+      command.owner.userId,
+    ]),
+  );
+  const resumed = (await f.service.manage({
+    action: "retry-group-authorization",
+    operationId: command.operationId,
+  })) as ImAuthorizationOperation;
+  expect(resumed.state).toBe("conflict");
+  expect(f.gateway.router.findSpace(f.event.conversation)).toBeUndefined();
+  expect(f.service.status().settings.grants).toEqual([]);
+});
+
+it("rebinds to a new project without reusing old model context or old effective scopes", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const oldThread = f.service.status().remoteTasks![0]!.threadId;
+  const group =
+    f.gateway.store.list<import("@artemis/protocol").CollaborationSpace>(
+      "native-groups",
+    )[0]!;
+  const projects = f.ops.projects();
+  const nextPath = join(f.root, "next-project");
+  await mkdir(nextPath);
+  f.ops.projects = () => [
+    ...projects,
+    { ...projects[0]!, id: "next", name: "Next", path: nextPath },
+  ];
+  const command = authorizationCommand(f);
+  Object.assign(command, {
+    intent: "rebind",
+    projectId: "next",
+    expectedGroupVersion: group.revision,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      f.service.status().settings,
+      "next",
+      true,
+      true,
+    ),
+  });
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  const result = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(result.state).toBe("complete");
+  const oldGrant = f.service
+    .status()
+    .settings.grants.find((g) => g.projectId === "p")!;
+  expect(oldGrant.groups).not.toContain(`space:${group.id}`);
+  expect(
+    oldGrant.security?.scopes.some((s) => s.audience === `space:${group.id}`),
+  ).toBe(false);
+  const newThread = f.service
+    .status()
+    .remoteTasks!.find(
+      (t) => t.group?.spaceId === group.id && t.threadId !== oldThread,
+    );
+  expect(newThread).toBeDefined();
+  expect(newThread?.currentGroupEntry).toBe(true);
+  expect(
+    f.service.status().remoteTasks!.find((t) => t.threadId === oldThread)
+      ?.currentGroupEntry,
+  ).toBe(false);
+  expect(f.threads.some((t) => t.id === oldThread)).toBe(true);
+  await expect(
+    f.service.manage({
+      action: "native-group-input",
+      threadId: oldThread,
+      messageId: randomUUID(),
+      destination: "local",
+      text: "Use old context",
+    }),
+  ).rejects.toThrow();
+});
+
+it("allows a newly confirmed CAS operation to replace an incomplete activation without rollback", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  const original = globalThis.fetch;
+  let fail = true;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    if (
+      fail &&
+      String(url).endsWith("/native-authorization") &&
+      JSON.parse(String(options?.body)).phase === "activate"
+    )
+      throw new Error("activation unavailable");
+    return original(url, options);
+  });
+  const pending = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(pending.phases.local).toBe("applied");
+  const grant = f.service.status().settings.grants[0]!;
+  const replacement = {
+    ...command,
+    operationId: randomUUID(),
+    supersedes: command.operationId,
+    intent: "restore" as const,
+    expectedGroupVersion: pending.group!.revision!,
+    expectedPolicyVersion: imPolicyVersion(grant),
+    expectedScopeVersion: grant.security!.scopes[0]!.revision!,
+    expectedDeviceEnabled: true,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      f.service.status().settings,
+      "p",
+      true,
+      true,
+    ),
+  };
+  replacement.confirmationFingerprint = imAuthorizationFingerprint(replacement);
+  fail = false;
+  const result = (await f.service.manage({
+    action: "authorize-group",
+    command: replacement,
+  })) as ImAuthorizationOperation;
+  expect(result.error).toBeUndefined();
+  expect(result.state).toBe("complete");
+  expect(
+    f.service
+      .status()
+      .authorizationOperations?.find(
+        (op) => op.command.operationId === command.operationId,
+      )?.state,
+  ).toBe("superseded");
+  expect(f.service.status().settings.grants[0]!.expiresAt).toBe(
+    grant.expiresAt,
+  );
+  expect(
+    (
+      (await f.service.manage({
+        action: "authorize-group",
+        command,
+      })) as ImAuthorizationOperation
+    ).state,
+  ).toBe("superseded");
+});
+
+it.each(["journal", "local"])(
+  "recovers a %s persistence failure without early execution",
+  async (boundary) => {
+    const f = await fixture();
+    const command = authorizationCommand(f);
+    const internal = f.service as unknown as {
+      put(namespace: string, id: string, value: unknown): void;
+    };
+    const original = internal.put.bind(internal);
+    let failed = false;
+    vi.spyOn(internal, "put").mockImplementation((namespace, id, value) => {
+      if (
+        !failed &&
+        (boundary === "journal"
+          ? namespace === "group-authorizations"
+          : namespace === "settings" &&
+            f.service
+              .status()
+              .authorizationOperations?.some(
+                (op) => op.phases.binding === "applied",
+              ))
+      ) {
+        failed = true;
+        throw new Error("Injected persistence failure");
+      }
+      original(namespace, id, value);
+    });
+    if (boundary === "journal") {
+      await expect(
+        f.service.manage({ action: "authorize-group", command }),
+      ).rejects.toThrow(/persistence/);
+      expect(f.gateway.store.list("native-groups")).toHaveLength(0);
+      expect(f.service.status().authorizationOperations).toEqual([]);
+    } else {
+      const pending = (await f.service.manage({
+        action: "authorize-group",
+        command,
+      })) as ImAuthorizationOperation;
+      expect(pending.phases.local).toBe("failed");
+      expect(f.gateway.router.findSpace(command.conversation)).toBeUndefined();
+    }
+    expect(f.service.status().settings.grants).toEqual([]);
+    expect(f.starts).toEqual([]);
+    const result = (await f.service.manage({
+      action: "authorize-group",
+      command,
+    })) as ImAuthorizationOperation;
+    expect(result.error).toBeUndefined();
+    expect(result.state).toBe("complete");
+  },
+);
+
+it("retries post-commit task effects without re-saving the local authorization", async () => {
+  const f = await fixture();
+  const first = authorizationCommand(f);
+  const saved = (await f.service.manage({
+    action: "authorize-group",
+    command: first,
+  })) as ImAuthorizationOperation;
+  const grant = f.service.status().settings.grants[0]!;
+  const command = {
+    ...first,
+    operationId: randomUUID(),
+    intent: "edit" as const,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      f.service.status().settings,
+      "p",
+      true,
+      true,
+    ),
+    expectedGroupVersion: saved.group!.revision!,
+    expectedPolicyVersion: imPolicyVersion(grant),
+    expectedScopeVersion: grant.security!.scopes[0]!.revision!,
+    scope: {
+      ...first.scope,
+      readMode: "selected" as const,
+      readPaths: ["future.txt"],
+    },
+  };
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  f.ops.close = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("Injected close failure"))
+    .mockResolvedValue(undefined);
+  const pending = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(pending.phases.local).toBe("applied");
+  expect(pending.state).toBe("pending");
+  const before = f.service.status().settings;
+  const resumed = (await f.service.manage({
+    action: "retry-group-authorization",
+    operationId: command.operationId,
+  })) as ImAuthorizationOperation;
+  expect(resumed.error).toBeUndefined();
+  expect(resumed.state).toBe("complete");
+  expect(f.service.status().settings).toEqual(before);
+  expect(f.ops.close).toHaveBeenCalledTimes(2);
+});
+
+it("queues device registration behind an in-flight group authorization", async () => {
+  const f = await fixture();
+  await f.service.save({ ...f.service.status().settings, enabled: false });
+  const command = authorizationCommand(f);
+  let release!: () => void;
+  let reached!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const entered = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  const original = globalThis.fetch;
+  const requests: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, options) => {
+    requests.push(String(url));
+    const response = await original(url, options);
+    if (
+      String(url).endsWith("/native-authorization") &&
+      JSON.parse(String(options?.body)).phase === "prepare"
+    ) {
+      reached();
+      await held;
+    }
+    return response;
+  });
+  const authorizing = f.service.manage({ action: "authorize-group", command });
+  await entered;
+  const registering = f.service
+    .manage({
+      action: "register",
+      gatewayUrl: command.gatewayUrl,
+      adminToken: "synthetic-invalid-token-".repeat(2),
+      name: "Replacement device",
+    })
+    .catch((error) => error);
+  await new Promise((resolve) => setImmediate(resolve));
+  const racedRegistration = requests.some((url) =>
+    url.endsWith("/admin/register"),
+  );
+  release();
+  const result = (await authorizing) as ImAuthorizationOperation;
+  const registration = await registering;
+  expect(racedRegistration).toBe(false);
+  expect(result.state).toBe("complete");
+  expect(String(registration)).toContain("Pause IM");
+  expect(f.service.status().settings.deviceId).toBe(command.deviceId);
+});
+
+it.each(["feishu", "slack"] as const)(
+  "explains %s manual cooperation without changing Slack's error",
+  async (channel) => {
+    const f = await fixture(channel);
+    f.grant.mode = "work";
+    await f.authorize();
+    const task = f.service.status().remoteTasks![0]!;
+    const request = f.gateway.router.groupConversationContext(
+      f.service.status().settings.deviceId,
+      task.group!.spaceId,
+    );
+    await f.service.accept({ ...request, text: "Ask peer to check project" });
+    const threadId = f.starts.at(-1)!;
+    await expect(
+      f.service.operate(
+        threadId,
+        {
+          action: "collaborate",
+          command: {
+            action: "delegate",
+            participantId: "peer",
+            text: "Check project",
+          },
+        },
+        "work",
+        randomUUID(),
+      ),
+    ).rejects.toThrow(
+      channel === "feishu"
+        ? "尚未授权群内机器人协作"
+        : "自动协作尚未通过 IM 验证",
+    );
+  },
+);
+
+it("reports current local activity consistently in group and settings snapshots", async () => {
+  const f = await fixture();
+  await f.authorize();
+  const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
+  f.gateway.store.put("native-group-info", groupId, {
+    roster: {
+      complete: true,
+      members: [
+        {
+          identity: { ...f.event.identity, userId: "self" },
+          name: "Artemis",
+          kind: "bot",
+          self: true,
+        },
+      ],
+    },
+  });
+  await f.service.manage({ action: "refresh" });
+  await f.service.poll();
+  // This fixture has no real IM adapter; provide its connected status only.
+  (f.service as unknown as { channelStatus: unknown[] }).channelStatus = [
+    { id: "bot", state: "connected" },
+  ];
+  const assertState = (state: string) => {
+    const status = f.service.status();
+    const settings = status.spaces as Array<{
+      roster: { members: Array<{ botPresence: { state: string } }> };
+    }>;
+    expect(settings[0]!.roster.members[0]!.botPresence.state).toBe(state);
+    expect(
+      status.remoteTasks![0]!.group!.roster!.members[0]!.botPresence!.state,
+    ).toBe(state);
+  };
+  assertState("online");
+  f.threads[0]!.status = "running";
+  assertState("busy");
+  f.threads.push({ ...f.threads[0]!, id: "second" });
+  f.threads[0]!.status = "idle";
+  assertState("busy");
+  f.threads[1]!.status = "waiting-approval";
+  assertState("waiting-approval");
+  f.threads[1]!.status = "idle";
+  assertState("online");
+});
+
+it("requires explicit full-local confirmation before creating a group grant", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  Object.assign(command.scope, { localAccess: "full" });
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  await expect(
+    f.service.manage({ action: "authorize-group", command }),
+  ).rejects.toThrow(/full|完整/i);
+  expect(f.service.status().authorizationOperations).toEqual([]);
+  expect(f.gateway.store.list("native-groups")).toEqual([]);
+});
+
+it("runs confirmed full-local operations through the group broker and revokes them per scope", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  Object.assign(command.scope, { localAccess: "full" });
+  Object.assign(command, { fullAccessConfirmed: true });
+  command.policy!.mode = "work";
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  const result = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  expect(result.state).toBe("complete");
+  await f.service.accept(
+    f.gateway.router.groupConversationContext(
+      command.deviceId,
+      result.group!.id,
+    ),
+  );
+  const threadId = f.threads.at(-1)!.id;
+  expect(
+    f.service.authorizeOperation(
+      threadId,
+      { action: "shell", command: "echo ok", timeoutSeconds: 5 },
+      "work",
+    ).approval,
+  ).toBe("automatic");
+  expect(f.service.status().settings.grants[0]!.approval).toBe("ask");
+  const outside = join(f.root, "outside.txt");
+  await writeFile(outside, "outside content");
+  expect(f.service.profile(threadId)).toMatchObject({
+    shell: true,
+    network: true,
+    dataScope: { localAccess: "full" },
+  });
+  expect(() =>
+    f.service.authorizeOperation(
+      threadId,
+      { action: "write", path: outside, content: "x" },
+      "plan",
+    ),
+  ).toThrow(/Plan|Review/);
+  expect(
+    await f.service.operate(
+      threadId,
+      { action: "read", path: outside },
+      "work",
+      "full-read",
+    ),
+  ).toMatchObject({ output: "outside content" });
+  expect(
+    await f.service.operate(
+      threadId,
+      { action: "write", path: outside, content: "updated" },
+      "work",
+      "full-write",
+    ),
+  ).toMatchObject({ exitCode: 0 });
+  expect(
+    await f.service.operate(
+      threadId,
+      {
+        action: "shell",
+        command:
+          process.platform === "win32"
+            ? "Write-Output full-local-ok"
+            : "printf full-local-ok",
+        timeoutSeconds: 5,
+      },
+      "work",
+      "full-shell",
+    ),
+  ).toMatchObject({
+    output: expect.stringContaining("full-local-ok"),
+    exitCode: 0,
+  });
+  const settings = f.service.status().settings;
+  const grant = settings.grants[0]!;
+  const scope = grant.security!.scopes.find(
+    (s) => s.audience === `space:${result.group!.id}`,
+  )!;
+  const edit: ImAuthorizationCommand = {
+    ...command,
+    operationId: randomUUID(),
+    intent: "edit",
+    policy: undefined,
+    fullAccessConfirmed: undefined,
+    scope: { ...scope, localAccess: "project" },
+    expectedPolicyVersion: imPolicyVersion(grant),
+    expectedGroupVersion: result.group!.revision!,
+    expectedScopeVersion: scope.revision!,
+    expectedDeviceEnabled: settings.enabled,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      settings,
+      "p",
+      false,
+      true,
+    ),
+  };
+  edit.confirmationFingerprint = imAuthorizationFingerprint(edit);
+  expect(
+    (
+      (await f.service.manage({
+        action: "authorize-group",
+        command: edit,
+      })) as ImAuthorizationOperation
+    ).state,
+  ).toBe("complete");
+  expect(() =>
+    f.service.authorizeOperation(
+      threadId,
+      { action: "read", path: outside },
+      "work",
+    ),
+  ).toThrow();
+  expect(f.service.profile(threadId)?.shell).toBe(false);
+});
+
+it("does not grant full-local access through legacy settings or another bot in the same project", async () => {
+  const f = await fixture();
+  Object.assign(f.grant.security!.scopes[0]!, { localAccess: "full" });
+  await expect(f.authorize()).rejects.toThrow(/confirmed group/);
+  await expect(
+    f.service.save({ ...f.service.status().settings, grants: [f.grant] }),
+  ).rejects.toThrow(/confirmed group/);
+  const first = authorizationCommand(f);
+  first.scope.localAccess = "full";
+  first.fullAccessConfirmed = true;
+  first.confirmationFingerprint = imAuthorizationFingerprint(first);
+  const created = (await f.service.manage({
+    action: "authorize-group",
+    command: first,
+  })) as ImAuthorizationOperation;
+  const otherIdentity = {
+    ...f.event.identity,
+    connectionId: "second-bot",
+    appId: "second-app",
+  };
+  const pair = (await f.service.manage({ action: "pair" })) as { code: string };
+  f.gateway.store.pair(pair.code, otherIdentity);
+  const otherEvent = {
+    ...f.event,
+    messageId: randomUUID(),
+    identity: otherIdentity,
+    conversation: { ...f.event.conversation, connectionId: "second-bot" },
+  };
+  f.gateway.router.ingest(otherEvent);
+  f.gateway.router.processIncoming();
+  await f.service.manage({ action: "refresh" });
+  const settings = f.service.status().settings;
+  const other: ImAuthorizationCommand = {
+    ...authorizationCommand(f),
+    conversation: otherEvent.conversation,
+    owner: otherIdentity,
+    policy: undefined,
+    expectedPolicyVersion: imPolicyVersion(settings.grants[0]),
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      settings,
+      "p",
+      false,
+      true,
+    ),
+  };
+  other.confirmationFingerprint = imAuthorizationFingerprint(other);
+  const second = (await f.service.manage({
+    action: "authorize-group",
+    command: other,
+  })) as ImAuthorizationOperation;
+  expect(second.state).toBe("complete");
+  const scopes = f.service.status().settings.grants[0]!.security!.scopes;
+  expect(
+    scopes.find((s) => s.audience === `space:${created.group!.id}`)
+      ?.localAccess,
+  ).toBe("full");
+  expect(
+    scopes.find((s) => s.audience === `space:${second.group!.id}`)?.localAccess,
+  ).toBeUndefined();
+  await f.service.accept(
+    f.gateway.router.groupConversationContext(other.deviceId, second.group!.id),
+  );
+  expect(
+    f.service.authorizeOperation(
+      f.threads.at(-1)!.id,
+      { action: "participants" },
+      "plan",
+    ).approval,
+  ).toBe("ask");
+  expect(() =>
+    f.service.authorizeOperation(
+      f.threads.at(-1)!.id,
+      { action: "read", path: join(f.root, "outside.txt") },
+      "plan",
+    ),
+  ).toThrow();
+});
+
+it("sends full-local results automatically and requires fresh confirmation on permission edits", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  command.scope.localAccess = "full";
+  command.fullAccessConfirmed = true;
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  const created = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  await f.service.accept({
+    ...f.gateway.router.groupConversationContext(
+      command.deviceId,
+      created.group!.id,
+    ),
+    id: randomUUID(),
+    text: "read the external file",
+  });
+  const threadId = f.threads.at(-1)!.id;
+  const outside = join(f.root, "private-result.txt");
+  await writeFile(outside, "synthetic private result");
+  await f.service.operate(
+    threadId,
+    { action: "read", path: outside },
+    "plan",
+    "private-read",
+  );
+  const event: AgentEvent = {
+    protocolVersion: 4,
+    seq: 1,
+    eventId: randomUUID(),
+    threadId,
+    turnId: "private-turn",
+    timestamp: new Date().toISOString(),
+    payload: {
+      type: "turn.failed",
+      message:
+        "synthetic private result ![synthetic](https://example.invalid/image.png)",
+    },
+  };
+  f.service.observe([event]);
+  const pending = (await f.service.manage({
+    action: "outbound-list",
+  })) as ImOutboundCandidate[];
+  expect(pending.some((c) => c.threadId === threadId)).toBe(false);
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  try {
+    const outbox = db
+      .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+      .all();
+    expect(JSON.stringify(outbox)).toContain("synthetic private result");
+  } finally {
+    db.close();
+  }
+  const changed = {
+    ...command,
+    operationId: randomUUID(),
+    intent: "edit" as const,
+    fullAccessConfirmed: false,
+  };
+  changed.confirmationFingerprint = imAuthorizationFingerprint(changed);
+  await expect(
+    f.service.manage({ action: "authorize-group", command: changed }),
+  ).rejects.toThrow(/confirmation/);
+});
+
+it.each(["current", "stale", "expired", "project"] as const)(
+  "recovers a legacy pending result only for the same live full-local authorization (%s)",
+  async (state) => {
+    const f = await fixture();
+    const command = authorizationCommand(f);
+    if (state !== "project") {
+      command.scope.localAccess = "full";
+      command.fullAccessConfirmed = true;
+    }
+    command.confirmationFingerprint = imAuthorizationFingerprint(command);
+    const created = (await f.service.manage({
+      action: "authorize-group",
+      command,
+    })) as ImAuthorizationOperation;
+    await f.service.accept(
+      f.gateway.router.groupConversationContext(
+        command.deviceId,
+        created.group!.id,
+      ),
+    );
+    const threadId = f.threads.at(-1)!.id;
+    const db = new DatabaseSync(join(f.root, "im.sqlite"));
+    try {
+      const binding = JSON.parse(
+        String(
+          db
+            .prepare(
+              "SELECT value FROM im_state WHERE namespace='bindings' AND id=?",
+            )
+            .get(threadId)!.value,
+        ),
+      );
+      const id = randomUUID();
+      const reply = {
+        version: 1,
+        id,
+        taskId: threadId,
+        invocationId: binding.request.id,
+        text: "legacy result",
+        final: true,
+        visibility: "conversation",
+        security: {
+          version: binding.security.version,
+          projectId: binding.security.projectId,
+          revision: binding.security.revision,
+          audience: binding.security.audience,
+        },
+      };
+      const raw = JSON.stringify(reply);
+      const candidate: ImOutboundCandidate = {
+        id,
+        threadId,
+        kind: "reply",
+        contentHash: imContentHash(raw),
+        security: {
+          ...binding.security,
+          ...(state === "stale" ? { revision: "old-revision" } : {}),
+        },
+        expiresAt: Date.now() + (state === "expired" ? -1000 : 300000),
+        state: "pending",
+        reason: "legacy full-local review",
+      };
+      const put = db.prepare(
+        "INSERT OR REPLACE INTO im_state(namespace,id,value) VALUES(?,?,?)",
+      );
+      put.run("outbound-candidates", id, JSON.stringify(candidate));
+      put.run(
+        "outbound-bodies",
+        id,
+        JSON.stringify(Buffer.from(raw).toString("base64")),
+      );
+      await f.service.poll();
+      const saved = JSON.parse(
+        String(
+          db
+            .prepare(
+              "SELECT value FROM im_state WHERE namespace='outbound-candidates' AND id=?",
+            )
+            .get(id)!.value,
+        ),
+      );
+      expect(saved.state).toBe(
+        state === "current"
+          ? "sent"
+          : state === "expired"
+            ? "expired"
+            : "pending",
+      );
+    } finally {
+      db.close();
+    }
+  },
+);
+
+it("rejects in-flight full-local output when the grant changes even if its path remains readable", async () => {
+  const f = await fixture();
+  const command = authorizationCommand(f);
+  command.scope.localAccess = "full";
+  command.fullAccessConfirmed = true;
+  command.confirmationFingerprint = imAuthorizationFingerprint(command);
+  const created = (await f.service.manage({
+    action: "authorize-group",
+    command,
+  })) as ImAuthorizationOperation;
+  await f.service.accept(
+    f.gateway.router.groupConversationContext(
+      command.deviceId,
+      created.group!.id,
+    ),
+  );
+  const threadId = f.threads.at(-1)!.id;
+  let release!: () => void;
+  let started!: () => void;
+  const reading = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.spyOn(localAccess, "readLocalImFile").mockImplementationOnce(async () => {
+    started();
+    await pending;
+    return {
+      output: "old full-access content",
+      contentHash: "a".repeat(64),
+      exitCode: 0,
+      cancelled: false,
+    };
+  });
+  const operation = f.service.operate(
+    threadId,
+    { action: "read", path: "README.md" },
+    "plan",
+    "race-read",
+  );
+  const rejected = expect(operation).rejects.toThrow(/Authorization changed/);
+  await reading;
+  const settings = f.service.status().settings;
+  const grant = settings.grants[0]!;
+  const scope = grant.security!.scopes.find(
+    (s) => s.audience === `space:${created.group!.id}`,
+  )!;
+  const edit: ImAuthorizationCommand = {
+    ...command,
+    operationId: randomUUID(),
+    intent: "edit",
+    policy: undefined,
+    fullAccessConfirmed: undefined,
+    scope: { ...scope, localAccess: "project" },
+    expectedPolicyVersion: imPolicyVersion(grant),
+    expectedGroupVersion: created.group!.revision!,
+    expectedScopeVersion: scope.revision!,
+    expectedDeviceEnabled: settings.enabled,
+    expectedImpactVersion: imAuthorizationImpactVersion(
+      settings,
+      "p",
+      false,
+      true,
+    ),
+  };
+  edit.confirmationFingerprint = imAuthorizationFingerprint(edit);
+  try {
+    expect(
+      (
+        (await f.service.manage({
+          action: "authorize-group",
+          command: edit,
+        })) as ImAuthorizationOperation
+      ).state,
+    ).toBe("complete");
+  } finally {
+    release();
+  }
+  await rejected;
+});
+
+it("keeps an existing group task usable when the same authorization is saved again", async () => {
+  const f = await fixture();
+  await f.authorize();
+  f.gateway.router.ingest({
+    ...f.event,
+    messageId: randomUUID(),
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  const threadId = f.starts[0]!;
+  expect(threadId).toBeDefined();
+  await f.authorize();
+  await expect(
+    f.service.prepareLocalTurn(threadId, randomUUID()),
+  ).resolves.toBeUndefined();
+});
+
+it("renews an idle group task for a new desktop turn only after current authorization is confirmed", async () => {
+  const f = await fixture();
+  await f.authorize();
+  f.gateway.router.ingest({
+    ...f.event,
+    messageId: randomUUID(),
+    timestamp: Date.now(),
+  });
+  f.gateway.router.processIncoming();
+  await f.service.poll();
+  const threadId = f.starts[0]!;
+  const before = f.service.profile(threadId)!;
+  const groupId = before.security!.audience.slice("space:".length);
+  const group = f.gateway.store.get<CollaborationSpace>(
+    "native-groups",
+    groupId,
+  )!;
+  f.gateway.store.put("native-groups", groupId, {
+    ...group,
+    revision: randomUUID(),
+  });
+  await f.service.manage({ action: "refresh" });
+  const close = vi.spyOn(f.ops, "close");
+  await expect(
+    f.service.prepareLocalTurn(threadId, randomUUID()),
+  ).rejects.toThrow();
+  expect(close).not.toHaveBeenCalled();
+  await f.authorize();
+  close.mockClear();
+  const thread = f.threads.find((t) => t.id === threadId)!;
+  thread.status = "running";
+  await expect(
+    f.service.prepareLocalTurn(threadId, randomUUID()),
+  ).rejects.toThrow(/active turn/);
+  expect(close).not.toHaveBeenCalled();
+  thread.status = "idle";
+  await expect(
+    f.service.prepareLocalTurn(threadId, randomUUID()),
+  ).resolves.toBeUndefined();
+  expect(close).toHaveBeenCalledWith(threadId);
+  expect(f.service.profile(threadId)!.security!.spaceRevision).not.toBe(
+    before.security!.spaceRevision,
+  );
+  expect(() => f.service.authorizeThread(threadId, "plan")).not.toThrow();
+});
+
+it("retires pending output and prevents replaying old events after a new group turn", async () => {
+  const f = await pendingReply();
+  const groupId = f.service
+    .profile(f.threadId)!
+    .security!.audience.slice("space:".length);
+  const group = f.gateway.store.get<CollaborationSpace>(
+    "native-groups",
+    groupId,
+  )!;
+  f.gateway.store.put("native-groups", groupId, {
+    ...group,
+    revision: randomUUID(),
+  });
+  await f.service.manage({ action: "refresh" });
+  await f.authorize();
+  const historical: AgentEvent = {
+    ...f.events[0]!,
+    eventId: randomUUID(),
+    seq: 50,
+    payload: {
+      type: "turn.completed",
+      reason: "completed",
+      finalPartId: "answer",
+    },
+  };
+  f.events.push(historical);
+  await f.service.prepareLocalTurn(f.threadId, randomUUID());
+  const candidates = (await f.service.manage({
+    action: "outbound-list",
+  })) as ImOutboundCandidate[];
+  expect(candidates.find((c) => c.id === f.item.id)).toBeUndefined();
+  f.service.observe(f.events);
+  const db = new DatabaseSync(join(f.root, "im.sqlite"));
+  try {
+    const candidate = db
+      .prepare(
+        "SELECT value FROM im_state WHERE namespace='outbound-candidates' AND id=?",
+      )
+      .get(f.item.id)!;
+    expect(JSON.parse(String(candidate.value)).state).toBe("expired");
+    const rows = db
+      .prepare("SELECT value FROM im_state WHERE namespace='outbox'")
+      .all();
+    expect(
+      rows
+        .map((r) => JSON.parse(String(r.value)))
+        .filter((r) => r.taskId === f.threadId),
+    ).toEqual([]);
+    expect(
+      db
+        .prepare(
+          "SELECT value FROM im_state WHERE namespace='observed' AND id=?",
+        )
+        .get(historical.eventId),
+    ).toBeUndefined();
+  } finally {
+    db.close();
+  }
+});

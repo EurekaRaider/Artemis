@@ -3,9 +3,10 @@ dist/
 dist-electron/
 dist-renderer/
 release/
+!scripts/release/
+!apps/desktop/scripts/release/
 artifacts/
 /outputs/
-/ui-prototype/
 apps/desktop/release-*/
 apps/desktop/.packaging-electron-dist-direct-*/
 .testagent/

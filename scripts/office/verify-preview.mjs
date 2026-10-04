@@ -76,7 +76,7 @@ await writeFile(
   `
 import React, {useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {OfficeWorkbenchPanel} from ${relative("apps/desktop/src/renderer/OfficeWorkbenchPanel.tsx")};
+import {OfficeWorkbenchPanel} from ${relative("apps/desktop/src/renderer/office/OfficeWorkbenchPanel.tsx")};
 import '@artemis/ui/styles.css';
 import '@artemis/theme-artemis/theme.css';
 const pdfs = ${JSON.stringify(pdfs)};

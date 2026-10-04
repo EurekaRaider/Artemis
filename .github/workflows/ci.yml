@@ -36,13 +36,13 @@ jobs:
           node-version: 26
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
-        run: node scripts/normalize-windows-checkout.mjs
+        run: node scripts/ci/normalize-windows-checkout.mjs
       - name: Install dependencies
         run: npm ci
       - name: Exercise independent update recovery failures
         if: matrix.platform == 'windows-x64'
         shell: powershell
-        run: ./scripts/test-windows-update-recovery.ps1
+        run: ./scripts/release/test-windows-update-recovery.ps1
       - name: Run portable CI checks
         run: npm run verify:ci
         env:
@@ -68,10 +68,10 @@ jobs:
           node-version: 26
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
-        run: node scripts/normalize-windows-checkout.mjs
+        run: node scripts/ci/normalize-windows-checkout.mjs
       - run: npm ci
       - name: Verify official native CLI and bundled hooks
-        run: node scripts/test-slack-cli-native.mjs
+        run: node scripts/slack/test-slack-cli-native.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Diagnose Windows CLI startup after failure
@@ -133,7 +133,7 @@ jobs:
           node-version: 26
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
-        run: node scripts/normalize-windows-checkout.mjs
+        run: node scripts/ci/normalize-windows-checkout.mjs
       - name: Install dependencies
         run: npm ci
       - name: Verify exact-head visual convergence
@@ -164,17 +164,17 @@ jobs:
           node-version: 26
       - name: Normalize Windows checkout
         if: matrix.platform == 'windows-x64'
-        run: node scripts/normalize-windows-checkout.mjs
+        run: node scripts/ci/normalize-windows-checkout.mjs
       - run: npm ci
       - run: npm run build
       - name: Native service, lifecycle and trust UI tests
         run: >-
-          npx vitest run apps/desktop/test/hooks-service.test.ts packages/agent-host/test/hooks-bridge.test.ts
-          apps/desktop/test/hooks-settings.test.tsx
+          npx vitest run apps/desktop/test/main/hooks/hooks-service.test.ts packages/agent-host/test/runtime/hooks-bridge.test.ts
+          apps/desktop/test/renderer/hooks/hooks-settings.test.tsx
         env:
           NODE_OPTIONS: "--no-experimental-webstorage"
       - name: Exercise desktop trust and real command execution
-        run: node apps/desktop/scripts/verify-hooks-native.mjs
+        run: node apps/desktop/scripts/verify/native/verify-hooks-native.mjs
       - name: Package Windows engineering artifact
         if: matrix.platform == 'windows-x64'
         run: npm run package:win
@@ -190,7 +190,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: hooks-native-${{ matrix.platform }}
-          path: artifacts/hooks-native
+          path: artifacts/verification/hooks-native
           if-no-files-found: warn
           retention-days: 7
   performance:
@@ -216,11 +216,11 @@ jobs:
           node-version: 26
       - run: npm ci
       - run: npm run build:core
-      - run: node scripts/benchmark-history.mjs
-      - run: node --expose-gc scripts/benchmark-streaming.mjs
+      - run: node scripts/benchmarks/benchmark-history.mjs
+      - run: node --expose-gc scripts/benchmarks/benchmark-streaming.mjs
       - uses: actions/upload-artifact@v6
         with:
           name: performance-${{ matrix.platform }}
-          path: artifacts/performance
+          path: artifacts/benchmarks
           retention-days: 14
           if-no-files-found: error

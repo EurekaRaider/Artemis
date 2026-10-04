@@ -1,0 +1,11711 @@
+import {
+  applyStreamBatch,
+  mergeThreadEvents,
+  preserveLoadedEvents,
+} from "../conversation/stream-snapshot.js";
+import { BoundedStateCache } from "./bounded-state-cache.js";
+import { PlanConfirmationCard } from "../conversation/PlanConfirmationCard.js";
+import { isExecutionMode } from "@artemis/protocol";
+import { claimUpdateAnnouncement } from "../updates/update-announcement.js";
+import type { HookQuery } from "@artemis/protocol";
+import {
+  restoreArtifactSnapshot,
+  type ArtifactSnapshot,
+} from "@artemis/protocol";
+import { imUserMessageText } from "../im/im-user-message.js";
+import { UserInputCard } from "../conversation/UserInputCard.js";
+import {
+  DecisionComposer,
+  firstPendingComposerDecision,
+} from "../conversation/DecisionComposer.js";
+export { UserInputCard } from "../conversation/UserInputCard.js";
+import {
+  ApprovalDecisionCard,
+  type ResolveApprovalDecision,
+} from "../conversation/ApprovalDecisionCard.js";
+import { ThreadWaitingBadge } from "../conversation/ThreadStatusIndicator.js";
+import { CommandArtwork } from "../components/CommandArtwork.js";
+import { ResourceAvatar } from "../plugins/resource-icons.js";
+import {
+  createToolPluginResolver,
+  type ToolPlugin,
+} from "../conversation/tool-plugin-source.js";
+import { HistoryTurn } from "../conversation/HistoryTurn.js";
+import {
+  mergeHistoryPage,
+  type ThreadHistoryPage,
+} from "../../shared/thread-history.js";
+import { reviewMessage } from "../../shared/i18n/review-copy.js";
+import { GOAL_RESOURCES } from "../../shared/i18n/goal-resources.js";
+import { statusText } from "../../shared/i18n/status-text.js";
+import { uiText } from "../../shared/i18n/ui-text.js";
+import { UI_COPY } from "../../shared/i18n/ui-copy.js";
+import { FileAttachment } from "../components/FileAttachment.js";
+import { MessageImageAttachment } from "../conversation/MessageImageAttachment.js";
+import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
+import { CustomAgentTaskBlocks } from "../settings/CustomAgentTaskBlocks.js";
+import { ComposerSkillChip } from "../conversation/ComposerSkillChip.js";
+import { ComposerAttachments } from "../conversation/ComposerAttachments.js";
+import { OfficeAnnotationCards } from "../office/OfficeAnnotationCards.js";
+import {
+  addOfficeAnnotation,
+  changeOfficeAnnotation,
+  readOfficeAnnotations,
+  isStoredOfficeAnnotations,
+  restoreOfficeAnnotationAttachment,
+  type OfficeAnnotationReference,
+} from "../office/office-annotations.js";
+import {
+  addDesignDocumentAttachment,
+  DesignAnnotationDraft,
+  buildDesignBindingHint,
+  stripDesignAnnotationBlock,
+} from "../design/design-annotations.js";
+import { officeAnnotationCopy } from "../office/office-annotation-copy.js";
+import {
+  buildWorkspaceTabMenuHtml,
+  type WorkspaceTabMenuEntry,
+} from "../workspace/workspace-tab-menu-html.js";
+import { ThreadStatusIndicator } from "../conversation/ThreadStatusIndicator.js";
+import { useTaskNotificationRead } from "../conversation/task-notification-read.js";
+import { isAttachmentReference } from "@artemis/protocol";
+import { localizedTurnFailure } from "../conversation/turn-failure.js";
+import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
+import { useImMemberMentions } from "../im/ImMemberMentions";
+import {
+  Fragment,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type AnimationEvent as ReactAnimationEvent,
+  type ClipboardEvent as ReactClipboardEvent,
+  type CSSProperties,
+  type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  type SetStateAction,
+  type UIEvent as ReactUIEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
+import { useTranslation } from "react-i18next";
+import { Badge, Button } from "@artemis/ui/actions";
+import {
+  ConversationEmptyState,
+  ConversationMessage,
+  ConversationSurface,
+  QueuedMessageGroup,
+  QueuedMessageItem,
+  TimelineSurface,
+  TimelineTurn,
+  TimelineViewport,
+  TurnChangeSummary,
+  TurnExecutionDisclosure,
+} from "@artemis/ui/conversation";
+import {
+  Dialog,
+  ErrorState,
+  LoadingState,
+  Popover,
+  Toast,
+  Tooltip,
+} from "@artemis/ui/feedback";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import artemisIcon from "../../../build/icon.png";
+import feishuChannelIcon from "../assets/feishu-channel.png";
+import slackChannelIcon from "../assets/slack-channel.svg";
+import { PanelHeader, Toolbar } from "@artemis/ui/layout";
+import {
+  AgentActivity,
+  ResultDisclosure,
+  ToolActivity,
+  TurnStatus,
+} from "@artemis/ui/patterns";
+import {
+  TerminalState,
+  TerminalSurface,
+  TerminalViewport,
+} from "@artemis/ui/professional";
+import {
+  ApplicationShell,
+  ApplicationShellResizer,
+  NavigationSidebar,
+} from "@artemis/ui/surfaces";
+import {
+  WorkspaceDock,
+  WorkspaceDockResizer,
+  WorkspaceLauncher,
+  WorkspaceLauncherAction,
+  WorkspaceTab as WorkspaceTabSurface,
+  WorkspaceTabBar,
+  WorkspaceTabPane,
+} from "@artemis/ui/workspace";
+import {
+  ReviewDiff as ReviewDiffSurface,
+  ReviewDiffHeader,
+  ReviewDiffHunk,
+  ReviewDiffLine,
+  ReviewDiffLines,
+  ReviewDiffReader,
+  ReviewFileSidebar,
+  ReviewState,
+  ReviewSurface,
+  ReviewToolbar,
+  ReviewWorkspace,
+} from "@artemis/ui/workflow";
+import {
+  MAX_PROMPT_ATTACHMENTS,
+  reduceAgentEventBatch,
+  reduceAgentEvents,
+  type AgentEvent,
+  type AgentHostEvent,
+  type AgentTeamMessageState,
+  type AgentTeamState,
+  type ApprovalPolicy,
+  type ApprovalState,
+  type AppLocale,
+  type ChildAgentState,
+  type ChildAgentPayload,
+  type ImGroupContext,
+  type ModelSelection,
+  type PromptAttachment,
+  type PromptImage,
+  type Project,
+  type RunMode,
+  type ThinkingLevel,
+  type Thread,
+  type ThreadViewState,
+  type TurnViewState,
+  type ToolState,
+  type UserInputResolution,
+  type UserInputState,
+} from "@artemis/protocol";
+
+import type {
+  DesktopSnapshot,
+  InstalledArtemisPlugin,
+  InstalledSkill,
+  McpServerStatus,
+  ReviewAction,
+  ReviewComment,
+  ReviewDiff,
+  ReviewScope,
+  SettingsSnapshot,
+  WorkspaceFileLink,
+} from "../../shared/api.js";
+import { localeDirection } from "../../shared/i18n/locales.js";
+import { I18N_RESOURCES } from "../../shared/i18n/i18n-resources.js";
+import { ArchivePage } from "./ArchivePage.js";
+import {
+  isMultiQuestionUserInput,
+  MultiQuestionUserInputCard,
+} from "../conversation/MultiQuestionUserInputCard.js";
+import {
+  indexAgentTeamTree,
+  sortAgentsByActivity,
+  visibleAgentTeamMembers,
+} from "../conversation/agent-team-tree.js";
+
+interface LiveChildActivity {
+  activity: string;
+  payload: ChildAgentPayload;
+}
+import { MarkdownContent } from "../components/MarkdownContent.js";
+import { normalizeBrowserAddress } from "./browser-navigation.js";
+import { CodexSelect } from "../components/CodexSelect.js";
+import { ChildAgentIcon } from "../components/ChildAgentIcon.js";
+import { ImDelegationWaitStatus } from "../im/ImDelegationWaitStatus.js";
+import {
+  ImThreadConnection,
+  useImThreadStatus,
+} from "../im/ImThreadConnection.js";
+import { ComposerContextBar } from "../conversation/ComposerContextBar.js";
+import { ContextUsageIndicator } from "../conversation/ContextUsageIndicator.js";
+import { GoalBar } from "../conversation/GoalBar.js";
+import { GoalEditorPanel } from "../conversation/GoalEditorPanel.js";
+import { EnvironmentPanel } from "../workspace/EnvironmentPanel.js";
+import {
+  desktopSkinHost,
+  desktopSkinReady,
+} from "../appearance/desktop-skin-bootstrap.js";
+import { QueuedMessageEditor } from "../conversation/QueuedMessageEditor.js";
+import {
+  clampTreeActiveRowId,
+  handleProjectTreeKeyDown,
+} from "./project-thread-tree.js";
+import { SourcesIcon, SourcesPanel } from "../conversation/SourcesPanel.js";
+import { TaskPlanProgress } from "../conversation/TaskPlanProgress.js";
+import { toolActivityPatternView } from "../conversation/agent-pattern-adapters.js";
+import {
+  prepareTimelineRestore,
+  resolveTimelinePinned,
+  resolveTimelineScrollTarget,
+  type TimelineScrollSnapshot,
+} from "../conversation/timeline-scroll.js";
+import {
+  formatWorkedDuration,
+  userMessageAttachments,
+} from "../conversation/turn-timeline.js";
+import { HighlightedCodeLine } from "../workspace/WorkspaceFileEditor.js";
+import { WorkspaceLauncherIcon } from "../workspace/WorkspaceLauncherIcon.js";
+import {
+  WorkspaceFileIcon,
+  WorkspaceFilesPanel,
+} from "../workspace/WorkspaceFilesPanel.js";
+import {
+  flushWorkspaceEdits,
+  retainWorkspaceDrafts,
+} from "../workspace/workspace-autosave.js";
+import {
+  MarkdownReaderPanel,
+  WorkspaceBrowserPanel,
+} from "../workspace/WorkspacePreviewPanel.js";
+import { filePresentation } from "../workspace/workspace-file-presentation.js";
+import {
+  deriveRunPresentation,
+  formatRunDuration,
+} from "../conversation/run-presentation.js";
+const DesignPluginPanel = lazy(() =>
+  import("../design/DesignPluginPanel.js").then((module) => ({
+    default: module.DesignPluginPanel,
+  })),
+);
+const OfficeFilePanel = lazy(() =>
+  import("../office/OfficeFilePanel.js").then((module) => ({
+    default: module.OfficeFilePanel,
+  })),
+);
+import {
+  nextRunMode,
+  parseRunModeCommand,
+} from "../conversation/run-mode-controls.js";
+import {
+  formatToolInput,
+  formatToolOutput,
+  summarizeToolDetail,
+  toolActivityKind,
+  toolActivityPath,
+  type ToolActivityKind,
+} from "../conversation/tool-presentation.js";
+import {
+  groupTimelineActivities,
+  latestVisibleToolGroupKey,
+} from "../conversation/tool-activity-groups.js";
+import {
+  isSkillCommandPrompt,
+  promptWithoutSelectedSkills,
+  promptWithSelectedSkills,
+  replaceActiveSlashCommand,
+  selectedSkillNamesForPrompt,
+  slashCommandSuggestionsForPrompt,
+} from "../plugins/skill-commands.js";
+import {
+  addPromptHistoryEntry,
+  navigatePromptHistory,
+  promptHistoryForConversation,
+  type PromptHistoryNavigation,
+} from "../conversation/prompt-history.js";
+import { deriveTaskPlan } from "../conversation/task-plan.js";
+import {
+  appendPromptAttachments,
+  clearComposerDraft,
+  composerDraftFor,
+  conversationDraftKey,
+  moveComposerDraft,
+  restoreComposerQueueItems,
+  PromptAttachmentReadQueues,
+  updateComposerDraft,
+  type ComposerDraft,
+  type ComposerDrafts,
+  type CustomAgentDraftReference,
+} from "../conversation/composer-drafts.js";
+import {
+  CustomAgentMentionMenu,
+  useCustomAgentMention,
+} from "../settings/CustomAgentMention.js";
+import { customAgentInstanceIdentity } from "../settings/custom-agent-identity.js";
+import { parseGoalCommand } from "../conversation/goal-command.js";
+import {
+  isWorkspaceDraftThread,
+  orderProjectThreadsByPreference,
+  reorderThreadIds,
+  sortProjectThreads,
+  type ThreadDropEdge,
+} from "./thread-list-order.js";
+import { userInitials } from "./user-profile.js";
+import { conversationWelcome } from "../conversation/conversation-welcome.js";
+import {
+  agentTeamWorkspaceTab,
+  childAgentWorkspaceTab,
+  closesLastWorkspaceTab,
+  emptyWorkspaceTabs,
+  findReusableWorkspaceTab,
+  reconcileAgentTeamWorkspaceTab,
+  reconcileOfficeWorkspaceTab,
+  reduceWorkspaceTabs,
+  type WorkspaceTab,
+  type WorkspaceTabAction,
+  type WorkspaceTabKind,
+  type WorkspaceTabOpenOptions,
+  handleWorkspaceTabBarKeyDown,
+  workspaceTabDomId,
+  workspaceTabFocusTargetAfterClose,
+  workspaceTabIdForKey,
+} from "../workspace/workspace-tabs.js";
+import { useWorkspaceUiState } from "../workspace/workspace-ui-state.js";
+import { booleanUiState, usePersistentUiState } from "./ui-state.js";
+import {
+  clampWorkspaceDockWidth,
+  DEFAULT_WORKSPACE_DOCK_WIDTH,
+  workspaceDockWidthAfterKey,
+  workspaceDockWidthAfterPointer,
+  workspaceDockWidthBounds,
+} from "../workspace/workspace-dock-layout.js";
+import {
+  clampProjectSidebarWidth,
+  formatSidebarTime,
+  PROJECT_SIDEBAR_WIDTH_DEFAULT,
+  PROJECT_SIDEBAR_WIDTH_MAX,
+  PROJECT_SIDEBAR_WIDTH_MIN,
+} from "./project-sidebar-layout.js";
+import {
+  createProjectOrderPersistenceQueue,
+  orderProjectsByPreference,
+  reorderProjectIds,
+  type ProjectDropEdge,
+  type ProjectOrderPersistenceQueue,
+} from "./project-order.js";
+import {
+  createBooleanPreferencePersistenceQueue,
+  type BooleanPreferencePersistenceQueue,
+} from "./boolean-preference-persistence.js";
+import {
+  reduceTurnFailureNotices,
+  type TurnFailureNotices,
+} from "../conversation/turn-failure-notices.js";
+import {
+  selectionForModelSwitch,
+  thinkingLevelsForModel,
+  thinkingLevelLabel,
+} from "../settings/model-selection.js";
+
+type Locale = AppLocale;
+type ModelPickerSection = "model" | "thinking";
+type ActiveView =
+  "workspace" | "archive" | "resources" | "token-usage" | "automations";
+type SettingsEntryTab = "general" | "maintenance" | "hooks";
+type ConfirmationTone = "default" | "danger";
+type ToastContent = string | { error: true; message: string };
+
+interface ToastState {
+  content: ToastContent;
+  fading: boolean;
+  id: number;
+}
+
+interface ConfirmationState {
+  acceptLabel?: string;
+  cancelLabel?: string;
+  message: string;
+  title?: string;
+  tone: ConfirmationTone;
+}
+
+interface FileLinkContextMenuState {
+  file: WorkspaceFileLink;
+  threadId: string;
+  x: number;
+  y: number;
+}
+
+interface WorkspaceDockDrag {
+  pointerId: number;
+  startWidth: number;
+  startX: number;
+}
+
+interface ProjectSidebarDrag {
+  pointerId: number;
+  startWidth: number;
+  startX: number;
+}
+
+interface WorkspaceTabScrollState {
+  hasOverflow: boolean;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+}
+
+const EMPTY_WORKSPACE_TAB_SCROLL_STATE: WorkspaceTabScrollState = {
+  hasOverflow: false,
+  canScrollLeft: false,
+  canScrollRight: false,
+};
+
+const WORKSPACE_TAB_SCROLL_INSET = 32;
+const TOAST_VISIBLE_MILLISECONDS = 10_000;
+const TOAST_FADE_MILLISECONDS = 600;
+const COMPACTION_COMPLETION_NOTICE_MILLISECONDS = 5_000;
+const CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS = 5 * 60_000;
+
+const PROJECT_THREAD_PREVIEW_LIMIT = 5;
+
+function TransientNotice({
+  dismissLabel,
+  notice,
+  onDismiss,
+  placement,
+}: {
+  dismissLabel: string;
+  notice: ToastState;
+  onDismiss(): void;
+  placement: "composer" | "view";
+}) {
+  const error = typeof notice.content !== "string";
+  return (
+    <Toast
+      className={`transient-notice ${placement}-notice${error ? " error" : ""}${notice.fading ? " fading" : ""}`}
+      dismissLabel={dismissLabel}
+      exiting={notice.fading}
+      onDismiss={onDismiss}
+      tone={error ? "danger" : "info"}
+    >
+      {typeof notice.content === "string"
+        ? notice.content
+        : notice.content.message}
+    </Toast>
+  );
+}
+
+function modelIdentity(providerId: string, modelId: string): string {
+  return `${providerId}\u0000${modelId}`;
+}
+
+const loadAutomationPage = () => import("../automation/AutomationPage.js");
+const loadResourceCenter = () => import("../plugins/ResourceCenter.js");
+const loadSettingsPanel = () => import("./SettingsPanel.js");
+const loadTerminalPanel = () => import("../terminal/TerminalPanel.js");
+const loadTokenUsagePage = () => import("../conversation/TokenUsagePage.js");
+const ComputerUseControls = lazy(() =>
+  import("../computer-use/ComputerUseControls.js").then((module) => ({
+    default: module.ComputerUseControls,
+  })),
+);
+const AutomationPage = lazy(() =>
+  loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
+);
+const HookTaskNotice = lazy(() =>
+  import("../hooks/HookTaskNotice.js").then((module) => ({
+    default: module.HookTaskNotice,
+  })),
+);
+const ResourceCenter = lazy(() =>
+  loadResourceCenter().then((module) => ({ default: module.ResourceCenter })),
+);
+const SettingsPanel = lazy(() =>
+  loadSettingsPanel().then((module) => ({ default: module.SettingsPanel })),
+);
+const TerminalPanel = lazy(() =>
+  loadTerminalPanel().then((module) => ({ default: module.TerminalPanel })),
+);
+const TokenUsagePage = lazy(() =>
+  loadTokenUsagePage().then((module) => ({ default: module.TokenUsagePage })),
+);
+
+const copy = UI_COPY.App_copy satisfies Record<
+  AppLocale,
+  Record<string, string>
+>;
+
+function appCopy(locale: Locale): (typeof copy)["en"] {
+  return copy[locale];
+}
+
+function ArtemisMark() {
+  return (
+    <div className="artemis-mark" aria-label="Artemis">
+      <img alt="" aria-hidden="true" src={artemisIcon} />
+    </div>
+  );
+}
+
+function FolderIcon({ open = false }: { open?: boolean }) {
+  return (
+    <ArtemisIcon
+      className="icon"
+      height={18}
+      name={open ? "folder-open" : "folder"}
+      width={18}
+    />
+  );
+}
+
+function PlusIcon() {
+  return <ArtemisIcon className="icon" height={18} name="plus" width={18} />;
+}
+
+function CloseIcon() {
+  return <ArtemisIcon className="icon" height={16} name="close" width={16} />;
+}
+
+function QueueIcon() {
+  return <ArtemisIcon className="icon" height={18} name="queue" width={18} />;
+}
+
+function SteerIcon() {
+  return <ArtemisIcon className="icon" height={18} name="steer" width={18} />;
+}
+
+function MoveToFrontIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="move-front" width={18} />
+  );
+}
+
+function TrashIcon() {
+  return <ArtemisIcon className="icon" height={18} name="trash" width={18} />;
+}
+
+function EditIcon() {
+  return <ArtemisIcon className="icon" height={18} name="edit" width={18} />;
+}
+
+function CopyIcon() {
+  return <ArtemisIcon className="icon" height={16} name="copy" width={16} />;
+}
+
+function isPromptImage(
+  attachment: PromptAttachment,
+): attachment is PromptImage {
+  return !("type" in attachment);
+}
+
+function SearchIcon() {
+  return <ArtemisIcon className="icon" height={16} name="search" width={16} />;
+}
+
+function RefreshIcon() {
+  return <ArtemisIcon className="icon" height={16} name="refresh" width={16} />;
+}
+
+function ReviewEmptyIcon() {
+  return (
+    <ArtemisIcon className="icon" height={46} name="review-empty" width={46} />
+  );
+}
+
+function ArchiveIcon() {
+  return <ArtemisIcon className="icon" height={18} name="archive" width={18} />;
+}
+
+function ResourceIcon() {
+  return <ArtemisIcon className="icon" height={18} name="grid" width={18} />;
+}
+
+function TokenUsageIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="token-usage" width={18} />
+  );
+}
+
+function AutomationIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
+  );
+}
+
+function SettingsIcon() {
+  return <ArtemisIcon className="icon" height={17} name="gear" width={17} />;
+}
+
+function ReviewIcon() {
+  return <ArtemisIcon className="icon" height={18} name="review" width={18} />;
+}
+
+function LeftSidebarIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="sidebar-l" width={18} />
+  );
+}
+
+function RightSidebarIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="sidebar-r" width={18} />
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="terminal" width={18} />
+  );
+}
+
+function ToolActivityIcon({ kind }: { kind: ToolActivityKind }) {
+  if (kind === "bash") return <TerminalIcon />;
+  if (kind === "search") return <SearchIcon />;
+  if (kind === "generic") return <ResourceIcon />;
+  if (kind === "write") return <EditIcon />;
+  return <ArtemisIcon className="icon" height={18} name="file" width={18} />;
+}
+
+function BrowserIcon() {
+  return <ArtemisIcon className="icon" height={18} name="browser" width={18} />;
+}
+
+function MarkdownIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="markdown" width={18} />
+  );
+}
+
+/** Prototype design icon (artemis-ui.html launch-btn, 4-point star). */
+function DesignSparkIcon() {
+  return (
+    <svg
+      className="icon"
+      fill="none"
+      height={16}
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      viewBox="0 0 24 24"
+      width={16}
+    >
+      <path d="M12 4.5l1.7 5.3 5.3 1.7-5.3 1.7L12 18.5l-1.7-5.3L5 11.5l5.3-1.7z" />
+    </svg>
+  );
+}
+
+function FilesIcon() {
+  return <ArtemisIcon className="icon" height={18} name="files" width={18} />;
+}
+
+export function WorkspaceTabIcon({
+  childAgentId,
+  kind,
+  path,
+}: {
+  childAgentId?: string | undefined;
+  kind: WorkspaceTabKind;
+  path?: string | undefined;
+}) {
+  if (kind === "review") return <ReviewIcon />;
+  if (kind === "terminal") return <TerminalIcon />;
+  if (kind === "browser") return <BrowserIcon />;
+  if (kind === "markdown") return <MarkdownIcon />;
+  if (kind === "sources") return <SourcesIcon />;
+  if (kind === "goal")
+    return <ArtemisIcon height={16} name="task" width={16} />;
+  if (kind === "child-agent") return <ChildAgentIcon identity={childAgentId} />;
+  if (kind === "agent-team") return <FolderIcon />;
+  if (kind === "file") {
+    return path ? (
+      <WorkspaceFileIcon
+        path={path}
+        presentation={filePresentation(path)}
+        symlink={false}
+      />
+    ) : (
+      <FilesIcon />
+    );
+  }
+  if (kind === "design") return <DesignSparkIcon />;
+  return <FilesIcon />;
+}
+
+function ModeIcon() {
+  return (
+    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
+  );
+}
+
+function ModelIcon() {
+  return <ArtemisIcon className="icon" height={18} name="model" width={18} />;
+}
+
+function ChevronIcon() {
+  return <ArtemisIcon className="icon" height={14} name="chevron" width={14} />;
+}
+
+function TabScrollIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <ArtemisIcon
+      className="icon"
+      height={16}
+      name={direction === "left" ? "chev-left" : "chev-right"}
+      width={16}
+    />
+  );
+}
+
+function statusLabel(
+  state: ThreadViewState | undefined,
+  locale: Locale,
+  clockMs: number,
+) {
+  const t = appCopy(locale);
+  switch (state?.status) {
+    case "running": {
+      const activity = state.activity;
+      if (activity?.phase === "reconnecting") {
+        if (activity.kind === "process-restart") return t.hostRecovering;
+        const scheduledAt = activity.scheduledAt
+          ? Date.parse(activity.scheduledAt)
+          : clockMs;
+        const seconds = Math.max(
+          0,
+          Math.ceil((scheduledAt + (activity.delayMs ?? 0) - clockMs) / 1_000),
+        );
+        if (activity.kind === "rate-limit") {
+          return t.rateLimited.replace("{{seconds}}", String(seconds));
+        }
+        if (activity.maxAttempts === undefined) {
+          return t.waitingNetwork.replace("{{seconds}}", String(seconds));
+        }
+        return (
+          activity.kind === "stream-stalled" ? t.modelRetrying : t.reconnecting
+        )
+          .replace("{{attempt}}", String(activity.attempt ?? 1))
+          .replace("{{maximum}}", String(activity.maxAttempts))
+          .replace("{{seconds}}", String(seconds));
+      }
+      if (activity?.phase === "recovered")
+        return activity.kind === "process-restart"
+          ? t.hostRecovering
+          : t.connectionRecovered;
+      if (activity?.phase === "interrupted") return t.taskInterrupted;
+      return activity?.phase === "queued"
+        ? t.queuedForAgent
+        : activity?.phase === "requesting-model"
+          ? t.waitingForModel
+          : t.running;
+    }
+    case "waiting-approval":
+      return t.waiting;
+    case "waiting-user-input":
+      return t.waitingInput;
+    case "failed":
+      return t.failed;
+    default:
+      return t.ready;
+  }
+}
+
+function visibleThreadTitle(title: string): string {
+  return (
+    promptWithoutSelectedSkills(title) ||
+    selectedSkillNamesForPrompt(title).join(", ") ||
+    title
+  );
+}
+
+/* IM 任务标题固定带「渠道 · 摘要」前缀（task-title.ts），侧栏把前缀文字
+   换成品牌图标；标题数据本身不动。 */
+const IM_TITLE_CHANNELS: Record<string, string> = {
+  Slack: "slack",
+  飞书: "feishu",
+  企业微信: "wecom",
+  Lark: "feishu",
+};
+
+function splitImChannelPrefix(
+  title: string,
+): { channel: string; rest: string } | undefined {
+  const match = new RegExp(
+    `^(${Object.keys(IM_TITLE_CHANNELS).join("|")})\\s*·\\s*`,
+    "u",
+  ).exec(title);
+  const matched = match?.[1];
+  if (!matched) return undefined;
+  return {
+    channel: IM_TITLE_CHANNELS[matched]!,
+    rest: title.slice(match[0].length),
+  };
+}
+
+function ThreadChannelMark({
+  channel,
+  locale,
+}: {
+  channel: string;
+  locale: AppLocale;
+}) {
+  /* 第二个图标悬浮气泡：渠道名称。 */
+  const label =
+    channel === "slack"
+      ? "Slack"
+      : channel === "feishu" || channel === "lark"
+        ? uiText(locale, "ImNavigation.message1")
+        : channel === "wecom"
+          ? uiText(locale, "ImNavigation.message2")
+          : "IM";
+  return (
+    <Tooltip label={label}>
+      {channel === "feishu" || channel === "lark" ? (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="thread-channel-logo"
+          src={feishuChannelIcon}
+        />
+      ) : channel === "slack" ? (
+        <img
+          alt=""
+          aria-hidden="true"
+          className="thread-channel-logo"
+          src={slackChannelIcon}
+        />
+      ) : (
+        <ArtemisIcon
+          aria-hidden="true"
+          className="thread-channel-logo"
+          name="wecom"
+        />
+      )}
+    </Tooltip>
+  );
+}
+
+function ThreadTitleContent({
+  title,
+  locale,
+  hideChannel = false,
+}: {
+  title: string;
+  locale: AppLocale;
+  hideChannel?: boolean;
+}) {
+  const visible = visibleThreadTitle(title);
+  const parsed = splitImChannelPrefix(visible);
+  const text = parsed ? parsed.rest : visible;
+  return (
+    <>
+      {parsed && !hideChannel && (
+        <ThreadChannelMark channel={parsed.channel} locale={locale} />
+      )}
+      <span className="thread-title-text">
+        <span>{text}</span>
+        <span aria-hidden="true" className="thread-title-copy">
+          {text}
+        </span>
+      </span>
+    </>
+  );
+}
+
+function prepareThreadTitleScroll(
+  event: ReactPointerEvent<HTMLSpanElement>,
+): void {
+  const viewport = event.currentTarget;
+  const content = viewport.firstElementChild;
+  if (!(content instanceof HTMLElement)) return;
+
+  const titleWidth =
+    content.firstElementChild instanceof HTMLElement
+      ? content.firstElementChild.getBoundingClientRect().width
+      : content.scrollWidth;
+  const distance = Math.ceil(titleWidth - viewport.clientWidth);
+  if (distance <= 1) {
+    delete viewport.dataset.overflowing;
+    viewport.style.removeProperty("--thread-title-scroll-distance");
+    viewport.style.removeProperty("--thread-title-scroll-duration");
+    return;
+  }
+
+  viewport.dataset.overflowing = "true";
+  viewport.style.setProperty(
+    "--thread-title-scroll-distance",
+    `${document.documentElement.dir === "rtl" ? "" : "-"}${titleWidth + 24}px`,
+  );
+  viewport.style.setProperty(
+    "--thread-title-scroll-duration",
+    `${Math.max(4, (titleWidth + 24) / 30).toFixed(2)}s`,
+  );
+}
+
+function synchronizeTurnIndicator(event: ReactAnimationEvent<HTMLElement>) {
+  if (event.animationName !== "turn-indicator-breathe") return;
+  // A shared document-timeline origin keeps separately mounted indicators in phase.
+  for (const animation of (event.target as HTMLElement).getAnimations()) {
+    if (
+      animation instanceof CSSAnimation &&
+      animation.animationName === event.animationName
+    )
+      animation.startTime = 0;
+  }
+}
+
+export function App() {
+  const imThreadStatus = useImThreadStatus();
+  const { i18n } = useTranslation();
+  const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
+  const [activeProjectId, setActiveProjectId] = useState<string>();
+  const [activeThreadId, setActiveThreadId] = useState<string>();
+  const [composerDrafts, setComposerDrafts] = useState<ComposerDrafts>({});
+  const [promptSubmittedAtByThread, setPromptSubmittedAtByThread] = useState<
+    Record<string, number>
+  >({});
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
+  const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
+  const [installedPlugins, setInstalledPlugins] = useState<
+    InstalledArtemisPlugin[]
+  >([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
+  const [skillsError, setSkillsError] = useState<string>();
+  const [skillMenuDismissed, setSkillMenuDismissed] = useState(false);
+  const [activeSlashSuggestion, setActiveSlashSuggestion] = useState(0);
+  const [attachmentDragActive, setAttachmentDragActive] = useState(false);
+  const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>("agent");
+  const [runtimeSettings, setRuntimeSettings] = useState<SettingsSnapshot>();
+  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const announcedUpdate = useRef<string | undefined>(undefined);
+  const [pendingModelSelection, setPendingModelSelection] =
+    useState<ModelSelection>();
+  const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [modelFilter, setModelFilter] = useState("");
+  const [modelPickerSection, setModelPickerSection] =
+    useState<ModelPickerSection>("model");
+  const [mode, setMode] = useState<RunMode>("work");
+  const [query, setQuery] = useState("");
+  const [projectsOpen, setProjectsOpen] = usePersistentUiState(
+    "artemis-projects-open",
+    booleanUiState,
+    true,
+  );
+  const [temporaryConversationsOpen, setTemporaryConversationsOpen] =
+    useState(true);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expandedProjectIdsRef = useRef<Set<string>>(new Set());
+  const expandedProjectIdsTouched = useRef(false);
+  const projectTreeElement = useRef<HTMLDivElement>(null);
+  const [treeActiveRowId, setTreeActiveRowId] = useState<string>();
+  const focusProjectTreeRow = useCallback((rowId: string) => {
+    setTreeActiveRowId(rowId);
+    projectTreeElement.current
+      ?.querySelector<HTMLElement>(`[data-tree-row-id="${CSS.escape(rowId)}"]`)
+      ?.focus();
+  }, []);
+  useEffect(() => {
+    setTreeActiveRowId((current) =>
+      clampTreeActiveRowId(projectTreeElement.current, current),
+    );
+  });
+  // One mutable expansion state drives the root treeitem, the internal
+  // toggle, the child-group visibility and every keyboard entry point
+  // (click / Enter / Space / ArrowLeft). Entering a search auto-expands
+  // once; collapsing during the search is honoured and persisted; leaving
+  // the search restores the persisted preference.
+  const [projectsExpanded, setProjectsExpanded] = useState(projectsOpen);
+  const projectsSearchQueryRef = useRef(query);
+  useEffect(() => {
+    const wasSearching = projectsSearchQueryRef.current.trim().length > 0;
+    const isSearching = query.trim().length > 0;
+    projectsSearchQueryRef.current = query;
+    if (isSearching && !wasSearching) {
+      setProjectsExpanded(true);
+    } else if (!isSearching) {
+      setProjectsExpanded(projectsOpen);
+    }
+  }, [projectsOpen, query]);
+  const toggleProjectsExpansion = useCallback(() => {
+    // Compute ONE next value from the authoritative visible state and sync
+    // both states to it — two independent functional toggles can diverge
+    // after the search auto-expansion (expanded=true, open=false) and the
+    // leave-search restore would then undo the user's collapse.
+    const next = !projectsExpanded;
+    setProjectsExpanded(next);
+    setProjectsOpen(next);
+  }, [projectsExpanded]);
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const collapsedProjectIdsRef = useRef<Set<string>>(new Set());
+  const collapsedProjectIdsTouched = useRef(false);
+  const [draggedProjectId, setDraggedProjectId] = useState<string>();
+  const [projectDropTarget, setProjectDropTarget] = useState<{
+    projectId: string;
+    edge: ProjectDropEdge;
+  }>();
+  const [draggedThread, setDraggedThread] = useState<{
+    projectId: string;
+    threadId: string;
+  }>();
+  const [threadDropTarget, setThreadDropTarget] = useState<{
+    projectId: string;
+    threadId: string;
+    edge: ThreadDropEdge;
+  }>();
+  const [activeView, setActiveView] = useState<ActiveView>("workspace");
+  const [projectMenuId, setProjectMenuId] = useState<string>();
+  const [threadMenuId, setThreadMenuId] = useState<string>();
+  const threadMenuAnchor = useRef<HTMLButtonElement | null>(null);
+  const threadRenameInput = useRef<HTMLInputElement>(null);
+  const [threadRename, setThreadRename] = useState<{
+    threadId: string;
+    title: string;
+  }>();
+  const {
+    tabsByThread: workspaceTabsByThread,
+    setTabsByThread: setWorkspaceTabsByThread,
+    dockOpen: workspaceDockOpen,
+    setDockOpen: setWorkspaceDockOpen,
+  } = useWorkspaceUiState(activeThreadId);
+  const [officeAnnotationFocus, setOfficeAnnotationFocus] = useState<
+    OfficeAnnotationReference & { threadId: string }
+  >();
+  const [workspaceDockWidth, setWorkspaceDockWidth] = useState<number>();
+  const [workspaceDockResizing, setWorkspaceDockResizing] = useState(false);
+  const [workspaceTabScrollState, setWorkspaceTabScrollState] =
+    useState<WorkspaceTabScrollState>(EMPTY_WORKSPACE_TAB_SCROLL_STATE);
+  const [fileLinkContextMenu, setFileLinkContextMenu] =
+    useState<FileLinkContextMenuState>();
+  const [workspaceTabMenuOpen, setWorkspaceTabMenuOpen] = useState(false);
+  const workspaceTabScroll = useRef<HTMLDivElement>(null);
+  const workspaceTabTrack = useRef<HTMLDivElement>(null);
+  const activeWorkspaceTabElement = useRef<HTMLDivElement>(null);
+  const workspaceTabButtons = useRef(
+    new Map<string, HTMLButtonElement | null>(),
+  );
+  const workspaceDockToggleElement = useRef<HTMLButtonElement>(null);
+  const focusWorkspaceTab = useCallback((tabId: string | undefined) => {
+    if (!tabId) return;
+    workspaceTabButtons.current.get(tabId)?.focus();
+  }, []);
+  const workspaceContent = useRef<HTMLDivElement>(null);
+  const workspaceDock = useRef<HTMLElement>(null);
+  const workspaceDockDrag = useRef<WorkspaceDockDrag | undefined>(undefined);
+  const workspaceDockWidthRef = useRef<number | undefined>(undefined);
+  const workspaceDockPersistence = useRef<Promise<void>>(Promise.resolve());
+  const projectSidebar = useRef<HTMLElement>(null);
+  const projectSidebarDrag = useRef<ProjectSidebarDrag | undefined>(undefined);
+  const projectSidebarWidthRef = useRef<number | undefined>(undefined);
+  const projectSidebarPersistence = useRef<Promise<void>>(Promise.resolve());
+  const settingsTrigger = useRef<HTMLButtonElement>(null);
+  const knownAgentTeamTabs = useRef(new Set<string>());
+  const workspaceThreadCreation =
+    useRef<Promise<string | undefined>>(undefined);
+  const [reviewScope, setReviewScope] = useState<ReviewScope>("branch");
+  const [reviewTurnId, setReviewTurnId] = useState<string>();
+  const [reviewBaseRef, setReviewBaseRef] = useState("");
+  const [reviewFileQuery, setReviewFileQuery] = useState("");
+  const [selectedReviewFilePath, setSelectedReviewFilePath] =
+    useState<string>();
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewRefreshing, setReviewRefreshing] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hooksQuery, setHooksQuery] = useState<HookQuery>({});
+  const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
+  const [sidebarOpen, setSidebarOpen] = usePersistentUiState(
+    "artemis-sidebar-open",
+    booleanUiState,
+    () => window.innerWidth > 1060,
+  );
+  const [sidebarPeek, setSidebarPeek] = useState(false);
+  const sidebarHoverSuppressed = useRef(false);
+  const sidebarPeekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const sidebarAnimationTimer = useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
+  const [sidebarAnimating, setSidebarAnimating] = useState(false);
+  const closeSidebarPeek = useCallback(() => {
+    clearTimeout(sidebarPeekTimer.current);
+    sidebarPeekTimer.current = undefined;
+    setSidebarPeek(false);
+  }, []);
+  const requestSidebarPeek = () => {
+    if (
+      sidebarOpen ||
+      sidebarHoverSuppressed.current ||
+      sidebarPeek ||
+      sidebarPeekTimer.current !== undefined
+    )
+      return;
+    // Both visible surfaces and their inert state switch after the same debounce.
+    sidebarPeekTimer.current = setTimeout(() => {
+      sidebarPeekTimer.current = undefined;
+      setSidebarPeek(true);
+    }, 200);
+  };
+  useEffect(() => {
+    const releaseHover = () => {
+      sidebarHoverSuppressed.current = false;
+    };
+    window.addEventListener("mousemove", releaseHover);
+    return () => {
+      window.removeEventListener("mousemove", releaseHover);
+      clearTimeout(sidebarPeekTimer.current);
+      clearTimeout(sidebarAnimationTimer.current);
+    };
+  }, []);
+  const changeSidebarOpen = useCallback(
+    (open: boolean | ((current: boolean) => boolean)) => {
+      const restoreFocus =
+        projectSidebar.current?.contains(document.activeElement) ||
+        document.activeElement?.classList.contains("left-sidebar-toggle");
+      closeSidebarPeek();
+      sidebarHoverSuppressed.current = true;
+      clearTimeout(sidebarAnimationTimer.current);
+      setSidebarAnimating(true);
+      setSidebarOpen(open);
+      sidebarAnimationTimer.current = setTimeout(
+        () => setSidebarAnimating(false),
+        400,
+      );
+      // The rail remains available after the main navigation becomes inert.
+      requestAnimationFrame(() => {
+        if (!restoreFocus) return;
+        const collapsed =
+          projectSidebar.current?.getAttribute("data-state") === "collapsed";
+        projectSidebar.current
+          ?.querySelector<HTMLButtonElement>(
+            collapsed ? ".rail-brand" : ".sidebar-collapse",
+          )
+          ?.focus({ preventScroll: true });
+      });
+    },
+    [closeSidebarPeek],
+  );
+  const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
+  const [defaultProjectSidebarWidth, setDefaultProjectSidebarWidth] = useState(
+    () => (window.innerWidth <= 1100 ? 250 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
+  );
+  useEffect(() => {
+    let compact = window.innerWidth <= 1060;
+    const resize = () => {
+      setDefaultProjectSidebarWidth(
+        window.innerWidth <= 1100 ? 250 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
+      );
+      const nextCompact = window.innerWidth <= 1060;
+      if (nextCompact && !compact) changeSidebarOpen(false);
+      compact = nextCompact;
+    };
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  const [projectSidebarResizing, setProjectSidebarResizing] = useState(false);
+  const [clockMs, setClockMs] = useState(() => Date.now());
+  const [childAgentControlPending, setChildAgentControlPending] = useState<
+    string | undefined
+  >();
+  const [agentTeamControlPending, setAgentTeamControlPending] = useState(false);
+  const [reviewDiff, setReviewDiff] = useState<ReviewDiff | undefined>({
+    scope: "branch",
+    text: "",
+    available: true,
+    files: [],
+  });
+  const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
+
+  const openSettings = (tab: SettingsEntryTab, trigger: HTMLButtonElement) => {
+    settingsTrigger.current = trigger;
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
+  const [commentLineId, setCommentLineId] = useState<string>();
+  const [commentBody, setCommentBody] = useState("");
+  const [confirmation, setConfirmation] = useState<ConfirmationState>();
+  const [busy, setBusy] = useState(false);
+  const [compactingThreadIds, setCompactingThreadIds] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const deletingThreadIds = useRef(new Set<string>());
+  const [goalMutationPending, setGoalMutationPending] = useState(false);
+  const toastSerial = useRef(0);
+  const [failedTabClose, setFailedTabClose] = useState<{
+    tabId: string;
+    threadId: string;
+    path: string;
+    message: string;
+  }>();
+  const [toast, setToastState] = useState<ToastState>();
+  const setToast = useCallback((content: ToastContent | undefined) => {
+    if (content === undefined) {
+      setToastState(undefined);
+      return;
+    }
+    toastSerial.current += 1;
+    setToastState({
+      content,
+      fading: false,
+      id: toastSerial.current,
+    });
+  }, []);
+  const projectOrderPersistence = useRef<
+    ProjectOrderPersistenceQueue | undefined
+  >(undefined);
+  const collapsedProjectIdsPersistence = useRef<
+    ProjectOrderPersistenceQueue | undefined
+  >(undefined);
+  const expandedProjectIdsPersistence = useRef<
+    ProjectOrderPersistenceQueue | undefined
+  >(undefined);
+  const projectThreadOrderPersistence = useRef(
+    new Map<string, ProjectOrderPersistenceQueue>(),
+  );
+  if (!projectOrderPersistence.current) {
+    projectOrderPersistence.current = createProjectOrderPersistenceQueue({
+      save: (order) => window.artemis.setProjectOrder(order),
+      onPersisted: (order) => {
+        setRuntimeSettings((current) =>
+          current ? { ...current, projectOrder: order } : current,
+        );
+      },
+      onRejected: (order, error) => {
+        setRuntimeSettings((current) =>
+          current ? { ...current, projectOrder: order } : current,
+        );
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+  }
+  if (!collapsedProjectIdsPersistence.current) {
+    collapsedProjectIdsPersistence.current = createProjectOrderPersistenceQueue(
+      {
+        save: (projectIds) => window.artemis.setCollapsedProjectIds(projectIds),
+        onPersisted: (projectIds) => {
+          const next = new Set(projectIds);
+          collapsedProjectIdsRef.current = next;
+          setCollapsedProjectIds(next);
+          setRuntimeSettings((current) =>
+            current ? { ...current, collapsedProjectIds: projectIds } : current,
+          );
+        },
+        onRejected: (projectIds, error) => {
+          const previous = new Set(projectIds);
+          collapsedProjectIdsRef.current = previous;
+          setCollapsedProjectIds(previous);
+          setRuntimeSettings((current) =>
+            current ? { ...current, collapsedProjectIds: projectIds } : current,
+          );
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        },
+      },
+    );
+  }
+  if (!expandedProjectIdsPersistence.current) {
+    expandedProjectIdsPersistence.current = createProjectOrderPersistenceQueue({
+      save: (projectIds) => window.artemis.setExpandedProjectIds(projectIds),
+      onPersisted: (projectIds) => {
+        const next = new Set(projectIds);
+        expandedProjectIdsRef.current = next;
+        setExpandedProjectIds(next);
+        setRuntimeSettings((current) =>
+          current ? { ...current, expandedProjectIds: projectIds } : current,
+        );
+      },
+      onRejected: (projectIds, error) => {
+        const previous = new Set(projectIds);
+        expandedProjectIdsRef.current = previous;
+        setExpandedProjectIds(previous);
+        setRuntimeSettings((current) =>
+          current ? { ...current, expandedProjectIds: projectIds } : current,
+        );
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    });
+  }
+  const toggleProjectPreview = useCallback((projectId: string) => {
+    expandedProjectIdsTouched.current = true;
+    const previous = expandedProjectIdsRef.current;
+    const next = new Set(previous);
+    if (next.has(projectId)) next.delete(projectId);
+    else next.add(projectId);
+    expandedProjectIdsRef.current = next;
+    setExpandedProjectIds(next);
+    void expandedProjectIdsPersistence.current?.persist(
+      [...next],
+      [...previous],
+    );
+  }, []);
+  const setProjectHistoriesCollapsed = useCallback(
+    (projectIds: readonly string[], collapsed: boolean) => {
+      collapsedProjectIdsTouched.current = true;
+      const previous = collapsedProjectIdsRef.current;
+      const next = new Set(previous);
+      for (const projectId of projectIds) {
+        if (collapsed) next.add(projectId);
+        else next.delete(projectId);
+      }
+      if (next.size === previous.size) {
+        return;
+      }
+      collapsedProjectIdsRef.current = next;
+      setCollapsedProjectIds(next);
+      setRuntimeSettings((current) =>
+        current ? { ...current, collapsedProjectIds: [...next] } : current,
+      );
+      void collapsedProjectIdsPersistence.current?.persist(
+        [...next],
+        [...previous],
+      );
+    },
+    [],
+  );
+  const setProjectCollapsed = useCallback(
+    (projectId: string, collapsed: boolean) =>
+      setProjectHistoriesCollapsed([projectId], collapsed),
+    [setProjectHistoriesCollapsed],
+  );
+  const setProjectRowCollapsed = useCallback(
+    (rowId: string, collapsed: boolean) => {
+      setProjectCollapsed(rowId.replace(/^project:/, ""), collapsed);
+    },
+    [setProjectCollapsed],
+  );
+  const temporaryConversationsPersistence = useRef<
+    BooleanPreferencePersistenceQueue | undefined
+  >(undefined);
+  if (!temporaryConversationsPersistence.current) {
+    temporaryConversationsPersistence.current =
+      createBooleanPreferencePersistenceQueue({
+        save: (open) => window.artemis.setTemporaryConversationsOpen(open),
+        onPersisted: (open) => {
+          setTemporaryConversationsOpen(open);
+          setRuntimeSettings((current) =>
+            current
+              ? { ...current, temporaryConversationsOpen: open }
+              : current,
+          );
+        },
+        onRejected: (open, error) => {
+          setTemporaryConversationsOpen(open);
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        },
+      });
+  }
+  const [turnFailureNotices, setTurnFailureNotices] =
+    useState<TurnFailureNotices>({});
+  const [editingQueuedMessage, setEditingQueuedMessage] = useState<{
+    index: number;
+    value: string;
+  }>();
+  const [queuedSaveErrorDetail, setQueuedSaveErrorDetail] = useState<
+    string | null
+  >(null);
+  const timelineScroll = useRef<HTMLDivElement>(null);
+  const timelinePinned = useRef(true);
+  const timelineScrollSnapshots = useRef(
+    new Map<string, TimelineScrollSnapshot>(),
+  );
+  const pendingTimelineRestore = useRef<
+    | {
+        threadId: string;
+        snapshot?: TimelineScrollSnapshot;
+      }
+    | undefined
+  >(undefined);
+  const timelineScrollIntent = useRef(false);
+  const timelineScrollbarPointerActive = useRef(false);
+  const [historyPages, setHistoryPages] = useState<
+    Record<string, ThreadHistoryPage>
+  >({});
+  const loadingHistoryPages = useRef(new Set<string>());
+  const historyPrependAnchor = useRef<
+    { threadId: string; element: Element; top: number } | undefined
+  >(undefined);
+  const loadedEventThreads = useRef(new Set<string>());
+  const loadingEventThreads = useRef(new Set<string>());
+  const [historyLoadErrors, setHistoryLoadErrors] = useState<
+    Record<string, true>
+  >({});
+  const [historyRetry, setHistoryRetry] = useState(0);
+  const pendingAgentEvents = useRef<AgentEvent[]>([]);
+  const pendingAgentFrame = useRef<number | undefined>(undefined);
+  const [liveChildActivities, setLiveChildActivities] = useState<
+    Record<string, Record<string, LiveChildActivity>>
+  >({});
+  const reportedTurnPaints = useRef(new Set<string>());
+  const recoveredQueueEventIds = useRef(new Set<string>());
+  const promptInput = useRef<HTMLTextAreaElement>(null);
+  const previousPendingDecisionId = useRef<string | undefined>(undefined);
+  const approvalPolicyRoot = useRef<HTMLDivElement>(null);
+  const modelPickerRoot = useRef<HTMLDivElement>(null);
+  const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
+  const slashCommandMenu = useRef<HTMLDivElement>(null);
+  const confirmationResolver = useRef<
+    ((confirmed: boolean) => void) | undefined
+  >(undefined);
+  const promptedGoalResumes = useRef(new Set<string>());
+  const goalEditorGoalId = useRef<string | undefined>(undefined);
+  const promptHistoryNavigation = useRef<PromptHistoryNavigation>({
+    index: -1,
+    draft: "",
+  });
+  const reviewRequestId = useRef(0);
+  const reviewScopeThreadId = useRef(activeThreadId);
+  const reviewDiffCache = useRef(new Map<string, ReviewDiff>());
+  const reviewDiffInFlight = useRef(new Map<string, Promise<ReviewDiff>>());
+  const reviewDiffVersion = useRef(new Map<string, number>());
+  const [reviewTransitionPending, startReviewTransition] = useTransition();
+  const threadStateCache = useRef(
+    new BoundedStateCache<{
+      history?: ThreadHistoryPage;
+      eventCount: number;
+      lastEventId?: string;
+      mode: RunMode;
+      state: ThreadViewState;
+    }>((id) => turnWatermarks.current.delete(id)),
+  );
+  const [officeSnapshots, setOfficeSnapshots] = useState<
+    Record<string, ArtifactSnapshot>
+  >({});
+  const recoverOfficeSnapshot = useCallback((next: ArtifactSnapshot) => {
+    setOfficeSnapshots((current) => {
+      if (
+        (current[next.session.sessionId]?.session.sequence ?? -1) >=
+        next.session.sequence
+      )
+        return current;
+      return Object.fromEntries([
+        ...Object.entries(current)
+          .filter(([id]) => id !== next.session.sessionId)
+          .slice(-19),
+        [next.session.sessionId, next],
+      ]);
+    });
+  }, []);
+  // Highest turn count ever derived per thread. Cross-switch cache pollution
+  // can shrink a derivation below what this thread already rendered; the
+  // memo re-derives from raw inputs whenever that watermark is exceeded.
+  const turnWatermarks = useRef(new Map<string, number>());
+
+  const locale: Locale = snapshot?.locale ?? "en";
+  const t = appCopy(locale);
+  useEffect(
+    () =>
+      window.artemis.onUpdateStatus((update) => {
+        setRuntimeSettings((current) =>
+          current ? { ...current, update } : current,
+        );
+      }),
+    [],
+  );
+  useEffect(() => {
+    const version = runtimeSettings?.update.completedVersion;
+    if (!version || announcedUpdate.current === version) return;
+    announcedUpdate.current = version;
+    if (claimUpdateAnnouncement(version)) {
+      setToast(uiText(locale, "Update.completed", { version }));
+    }
+  }, [runtimeSettings?.update.completedVersion, locale, setToast]);
+  const username = snapshot?.userName ?? t.local;
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+  const activeThreadIdRef = useRef(activeThreadId);
+  activeThreadIdRef.current = activeThreadId;
+  workspaceDockWidthRef.current = workspaceDockWidth;
+  projectSidebarWidthRef.current = projectSidebarWidth;
+  const activeComposerDraftKey = conversationDraftKey(
+    activeProjectId,
+    activeThreadId,
+  );
+  const activeComposerDraft = composerDraftFor(
+    composerDrafts,
+    activeComposerDraftKey,
+  );
+  const {
+    attachments,
+    prompt,
+    selectedSkillNames: selectedComposerSkillNames,
+    customAgentTasks = [],
+  } = activeComposerDraft;
+  const hasOfficeAnnotations = attachments.some((item) =>
+    readOfficeAnnotations(item),
+  );
+  const hasRegularAttachments = attachments.some(
+    (item) => !readOfficeAnnotations(item),
+  );
+  const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
+  draftAttachments.current.set(activeComposerDraftKey, attachments);
+  // 设计面板批注（消息体 hint 的 pending 集），随草稿隔离、发送时消费
+  const designAnnotationDrafts = useRef(
+    new Map<string, DesignAnnotationDraft>(),
+  );
+  // OD activeProjectFileName 等价物：设计面板的活动文档 tab 锁定 composer，
+  // 芯片提示 + 发送自动附页；null=网格视图（解绑）。
+  const [designDocBinding, setDesignDocBinding] = useState<{
+    documentId: string;
+    name: string;
+    html: string;
+  } | null>(null);
+  const designDocBindingRef = useRef(designDocBinding);
+  designDocBindingRef.current = designDocBinding;
+  // 设计入口可见性跟随能力包：开关关闭（pack 移除）时 + 菜单/launcher 的
+  // 设计入口隐藏、已开的设计 tab 关闭。初始乐观 true，首个查询即纠正。
+  const [designPluginAvailable, setDesignPluginAvailable] = useState(true);
+  useEffect(() => {
+    void window.artemis
+      .designCapabilityAvailability()
+      .then((value) => setDesignPluginAvailable(value.available))
+      .catch(() => {});
+    return window.artemis.onDesignCapabilityAvailability((event) => {
+      setDesignPluginAvailable(event.available);
+      if (!event.available) {
+        // 关闭插件 = 设计模式全局下线：所有线程的设计 tab 一并关闭
+        // （面板视图已由主进程回收）。
+        setWorkspaceTabsByThread((current) => {
+          let changed = false;
+          const next: typeof current = {};
+          for (const [threadId, state] of Object.entries(current)) {
+            const designTabs = state.tabs.filter(
+              (tab) => tab.kind === "design",
+            );
+            if (designTabs.length === 0) {
+              next[threadId] = state;
+              continue;
+            }
+            changed = true;
+            let updated = state;
+            for (const tab of designTabs) {
+              updated = reduceWorkspaceTabs(updated, {
+                type: "close",
+                tabId: tab.id,
+              });
+            }
+            next[threadId] = updated;
+          }
+          return changed ? next : current;
+        });
+      }
+    });
+  }, []);
+  // OD queueOnly 语义的落点：面板批注发送后自动触发发送。effect 在
+  // prompt state 落地后消费此标记并调用 sendPrompt（空闲直发、运行中
+  // 走 followUpTurn 排队）；置 null 表示没有待自动发送的文本。
+  const designPanelAutoSendText = useRef<{
+    draftKey: string;
+    text: string;
+  } | null>(null);
+  const designPanelCredentials = useRef(
+    new Map<string, { text: string; credential: string }>(),
+  );
+  const pendingAttachmentReads = useRef(new PromptAttachmentReadQueues());
+  const updateActiveComposerDraft = useCallback(
+    (update: (current: ComposerDraft) => ComposerDraft) => {
+      setComposerDrafts((current) =>
+        updateComposerDraft(current, activeComposerDraftKey, update),
+      );
+    },
+    [activeComposerDraftKey],
+  );
+  const setPrompt = useCallback(
+    (action: SetStateAction<string>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        prompt: typeof action === "function" ? action(current.prompt) : action,
+      }));
+    },
+    [updateActiveComposerDraft],
+  );
+  const groupMentions = useImMemberMentions({
+    group: activeThreadId ? imThreadStatus[activeThreadId]?.group : undefined,
+    text: prompt,
+    setText: setPrompt,
+    input: promptInput,
+  });
+  const [focusAgentTaskId, setFocusAgentTaskId] = useState<string>();
+  const setCustomAgentTasks = useCallback(
+    (tasks: NonNullable<ComposerDraft["customAgentTasks"]>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        customAgentTasks: tasks,
+      }));
+    },
+    [updateActiveComposerDraft],
+  );
+  const addCustomAgentTask = (reference: CustomAgentDraftReference) => {
+    const id = crypto.randomUUID();
+    updateActiveComposerDraft((current) => ({
+      ...current,
+      customAgentTasks: [
+        ...(current.customAgentTasks ?? []),
+        { ...reference, id, text: "" },
+      ],
+    }));
+    setFocusAgentTaskId(id);
+  };
+  const customAgentMention = useCustomAgentMention({
+    definitions: runtimeSettings?.customAgents ?? [],
+    projectId:
+      (snapshot?.threads ?? []).find((thread) => thread.id === activeThreadId)
+        ?.projectId ?? activeProjectId,
+    text: prompt,
+    setText: setPrompt,
+    input: promptInput,
+    enabled: customAgentTasks.length < AGENT_TEAM_LOGICAL_MAXIMUM,
+    members: groupMentions.open ? groupMentions : undefined,
+    onSelect: addCustomAgentTask,
+  });
+  const copyConversationText = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setToast(t.messageCopied);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: `${t.messageCopyFailed} ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      }
+    },
+    [t.messageCopied, t.messageCopyFailed],
+  );
+  const editConversationMessage = useCallback(
+    (text: string) => {
+      updateActiveComposerDraft(() => ({
+        attachments: [],
+        prompt: promptWithoutSelectedSkills(text),
+        selectedSkillNames: selectedSkillNamesForPrompt(text),
+      }));
+      window.requestAnimationFrame(() => {
+        const input = promptInput.current;
+        input?.focus({ preventScroll: true });
+        input?.setSelectionRange(0, input.value.length);
+      });
+    },
+    [updateActiveComposerDraft],
+  );
+  const setSelectedComposerSkillNames = useCallback(
+    (action: SetStateAction<string[]>) => {
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        selectedSkillNames:
+          typeof action === "function"
+            ? action(current.selectedSkillNames)
+            : action,
+      }));
+    },
+    [updateActiveComposerDraft],
+  );
+  const setAttachments = useCallback(
+    (action: SetStateAction<PromptAttachment[]>) => {
+      const current =
+        draftAttachments.current.get(activeComposerDraftKey) ?? [];
+      const next = typeof action === "function" ? action(current) : action;
+      draftAttachments.current.set(activeComposerDraftKey, next);
+      updateActiveComposerDraft((current) => ({
+        ...current,
+        attachments: next,
+      }));
+    },
+    [activeComposerDraftKey, updateActiveComposerDraft],
+  );
+
+  const restoringOfficeAnnotations = useRef(new Set<string>());
+  useEffect(() => {
+    for (const attachment of attachments) {
+      if (!isStoredOfficeAnnotations(attachment)) continue;
+      const key = `${activeComposerDraftKey}:${attachment.id}`;
+      if (restoringOfficeAnnotations.current.has(key)) continue;
+      restoringOfficeAnnotations.current.add(key);
+      void pendingAttachmentReads.current.track(
+        activeComposerDraftKey,
+        restoreOfficeAnnotationAttachment(attachment, (offset) =>
+          window.artemis.previewPromptFile(
+            attachment.id,
+            offset,
+            activeThreadId,
+          ),
+        )
+          .then((restored) =>
+            setAttachments((current) =>
+              current.map((item) =>
+                isAttachmentReference(item) && item.id === attachment.id
+                  ? restored
+                  : item,
+              ),
+            ),
+          )
+          .catch((error) => setToast({ error: true, message: String(error) }))
+          .finally(() => restoringOfficeAnnotations.current.delete(key)),
+      );
+    }
+  }, [
+    attachments,
+    activeComposerDraftKey,
+    activeThreadId,
+    setAttachments,
+    setToast,
+  ]);
+
+  useEffect(() => {
+    promptHistoryNavigation.current = { index: -1, draft: prompt };
+    setSkillMenuDismissed(false);
+    setEditingQueuedMessage(undefined);
+  }, [activeComposerDraftKey]);
+
+  const beginNewConversation = useCallback(
+    (projectId = activeProjectId) => {
+      setActiveView("workspace");
+      setActiveProjectId(projectId);
+      setActiveThreadId(undefined);
+      setMode("work");
+      setComposerDrafts((current) =>
+        clearComposerDraft(current, conversationDraftKey(projectId, undefined)),
+      );
+      promptHistoryNavigation.current = { index: -1, draft: "" };
+      setSkillMenuDismissed(false);
+      setProjectMenuId(undefined);
+      setThreadMenuId(undefined);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [activeProjectId],
+  );
+
+  const beginTemporaryConversation = useCallback(() => {
+    setActiveView("workspace");
+    setActiveProjectId(undefined);
+    setActiveThreadId(undefined);
+    setMode("work");
+    setComposerDrafts((current) =>
+      clearComposerDraft(current, conversationDraftKey(undefined, undefined)),
+    );
+    promptHistoryNavigation.current = { index: -1, draft: "" };
+    setSkillMenuDismissed(false);
+    setProjectMenuId(undefined);
+    setThreadMenuId(undefined);
+    window.requestAnimationFrame(() => promptInput.current?.focus());
+  }, []);
+
+  const discardNewConversationDraft = useCallback(() => {
+    if (activeThreadId) return;
+    setComposerDrafts((current) =>
+      clearComposerDraft(
+        current,
+        conversationDraftKey(activeProjectId, undefined),
+      ),
+    );
+    promptHistoryNavigation.current = { index: -1, draft: "" };
+    setSkillMenuDismissed(false);
+  }, [activeProjectId, activeThreadId]);
+
+  const toggleProjectHistory = useCallback(
+    (projectId: string) => {
+      setProjectCollapsed(
+        projectId,
+        !collapsedProjectIdsRef.current.has(projectId),
+      );
+    },
+    [setProjectCollapsed],
+  );
+
+  const toggleTemporaryConversations = useCallback(() => {
+    setTemporaryConversationsOpen(
+      temporaryConversationsPersistence.current!.toggle(),
+    );
+  }, []);
+  const collapseProjectTreeRow = useCallback(
+    (rowId: string) => {
+      if (rowId === "collection:projects") {
+        setProjectsExpanded(false);
+        setProjectsOpen(false);
+        return;
+      }
+      if (rowId === "temporary:conversations") {
+        if (temporaryConversationsOpen) void toggleTemporaryConversations();
+        return;
+      }
+      setProjectRowCollapsed(rowId, true);
+    },
+    [
+      temporaryConversationsOpen,
+      setProjectRowCollapsed,
+      toggleTemporaryConversations,
+    ],
+  );
+  const expandProjectTreeRow = useCallback(
+    (rowId: string) => {
+      if (rowId === "collection:projects") {
+        setProjectsExpanded(true);
+        setProjectsOpen(true);
+        return;
+      }
+      if (rowId === "temporary:conversations") {
+        if (!temporaryConversationsOpen) void toggleTemporaryConversations();
+        return;
+      }
+      setProjectRowCollapsed(rowId, false);
+    },
+    [
+      temporaryConversationsOpen,
+      setProjectRowCollapsed,
+      toggleTemporaryConversations,
+    ],
+  );
+  const activateProjectTreeRow = useCallback(
+    (rowId: string) => {
+      if (rowId === "collection:projects") {
+        toggleProjectsExpansion();
+        return;
+      }
+      if (rowId === "temporary:conversations") {
+        void toggleTemporaryConversations();
+        return;
+      }
+      if (rowId.startsWith("project:")) {
+        toggleProjectHistory(rowId.replace(/^project:/, ""));
+        return;
+      }
+      if (rowId.startsWith("thread:")) {
+        if (!snapshot) return;
+        const thread = snapshot.threads.find(
+          (candidate) => candidate.id === rowId.replace(/^thread:/, ""),
+        );
+        if (!thread) return;
+        discardNewConversationDraft();
+        setActiveView("workspace");
+        setActiveProjectId(thread.projectId ?? undefined);
+        setActiveThreadId(thread.id);
+        setMode(thread.mode);
+        setThreadMenuId(undefined);
+      }
+    },
+    [
+      discardNewConversationDraft,
+      snapshot?.threads,
+      toggleProjectHistory,
+      toggleProjectsExpansion,
+      toggleTemporaryConversations,
+    ],
+  );
+
+  const requestConfirmation = useCallback(
+    (
+      message: string,
+      tone: ConfirmationTone = "default",
+      options: Pick<
+        ConfirmationState,
+        "acceptLabel" | "cancelLabel" | "title"
+      > = {},
+    ) =>
+      new Promise<boolean>((resolve) => {
+        confirmationResolver.current?.(false);
+        confirmationResolver.current = resolve;
+        setConfirmation({ message, tone, ...options });
+      }),
+    [],
+  );
+
+  const resolveConfirmation = useCallback((confirmed: boolean) => {
+    const resolve = confirmationResolver.current;
+    confirmationResolver.current = undefined;
+    setConfirmation(undefined);
+    resolve?.(confirmed);
+  }, []);
+
+  useEffect(
+    () => () => {
+      confirmationResolver.current?.(false);
+      confirmationResolver.current = undefined;
+    },
+    [],
+  );
+
+  const activeToastId = toast?.id;
+  useEffect(() => {
+    if (activeToastId === undefined) return;
+    const fadeTimer = window.setTimeout(() => {
+      setToastState((current) =>
+        current?.id === activeToastId ? { ...current, fading: true } : current,
+      );
+    }, TOAST_VISIBLE_MILLISECONDS);
+    const removeTimer = window.setTimeout(() => {
+      setToastState((current) =>
+        current?.id === activeToastId ? undefined : current,
+      );
+    }, TOAST_VISIBLE_MILLISECONDS + TOAST_FADE_MILLISECONDS);
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(removeTimer);
+    };
+  }, [activeToastId]);
+
+  useEffect(() => {
+    if (!approvalMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!approvalPolicyRoot.current?.contains(event.target as Node)) {
+        setApprovalMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+    };
+  }, [approvalMenuOpen]);
+
+  useEffect(() => {
+    if (!modelPickerOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!modelPickerRoot.current?.contains(event.target as Node)) {
+        setModelPickerOpen(false);
+        setModelPickerSection("model");
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [modelPickerOpen]);
+  const cancelModelPickerHoverClose = useCallback(() => {
+    if (modelPickerHoverCloseTimer.current !== undefined) {
+      window.clearTimeout(modelPickerHoverCloseTimer.current);
+      modelPickerHoverCloseTimer.current = undefined;
+    }
+  }, []);
+  const scheduleModelPickerHoverClose = useCallback(() => {
+    cancelModelPickerHoverClose();
+    modelPickerHoverCloseTimer.current = window.setTimeout(() => {
+      setModelPickerSection("model");
+      modelPickerHoverCloseTimer.current = undefined;
+    }, 160);
+  }, [cancelModelPickerHoverClose]);
+  useEffect(
+    () => () => cancelModelPickerHoverClose(),
+    [cancelModelPickerHoverClose],
+  );
+
+  useEffect(() => {
+    if (!projectMenuId && !threadMenuId) return;
+    const closeOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          ".project-menu, .thread-menu, .project-action, .thread-action",
+        )
+      ) {
+        return;
+      }
+      setProjectMenuId(undefined);
+      setThreadMenuId(undefined);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setProjectMenuId(undefined);
+      setThreadMenuId(undefined);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [projectMenuId, threadMenuId]);
+
+  const skillCommandMenuOpen =
+    !skillMenuDismissed && isSkillCommandPrompt(prompt);
+  const installedPluginBySkillName = useMemo(() => {
+    const plugins = new Map<string, InstalledArtemisPlugin>();
+    for (const plugin of installedPlugins) {
+      for (const skillName of plugin.skillNames) {
+        plugins.set(skillName, plugin);
+      }
+    }
+    return plugins;
+  }, [installedPlugins]);
+  const unavailablePluginSkillNames = useMemo(
+    () =>
+      new Set(
+        installedPlugins
+          .filter((plugin) => !plugin.installable)
+          .flatMap((plugin) => plugin.skillNames),
+      ),
+    [installedPlugins],
+  );
+  const slashCommandSuggestions = useMemo(() => {
+    const selectedNames = new Set(selectedComposerSkillNames);
+    const suggestions = slashCommandSuggestionsForPrompt(
+      prompt,
+      installedSkills.filter(
+        (skill) =>
+          !selectedNames.has(skill.name) &&
+          !unavailablePluginSkillNames.has(skill.name),
+      ),
+    );
+    return [
+      ...suggestions.filter(
+        (suggestion) =>
+          suggestion.kind !== "skill" &&
+          (selectedComposerSkillNames.length === 0 ||
+            suggestion.kind === "plan" ||
+            suggestion.kind === "work" ||
+            suggestion.kind === "codemode"),
+      ),
+      ...suggestions.filter(
+        (suggestion) =>
+          suggestion.kind === "skill" &&
+          installedPluginBySkillName.has(suggestion.skill.name),
+      ),
+      ...suggestions.filter(
+        (suggestion) =>
+          suggestion.kind === "skill" &&
+          !installedPluginBySkillName.has(suggestion.skill.name),
+      ),
+    ];
+  }, [
+    installedPluginBySkillName,
+    installedSkills,
+    prompt,
+    selectedComposerSkillNames,
+    unavailablePluginSkillNames,
+  ]);
+  const goalSuggestionIndex = slashCommandSuggestions.findIndex(
+    (suggestion) => suggestion.kind === "goal",
+  );
+  const compactSuggestionIndex = slashCommandSuggestions.findIndex(
+    (suggestion) => suggestion.kind === "compact",
+  );
+  const initSuggestionIndex = slashCommandSuggestions.findIndex(
+    (suggestion) => suggestion.kind === "init",
+  );
+  const modeSuggestions = slashCommandSuggestions.flatMap(
+    (suggestion, index) =>
+      suggestion.kind === "plan" ||
+      suggestion.kind === "work" ||
+      suggestion.kind === "codemode"
+        ? [{ index, mode: suggestion.kind }]
+        : [],
+  );
+  const skillSuggestions = slashCommandSuggestions.flatMap(
+    (suggestion, index) =>
+      suggestion.kind === "skill" ? [{ index, skill: suggestion.skill }] : [],
+  );
+  const pluginSkillSuggestions = skillSuggestions.flatMap(
+    ({ index, skill }) => {
+      const plugin = installedPluginBySkillName.get(skill.name);
+      return plugin ? [{ index, plugin, skill }] : [];
+    },
+  );
+  const standaloneSkillSuggestions = skillSuggestions.filter(
+    ({ skill }) => !installedPluginBySkillName.has(skill.name),
+  );
+  const selectedSkills = useMemo(
+    () =>
+      selectedComposerSkillNames.flatMap((name) => {
+        const skill = installedSkills.find(
+          (candidate) => candidate.enabled && candidate.name === name,
+        );
+        return skill ? [skill] : [];
+      }),
+    [installedSkills, selectedComposerSkillNames],
+  );
+  const createThread = useCallback(
+    async (projectId = activeProjectId, preserveDraft = false) => {
+      try {
+        const reusableWorkspaceDraft = snapshot?.threads.find(
+          (thread) =>
+            thread.projectId === projectId && isWorkspaceDraftThread(thread),
+        );
+        const thread =
+          reusableWorkspaceDraft ??
+          (await window.artemis.createThread({
+            ...(projectId ? { projectId } : {}),
+            mode,
+            target: "local",
+          }));
+        if (!thread) return undefined;
+        loadedEventThreads.current.add(thread.id);
+        if (!reusableWorkspaceDraft) {
+          const refreshed = await window.artemis.getSnapshot();
+          setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        }
+        if (preserveDraft) {
+          setComposerDrafts((current) =>
+            moveComposerDraft(
+              current,
+              conversationDraftKey(projectId, undefined),
+              conversationDraftKey(projectId, thread.id),
+            ),
+          );
+        }
+        setActiveView("workspace");
+        setActiveProjectId(projectId);
+        setActiveThreadId(thread.id);
+        return thread;
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return undefined;
+      }
+    },
+    [activeProjectId, mode, snapshot?.threads, t.taskError],
+  );
+
+  const ensureWorkspaceThread = useCallback(() => {
+    if (activeThreadId) return Promise.resolve(activeThreadId);
+    if (workspaceThreadCreation.current) {
+      return workspaceThreadCreation.current;
+    }
+    const pending = createThread(activeProjectId, true)
+      .then((thread) => thread?.id)
+      .finally(() => {
+        if (workspaceThreadCreation.current === pending) {
+          workspaceThreadCreation.current = undefined;
+        }
+      });
+    workspaceThreadCreation.current = pending;
+    return pending;
+  }, [activeProjectId, activeThreadId, createThread]);
+
+  const workspaceTabs = activeThreadId
+    ? (workspaceTabsByThread[activeThreadId] ?? emptyWorkspaceTabs())
+    : emptyWorkspaceTabs();
+  const activeWorkspaceTab = workspaceTabs.tabs.find(
+    (tab) => tab.id === workspaceTabs.activeTabId,
+  );
+
+  const syncWorkspaceTabScrollState = useCallback(() => {
+    const scroll = workspaceTabScroll.current;
+    const track = workspaceTabTrack.current;
+    if (!scroll || !track) return;
+
+    const hasOverflow = track.scrollWidth > scroll.clientWidth + 1;
+    const maxScrollLeft = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+    const nextState: WorkspaceTabScrollState = {
+      hasOverflow,
+      canScrollLeft: hasOverflow && scroll.scrollLeft > 1,
+      canScrollRight: hasOverflow && scroll.scrollLeft < maxScrollLeft - 1,
+    };
+    setWorkspaceTabScrollState((current) =>
+      current.hasOverflow === nextState.hasOverflow &&
+      current.canScrollLeft === nextState.canScrollLeft &&
+      current.canScrollRight === nextState.canScrollRight
+        ? current
+        : nextState,
+    );
+  }, []);
+
+  const scrollWorkspaceTabs = useCallback((direction: -1 | 1) => {
+    const scroll = workspaceTabScroll.current;
+    if (!scroll) return;
+    scroll.scrollBy({
+      behavior: "smooth",
+      left: direction * Math.max(160, scroll.clientWidth * 0.72),
+    });
+  }, []);
+
+  const handleWorkspaceTabWheel = useCallback(
+    (event: ReactWheelEvent<HTMLDivElement>) => {
+      const scroll = event.currentTarget;
+      const maxScrollLeft = Math.max(
+        0,
+        scroll.scrollWidth - scroll.clientWidth,
+      );
+      if (maxScrollLeft <= 0) return;
+
+      const rawDelta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY)
+          ? event.deltaX
+          : event.deltaY;
+      const deltaScale =
+        event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? scroll.clientWidth
+            : 1;
+      const nextScrollLeft = Math.max(
+        0,
+        Math.min(maxScrollLeft, scroll.scrollLeft + rawDelta * deltaScale),
+      );
+      if (Math.abs(nextScrollLeft - scroll.scrollLeft) < 0.5) return;
+
+      event.preventDefault();
+      scroll.scrollLeft = nextScrollLeft;
+      syncWorkspaceTabScrollState();
+    },
+    [syncWorkspaceTabScrollState],
+  );
+
+  useLayoutEffect(() => {
+    const scroll = workspaceTabScroll.current;
+    const track = workspaceTabTrack.current;
+    if (!workspaceDockOpen || !scroll || !track) {
+      setWorkspaceTabScrollState((current) =>
+        current.hasOverflow || current.canScrollLeft || current.canScrollRight
+          ? EMPTY_WORKSPACE_TAB_SCROLL_STATE
+          : current,
+      );
+      return;
+    }
+
+    syncWorkspaceTabScrollState();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(syncWorkspaceTabScrollState);
+    observer.observe(scroll);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [
+    activeThreadId,
+    syncWorkspaceTabScrollState,
+    workspaceDockOpen,
+    workspaceTabScrollState.hasOverflow,
+  ]);
+
+  useLayoutEffect(() => {
+    const scroll = workspaceTabScroll.current;
+    const activeTab = activeWorkspaceTabElement.current;
+    if (!workspaceDockOpen || !scroll || !activeTab) return;
+
+    const scrollBounds = scroll.getBoundingClientRect();
+    const activeBounds = activeTab.getBoundingClientRect();
+    const edgeInset = workspaceTabScrollState.hasOverflow
+      ? WORKSPACE_TAB_SCROLL_INSET
+      : 0;
+    const hiddenLeft = activeBounds.left - (scrollBounds.left + edgeInset);
+    const hiddenRight = activeBounds.right - (scrollBounds.right - edgeInset);
+    const scrollDelta =
+      hiddenLeft < 0 ? hiddenLeft : hiddenRight > 0 ? hiddenRight : 0;
+    if (Math.abs(scrollDelta) > 1) {
+      scroll.scrollBy({ behavior: "smooth", left: scrollDelta });
+    }
+  }, [
+    activeWorkspaceTab?.id,
+    workspaceDockOpen,
+    workspaceTabScrollState.hasOverflow,
+  ]);
+
+  const workspaceTabBaseTitle = useCallback(
+    (kind: WorkspaceTabKind) => {
+      if (kind === "review") return t.reviewPanel;
+      if (kind === "design") return t.designTab;
+      if (kind === "terminal") return t.terminal;
+      if (kind === "browser") return t.browser;
+      if (kind === "markdown") return t.markdownReader;
+      if (kind === "sources") return t.sources;
+      if (kind === "goal") return t.goalEditTitle;
+      if (kind === "agent-team") return t.agentTeam;
+      return t.files;
+    },
+    [t],
+  );
+
+  const dispatchWorkspaceTab = useCallback(
+    (action: WorkspaceTabAction) => {
+      if (!activeThreadId) return;
+      setWorkspaceTabsByThread((current) => ({
+        ...current,
+        [activeThreadId]: reduceWorkspaceTabs(
+          current[activeThreadId] ?? emptyWorkspaceTabs(),
+          action,
+        ),
+      }));
+    },
+    [activeThreadId],
+  );
+
+  const closeWorkspaceTab = useCallback(
+    async (tabId: string, options?: { moveFocus?: boolean }) => {
+      const tab = workspaceTabs.tabs.find((value) => value.id === tabId);
+      try {
+        if (tab?.path) await flushWorkspaceEdits(activeThreadId, tab.path);
+      } catch (error) {
+        if (tab?.path && activeThreadId) {
+          dispatchWorkspaceTab({ type: "activate", tabId });
+          setFailedTabClose({
+            tabId,
+            threadId: activeThreadId,
+            path: tab.path,
+            message: String(error),
+          });
+        }
+        return;
+      }
+      setFailedTabClose(undefined);
+      const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
+      const focusTarget = workspaceTabFocusTargetAfterClose(
+        workspaceTabs.tabs,
+        tabId,
+        workspaceTabs.activeTabId,
+      );
+      dispatchWorkspaceTab({ type: "close", tabId });
+      if (activeThreadIdRef.current !== activeThreadId) return;
+      if (closesLastTab) {
+        if (options?.moveFocus) {
+          workspaceDockToggleElement.current?.focus();
+        }
+        return;
+      }
+      if (options?.moveFocus) {
+        focusWorkspaceTab(focusTarget);
+      }
+    },
+    [activeThreadId, dispatchWorkspaceTab, focusWorkspaceTab, workspaceTabs],
+  );
+
+  const openWorkspaceTabForThread = useCallback(
+    (
+      threadId: string,
+      kind: WorkspaceTabKind,
+      options: WorkspaceTabOpenOptions = {},
+    ) => {
+      setWorkspaceTabsByThread((current) => {
+        const state = current[threadId] ?? emptyWorkspaceTabs();
+        const existing = findReusableWorkspaceTab(state, kind, options);
+        const pathTitle = options.path?.replaceAll("\\", "/").split("/").at(-1);
+        const baseTitle = workspaceTabBaseTitle(kind);
+        if (existing) {
+          const updated = reduceWorkspaceTabs(state, {
+            type: "update",
+            tabId: existing.id,
+            updates: {
+              ...(pathTitle
+                ? { title: pathTitle }
+                : options.url
+                  ? { title: baseTitle }
+                  : {}),
+              ...(options.path ? { path: options.path, url: undefined } : {}),
+              ...(options.url
+                ? { path: undefined, revision: undefined, url: options.url }
+                : {}),
+              ...(options.revision ? { revision: options.revision } : {}),
+            },
+          });
+          return {
+            ...current,
+            [threadId]: {
+              ...reduceWorkspaceTabs(updated, {
+                type: "activate",
+                tabId: existing.id,
+              }),
+              dockOpen: true,
+            },
+          };
+        }
+
+        const index = state.tabs.filter((tab) => tab.kind === kind).length + 1;
+        const tab: WorkspaceTab = {
+          id: `${threadId}-${kind}-${crypto.randomUUID()}`,
+          kind,
+          title: pathTitle ?? (index > 1 ? `${baseTitle} ${index}` : baseTitle),
+          ...(options.path ? { path: options.path } : {}),
+          ...(options.revision ? { revision: options.revision } : {}),
+          ...(options.url ? { url: options.url } : {}),
+        };
+        return {
+          ...current,
+          [threadId]: {
+            ...reduceWorkspaceTabs(state, {
+              type: "open",
+              tab,
+            }),
+            dockOpen: true,
+          },
+        };
+      });
+    },
+    [workspaceTabBaseTitle],
+  );
+
+  const openWorkspaceTab = useCallback(
+    (kind: WorkspaceTabKind, options: WorkspaceTabOpenOptions = {}) => {
+      setWorkspaceDockOpen(true);
+      setWorkspaceTabMenuOpen(false);
+      if (activeThreadId) {
+        openWorkspaceTabForThread(activeThreadId, kind, options);
+        return;
+      }
+      void ensureWorkspaceThread().then((threadId) => {
+        if (threadId) openWorkspaceTabForThread(threadId, kind, options);
+      });
+    },
+    [activeThreadId, ensureWorkspaceThread, openWorkspaceTabForThread],
+  );
+
+  const openResolvedWorkspaceFile = useCallback(
+    (file: WorkspaceFileLink) => {
+      openWorkspaceTab(file.viewer, { path: file.path });
+    },
+    [openWorkspaceTab],
+  );
+
+  // 子窗口菜单回包：选择=开对应面板（design 复用既有 tab）；无选择关闭
+  // （点外/Escape/父窗移动）只复位"+"按钮的展开态。
+  useEffect(() => {
+    return window.artemis.onWorkspaceTabMenuSelect((kind) => {
+      setWorkspaceTabMenuOpen(false);
+      openWorkspaceTab(
+        kind,
+        kind === "design" ? { reuseKind: true } : { forceNew: true },
+      );
+    });
+  }, [openWorkspaceTab]);
+
+  useEffect(() => {
+    return window.artemis.onWorkspaceTabMenuClosed(() => {
+      setWorkspaceTabMenuOpen(false);
+    });
+  }, []);
+
+  const openConversationFileLink = useCallback(
+    async (href: string) => {
+      const threadId = activeThreadId;
+      if (!threadId) return;
+      try {
+        const file = await window.artemis.inspectWorkspaceFileLink(
+          threadId,
+          href,
+        );
+        if (activeThreadIdRef.current !== threadId) return;
+        openResolvedWorkspaceFile(file);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [activeThreadId, openResolvedWorkspaceFile],
+  );
+
+  const openConversationExternalLink = useCallback(
+    (href: string) => {
+      try {
+        const url = normalizeBrowserAddress(href, locale);
+        openWorkspaceTab("browser", { reuseKind: true, url });
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [openWorkspaceTab],
+  );
+
+  const openConversationFileLinkMenu = useCallback(
+    async (href: string, position: { x: number; y: number }) => {
+      const threadId = activeThreadId;
+      if (!threadId) return;
+      setFileLinkContextMenu(undefined);
+      try {
+        const file = await window.artemis.inspectWorkspaceFileLink(
+          threadId,
+          href,
+        );
+        if (activeThreadIdRef.current !== threadId) return;
+        const menuWidth = 208;
+        const menuHeight = file.executable ? 122 : 84;
+        setFileLinkContextMenu({
+          file,
+          threadId,
+          x: Math.max(
+            8,
+            Math.min(position.x, window.innerWidth - menuWidth - 8),
+          ),
+          y: Math.max(
+            8,
+            Math.min(position.y, window.innerHeight - menuHeight - 8),
+          ),
+        });
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [activeThreadId],
+  );
+
+  const revealConversationFile = useCallback(
+    async (menu: FileLinkContextMenuState) => {
+      setFileLinkContextMenu(undefined);
+      try {
+        await window.artemis.revealWorkspaceFile(menu.threadId, menu.file.path);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [],
+  );
+
+  const runConversationFile = useCallback(
+    async (menu: FileLinkContextMenuState) => {
+      setFileLinkContextMenu(undefined);
+      try {
+        await window.artemis.runWorkspaceFile(menu.threadId, menu.file.path);
+        setToast(`${t.runLinkedFileStarted}: ${menu.file.path}`);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [t.runLinkedFileStarted],
+  );
+
+  useEffect(() => {
+    setFileLinkContextMenu(undefined);
+  }, [activeThreadId]);
+
+  useEffect(() => {
+    if (!fileLinkContextMenu) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFileLinkContextMenu(undefined);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [fileLinkContextMenu]);
+
+  const openChildAgentPanel = useCallback(
+    (child: ChildAgentState) => {
+      setWorkspaceDockOpen(true);
+      setWorkspaceTabMenuOpen(false);
+      dispatchWorkspaceTab({
+        type: "open",
+        tab: childAgentWorkspaceTab(child.agentId, child.label, child.teamId),
+      });
+    },
+    [dispatchWorkspaceTab],
+  );
+
+  const openAgentTeamPanel = useCallback(
+    (team: AgentTeamState) => {
+      setWorkspaceDockOpen(true);
+      setWorkspaceTabMenuOpen(false);
+      dispatchWorkspaceTab({
+        type: "open",
+        tab: agentTeamWorkspaceTab(team.teamId, t.agentTeam),
+      });
+    },
+    [dispatchWorkspaceTab, t.agentTeam],
+  );
+
+  const controlChildAgent = useCallback(
+    async (child: ChildAgentState, action: "steer" | "cancel" | "retry") => {
+      if (!activeThreadId) return;
+      const pendingKey = `${child.agentId}:${action}`;
+      setChildAgentControlPending(pendingKey);
+      try {
+        const result = await window.artemis.controlChildAgent({
+          threadId: activeThreadId,
+          agentId: child.agentId,
+          action,
+          ...(action === "steer"
+            ? {
+                message: I18N_RESOURCES[localeRef.current].app.childNudgePrompt,
+              }
+            : {}),
+        });
+        if (action === "retry") {
+          setWorkspaceDockOpen(true);
+          dispatchWorkspaceTab({
+            type: "open",
+            tab: childAgentWorkspaceTab(
+              result.agentId,
+              child.label,
+              child.teamId,
+            ),
+          });
+        }
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setChildAgentControlPending(undefined);
+      }
+    },
+    [activeThreadId, dispatchWorkspaceTab],
+  );
+
+  const stopAgentTeam = useCallback(
+    async (team: AgentTeamState) => {
+      if (!activeThreadId) return;
+      setAgentTeamControlPending(true);
+      try {
+        await window.artemis.controlAgentTeam({
+          threadId: activeThreadId,
+          teamId: team.teamId,
+          action: "cancel",
+        });
+      } catch (error) {
+        setToast({
+          error: true,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        setAgentTeamControlPending(false);
+      }
+    },
+    [activeThreadId],
+  );
+
+  const openReviewPanel = useCallback(() => {
+    if (!activeProjectId) return;
+    openWorkspaceTab("review");
+  }, [activeProjectId, openWorkspaceTab]);
+  const openTerminalPanel = useCallback(
+    () => openWorkspaceTab("terminal"),
+    [openWorkspaceTab],
+  );
+  const openBrowserPanel = useCallback(
+    () => openWorkspaceTab("browser"),
+    [openWorkspaceTab],
+  );
+  const openFilesPanel = useCallback(
+    () => openWorkspaceTab("file"),
+    [openWorkspaceTab],
+  );
+  const openSourcesPanel = useCallback(
+    () => openWorkspaceTab("sources"),
+    [openWorkspaceTab],
+  );
+  const openAutomationThread = useCallback(
+    async (threadId: string) => {
+      const refreshed = await window.artemis.getSnapshot();
+      setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+      const thread = refreshed.threads.find(
+        (candidate) => candidate.id === threadId,
+      );
+      if (!thread) {
+        setActiveThreadId(undefined);
+        setActiveView("workspace");
+        return;
+      }
+      discardNewConversationDraft();
+      setActiveProjectId(thread.projectId);
+      setActiveThreadId(thread.id);
+      setMode(thread.mode);
+      setActiveView("workspace");
+    },
+    [discardNewConversationDraft],
+  );
+  const persistProjectSidebarWidth = useCallback((width: number) => {
+    projectSidebarPersistence.current = projectSidebarPersistence.current.then(
+      async () => {
+        try {
+          const persisted = await window.artemis.setProjectSidebarWidth(width);
+          setProjectSidebarWidth(persisted);
+          setRuntimeSettings((current) =>
+            current ? { ...current, projectSidebarWidth: persisted } : current,
+          );
+        } catch (error) {
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    );
+    return projectSidebarPersistence.current;
+  }, []);
+  const persistProjectOrder = useCallback(
+    (order: string[], previousOrder: string[]) => {
+      setRuntimeSettings((current) =>
+        current ? { ...current, projectOrder: order } : current,
+      );
+      return projectOrderPersistence.current?.persist(order, previousOrder);
+    },
+    [],
+  );
+  const persistProjectThreadOrder = useCallback(
+    (projectId: string, order: string[], previousOrder: string[]) => {
+      const applyOrder = (
+        current: SettingsSnapshot | undefined,
+        value: string[],
+      ) =>
+        current
+          ? {
+              ...current,
+              projectThreadOrder: {
+                ...(current.projectThreadOrder ?? {}),
+                [projectId]: value,
+              },
+            }
+          : current;
+      let persistence = projectThreadOrderPersistence.current.get(projectId);
+      if (!persistence) {
+        persistence = createProjectOrderPersistenceQueue({
+          save: (value) =>
+            window.artemis.setProjectThreadOrder(projectId, value),
+          onPersisted: (value) => {
+            setRuntimeSettings((current) => applyOrder(current, value));
+          },
+          onRejected: (value, error) => {
+            setRuntimeSettings((current) => applyOrder(current, value));
+            setToast({
+              error: true,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          },
+        });
+        projectThreadOrderPersistence.current.set(projectId, persistence);
+      }
+      setRuntimeSettings((current) => applyOrder(current, order));
+      return persistence.persist(order, previousOrder);
+    },
+    [],
+  );
+  const projectSidebarWidthForPointer = useCallback((clientX: number) => {
+    const drag = projectSidebarDrag.current;
+    if (!drag) return projectSidebarWidthRef.current;
+    const delta =
+      document.documentElement.dir === "rtl"
+        ? drag.startX - clientX
+        : clientX - drag.startX;
+    return clampProjectSidebarWidth(drag.startWidth + delta);
+  }, []);
+  const beginProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!sidebarOpen || event.button !== 0) return;
+      const startWidth =
+        projectSidebar.current?.getBoundingClientRect().width ??
+        projectSidebarWidthRef.current ??
+        PROJECT_SIDEBAR_WIDTH_DEFAULT;
+      projectSidebarDrag.current = {
+        pointerId: event.pointerId,
+        startWidth,
+        startX: event.clientX,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setProjectSidebarWidth(Math.round(startWidth));
+      setProjectSidebarResizing(true);
+    },
+    [sidebarOpen],
+  );
+  const moveProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (projectSidebarDrag.current?.pointerId !== event.pointerId) return;
+      const width = projectSidebarWidthForPointer(event.clientX);
+      if (width !== undefined) setProjectSidebarWidth(width);
+    },
+    [projectSidebarWidthForPointer],
+  );
+  const finishProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (projectSidebarDrag.current?.pointerId !== event.pointerId) return;
+      const width = projectSidebarWidthForPointer(event.clientX);
+      projectSidebarDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setProjectSidebarResizing(false);
+      if (width !== undefined) {
+        setProjectSidebarWidth(width);
+        void persistProjectSidebarWidth(width);
+      }
+    },
+    [persistProjectSidebarWidth, projectSidebarWidthForPointer],
+  );
+  const cancelProjectSidebarResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = projectSidebarDrag.current;
+      if (drag?.pointerId !== event.pointerId) return;
+      projectSidebarDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setProjectSidebarResizing(false);
+      setProjectSidebarWidth(clampProjectSidebarWidth(drag.startWidth));
+    },
+    [],
+  );
+  const resizeProjectSidebarFromKeyboard = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const currentWidth =
+        projectSidebar.current?.getBoundingClientRect().width ??
+        projectSidebarWidthRef.current ??
+        PROJECT_SIDEBAR_WIDTH_DEFAULT;
+      const logicalIncrease =
+        document.documentElement.dir === "rtl"
+          ? event.key === "ArrowLeft"
+          : event.key === "ArrowRight";
+      const width = clampProjectSidebarWidth(
+        currentWidth + (logicalIncrease ? 24 : -24),
+      );
+      setProjectSidebarWidth(width);
+      void persistProjectSidebarWidth(width);
+    },
+    [persistProjectSidebarWidth],
+  );
+  const currentWorkspaceDockBounds = useCallback(
+    () =>
+      workspaceDockWidthBounds(
+        workspaceContent.current?.clientWidth ?? window.innerWidth,
+        window.innerWidth,
+      ),
+    [],
+  );
+  const persistWorkspaceDockWidth = useCallback((width: number) => {
+    workspaceDockPersistence.current = workspaceDockPersistence.current.then(
+      async () => {
+        try {
+          const persisted = await window.artemis.setWorkspaceDockWidth(width);
+          setWorkspaceDockWidth(persisted);
+          setRuntimeSettings((current) =>
+            current ? { ...current, workspaceDockWidth: persisted } : current,
+          );
+        } catch (error) {
+          setToast({
+            error: true,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    );
+    return workspaceDockPersistence.current;
+  }, []);
+  const workspaceDockWidthForPointer = useCallback(
+    (clientX: number) => {
+      const drag = workspaceDockDrag.current;
+      if (!drag) return workspaceDockWidthRef.current;
+      return workspaceDockWidthAfterPointer(
+        drag.startWidth,
+        drag.startX,
+        clientX,
+        document.documentElement.dir === "rtl" ? "rtl" : "ltr",
+        currentWorkspaceDockBounds(),
+      );
+    },
+    [currentWorkspaceDockBounds],
+  );
+  const beginWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || !workspaceDockOpen) return;
+      event.preventDefault();
+      const startWidth = workspaceDock.current?.getBoundingClientRect().width;
+      if (!startWidth) return;
+      workspaceDockDrag.current = {
+        pointerId: event.pointerId,
+        startWidth,
+        startX: event.clientX,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setWorkspaceDockWidth(Math.round(startWidth));
+      setWorkspaceDockResizing(true);
+    },
+    [workspaceDockOpen],
+  );
+  const moveWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspaceDockDrag.current?.pointerId !== event.pointerId) return;
+      const width = workspaceDockWidthForPointer(event.clientX);
+      if (width !== undefined) setWorkspaceDockWidth(width);
+    },
+    [workspaceDockWidthForPointer],
+  );
+  const finishWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspaceDockDrag.current?.pointerId !== event.pointerId) return;
+      const width = workspaceDockWidthForPointer(event.clientX);
+      workspaceDockDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setWorkspaceDockResizing(false);
+      if (width !== undefined) {
+        setWorkspaceDockWidth(width);
+        void persistWorkspaceDockWidth(width);
+      }
+    },
+    [persistWorkspaceDockWidth, workspaceDockWidthForPointer],
+  );
+  const cancelWorkspaceDockResize = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (workspaceDockDrag.current?.pointerId !== event.pointerId) return;
+      const width = Math.round(
+        workspaceDockWidthRef.current ?? workspaceDockDrag.current.startWidth,
+      );
+      workspaceDockDrag.current = undefined;
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setWorkspaceDockResizing(false);
+      setWorkspaceDockWidth(width);
+      void persistWorkspaceDockWidth(width);
+    },
+    [persistWorkspaceDockWidth],
+  );
+  const resizeWorkspaceDockFromKeyboard = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (
+        event.key !== "ArrowLeft" &&
+        event.key !== "ArrowRight" &&
+        event.key !== "Home" &&
+        event.key !== "End"
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const bounds = currentWorkspaceDockBounds();
+      const currentWidth =
+        workspaceDock.current?.getBoundingClientRect().width ??
+        workspaceDockWidthRef.current ??
+        bounds.min;
+      const step = event.shiftKey ? 64 : 24;
+      const width = workspaceDockWidthAfterKey(
+        currentWidth,
+        event.key,
+        document.documentElement.dir === "rtl" ? "rtl" : "ltr",
+        bounds,
+        workspaceContent.current?.clientWidth ?? window.innerWidth,
+        step,
+      );
+      setWorkspaceDockWidth(width);
+      void persistWorkspaceDockWidth(width);
+    },
+    [currentWorkspaceDockBounds, persistWorkspaceDockWidth],
+  );
+  const toggleRightSidebar = useCallback(() => {
+    setWorkspaceDockOpen((open) => !open);
+    setWorkspaceTabMenuOpen(false);
+  }, []);
+  const toggleReviewPanel = useCallback(() => {
+    if (workspaceDockOpen && activeWorkspaceTab?.kind === "review") {
+      setWorkspaceDockOpen(false);
+    } else {
+      openReviewPanel();
+    }
+  }, [activeWorkspaceTab?.kind, openReviewPanel, workspaceDockOpen]);
+  const toggleTerminalPanel = useCallback(() => {
+    if (workspaceDockOpen && activeWorkspaceTab?.kind === "terminal") {
+      setWorkspaceDockOpen(false);
+    } else {
+      openTerminalPanel();
+    }
+  }, [activeWorkspaceTab?.kind, openTerminalPanel, workspaceDockOpen]);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = localeDirection(locale);
+    void i18n.changeLanguage(locale);
+  }, [i18n, locale]);
+
+  useEffect(() => {
+    const theme = runtimeSettings?.theme ?? "system";
+    void desktopSkinHost.setTheme(theme);
+  }, [runtimeSettings?.theme]);
+
+  useEffect(() => {
+    if (
+      runtimeSettings?.projectSidebarWidth !== undefined &&
+      !projectSidebarResizing
+    ) {
+      setProjectSidebarWidth(runtimeSettings.projectSidebarWidth);
+    }
+  }, [projectSidebarResizing, runtimeSettings?.projectSidebarWidth]);
+
+  useEffect(() => {
+    setTemporaryConversationsOpen(
+      temporaryConversationsPersistence.current!.initialize(
+        runtimeSettings?.temporaryConversationsOpen ?? true,
+      ),
+    );
+  }, [runtimeSettings?.temporaryConversationsOpen]);
+
+  useEffect(() => {
+    if (
+      runtimeSettings?.workspaceDockWidth !== undefined &&
+      !workspaceDockResizing
+    ) {
+      setWorkspaceDockWidth(runtimeSettings.workspaceDockWidth);
+    }
+  }, [runtimeSettings?.workspaceDockWidth, workspaceDockResizing]);
+
+  useEffect(() => {
+    if (!skillCommandMenuOpen) return;
+    let mounted = true;
+    setSkillsLoading(true);
+    setSkillsError(undefined);
+    void Promise.all([
+      window.artemis.listInstalledSkills(),
+      window.artemis.listArtemisPlugins().catch(() => []),
+    ])
+      .then(([skills, plugins]) => {
+        if (!mounted) return;
+        setInstalledSkills(skills);
+        setInstalledPlugins(plugins);
+      })
+      .catch((error) => {
+        if (mounted) {
+          setSkillsError(
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      })
+      .finally(() => {
+        if (mounted) setSkillsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [skillCommandMenuOpen]);
+
+  useEffect(() => {
+    setActiveSlashSuggestion(0);
+  }, [prompt, slashCommandSuggestions.length]);
+
+  useLayoutEffect(() => {
+    if (!skillCommandMenuOpen) return;
+    const menu = slashCommandMenu.current;
+    const option = menu?.querySelector<HTMLElement>(
+      `#skill-command-option-${activeSlashSuggestion}`,
+    );
+    if (!menu || !option) return;
+    const rows = [
+      ...menu.querySelectorAll<HTMLElement>(
+        ".slash-command-suggestion, .slash-command-heading",
+      ),
+    ];
+    // Let the final scroll position land on a whole row as well.
+    menu.style.setProperty("--slash-menu-end-padding", "6px");
+    const maximumScroll = menu.scrollHeight - menu.clientHeight;
+    const lastTopRow = rows.find((row) => row.offsetTop - 6 >= maximumScroll);
+    if (maximumScroll > 0 && lastTopRow) {
+      menu.style.setProperty(
+        "--slash-menu-end-padding",
+        `${lastTopRow.offsetTop - maximumScroll}px`,
+      );
+    }
+    const optionTop = option.offsetTop;
+    const optionBottom = optionTop + option.offsetHeight;
+    if (optionTop < menu.scrollTop + 6) {
+      menu.scrollTop = Math.max(0, optionTop - 6);
+    } else if (optionBottom > menu.scrollTop + menu.clientHeight - 6) {
+      const minimumTop = optionBottom - menu.clientHeight + 6;
+      // Align a whole row at the top while keeping the selected row in view.
+      // Arbitrary pixel offsets cut through icons; nearest CSS snapping alone
+      // can instead leave the selected row clipped at the bottom.
+      const firstVisibleRow = rows.find(
+        (row) => row.offsetTop - 6 >= minimumTop,
+      );
+      menu.scrollTop = firstVisibleRow
+        ? firstVisibleRow.offsetTop - 6
+        : minimumTop;
+    }
+  }, [
+    activeSlashSuggestion,
+    skillCommandMenuOpen,
+    slashCommandSuggestions.length,
+  ]);
+
+  useEffect(() => {
+    let mounted = true;
+    // History capability icons need plugin metadata before the skill menu opens.
+    void window.artemis
+      .listArtemisPlugins()
+      .then((plugins) => {
+        if (mounted) setInstalledPlugins(plugins);
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      });
+    performance.mark?.("artemis:snapshot-request");
+    void window.artemis.getSnapshot().then((value) => {
+      if (!mounted) return;
+      performance.mark?.("artemis:snapshot-ready");
+      setSnapshot(value);
+      const project = value.projects[0];
+      setActiveProjectId(project?.id);
+      setActiveThreadId(undefined);
+      setMode("work");
+    });
+    void window.artemis
+      .getSettings()
+      .then((value) => {
+        if (mounted) {
+          projectOrderPersistence.current?.initialize(value.projectOrder ?? []);
+          const persistedCollapsed = new Set(value.collapsedProjectIds ?? []);
+          collapsedProjectIdsPersistence.current?.initialize([
+            ...persistedCollapsed,
+          ]);
+          if (!collapsedProjectIdsTouched.current) {
+            collapsedProjectIdsRef.current = persistedCollapsed;
+            setCollapsedProjectIds(persistedCollapsed);
+          }
+          const persistedExpanded = new Set(value.expandedProjectIds ?? []);
+          expandedProjectIdsPersistence.current?.initialize([
+            ...persistedExpanded,
+          ]);
+          if (!expandedProjectIdsTouched.current) {
+            expandedProjectIdsRef.current = persistedExpanded;
+            setExpandedProjectIds(persistedExpanded);
+          }
+          setApprovalPolicy(value.approvalPolicy);
+          setRuntimeSettings(
+            collapsedProjectIdsTouched.current
+              ? {
+                  ...value,
+                  collapsedProjectIds: [...collapsedProjectIdsRef.current],
+                }
+              : value,
+          );
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      });
+    void window.artemis
+      .getPromptHistory()
+      .then((history) => {
+        if (mounted) {
+          setPromptHistory((current) =>
+            [
+              ...current,
+              ...history.filter((prompt) => !current.includes(prompt)),
+            ].slice(0, 100),
+          );
+        }
+      })
+      .catch((error) => {
+        if (mounted) {
+          setToast(error instanceof Error ? error.message : String(error));
+        }
+      });
+    const flushAgentEvents = () => {
+      pendingAgentFrame.current = undefined;
+      const batch = pendingAgentEvents.current.splice(0);
+      if (batch.length === 0) return;
+      setSnapshot((current) => {
+        if (!current) return current;
+        return applyStreamBatch(current, batch);
+      });
+      const visibleText = batch.find(
+        (event) =>
+          event.threadId === activeThreadIdRef.current &&
+          event.turnId &&
+          event.payload.type === "message.part.delta" &&
+          event.payload.partType === "text" &&
+          event.payload.delta.length > 0 &&
+          !reportedTurnPaints.current.has(event.turnId),
+      );
+      if (visibleText?.turnId) {
+        const turnId = visibleText.turnId;
+        reportedTurnPaints.current.add(turnId);
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            window.artemis.reportTurnRendered(turnId, Date.now());
+          });
+        });
+      }
+    };
+    const receiveAgentEvents = (events: AgentEvent[]) => {
+      const finishedThreadIds = new Set<string>();
+      for (const event of events) {
+        if (
+          event.payload.type === "artifact.event" &&
+          event.payload.event.kind === "opened"
+        ) {
+          liveOfficeTabs.current.add(event.payload.event.session.sessionId);
+        }
+        if (
+          event.payload.type === "agent-team.status" &&
+          !knownAgentTeamTabs.current.has(event.payload.teamId)
+        ) {
+          const teamStatus = event.payload;
+          knownAgentTeamTabs.current.add(teamStatus.teamId);
+          setWorkspaceTabsByThread((current) => ({
+            ...current,
+            [event.threadId]: reconcileAgentTeamWorkspaceTab(
+              current[event.threadId] ?? emptyWorkspaceTabs(),
+              agentTeamWorkspaceTab(
+                teamStatus.teamId,
+                appCopy(localeRef.current).agentTeam,
+              ),
+            ),
+          }));
+        }
+        if (event.payload.type === "turn.started") {
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "started",
+              threadId: event.threadId,
+            }),
+          );
+        }
+        if (event.payload.type === "turn.failed") {
+          finishedThreadIds.add(event.threadId);
+          const copy = appCopy(localeRef.current);
+          const message = `${copy.turnError} ${localizedTurnFailure(
+            copy,
+            event.payload.message,
+            event.payload.code,
+          )}`;
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "failed",
+              threadId: event.threadId,
+              message,
+            }),
+          );
+        }
+        if (event.payload.type === "turn.completed") {
+          finishedThreadIds.add(event.threadId);
+        }
+        if (
+          event.payload.type === "queue.recovered" &&
+          !recoveredQueueEventIds.current.has(event.eventId)
+        ) {
+          const recoveredItems =
+            event.payload.items ??
+            event.payload.messages.map((text) => ({ text }));
+          recoveredQueueEventIds.current.add(event.eventId);
+          setComposerDrafts((current) =>
+            restoreComposerQueueItems(
+              current,
+              conversationDraftKey(undefined, event.threadId),
+              recoveredItems,
+            ),
+          );
+        }
+      }
+      if (finishedThreadIds.size > 0) {
+        setLiveChildActivities((current) => {
+          const next = { ...current };
+          for (const threadId of finishedThreadIds) delete next[threadId];
+          return next;
+        });
+      }
+      pendingAgentEvents.current.push(...events);
+      if (pendingAgentFrame.current === undefined) {
+        pendingAgentFrame.current =
+          window.requestAnimationFrame(flushAgentEvents);
+      }
+    };
+    const unsubscribe = window.artemis.onAgentEvent((event) => {
+      receiveAgentEvents([event]);
+    });
+    const unsubscribeBatch = window.artemis.onAgentEvents(receiveAgentEvents);
+    const unsubscribeTitles = window.artemis.onThreadTitleUpdated?.(
+      ({ id, title }) => {
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((thread) =>
+                  thread.id === id ? { ...thread, title } : thread,
+                ),
+              }
+            : current,
+        );
+      },
+    );
+    const unsubscribeImTasks = window.artemis.onImTaskCreated?.((thread) => {
+      setSnapshot((current) =>
+        current
+          ? {
+              ...current,
+              threads: current.threads.some(
+                (candidate) => candidate.id === thread.id,
+              )
+                ? current.threads.map((candidate) =>
+                    candidate.id === thread.id ? thread : candidate,
+                  )
+                : [thread, ...current.threads],
+            }
+          : current,
+      );
+    });
+    const unsubscribeActivities = window.artemis.onAgentActivities(
+      (events: AgentHostEvent[]) => {
+        setLiveChildActivities((current) => {
+          const next = { ...current };
+          for (const event of events) {
+            if (
+              event.payload.type !== "child-agent.status" ||
+              !event.payload.activityDelta
+            ) {
+              continue;
+            }
+            const threadActivities = {
+              ...(next[event.threadId] ?? {}),
+            };
+            const previous = threadActivities[event.payload.agentId];
+            threadActivities[event.payload.agentId] = {
+              activity:
+                `${previous?.activity ?? ""}${event.payload.activityDelta}`.slice(
+                  -64 * 1024,
+                ),
+              payload: event.payload,
+            };
+            next[event.threadId] = threadActivities;
+          }
+          return next;
+        });
+      },
+    );
+    return () => {
+      mounted = false;
+      unsubscribe();
+      unsubscribeBatch();
+      unsubscribeImTasks?.();
+      unsubscribeTitles?.();
+      unsubscribeActivities();
+      if (pendingAgentFrame.current !== undefined) {
+        window.cancelAnimationFrame(pendingAgentFrame.current);
+        pendingAgentFrame.current = undefined;
+      }
+      pendingAgentEvents.current = [];
+    };
+  }, []);
+
+  const [computerBrowserThread, setComputerBrowserThread] = useState<string>();
+  useEffect(
+    () =>
+      window.artemis.onComputerBrowserOpen?.((threadId) => {
+        setComputerBrowserThread(threadId);
+        if (threadId !== activeThreadId) void openAutomationThread(threadId);
+      }),
+    [activeThreadId, openAutomationThread],
+  );
+  useEffect(() => {
+    if (computerBrowserThread && computerBrowserThread === activeThreadId) {
+      openBrowserPanel();
+      setComputerBrowserThread(undefined);
+    }
+  }, [computerBrowserThread, activeThreadId, openBrowserPanel]);
+
+  useEffect(
+    () =>
+      window.artemis.onAutomationThreadOpen((threadId) => {
+        void openAutomationThread(threadId);
+      }),
+    [openAutomationThread],
+  );
+
+  useEffect(
+    () =>
+      window.artemis.onAutomationEvent((event) => {
+        if (
+          event.payload.type !== "automation-run.upserted" ||
+          !event.payload.run.threadId
+        ) {
+          return;
+        }
+        void window.artemis.getSnapshot().then((refreshed) => {
+          setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        });
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    if (!snapshot) return;
+
+    let cancelled = false;
+    const readyTimer = setTimeout(() => {
+      void desktopSkinReady.then(() => {
+        if (cancelled) return;
+        if (
+          performance.getEntriesByName?.("artemis:renderer-ready").length === 0
+        ) {
+          performance.mark?.("artemis:renderer-ready");
+        }
+        window.artemis.rendererReady();
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(readyTimer);
+    };
+  }, [snapshot]);
+
+  useEffect(() => {
+    if (!snapshot) return;
+    const panelTimer = window.setTimeout(() => {
+      void Promise.all([loadResourceCenter(), loadSettingsPanel()]).catch(
+        () => undefined,
+      );
+    }, 250);
+    const idleCallback = window.requestIdleCallback(
+      () => {
+        void loadTerminalPanel().catch(() => undefined);
+      },
+      {
+        timeout: 2_000,
+      },
+    );
+    return () => {
+      window.clearTimeout(panelTimer);
+      window.cancelIdleCallback(idleCallback);
+    };
+  }, [Boolean(snapshot)]);
+
+  const projects = useMemo(
+    () =>
+      orderProjectsByPreference(
+        snapshot?.projects ?? [],
+        runtimeSettings?.projectOrder,
+      ),
+    [runtimeSettings?.projectOrder, snapshot?.projects],
+  );
+  const hasExpandedProject = projects.some(
+    (project) => !collapsedProjectIds.has(project.id),
+  );
+  const temporaryThreads = sortProjectThreads(
+    (snapshot?.threads ?? [])
+      .filter((thread) => !thread.projectId && !thread.archived)
+      .filter(
+        (thread) =>
+          !isWorkspaceDraftThread(thread) &&
+          (!imThreadStatus[thread.id]?.group?.native ||
+            !!imThreadStatus[thread.id]?.group?.retired ||
+            !!imThreadStatus[thread.id]?.parentThreadId),
+      )
+      .filter(
+        (thread) =>
+          !query.trim() ||
+          thread.title.toLowerCase().includes(query.trim().toLowerCase()),
+      ),
+    snapshot?.events ?? {},
+    promptSubmittedAtByThread,
+  );
+  const activeThread = (snapshot?.threads ?? []).find(
+    (thread) => thread.id === activeThreadId,
+  );
+  const activeProject = projects.find(
+    (project) => project.id === (activeThread?.projectId ?? activeProjectId),
+  );
+  const activeWorkspaceLabel = activeProject?.name ?? t.temporaryConversation;
+  useEffect(() => {
+    if (!activeThreadId) return;
+    const connection = imThreadStatus[activeThreadId];
+    if (
+      !connection?.group?.native ||
+      connection.group.retired ||
+      connection.parentThreadId
+    )
+      return;
+    // Restore old group-page links to a normal task after the overview is removed.
+    const task = snapshot?.threads
+      .filter(
+        (thread) =>
+          imThreadStatus[thread.id]?.parentThreadId === activeThreadId &&
+          !thread.archived,
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+    setActiveThreadId(task?.id);
+    if (task) {
+      setActiveProjectId(task.projectId);
+      setMode(task.mode);
+    }
+  }, [activeThreadId, imThreadStatus, snapshot?.threads]);
+
+  const emptyConversationGreeting = conversationWelcome(
+    locale,
+    clockMs,
+    username,
+  );
+  const [emptyConversationPrefix, emptyConversationSuffix = ""] =
+    emptyConversationGreeting.projectPrompt.split("{{workspace}}");
+  const emptyConversationLabel = activeProject
+    ? `${emptyConversationPrefix}${activeProject.name}${emptyConversationSuffix}`
+    : emptyConversationGreeting.temporaryPrompt;
+  const activeTurnFailure = activeThreadId
+    ? turnFailureNotices[activeThreadId]
+    : undefined;
+  const turnFailureBanner = activeTurnFailure ? (
+    <div className="turn-error-banner" role="alert">
+      <span>{activeTurnFailure}</span>
+      <button
+        aria-label={t.dismissTurnError}
+        onClick={() =>
+          activeThreadId &&
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "dismiss",
+              threadId: activeThreadId,
+            }),
+          )
+        }
+        title={t.dismissTurnError}
+        type="button"
+      >
+        <CloseIcon />
+      </button>
+    </div>
+  ) : null;
+  const dockWidthBounds = workspaceDockWidthBounds(
+    workspaceContent.current?.clientWidth ?? window.innerWidth,
+    window.innerWidth,
+  );
+  const dockWidthNow = clampWorkspaceDockWidth(
+    workspaceDockWidth ?? DEFAULT_WORKSPACE_DOCK_WIDTH,
+    dockWidthBounds,
+  );
+  const filteredReviewFiles = useMemo(() => {
+    const normalizedQuery = reviewFileQuery.trim().toLowerCase();
+    if (!normalizedQuery) return reviewDiff?.files ?? [];
+    return (reviewDiff?.files ?? []).filter((file) =>
+      file.path.toLowerCase().includes(normalizedQuery),
+    );
+  }, [reviewDiff, reviewFileQuery]);
+  const selectedReviewFile = useMemo(
+    () =>
+      reviewDiff?.files.find((file) => file.path === selectedReviewFilePath) ??
+      reviewDiff?.files[0],
+    [reviewDiff, selectedReviewFilePath],
+  );
+  useEffect(() => {
+    if (!activeThreadId) return;
+    void window.artemis.prepareThread(activeThreadId).catch(() => {
+      // Starting the turn reports an actionable error if background warming failed.
+    });
+  }, [activeThreadId]);
+  useEffect(() => {
+    if (
+      !activeThreadId ||
+      loadedEventThreads.current.has(activeThreadId) ||
+      loadingEventThreads.current.has(activeThreadId) ||
+      historyLoadErrors[activeThreadId] !== undefined
+    ) {
+      return;
+    }
+    const threadId = activeThreadId;
+    loadingEventThreads.current.add(threadId);
+    if (window.artemis.getThreadHistory) {
+      void window.artemis
+        .getThreadHistory(threadId)
+        .then((page) => {
+          loadedEventThreads.current.add(threadId);
+          setHistoryPages((current) => ({ ...current, [threadId]: page }));
+          setSnapshot((current) =>
+            current
+              ? {
+                  ...current,
+                  events: {
+                    ...current.events,
+                    [threadId]: mergeThreadEvents(
+                      page.events,
+                      (current.events[threadId] ?? []).filter(
+                        (event) => event.seq > page.state.lastSeq,
+                      ),
+                    ),
+                  },
+                }
+              : current,
+          );
+        })
+        .catch((error) => {
+          console.error(
+            "[thread-history] history page load failed",
+            threadId,
+            error instanceof Error ? error.message : String(error),
+          );
+          setHistoryLoadErrors((current) => ({
+            ...current,
+            [threadId]: true,
+          }));
+        })
+        .finally(() => loadingEventThreads.current.delete(threadId));
+      return;
+    }
+    void window.artemis
+      .getThreadEvents(threadId)
+      .then((history) => {
+        loadedEventThreads.current.add(threadId);
+        setSnapshot((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            events: {
+              ...current.events,
+              [threadId]: mergeThreadEvents(
+                history,
+                current.events[threadId] ?? [],
+              ),
+            },
+          };
+        });
+      })
+      .catch((error) => {
+        console.error(
+          "[thread-history] thread events load failed",
+          threadId,
+          error instanceof Error ? error.message : String(error),
+        );
+        setHistoryLoadErrors((current) => ({
+          ...current,
+          [threadId]: true,
+        }));
+      })
+      .finally(() => {
+        loadingEventThreads.current.delete(threadId);
+      });
+  }, [activeThreadId, historyRetry]);
+  const activeHistoryPending = Boolean(
+    activeThreadId && !loadedEventThreads.current.has(activeThreadId),
+  );
+  const activeHistoryError = activeThreadId
+    ? historyLoadErrors[activeThreadId]
+    : undefined;
+  const activeHistory = activeThreadId
+    ? historyPages[activeThreadId]
+    : undefined;
+  const loadEarlierHistory = useCallback(() => {
+    const threadId = activeThreadId;
+    const page = threadId ? historyPages[threadId] : undefined;
+    if (!threadId || !page?.cursor || loadingHistoryPages.current.has(threadId))
+      return;
+    loadingHistoryPages.current.add(threadId);
+    void window.artemis
+      .getThreadHistory(threadId, page.cursor)
+      .then((earlier) => {
+        if (activeThreadIdRef.current === threadId) {
+          const element = timelineScroll.current?.querySelector(
+            "[data-history-turn]",
+          );
+          if (element)
+            historyPrependAnchor.current = {
+              threadId,
+              element,
+              top: element.getBoundingClientRect().top,
+            };
+        }
+        setHistoryPages((current) =>
+          current[threadId] === page
+            ? { ...current, [threadId]: mergeHistoryPage(page, earlier) }
+            : current,
+        );
+      })
+      .catch((error) =>
+        setToast(error instanceof Error ? error.message : String(error)),
+      )
+      .finally(() => loadingHistoryPages.current.delete(threadId));
+  }, [activeThreadId, historyPages]);
+  useLayoutEffect(() => {
+    const anchor = historyPrependAnchor.current;
+    if (
+      anchor &&
+      anchor.threadId === activeThreadId &&
+      timelineScroll.current
+    ) {
+      timelineScroll.current.scrollTop +=
+        anchor.element.getBoundingClientRect().top - anchor.top;
+      historyPrependAnchor.current = undefined;
+    }
+  }, [activeHistory, activeThreadId]);
+  const activeEvents = activeThread
+    ? (snapshot?.events[activeThread.id] ?? [])
+    : [];
+  useTaskNotificationRead(
+    activeView === "workspace" &&
+      activeThreadId &&
+      loadedEventThreads.current.has(activeThreadId)
+      ? activeThreadId
+      : undefined,
+    activeThread?.notification?.unread &&
+      Math.max(
+        activeHistory?.state.lastSeq ?? -1,
+        activeEvents.at(-1)?.seq ?? -1,
+      ) >= activeThread.notification.seq
+      ? activeThread.notification.seq
+      : undefined,
+  );
+  const latestHtmlChange = useMemo(() => {
+    for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
+      const event = activeEvents[index];
+      if (
+        event?.payload.type === "file.changed" &&
+        /\.html?$/iu.test(event.payload.path)
+      ) {
+        return { eventId: event.eventId, path: event.payload.path };
+      }
+    }
+    return undefined;
+  }, [activeEvents]);
+  const latestMarkdownChange = useMemo(() => {
+    for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
+      const event = activeEvents[index];
+      if (
+        event?.payload.type === "file.changed" &&
+        /\.(?:md|markdown)$/iu.test(event.payload.path)
+      ) {
+        return { eventId: event.eventId, path: event.payload.path };
+      }
+    }
+    return undefined;
+  }, [activeEvents]);
+  const threadState = useMemo(() => {
+    if (!activeThread) return undefined;
+    const cached = threadStateCache.current.get(activeThread.id);
+    const prefixMatches =
+      cached &&
+      cached.history === activeHistory &&
+      cached.mode === activeThread.mode &&
+      cached.eventCount <= activeEvents.length &&
+      (cached.eventCount === 0 ||
+        activeEvents[cached.eventCount - 1]?.eventId === cached.lastEventId);
+    const state = prefixMatches
+      ? reduceAgentEventBatch(
+          cached.state,
+          activeEvents
+            .slice(cached.eventCount)
+            .filter(
+              (event) =>
+                !activeHistory || event.seq > activeHistory.state.lastSeq,
+            ),
+        )
+      : activeHistory
+        ? reduceAgentEventBatch(
+            activeHistory.state,
+            activeEvents.filter(
+              (event) => event.seq > activeHistory.state.lastSeq,
+            ),
+          )
+        : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
+    // Guard against cross-switch derivation regressions (blank or shrunken
+    // timelines): if this thread rendered more turns before, re-derive once
+    // from the raw history page + events instead of trusting the incremental
+    // or cached path.
+    const turnWatermark =
+      cached?.history === activeHistory
+        ? (turnWatermarks.current.get(activeThread.id) ?? 0)
+        : 0;
+    let guardedState = state;
+    if (state.order.length < turnWatermark) {
+      guardedState = activeHistory
+        ? reduceAgentEventBatch(
+            activeHistory.state,
+            activeEvents.filter(
+              (event) => event.seq > activeHistory.state.lastSeq,
+            ),
+          )
+        : reduceAgentEvents(activeThread.id, activeEvents, activeThread.mode);
+      if (guardedState.order.length < turnWatermark) {
+        console.error(
+          "[thread-history] derived turns regressed below the session watermark",
+          activeThread.id,
+          turnWatermark,
+          guardedState.order.length,
+        );
+      }
+    }
+    turnWatermarks.current.set(
+      activeThread.id,
+      Math.max(turnWatermark, guardedState.order.length),
+    );
+    for (const recovered of Object.values(officeSnapshots)) {
+      const id = recovered.session.sessionId;
+      const current = guardedState.artifacts?.[id];
+      if (
+        current?.needsSnapshot &&
+        recovered.session.sequence >= current.session.sequence
+      ) {
+        guardedState = {
+          ...guardedState,
+          artifacts: {
+            ...guardedState.artifacts,
+            [id]: restoreArtifactSnapshot(current, recovered),
+          },
+        };
+      }
+    }
+    threadStateCache.current.delete(activeThread.id);
+    threadStateCache.current.set(activeThread.id, {
+      ...(activeHistory ? { history: activeHistory } : {}),
+      eventCount: activeEvents.length,
+      ...(activeEvents.at(-1)
+        ? { lastEventId: activeEvents.at(-1)!.eventId }
+        : {}),
+      mode: activeThread.mode,
+      state: guardedState,
+    });
+    const liveActivities = liveChildActivities[activeThread.id];
+    if (!liveActivities) return guardedState;
+    const childAgents = { ...guardedState.childAgents };
+    for (const [agentId, live] of Object.entries(liveActivities)) {
+      const current = childAgents[agentId];
+      if (!current) continue;
+      const merged: ChildAgentState = {
+        ...current,
+        activity: live.activity,
+        ...(live.payload.health ? { health: live.payload.health } : {}),
+        ...(live.payload.lastActivityAt
+          ? { lastActivityAt: live.payload.lastActivityAt }
+          : {}),
+      };
+      if (
+        current.status === "queued" ||
+        current.status === "running" ||
+        current.status === "cancelling"
+      ) {
+        if (live.payload.currentTool) {
+          merged.currentTool = live.payload.currentTool;
+        } else {
+          delete merged.currentTool;
+        }
+        if (live.payload.currentToolStartedAt) {
+          merged.currentToolStartedAt = live.payload.currentToolStartedAt;
+        } else {
+          delete merged.currentToolStartedAt;
+        }
+      }
+      childAgents[agentId] = merged;
+    }
+    return { ...guardedState, childAgents };
+  }, [
+    activeEvents,
+    activeHistory,
+    officeSnapshots,
+    activeThread?.id,
+    activeThread?.mode,
+    liveChildActivities,
+  ]);
+  const openedOfficeTabs = useRef(new Set<string>());
+  const liveOfficeTabs = useRef(new Set<string>());
+  useEffect(() => {
+    if (!activeThreadId || !threadState) return;
+    // History pages retain artifact state but omit raw artifact presentation events.
+    const sessions = Object.values(threadState.artifacts ?? {})
+      .map((view) => view.session)
+      .filter(
+        (session) =>
+          session.status !== "closed" &&
+          !openedOfficeTabs.current.has(session.sessionId),
+      );
+    if (!sessions.length) return;
+    for (const session of sessions)
+      openedOfficeTabs.current.add(session.sessionId);
+    setWorkspaceTabsByThread((current) => {
+      let state = current[activeThreadId] ?? emptyWorkspaceTabs();
+      for (const session of sessions) {
+        const live = liveOfficeTabs.current.delete(session.sessionId);
+        const next = reconcileOfficeWorkspaceTab(state, session, live);
+        state = live && next !== state ? { ...next, dockOpen: true } : next;
+      }
+      return state === current[activeThreadId]
+        ? current
+        : { ...current, [activeThreadId]: state };
+    });
+  }, [activeThreadId, threadState]);
+  const activePromptHistory = useMemo(() => {
+    if (!threadState?.order.length) {
+      return promptHistoryForConversation(promptHistory, undefined);
+    }
+    const conversationMessages = threadState.order.flatMap((entry) => {
+      const separator = entry.indexOf(":");
+      if (entry.slice(0, separator) !== "user") return [];
+      const message = threadState.userMessages[entry.slice(separator + 1)];
+      return message ? [message.text] : [];
+    });
+    return promptHistoryForConversation(promptHistory, conversationMessages);
+  }, [promptHistory, threadState]);
+  const latestAgentTeam = useMemo(
+    () =>
+      Object.values(threadState?.agentTeams ?? {})
+        .sort((left, right) => left.updatedAt.localeCompare(right.updatedAt))
+        .at(-1),
+    [threadState?.agentTeams],
+  );
+  const environmentAgents = useMemo(
+    () => sortAgentsByActivity(Object.values(threadState?.childAgents ?? {})),
+    [threadState?.childAgents],
+  );
+  const environmentTeams = useMemo(
+    () => Object.values(threadState?.agentTeams ?? {}),
+    [threadState?.agentTeams],
+  );
+  const environmentMcpUsages = useMemo(
+    () =>
+      (threadState?.mcpToolUseOrder ?? []).flatMap((key) => {
+        const usage = threadState?.mcpToolUses[key];
+        return usage ? [usage] : [];
+      }),
+    [threadState?.mcpToolUseOrder, threadState?.mcpToolUses],
+  );
+  const environmentSources = useMemo(
+    () =>
+      (threadState?.taskSourceOrder ?? []).flatMap((sourceId) => {
+        const source = threadState?.taskSources[sourceId];
+        return source ? [source] : [];
+      }),
+    [threadState?.taskSourceOrder, threadState?.taskSources],
+  );
+  const environmentWorktree = snapshot?.worktrees.find(
+    (worktree) =>
+      worktree.threadId === activeThread?.id && worktree.status === "active",
+  );
+  const environmentWorkspaceKey = JSON.stringify([
+    activeProject?.id,
+    activeThread?.id,
+    activeThread?.target,
+    activeProject?.path,
+    environmentWorktree?.id,
+    environmentWorktree?.path,
+  ]);
+  const environmentRefreshKey = useMemo(() => {
+    for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
+      const event = activeEvents[index];
+      if (event?.payload.type === "file.changed") return event.eventId;
+    }
+    return undefined;
+  }, [activeEvents]);
+  useEffect(() => {
+    if (
+      !activeThreadId ||
+      !latestAgentTeam ||
+      knownAgentTeamTabs.current.has(latestAgentTeam.teamId)
+    ) {
+      return;
+    }
+    knownAgentTeamTabs.current.add(latestAgentTeam.teamId);
+    setWorkspaceTabsByThread((current) => ({
+      ...current,
+      [activeThreadId]: reconcileAgentTeamWorkspaceTab(
+        current[activeThreadId] ?? emptyWorkspaceTabs(),
+        agentTeamWorkspaceTab(latestAgentTeam.teamId, t.agentTeam),
+      ),
+    }));
+  }, [activeThreadId, latestAgentTeam, t.agentTeam]);
+  const pendingComposerDecision = firstPendingComposerDecision(threadState);
+  const activePendingDecisionId = pendingComposerDecision?.entry;
+  useEffect(() => {
+    const previousId = previousPendingDecisionId.current;
+    previousPendingDecisionId.current = activePendingDecisionId;
+    if (!previousId || activePendingDecisionId) return;
+    const frame = window.requestAnimationFrame(() => {
+      promptInput.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activePendingDecisionId]);
+  const contextCompacting =
+    (activeThreadId !== undefined && compactingThreadIds.has(activeThreadId)) ||
+    Object.values(threadState?.contextCompactions ?? {}).some(
+      (item) => item.status === "running",
+    );
+  const turnRunning =
+    threadState?.status === "running" ||
+    threadState?.status === "waiting-approval" ||
+    threadState?.status === "waiting-user-input";
+  const turnActive = contextCompacting || turnRunning;
+  const projectBranchActionsDisabled =
+    turnActive ||
+    (snapshot?.threads ?? []).some(
+      (thread) =>
+        thread.projectId === activeProjectId &&
+        thread.target === "local" &&
+        (thread.status === "running" || thread.status === "waiting-approval"),
+    );
+  const latestTimelineEntryIsCompaction =
+    threadState?.order.at(-1)?.startsWith("compaction:") ?? false;
+  const queuedFollowUps = threadState?.queue.followUp ?? [];
+  const approvalChangeLocked =
+    busy ||
+    (snapshot?.threads.some(
+      (thread) =>
+        thread.status === "running" || thread.status === "waiting-approval",
+    ) ??
+      false);
+  const approvalPolicyLabel = {
+    ask: t.askApproval,
+    agent: t.agentApproval,
+    "full-access": t.fullAccess,
+    custom: t.customApproval,
+  }[approvalPolicy];
+  const activeSelection =
+    pendingModelSelection ??
+    activeThread?.modelSelection ??
+    runtimeSettings?.selection;
+  const activeModel = activeSelection
+    ? runtimeSettings?.models.find(
+        (model) =>
+          model.providerId === activeSelection.providerId &&
+          model.modelId === activeSelection.modelId,
+      )
+    : undefined;
+  const activeProvider = activeSelection
+    ? runtimeSettings?.providers.find(
+        (provider) => provider.id === activeSelection.providerId,
+      )
+    : undefined;
+  const activeProviderModel = activeProvider?.models.find(
+    (model) => model.id === activeSelection?.modelId,
+  );
+  const activeModelLabel =
+    activeModel?.name ??
+    activeProviderModel?.name ??
+    activeSelection?.modelId ??
+    t.model;
+  const activeModelSupportsReasoning =
+    activeModel?.reasoning ?? activeProviderModel?.reasoning ?? false;
+  const activeModelHighestThinkingLevel =
+    activeModel?.thinkingLevels?.at(-1) ??
+    activeModel?.highestThinkingLevel ??
+    "high";
+  const activeUltraMode =
+    activeModelSupportsReasoning && activeSelection?.ultraMode === true;
+  const activeThinkingLevel = activeUltraMode
+    ? t.ultraMode
+    : activeSelection &&
+        activeModelSupportsReasoning &&
+        activeSelection.thinkingLevel !== "off"
+      ? thinkingLevelLabel(activeSelection.thinkingLevel, locale)
+      : undefined;
+  const switchableModels = useMemo(() => {
+    if (!runtimeSettings) return [];
+    const addedModels = new Set(
+      runtimeSettings.addedModels.map((model) =>
+        modelIdentity(model.providerId, model.modelId),
+      ),
+    );
+    const customProviders = new Set(
+      runtimeSettings.providers.map((provider) => provider.id),
+    );
+    const selectedModelIdentity = activeSelection
+      ? modelIdentity(activeSelection.providerId, activeSelection.modelId)
+      : undefined;
+    return runtimeSettings.models
+      .filter((model) => {
+        const identity = modelIdentity(model.providerId, model.modelId);
+        return (
+          addedModels.has(identity) ||
+          customProviders.has(model.providerId) ||
+          identity === selectedModelIdentity
+        );
+      })
+      .sort(
+        (left, right) =>
+          left.name.localeCompare(right.name, locale) ||
+          left.providerId.localeCompare(right.providerId, locale),
+      );
+  }, [activeSelection, locale, runtimeSettings]);
+  const filteredModels = useMemo(() => {
+    const query = modelFilter.trim().toLocaleLowerCase(locale);
+    return switchableModels.filter((model) =>
+      [model.name, model.modelId, model.providerId].some((value) =>
+        value.toLocaleLowerCase(locale).includes(query),
+      ),
+    );
+  }, [switchableModels, modelFilter, locale]);
+  const modelPickerThinkingLevels = thinkingLevelsForModel(activeModel);
+
+  const switchComposerModel = useCallback(
+    async (model: SettingsSnapshot["models"][number]) => {
+      if (!runtimeSettings || turnActive || busy) return;
+      setModelPickerOpen(false);
+      setBusy(true);
+      const nextSelection = selectionForModelSwitch(model, activeSelection);
+      setPendingModelSelection(nextSelection);
+      try {
+        const thread =
+          activeThread ?? (await createThread(activeProjectId, true));
+        if (!thread) return;
+        const updated = await window.artemis.setThreadModelSelection(
+          thread.id,
+          nextSelection,
+        );
+        setRuntimeSettings((current) =>
+          current
+            ? {
+                ...current,
+                selection: updated.modelSelection ?? nextSelection,
+                ...(updated.contextWindow !== undefined
+                  ? { contextWindow: updated.contextWindow }
+                  : {}),
+              }
+            : current,
+        );
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((candidate) =>
+                  candidate.id === updated.id ? updated : candidate,
+                ),
+              }
+            : current,
+        );
+      } catch (error) {
+        setToast(
+          `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setPendingModelSelection(undefined);
+        setBusy(false);
+      }
+    },
+    [
+      activeProjectId,
+      activeSelection,
+      activeThread,
+      busy,
+      createThread,
+      runtimeSettings,
+      t.modelSwitchFailed,
+      turnActive,
+    ],
+  );
+
+  const switchComposerThinking = useCallback(
+    async (thinkingLevel: ThinkingLevel, ultraMode = false) => {
+      if (!activeSelection || turnActive || busy) return;
+      setModelPickerOpen(false);
+      setBusy(true);
+      const nextSelection = {
+        ...activeSelection,
+        thinkingLevel,
+        ultraMode,
+      };
+      setPendingModelSelection(nextSelection);
+      try {
+        const thread =
+          activeThread ?? (await createThread(activeProjectId, true));
+        if (!thread) return;
+        const updated = await window.artemis.setThreadModelSelection(
+          thread.id,
+          nextSelection,
+        );
+        setRuntimeSettings((current) =>
+          current
+            ? {
+                ...current,
+                selection: updated.modelSelection ?? nextSelection,
+                ...(updated.contextWindow !== undefined
+                  ? { contextWindow: updated.contextWindow }
+                  : {}),
+              }
+            : current,
+        );
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((candidate) =>
+                  candidate.id === updated.id ? updated : candidate,
+                ),
+              }
+            : current,
+        );
+      } catch (error) {
+        setToast(
+          `${t.modelSwitchFailed} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setPendingModelSelection(undefined);
+        setBusy(false);
+      }
+    },
+    [
+      activeProjectId,
+      activeSelection,
+      activeThread,
+      busy,
+      createThread,
+      t.modelSwitchFailed,
+      turnActive,
+    ],
+  );
+  const runPresentation = useMemo(
+    () => deriveRunPresentation(activeEvents, clockMs, threadState?.status),
+    [activeEvents, clockMs, threadState?.status],
+  );
+  const delegationWaiting =
+    !turnActive &&
+    !!(
+      activeThreadId &&
+      imThreadStatus[activeThreadId]?.delegationWaits?.some(
+        (wait) => wait.state !== "interrupted",
+      )
+    );
+  const retiredGroup = activeThreadId
+    ? imThreadStatus[activeThreadId]?.group?.retired
+    : undefined;
+  const permissionBlock = activeThreadId
+    ? imThreadStatus[activeThreadId]?.permissionBlock
+    : undefined;
+  const remoteWaiting = delegationWaiting || (!turnActive && !!permissionBlock);
+  const statusDotStatus = remoteWaiting
+    ? "waiting-approval"
+    : threadState?.status === "running" &&
+        threadState.activity?.phase === "queued"
+      ? "queued"
+      : runPresentation.status === "completed"
+        ? "idle"
+        : runPresentation.status;
+  const taskPlan = useMemo(
+    () => deriveTaskPlan(activeEvents, turnActive),
+    [activeEvents, turnActive],
+  );
+
+  const openHtmlFromFiles = useCallback(
+    (path: string) => {
+      openWorkspaceTab("browser", { path });
+    },
+    [openWorkspaceTab],
+  );
+
+  const openGoalEditor = useCallback(() => {
+    if (!activeThread?.goal) {
+      setToast(t.noGoal);
+      return;
+    }
+    openWorkspaceTab("goal", { reuseKind: true });
+  }, [activeThread?.goal, openWorkspaceTab, t.noGoal]);
+
+  const closeGoalEditor = useCallback(() => {
+    const goalTab = workspaceTabs.tabs.find((tab) => tab.kind === "goal");
+    if (goalTab) closeWorkspaceTab(goalTab.id);
+  }, [closeWorkspaceTab, workspaceTabs.tabs]);
+
+  useEffect(() => {
+    const goalTabOpen = workspaceTabs.tabs.some((tab) => tab.kind === "goal");
+    if (!goalTabOpen) {
+      goalEditorGoalId.current = undefined;
+      return;
+    }
+    const currentGoalId = activeThread?.goal?.goalId;
+    if (
+      !currentGoalId ||
+      (goalEditorGoalId.current !== undefined &&
+        goalEditorGoalId.current !== currentGoalId)
+    ) {
+      closeGoalEditor();
+      return;
+    }
+    goalEditorGoalId.current = currentGoalId;
+  }, [activeThread?.goal?.goalId, closeGoalEditor, workspaceTabs.tabs]);
+
+  useEffect(() => {
+    setClockMs(Date.now());
+    const interval =
+      turnActive || activeThread?.goal?.status === "active" ? 1_000 : 60_000;
+    const timer = window.setInterval(() => setClockMs(Date.now()), interval);
+    return () => window.clearInterval(timer);
+  }, [activeThread?.goal?.status, turnActive]);
+
+  useLayoutEffect(() => {
+    if (!activeThreadId || activeView !== "workspace") {
+      timelinePinned.current = true;
+      pendingTimelineRestore.current = undefined;
+      return;
+    }
+    const snapshot = timelineScrollSnapshots.current.get(activeThreadId);
+    timelinePinned.current = snapshot?.pinned ?? true;
+    pendingTimelineRestore.current = prepareTimelineRestore(
+      activeThreadId,
+      activeView,
+      snapshot,
+    );
+  }, [activeThreadId, activeView]);
+
+  useLayoutEffect(() => {
+    const pending = pendingTimelineRestore.current;
+    if (
+      !activeThreadId ||
+      activeView !== "workspace" ||
+      pending?.threadId !== activeThreadId ||
+      !loadedEventThreads.current.has(activeThreadId)
+    ) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (activeThreadIdRef.current !== activeThreadId) return;
+      const container = timelineScroll.current;
+      if (!container) return;
+      timelinePinned.current = pending.snapshot?.pinned ?? true;
+      pendingTimelineRestore.current = undefined;
+      container.scrollTop = resolveTimelineScrollTarget({
+        clientHeight: container.clientHeight,
+        scrollHeight: container.scrollHeight,
+        ...(pending.snapshot ? { snapshot: pending.snapshot } : {}),
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeEvents.length, activeThreadId, activeView, threadState?.lastSeq]);
+
+  useLayoutEffect(() => {
+    const container = timelineScroll.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    let frame: number | undefined;
+    const observer = new ResizeObserver(() => {
+      if (!timelinePinned.current) return;
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        frame = undefined;
+        if (timelinePinned.current) {
+          container.scrollTop = container.scrollHeight;
+        }
+      });
+    });
+    observer.observe(container);
+    for (const child of container.children) observer.observe(child);
+    return () => {
+      observer.disconnect();
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
+    };
+  }, [activeEvents.length, activeThreadId]);
+
+  useEffect(() => {
+    const finishScrollbarInteraction = () => {
+      timelineScrollbarPointerActive.current = false;
+    };
+    window.addEventListener("pointerup", finishScrollbarInteraction);
+    window.addEventListener("pointercancel", finishScrollbarInteraction);
+    return () => {
+      window.removeEventListener("pointerup", finishScrollbarInteraction);
+      window.removeEventListener("pointercancel", finishScrollbarInteraction);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!timelinePinned.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const container = timelineScroll.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [threadState?.lastSeq]);
+
+  useEffect(() => {
+    if (reviewScopeThreadId.current === activeThreadId) return;
+    reviewScopeThreadId.current = activeThreadId;
+    reviewRequestId.current += 1;
+    setReviewScope("branch");
+    setReviewTurnId(undefined);
+    setReviewDiff(undefined);
+    setSelectedReviewFilePath(undefined);
+    setCommentLineId(undefined);
+    setCommentBody("");
+  }, [activeThreadId]);
+
+  const reviewDiffCacheKey = useCallback(
+    (threadId: string, scope: ReviewScope) => {
+      const baseRef = scope === "branch" ? reviewBaseRef.trim() : "";
+      const turnId = scope === "turn" ? (reviewTurnId ?? "") : "";
+      const version = reviewDiffVersion.current.get(threadId) ?? 0;
+      return `${threadId}\u0000${scope}\u0000${turnId}\u0000${baseRef}\u0000${threadState?.lastSeq ?? 0}\u0000${version}`;
+    },
+    [reviewBaseRef, reviewTurnId, threadState?.lastSeq],
+  );
+
+  const loadCachedReviewDiff = useCallback(
+    (threadId: string, scope: ReviewScope, force = false) => {
+      const cacheKey = reviewDiffCacheKey(threadId, scope);
+      const cached = reviewDiffCache.current.get(cacheKey);
+      if (!force && cached) return Promise.resolve(cached);
+      const inFlight = reviewDiffInFlight.current.get(cacheKey);
+      if (inFlight) return inFlight;
+
+      const request = window.artemis
+        .getReviewDiff({
+          threadId,
+          scope,
+          ...(scope === "turn" && reviewTurnId ? { turnId: reviewTurnId } : {}),
+          ...(scope === "branch" && reviewBaseRef.trim()
+            ? { baseRef: reviewBaseRef.trim() }
+            : {}),
+        })
+        .then((diff) => {
+          reviewDiffCache.current.set(cacheKey, diff);
+          if (reviewDiffCache.current.size > 16) {
+            const oldestKey = reviewDiffCache.current.keys().next().value;
+            if (oldestKey) reviewDiffCache.current.delete(oldestKey);
+          }
+          return diff;
+        })
+        .finally(() => {
+          reviewDiffInFlight.current.delete(cacheKey);
+        });
+      reviewDiffInFlight.current.set(cacheKey, request);
+      return request;
+    },
+    [reviewBaseRef, reviewDiffCacheKey, reviewTurnId],
+  );
+
+  const invalidateReviewDiffCache = useCallback((threadId: string) => {
+    reviewDiffVersion.current.set(
+      threadId,
+      (reviewDiffVersion.current.get(threadId) ?? 0) + 1,
+    );
+    const prefix = `${threadId}\u0000`;
+    for (const key of reviewDiffCache.current.keys()) {
+      if (key.startsWith(prefix)) reviewDiffCache.current.delete(key);
+    }
+  }, []);
+
+  const prefetchReviewDiffs = useCallback(
+    async (force = false) => {
+      if (!activeThreadId) return;
+      const eagerScopes: ReviewScope[] = ["unstaged", "staged"];
+      await Promise.all(
+        eagerScopes.map((scope) =>
+          loadCachedReviewDiff(activeThreadId, scope, force).catch(
+            () => undefined,
+          ),
+        ),
+      );
+    },
+    [activeThreadId, loadCachedReviewDiff],
+  );
+
+  const refreshDiff = useCallback(
+    async (force = false) => {
+      const requestId = ++reviewRequestId.current;
+      if (!activeThreadId) {
+        setReviewDiff({
+          available: true,
+          scope: reviewScope,
+          text: "",
+          files: [],
+        });
+        setReviewComments([]);
+        return;
+      }
+
+      void window.artemis
+        .listReviewComments(activeThreadId)
+        .then((comments) => {
+          if (requestId !== reviewRequestId.current) return;
+          setReviewComments(comments);
+        })
+        .catch((error) => {
+          if (requestId !== reviewRequestId.current) return;
+          setToast(error instanceof Error ? error.message : String(error));
+        });
+
+      try {
+        const diff = await loadCachedReviewDiff(
+          activeThreadId,
+          reviewScope,
+          force,
+        );
+        if (requestId !== reviewRequestId.current) return;
+        startReviewTransition(() => {
+          setReviewDiff(diff);
+        });
+        return diff;
+      } catch (error) {
+        if (requestId !== reviewRequestId.current) return;
+        setReviewDiff({
+          available: false,
+          scope: reviewScope,
+          text: "",
+          files: [],
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    },
+    [activeThreadId, loadCachedReviewDiff, reviewScope],
+  );
+
+  const selectReviewScope = (scope: ReviewScope) => {
+    if (scope === reviewScope) return;
+    reviewRequestId.current += 1;
+    setReviewScope(scope);
+    if (scope !== "turn") setReviewTurnId(undefined);
+    const cached = activeThreadId
+      ? reviewDiffCache.current.get(reviewDiffCacheKey(activeThreadId, scope))
+      : undefined;
+    setReviewDiff(cached);
+    setSelectedReviewFilePath(undefined);
+    setCommentLineId(undefined);
+    setCommentBody("");
+  };
+
+  const openReviewScopePanel = (scope: ReviewScope, baseRef?: string) => {
+    if (scope === "branch" && baseRef) setReviewBaseRef(baseRef);
+    selectReviewScope(scope);
+    openReviewPanel();
+  };
+
+  const openReviewTurnPanel = useCallback(
+    (turnId: string, path?: string) => {
+      if (reviewScope !== "turn" || reviewTurnId !== turnId) {
+        reviewRequestId.current += 1;
+        setReviewDiff(undefined);
+      }
+      setReviewTurnId(turnId);
+      setReviewScope("turn");
+      setSelectedReviewFilePath(path);
+      setCommentLineId(undefined);
+      setCommentBody("");
+      openReviewPanel();
+    },
+    [openReviewPanel, reviewScope, reviewTurnId],
+  );
+
+  const undoTurnChanges = useCallback(
+    async (turnId: string) => {
+      if (
+        !activeThreadId ||
+        !(await requestConfirmation(t.undoTurnConfirm, "danger"))
+      ) {
+        return;
+      }
+      try {
+        const result = await window.artemis.undoTurnChanges(
+          activeThreadId,
+          turnId,
+        );
+        invalidateReviewDiffCache(activeThreadId);
+        setToast(
+          `${t.undoTurnComplete} · ${result.restoredFiles.length} · ${result.recoveryPath}`,
+        );
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [
+      activeThreadId,
+      invalidateReviewDiffCache,
+      requestConfirmation,
+      t.undoTurnComplete,
+      t.undoTurnConfirm,
+    ],
+  );
+
+  useEffect(() => {
+    if (workspaceDockOpen && activeWorkspaceTab?.kind === "review") {
+      void prefetchReviewDiffs();
+      void refreshDiff();
+    }
+  }, [
+    activeWorkspaceTab?.kind,
+    prefetchReviewDiffs,
+    refreshDiff,
+    threadState?.changedFiles.length,
+    workspaceDockOpen,
+  ]);
+
+  const mutateReview = useCallback(
+    async (
+      action: ReviewAction,
+      target: { kind: "file" | "hunk"; id: string },
+    ) => {
+      if (!activeThreadId || reviewBusy) return;
+      if (
+        action === "revert" &&
+        !(await requestConfirmation(t.revertConfirm, "danger"))
+      )
+        return;
+      setReviewBusy(true);
+      try {
+        const result = await window.artemis.mutateReviewDiff({
+          threadId: activeThreadId,
+          scope: reviewScope,
+          action,
+          target:
+            target.kind === "file"
+              ? { kind: "file", id: target.id }
+              : { kind: "hunk", id: target.id },
+          ...(reviewScope === "branch" && reviewBaseRef.trim()
+            ? { baseRef: reviewBaseRef.trim() }
+            : {}),
+        });
+        if (result.recoveryPath) {
+          setToast(`${t.recoverySaved}: ${result.recoveryPath}`);
+        }
+        invalidateReviewDiffCache(activeThreadId);
+        await Promise.all([refreshDiff(true), prefetchReviewDiffs(true)]);
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [
+      activeThreadId,
+      invalidateReviewDiffCache,
+      prefetchReviewDiffs,
+      refreshDiff,
+      requestConfirmation,
+      reviewBaseRef,
+      reviewBusy,
+      reviewScope,
+      t.recoverySaved,
+      t.revertConfirm,
+    ],
+  );
+
+  const saveReviewComment = useCallback(
+    async (lineId: string) => {
+      if (
+        !activeThreadId ||
+        reviewScope === "turn" ||
+        !commentBody.trim() ||
+        reviewBusy
+      )
+        return;
+      setReviewBusy(true);
+      try {
+        const comment = await window.artemis.addReviewComment({
+          threadId: activeThreadId,
+          scope: reviewScope,
+          lineId,
+          body: commentBody.trim(),
+          ...(reviewScope === "branch" && reviewBaseRef.trim()
+            ? { baseRef: reviewBaseRef.trim() }
+            : {}),
+        });
+        setReviewComments((current) => [...current, comment]);
+        setCommentLineId(undefined);
+        setCommentBody("");
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [activeThreadId, commentBody, reviewBaseRef, reviewBusy, reviewScope],
+  );
+
+  const deleteReviewComment = useCallback(
+    async (comment: ReviewComment) => {
+      if (!activeThreadId || reviewBusy) return;
+      setReviewBusy(true);
+      try {
+        await window.artemis.deleteReviewComment(activeThreadId, comment.id);
+        setReviewComments((current) =>
+          current.filter((candidate) => candidate.id !== comment.id),
+        );
+      } catch (error) {
+        setToast(error instanceof Error ? error.message : String(error));
+      } finally {
+        setReviewBusy(false);
+      }
+    },
+    [activeThreadId, reviewBusy],
+  );
+
+  const openProject = useCallback(async () => {
+    const project = await window.artemis.openProject();
+    if (!project) return;
+    setSnapshot((current) => {
+      if (!current) return current;
+      const exists = current.projects.some((item) => item.id === project.id);
+      return {
+        ...current,
+        projects: exists ? current.projects : [project, ...current.projects],
+      };
+    });
+    beginNewConversation(project.id);
+  }, [beginNewConversation]);
+
+  const removeProject = useCallback(
+    async (project: Project) => {
+      if (!(await requestConfirmation(t.removeProjectConfirm))) return;
+      try {
+        await window.artemis.removeProject(project.id);
+        const refreshed = await window.artemis.getSnapshot();
+        setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        setProjectMenuId(undefined);
+        if (activeProjectId !== project.id) return;
+
+        const nextProject = refreshed.projects[0];
+        const nextThread = refreshed.threads.find(
+          (thread) => thread.projectId === nextProject?.id && !thread.archived,
+        );
+        setActiveProjectId(nextProject?.id);
+        setActiveThreadId(nextThread?.id);
+        setActiveView("workspace");
+        if (nextThread) {
+          setMode(nextThread.mode);
+        } else {
+          setMode("work");
+        }
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [activeProjectId, requestConfirmation, t.removeProjectConfirm, t.taskError],
+  );
+
+  const beginRenameThread = useCallback((thread: Thread) => {
+    setThreadRename({ threadId: thread.id, title: thread.title });
+    setThreadMenuId(undefined);
+  }, []);
+
+  const renameThread = useCallback(
+    async (thread: Thread, draft: string) => {
+      const title = draft.trim();
+      setThreadRename(undefined);
+      if (!title || title === thread.title) return;
+      try {
+        const updated = await window.artemis.renameThread(thread.id, title);
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: current.threads.map((item) =>
+                  item.id === updated.id ? updated : item,
+                ),
+              }
+            : current,
+        );
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [t.taskError],
+  );
+
+  const deleteThread = useCallback(
+    async (thread: Thread) => {
+      if (deletingThreadIds.current.has(thread.id)) return;
+      if (!(await requestConfirmation(t.deleteTaskConfirm, "danger"))) return;
+      if (deletingThreadIds.current.has(thread.id)) return;
+      deletingThreadIds.current.add(thread.id);
+      setThreadMenuId(undefined);
+      setToast(uiText(locale, "App.inline1"));
+      const siblingThreads = (snapshot?.threads ?? []).filter(
+        (item) => item.projectId === thread.projectId && !item.archived,
+      );
+      const deletedIndex = siblingThreads.findIndex(
+        (item) => item.id === thread.id,
+      );
+      try {
+        await window.artemis.deleteThread(thread.id);
+        const refreshed = await window.artemis.getSnapshot();
+        const remainingThreads = refreshed.threads
+          .filter((item) => item.id !== thread.id)
+          .filter(
+            (item) => item.projectId === thread.projectId && !item.archived,
+          );
+        const nextThread =
+          remainingThreads[Math.min(deletedIndex, remainingThreads.length - 1)];
+        loadedEventThreads.current.delete(thread.id);
+        loadingEventThreads.current.delete(thread.id);
+        threadStateCache.current.delete(thread.id);
+        setComposerDrafts((current) =>
+          clearComposerDraft(
+            current,
+            conversationDraftKey(thread.projectId, thread.id),
+          ),
+        );
+        setPromptSubmittedAtByThread((current) => {
+          if (!(thread.id in current)) return current;
+          const next = { ...current };
+          delete next[thread.id];
+          return next;
+        });
+        setWorkspaceTabsByThread((current) => {
+          const next = { ...current };
+          delete next[thread.id];
+          return next;
+        });
+        setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        setToast(undefined);
+        if (activeThreadId === thread.id) {
+          setActiveThreadId(nextThread?.id);
+          setMode(nextThread?.mode ?? "work");
+          window.requestAnimationFrame(() => promptInput.current?.focus());
+        }
+      } catch (error) {
+        setToast({
+          error: true,
+          message: `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        });
+      } finally {
+        deletingThreadIds.current.delete(thread.id);
+        setThreadMenuId(undefined);
+      }
+    },
+    [
+      activeThreadId,
+      locale,
+      requestConfirmation,
+      snapshot?.threads,
+      t.deleteTaskConfirm,
+      t.taskError,
+    ],
+  );
+
+  const projectBulkBusy = useRef(false);
+  const updateProjectThreads = async (
+    project: Project,
+    operation: "archive" | "delete",
+  ) => {
+    if (projectBulkBusy.current) return;
+    const threads = (snapshot?.threads ?? []).filter(
+      (thread) =>
+        thread.projectId === project.id &&
+        (operation === "delete" || !thread.archived),
+    );
+    if (!threads.length) return;
+    const deleting = operation === "delete";
+    const message = deleting
+      ? uiText(locale, "App.inline2", {
+          value1: project.name,
+          value2: threads.length,
+        })
+      : uiText(locale, "App.inline3", {
+          value1: project.name,
+          value2: threads.length,
+        });
+    projectBulkBusy.current = true;
+    try {
+      if (
+        !(await requestConfirmation(message, deleting ? "danger" : undefined))
+      )
+        return;
+      setProjectMenuId(undefined);
+      const failed: string[] = [];
+      const completed = new Set<string>();
+      for (const thread of threads) {
+        try {
+          if (deleting) await window.artemis.deleteThread(thread.id);
+          else await window.artemis.archiveThread(thread.id, true);
+          completed.add(thread.id);
+          if (deleting) {
+            loadedEventThreads.current.delete(thread.id);
+            loadingEventThreads.current.delete(thread.id);
+            threadStateCache.current.delete(thread.id);
+            setWorkspaceTabsByThread((current) => {
+              const next = { ...current };
+              delete next[thread.id];
+              return next;
+            });
+            setComposerDrafts((current) =>
+              clearComposerDraft(
+                current,
+                conversationDraftKey(thread.projectId, thread.id),
+              ),
+            );
+          }
+        } catch (error) {
+          failed.push(
+            `${thread.title}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      const refreshed = await window.artemis.getSnapshot();
+      setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+      if (activeThreadId && completed.has(activeThreadId)) {
+        const next = refreshed.threads.find(
+          (thread) => thread.projectId === project.id && !thread.archived,
+        );
+        setActiveThreadId(next?.id);
+        setMode(next?.mode ?? "work");
+      }
+      setToast(
+        failed.length
+          ? {
+              error: true,
+              message: `${completed.size}/${threads.length} · ${failed.join("\n")}`,
+            }
+          : undefined,
+      );
+    } catch (error) {
+      setToast({ error: true, message: String(error) });
+    } finally {
+      projectBulkBusy.current = false;
+    }
+  };
+
+  const setThreadArchived = useCallback(
+    async (thread: Thread, archived: boolean) => {
+      if (archived && !(await requestConfirmation(t.archiveConfirm))) return;
+      try {
+        const updated = await window.artemis.archiveThread(thread.id, archived);
+        const refreshed = await window.artemis.getSnapshot();
+        setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+        if (archived) {
+          if (activeThreadId === thread.id) {
+            const nextThread = refreshed.threads.find(
+              (candidate) =>
+                candidate.projectId === thread.projectId &&
+                !candidate.archived &&
+                candidate.id !== thread.id,
+            );
+            setActiveThreadId(nextThread?.id);
+            if (nextThread) {
+              setMode(nextThread.mode);
+            }
+          }
+          setActiveView("workspace");
+        } else {
+          setActiveView("workspace");
+          setActiveProjectId(updated.projectId);
+          setActiveThreadId(updated.id);
+          setMode(updated.mode);
+          window.requestAnimationFrame(() => promptInput.current?.focus());
+        }
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setThreadMenuId(undefined);
+      }
+    },
+    [activeThreadId, requestConfirmation, t.archiveConfirm, t.taskError],
+  );
+
+  const forkThread = useCallback(
+    async (thread: Thread) => {
+      try {
+        const forked = await window.artemis.forkThread(thread.id);
+        setSnapshot((current) =>
+          current
+            ? {
+                ...current,
+                threads: [forked.thread, ...current.threads],
+                worktrees: forked.worktree
+                  ? [forked.worktree, ...current.worktrees]
+                  : current.worktrees,
+                events: {
+                  ...current.events,
+                  [forked.thread.id]: forked.events,
+                },
+              }
+            : current,
+        );
+        setActiveView("workspace");
+        setActiveProjectId(forked.thread.projectId);
+        setActiveThreadId(forked.thread.id);
+        setMode(forked.thread.mode);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setThreadMenuId(undefined);
+      }
+    },
+    [t.taskError],
+  );
+
+  const resolveApprovalRequest = useCallback(
+    async (
+      approval: ApprovalState,
+      approved: boolean,
+      scope: "once" | "session" | "project",
+      extra?: Parameters<ResolveApprovalDecision>[3],
+    ) => {
+      try {
+        await window.artemis.resolveApproval({
+          approvalId: approval.approvalId,
+          nonce: approval.nonce,
+          approved,
+          scope,
+          ...extra,
+        });
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw error;
+      }
+    },
+    [t.taskError],
+  );
+
+  const resolveUserInputRequest = useCallback(
+    async (resolution: UserInputResolution) => {
+      try {
+        await window.artemis.resolveUserInput(resolution);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+        throw error;
+      }
+    },
+    [t.taskError],
+  );
+
+  const cancelActiveTurn = useCallback(async (): Promise<boolean> => {
+    if (!activeThreadId) return false;
+    try {
+      await window.artemis.cancelTurn(activeThreadId);
+      return true;
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return false;
+    }
+  }, [activeThreadId, t.taskError]);
+
+  const addPromptAttachments = useCallback(
+    (response: import("../../shared/api.js").AttachmentImportResponse) => {
+      const selected = Array.isArray(response)
+        ? response
+        : response.attachments;
+      if (!Array.isArray(response) && response.errors.length)
+        setToast(response.errors.join("\n"));
+      const { attachments: next, limited } = appendPromptAttachments(
+        draftAttachments.current.get(activeComposerDraftKey) ?? [],
+        selected,
+      );
+      draftAttachments.current.set(activeComposerDraftKey, next);
+      setAttachments(next);
+      for (const item of selected) {
+        if (!isAttachmentReference(item)) continue;
+        if (
+          !next.some(
+            (candidate) =>
+              isAttachmentReference(candidate) && candidate.id === item.id,
+          )
+        ) {
+          void window.artemis.cancelPromptAttachment(item.id);
+          continue;
+        }
+        if (item.status !== "pending") continue;
+        void pendingAttachmentReads.current.track(
+          activeComposerDraftKey,
+          window.artemis
+            .preparePromptAttachment(item.id)
+            .then((ready) => {
+              setComposerDrafts((drafts) =>
+                updateComposerDraft(
+                  drafts,
+                  activeComposerDraftKey,
+                  (draft) => ({
+                    ...draft,
+                    attachments: draft.attachments.map((candidate) =>
+                      isAttachmentReference(candidate) &&
+                      candidate.id === item.id
+                        ? { ...ready, name: candidate.name }
+                        : candidate,
+                    ),
+                  }),
+                ),
+              );
+              const current =
+                draftAttachments.current.get(activeComposerDraftKey) ?? [];
+              draftAttachments.current.set(
+                activeComposerDraftKey,
+                current.map((candidate) =>
+                  isAttachmentReference(candidate) && candidate.id === item.id
+                    ? { ...ready, name: candidate.name }
+                    : candidate,
+                ),
+              );
+            })
+            .catch((error) => {
+              if (
+                (
+                  draftAttachments.current.get(activeComposerDraftKey) ?? []
+                ).some(
+                  (candidate) =>
+                    isAttachmentReference(candidate) &&
+                    candidate.id === item.id,
+                )
+              )
+                setToast(String(error));
+            }),
+        );
+      }
+      if (limited) {
+        setToast(t.attachmentLimit);
+      }
+    },
+    [activeComposerDraftKey, setAttachments, t.attachmentLimit],
+  );
+
+  const selectPromptAttachments = useCallback(async () => {
+    if (attachments.length >= MAX_PROMPT_ATTACHMENTS) {
+      setToast(t.attachmentLimit);
+      return;
+    }
+    try {
+      const selected = await window.artemis.selectPromptAttachments();
+      if (selected) {
+        addPromptAttachments(selected);
+      }
+    } catch (error) {
+      setToast(
+        `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }, [
+    addPromptAttachments,
+    attachments.length,
+    t.attachmentLimit,
+    t.taskError,
+  ]);
+
+  const handleAttachmentDragEnter = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setAttachmentDragActive(true);
+    },
+    [],
+  );
+
+  const handleAttachmentDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      setAttachmentDragActive(true);
+    },
+    [],
+  );
+
+  const handleAttachmentDragLeave = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      const relatedTarget = event.relatedTarget;
+      if (
+        relatedTarget instanceof Node &&
+        event.currentTarget.contains(relatedTarget)
+      ) {
+        return;
+      }
+      setAttachmentDragActive(false);
+    },
+    [],
+  );
+
+  const handleAttachmentDrop = useCallback(
+    async (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setAttachmentDragActive(false);
+      const files = Array.from(event.dataTransfer.files);
+      if (files.length === 0) return;
+      try {
+        addPromptAttachments(await window.artemis.readPromptAttachments(files));
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [addPromptAttachments, t.taskError],
+  );
+
+  const handleAttachmentPaste = useCallback(
+    async (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+      const files = Array.from(event.clipboardData.files);
+      if (files.length === 0) return;
+      event.preventDefault();
+      try {
+        await pendingAttachmentReads.current.track(
+          activeComposerDraftKey,
+          window.artemis
+            .readPromptAttachments(files)
+            .then(addPromptAttachments),
+        );
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [activeComposerDraftKey, addPromptAttachments, t.taskError],
+  );
+
+  const changeApprovalPolicy = useCallback(
+    async (policy: ApprovalPolicy) => {
+      if (approvalChangeLocked) return;
+      setApprovalMenuOpen(false);
+      try {
+        const settings = await window.artemis.setApprovalPolicy(policy);
+        setApprovalPolicy(settings.approvalPolicy);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    },
+    [approvalChangeLocked, t.taskError],
+  );
+
+  const updateThreadInSnapshot = useCallback((updated: Thread) => {
+    setSnapshot((current) =>
+      current
+        ? {
+            ...current,
+            threads: current.threads.map((thread) =>
+              thread.id === updated.id ? updated : thread,
+            ),
+          }
+        : current,
+    );
+  }, []);
+
+  const selectComposerCommand = useCallback(
+    (value: string) => {
+      setPrompt((current) => {
+        const next = replaceActiveSlashCommand(current, value);
+        promptHistoryNavigation.current = { index: -1, draft: next };
+        return next;
+      });
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [setPrompt],
+  );
+
+  const selectSkillCommand = useCallback(
+    (skill: InstalledSkill) => {
+      setSelectedComposerSkillNames((current) =>
+        current.includes(skill.name) ? current : [...current, skill.name],
+      );
+      setPrompt((current) => {
+        const next = replaceActiveSlashCommand(current, "").trimEnd();
+        promptHistoryNavigation.current = { index: -1, draft: next };
+        return next;
+      });
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [setPrompt, setSelectedComposerSkillNames],
+  );
+
+  const removeSelectedSkill = useCallback(
+    (skillName: string) => {
+      setSelectedComposerSkillNames((current) =>
+        current.filter((name) => name !== skillName),
+      );
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [setSelectedComposerSkillNames],
+  );
+
+  const clearSubmittedPrompt = useCallback(
+    (submittedPrompt: string) => {
+      const pending = designPanelCredentials.current.get(
+        activeComposerDraftKey,
+      );
+      designPanelCredentials.current.delete(activeComposerDraftKey);
+      if (pending)
+        void window.artemis
+          .discardDesignPanelCandidate(pending.credential)
+          .catch(() => undefined);
+      setPromptHistory((current) =>
+        addPromptHistoryEntry(current, submittedPrompt),
+      );
+      promptHistoryNavigation.current = { index: -1, draft: "" };
+      setPrompt("");
+      setSelectedComposerSkillNames([]);
+      setCustomAgentTasks([]);
+    },
+    [
+      activeComposerDraftKey,
+      setPrompt,
+      setSelectedComposerSkillNames,
+      setCustomAgentTasks,
+    ],
+  );
+
+  const recordPromptSubmission = useCallback(
+    (threadId: string, submittedAt: number) => {
+      setPromptSubmittedAtByThread((current) => ({
+        ...current,
+        [threadId]: submittedAt,
+      }));
+    },
+    [],
+  );
+
+  const selectMode = useCallback(
+    async (nextMode: RunMode) => {
+      try {
+        if (isExecutionMode(mode) && !isExecutionMode(nextMode) && activeThread)
+          await window.artemis.controlComputer("revoke-task", activeThread.id);
+        setMode(nextMode);
+        return true;
+      } catch (error) {
+        setToast({ error: true, message: String(error) });
+        return false;
+      }
+    },
+    [mode, activeThread],
+  );
+
+  const selectModeCommand = useCallback(
+    async (nextMode: RunMode) => {
+      if (turnActive || busy || !(await selectMode(nextMode))) return;
+      setPrompt((current) => replaceActiveSlashCommand(current, "").trimEnd());
+      setSkillMenuDismissed(true);
+      window.requestAnimationFrame(() => promptInput.current?.focus());
+    },
+    [busy, turnActive, selectMode, setPrompt],
+  );
+
+  const sendPrompt = useCallback(async () => {
+    if (busy || retiredGroup) return;
+    await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
+    let pendingAttachments =
+      draftAttachments.current.get(activeComposerDraftKey) ?? [];
+    // 面板文档绑定（OD activeFileContext）：发送自动附上锁定页面，
+    // 用户已手动附同名页时以手动为准。
+    const activeBinding = designDocBindingRef.current;
+    if (
+      activeBinding?.html.trim() &&
+      !pendingAttachments.some(
+        (item) =>
+          "type" in item &&
+          item.type === "file" &&
+          item.mimeType === "text/html" &&
+          item.name === activeBinding.name,
+      )
+    ) {
+      const merged = addDesignDocumentAttachment(pendingAttachments, {
+        documentId: activeBinding.documentId,
+        documentName: activeBinding.name,
+        html: activeBinding.html,
+      });
+      if (merged) {
+        pendingAttachments = merged;
+        setAttachments(merged);
+      }
+    }
+    if (customAgentTasks.some((task) => !task.text.trim())) {
+      setToast({
+        error: true,
+        message: uiText(locale, "App.inline4"),
+      });
+      return;
+    }
+    const rawPrompt = prompt.trim();
+    const panelCandidate = designPanelCredentials.current.get(
+      activeComposerDraftKey,
+    );
+    const designPanelCredential =
+      panelCandidate?.text === rawPrompt
+        ? panelCandidate.credential
+        : undefined;
+    if (panelCandidate && !designPanelCredential) {
+      designPanelCredentials.current.delete(activeComposerDraftKey);
+      void window.artemis
+        .discardDesignPanelCandidate(panelCandidate.credential)
+        .catch(() => undefined);
+    }
+    const runModeCommand = parseRunModeCommand(rawPrompt);
+    if (runModeCommand && runModeCommand.kind === "multiple") {
+      setToast({ error: true, message: t.multipleModeCommands });
+      return;
+    }
+    if (
+      runModeCommand &&
+      runModeCommand.kind === "command" &&
+      turnActive &&
+      runModeCommand.mode !== "plan"
+    ) {
+      setToast({ error: true, message: t.modeCommandWhileRunning });
+      return;
+    }
+    const submittedMode =
+      runModeCommand?.kind === "command" ? runModeCommand.mode : mode;
+    const commandPrompt =
+      runModeCommand?.kind === "command" ? runModeCommand.prompt : rawPrompt;
+    // A @ sub-agent chip binds to a plain dispatch message. Control
+    // commands (/plan, /goal, /compact, …) never carry one.
+    if (
+      customAgentTasks.length > 0 &&
+      commandPrompt.trimStart().startsWith("/")
+    ) {
+      setToast({ error: true, message: t.customAgentControlConflict });
+      return;
+    }
+    if (runModeCommand?.kind === "command") {
+      if (turnActive && activeThread && !commandPrompt) {
+        await window.artemis.cancelTurn(activeThread.id);
+      }
+      if ((!turnActive || !commandPrompt) && !(await selectMode(submittedMode)))
+        return;
+      if (
+        !commandPrompt &&
+        pendingAttachments.length === 0 &&
+        selectedSkills.length === 0
+      ) {
+        clearSubmittedPrompt(rawPrompt);
+        return;
+      }
+    }
+
+    const compactMatch = commandPrompt.match(/^\/compact(?:\s+([\s\S]*))?$/iu);
+    const compactInstructions = compactMatch?.[1]?.trim() || undefined;
+    if (compactMatch && !activeThread) {
+      setToast(t.compactRequiresTask);
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+    if (compactMatch && turnActive) {
+      setToast(t.compactWhileRunning);
+      return;
+    }
+    const goalCommand = parseGoalCommand(commandPrompt, locale);
+    if (goalCommand?.kind === "invalid") {
+      setToast({ error: true, message: goalCommand.message });
+      return;
+    }
+    if (goalCommand?.kind === "show") {
+      setToast(
+        activeThread?.goal
+          ? `${t.goal}: ${activeThread.goal.objective} · ${GOAL_RESOURCES[locale][activeThread.goal.status]} · ${activeThread.goal.tokensUsed}${activeThread.goal.tokenBudget === undefined ? "" : `/${activeThread.goal.tokenBudget}`} Token`
+          : t.noGoal,
+      );
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+    if (goalCommand && goalCommand.kind !== "set" && !activeThread) {
+      setToast(t.noGoal);
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+    if (goalCommand?.kind === "edit") {
+      if (!activeThread?.goal) setToast(t.noGoal);
+      else openGoalEditor();
+      clearSubmittedPrompt(rawPrompt);
+      return;
+    }
+    if (goalCommand?.kind === "set" && turnActive) {
+      setToast({ error: true, message: t.goalSetWhileRunning });
+      return;
+    }
+
+    const visibleText =
+      goalCommand?.kind === "set"
+        ? goalCommand.objective
+        : commandPrompt ||
+          (pendingAttachments.some((item) => readOfficeAnnotations(item))
+            ? officeAnnotationCopy(locale).request
+            : pendingAttachments.length
+              ? t.inspectAttachments
+              : "");
+    // 设计面板批注：消息体在发送边界拼结构化 hint（OD 的
+    // messageContentWithCommentAttachments 等价物），composer 只留用户文字
+    const designHint = designAnnotationDrafts.current
+      .get(activeComposerDraftKey)
+      ?.takeForSend() ?? { hint: "" };
+    // 文档绑定说明块（OD 附件信号的设计插件等价物）
+    const designBindingHint = designDocBindingRef.current
+      ? buildDesignBindingHint(designDocBindingRef.current)
+      : "";
+    const text = goalCommand
+      ? visibleText
+      : promptWithSelectedSkills(visibleText, selectedSkills) +
+        designHint.hint +
+        designBindingHint;
+    if ((!text && customAgentTasks.length === 0) || busy) return;
+    const submittedAt = Date.now();
+    let createdThread: Thread | undefined;
+    if (compactMatch && activeThread) {
+      const threadId = activeThread.id;
+      clearSubmittedPrompt(rawPrompt);
+      setCompactingThreadIds((current) => new Set([...current, threadId]));
+      try {
+        await window.artemis.compactThread(threadId, compactInstructions);
+      } catch (error) {
+        setToast({
+          error: true,
+          message: `${t.compactFailed} ${error instanceof Error ? error.message : String(error)}`,
+        });
+      } finally {
+        setCompactingThreadIds((current) => {
+          const next = new Set(current);
+          next.delete(threadId);
+          return next;
+        });
+      }
+      return;
+    }
+    setBusy(true);
+    try {
+      if (goalCommand?.kind === "pause" && activeThread) {
+        const updated = await window.artemis.pauseThreadGoal(activeThread.id);
+        updateThreadInSnapshot(updated);
+        clearSubmittedPrompt(rawPrompt);
+        return;
+      }
+      if (goalCommand?.kind === "resume" && activeThread) {
+        const updated = await window.artemis.resumeThreadGoal(activeThread.id);
+        updateThreadInSnapshot(updated);
+        clearSubmittedPrompt(rawPrompt);
+        return;
+      }
+      if (goalCommand?.kind === "clear" && activeThread) {
+        const updated = await window.artemis.clearThreadGoal(activeThread.id);
+        updateThreadInSnapshot(updated);
+        closeGoalEditor();
+        clearSubmittedPrompt(rawPrompt);
+        setToast(t.goalCleared);
+        return;
+      }
+
+      const thread = activeThread ?? (await createThread());
+      if (!thread) return;
+      if (!activeThread) createdThread = thread;
+      let currentThread = thread;
+      if (goalCommand?.kind === "set") {
+        if (
+          activeThread?.goal &&
+          !(await requestConfirmation(t.goalReplaceConfirm))
+        ) {
+          return;
+        }
+        if (activeThread?.goal) {
+          currentThread = await window.artemis.clearThreadGoal(thread.id);
+          updateThreadInSnapshot(currentThread);
+          closeGoalEditor();
+        }
+        currentThread = await window.artemis.setThreadGoal(
+          thread.id,
+          goalCommand.objective,
+          goalCommand.tokenBudget,
+        );
+        updateThreadInSnapshot(currentThread);
+        setToast(t.goalSet);
+      }
+
+      if (activeThread && turnActive && submittedMode === "plan") {
+        const result = await window.artemis.revisePlan({
+          threadId: currentThread.id,
+          text,
+          ...(pendingAttachments.length
+            ? { attachments: pendingAttachments }
+            : {}),
+        });
+        updateThreadInSnapshot(result.thread);
+        setMode("plan");
+        clearSubmittedPrompt(rawPrompt);
+        draftAttachments.current.set(activeComposerDraftKey, []);
+        setAttachments([]);
+        return;
+      }
+      if (activeThread && turnActive) {
+        // Explicit @ dispatch requires an idle thread this phase; the
+        // follow-up queue has no invocation-record carriage yet.
+        if (customAgentTasks.length > 0) {
+          setToast({ error: true, message: t.customAgentWhileRunning });
+          return;
+        }
+        await window.artemis.followUpTurn({
+          ...(designPanelCredential ? { designPanelCredential } : {}),
+          threadId: currentThread.id,
+          text,
+          ...(pendingAttachments.length
+            ? { attachments: pendingAttachments }
+            : {}),
+        });
+        recordPromptSubmission(currentThread.id, submittedAt);
+        clearSubmittedPrompt(rawPrompt);
+        draftAttachments.current.set(activeComposerDraftKey, []);
+        setAttachments([]);
+        return;
+      }
+      const result = await window.artemis.startTurn({
+        ...(designPanelCredential ? { designPanelCredential } : {}),
+        threadId: currentThread.id,
+        text,
+        mode: submittedMode,
+        submittedAt,
+        ...(pendingAttachments.length
+          ? { attachments: pendingAttachments }
+          : {}),
+        // The renderer mints one invocationId per submission; IPC retries
+        // of this call reuse it and the store dedups by (thread, id) +
+        // content fingerprint.
+        ...(customAgentTasks.length > 0
+          ? {
+              customAgentTasks: customAgentTasks.map((task) => ({
+                definitionId: task.definitionId,
+                revision: task.revision,
+                invocationId: crypto.randomUUID(),
+                text: task.text.trim(),
+              })),
+            }
+          : {}),
+      });
+      recordPromptSubmission(currentThread.id, submittedAt);
+      updateThreadInSnapshot(result.thread);
+      clearSubmittedPrompt(rawPrompt);
+      draftAttachments.current.set(activeComposerDraftKey, []);
+      setAttachments([]);
+    } catch (error) {
+      if (
+        panelCandidate &&
+        designPanelCredentials.current.get(activeComposerDraftKey) ===
+          panelCandidate
+      ) {
+        designPanelCredentials.current.delete(activeComposerDraftKey);
+        void window.artemis
+          .discardDesignPanelCandidate(panelCandidate.credential)
+          .catch(() => undefined);
+      }
+      if (createdThread) {
+        const createdDraftKey = conversationDraftKey(
+          createdThread.projectId,
+          createdThread.id,
+        );
+        setComposerDrafts((current) =>
+          updateComposerDraft(
+            clearComposerDraft(current, activeComposerDraftKey),
+            createdDraftKey,
+            () => activeComposerDraft,
+          ),
+        );
+      }
+      setToast(
+        `${compactMatch ? t.compactFailed : t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    activeThread,
+    activeComposerDraft,
+    activeComposerDraftKey,
+    locale,
+    busy,
+    retiredGroup,
+    clearSubmittedPrompt,
+    closeGoalEditor,
+    selectMode,
+    createThread,
+    customAgentTasks,
+    mode,
+    openGoalEditor,
+    prompt,
+    recordPromptSubmission,
+    selectedSkills,
+    t.compactFailed,
+    t.compactRequiresTask,
+    t.compactWhileRunning,
+    t.customAgentControlConflict,
+    t.customAgentWhileRunning,
+    t.goal,
+    t.goalCleared,
+    t.goalReplaceConfirm,
+    t.goalSet,
+    t.goalSetWhileRunning,
+    t.inspectAttachments,
+    t.modeCommandWhileRunning,
+    t.multipleModeCommands,
+    t.noGoal,
+    t.taskError,
+    turnActive,
+    updateThreadInSnapshot,
+    requestConfirmation,
+  ]);
+
+  // 设计面板批注自动发送：sendPrompt 的闭包读取 prompt state，必须等
+  // setPrompt 真正落地再触发；期间文本被用户改动则放弃自动发送。
+  useEffect(() => {
+    const pending = designPanelAutoSendText.current;
+    if (pending == null || pending.draftKey !== activeComposerDraftKey) return;
+    if (prompt.trim() !== pending.text) {
+      designPanelAutoSendText.current = null;
+      const candidate = designPanelCredentials.current.get(
+        activeComposerDraftKey,
+      );
+      designPanelCredentials.current.delete(activeComposerDraftKey);
+      if (candidate)
+        void window.artemis
+          .discardDesignPanelCandidate(candidate.credential)
+          .catch(() => undefined);
+      return;
+    }
+    if (busy || retiredGroup) return;
+    designPanelAutoSendText.current = null;
+    void sendPrompt();
+  }, [activeComposerDraftKey, busy, prompt, retiredGroup, sendPrompt]);
+
+  const updateActiveGoal = useCallback(
+    async (action: "pause" | "resume" | "clear") => {
+      if (!activeThread || goalMutationPending) return;
+      setGoalMutationPending(true);
+      try {
+        const updated = await (action === "pause"
+          ? window.artemis.pauseThreadGoal(activeThread.id)
+          : action === "resume"
+            ? window.artemis.resumeThreadGoal(activeThread.id)
+            : window.artemis.clearThreadGoal(activeThread.id));
+        updateThreadInSnapshot(updated);
+        if (action === "clear") closeGoalEditor();
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setGoalMutationPending(false);
+      }
+    },
+    [
+      activeThread,
+      closeGoalEditor,
+      goalMutationPending,
+      t.taskError,
+      updateThreadInSnapshot,
+    ],
+  );
+
+  useEffect(() => {
+    const goal = activeThread?.goal;
+    if (!goal || !["paused", "blocked", "usageLimited"].includes(goal.status)) {
+      return;
+    }
+    const key = `${goal.threadId}:${goal.goalId}`;
+    if (promptedGoalResumes.current.has(key)) return;
+    promptedGoalResumes.current.add(key);
+    void requestConfirmation(t.goalResumeConfirm, "default", {
+      acceptLabel: t.goalResumeAccept,
+      cancelLabel: t.goalResumeLater,
+      title: t.goalResumeTitle,
+    }).then(async (confirmed) => {
+      if (!confirmed) return;
+      setGoalMutationPending(true);
+      try {
+        const updated = await window.artemis.resumeThreadGoal(goal.threadId);
+        updateThreadInSnapshot(updated);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setGoalMutationPending(false);
+      }
+    });
+  }, [
+    activeThread?.goal,
+    requestConfirmation,
+    t.goalResumeAccept,
+    t.goalResumeConfirm,
+    t.goalResumeLater,
+    t.goalResumeTitle,
+    t.taskError,
+    updateThreadInSnapshot,
+  ]);
+
+  const steerQueuedMessage = useCallback(
+    async (index: number) => {
+      const expectedText = queuedFollowUps[index];
+      if (!activeThread || busy || !expectedText) return;
+      setBusy(true);
+      try {
+        await window.artemis.steerQueuedTurn({
+          threadId: activeThread.id,
+          followUpIndex: index,
+          expectedFollowUp: [...queuedFollowUps],
+        });
+        setEditingQueuedMessage(undefined);
+      } catch (error) {
+        setToast(
+          `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeThread, busy, queuedFollowUps, t.taskError],
+  );
+
+  const replaceQueuedMessages = useCallback(
+    async (
+      followUp: Array<{ sourceIndex: number; text: string }>,
+      options?: { silent?: boolean },
+    ) => {
+      if (!activeThread || busy) {
+        setQueuedSaveErrorDetail(null);
+        return false;
+      }
+      setBusy(true);
+      try {
+        await window.artemis.replaceTurnQueue({
+          threadId: activeThread.id,
+          expectedFollowUp: [...queuedFollowUps],
+          followUp,
+        });
+        setEditingQueuedMessage(undefined);
+        setQueuedSaveErrorDetail(null);
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!options?.silent) {
+          setToast(`${t.taskError} ${message}`);
+        } else {
+          setQueuedSaveErrorDetail(message);
+        }
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [activeThread, busy, queuedFollowUps, t.taskError],
+  );
+
+  const deleteQueuedMessage = useCallback(
+    (index: number) => {
+      if (!queuedFollowUps[index]) return;
+      return replaceQueuedMessages(
+        queuedFollowUps.flatMap((text, sourceIndex) =>
+          sourceIndex === index ? [] : [{ sourceIndex, text }],
+        ),
+      );
+    },
+    [queuedFollowUps, replaceQueuedMessages],
+  );
+
+  const moveQueuedMessageToFront = useCallback(
+    (index: number) => {
+      const message = queuedFollowUps[index];
+      if (!message || index === 0) return;
+      return replaceQueuedMessages([
+        { sourceIndex: index, text: message },
+        ...queuedFollowUps
+          .map((text, sourceIndex) => ({ sourceIndex, text }))
+          .filter((item) => item.sourceIndex !== index),
+      ]);
+    },
+    [queuedFollowUps, replaceQueuedMessages],
+  );
+
+  const saveQueuedMessage = useCallback(
+    (index: number, value: string) => {
+      const message = value.trim();
+      if (!message || !queuedFollowUps[index]) return;
+      return replaceQueuedMessages(
+        queuedFollowUps.map((text, sourceIndex) => ({
+          sourceIndex,
+          text: sourceIndex === index ? message : text,
+        })),
+        { silent: true },
+      );
+    },
+    [queuedFollowUps, replaceQueuedMessages],
+  );
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const modifier = event.ctrlKey || event.metaKey;
+      if (event.key === "Escape") {
+        setApprovalMenuOpen(false);
+        setModelPickerOpen(false);
+        setModelPickerSection("model");
+      } else if (modifier && event.altKey && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        toggleReviewPanel();
+      } else if (modifier && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        changeSidebarOpen((open) => !open);
+      } else if (modifier && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        toggleTerminalPanel();
+      } else if (modifier && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        beginNewConversation();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [
+    beginNewConversation,
+    changeSidebarOpen,
+    toggleReviewPanel,
+    toggleTerminalPanel,
+  ]);
+
+  if (!snapshot) {
+    return (
+      <main className="loading-shell">
+        <ArtemisMark />
+        <span>Artemis</span>
+      </main>
+    );
+  }
+
+  const navigationItems = [
+    ["resources", uiText(locale, "App.inline5"), <ResourceIcon />],
+    ["token-usage", uiText(locale, "App.inline6"), <TokenUsageIcon />],
+    ["automations", t.automations, <AutomationIcon />],
+    ["archive", uiText(locale, "App.archiveConversations"), <ArchiveIcon />],
+  ] as const;
+
+  return (
+    <ApplicationShell
+      layout="integrated"
+      className="app-shell"
+      style={
+        {
+          "--sidebar-expanded-width": `${projectSidebarWidth ?? defaultProjectSidebarWidth}px`,
+        } as CSSProperties
+      }
+      data-sidebar-animating={sidebarAnimating || undefined}
+      data-sidebar-peek={(sidebarPeek && !sidebarOpen) || undefined}
+      data-platform={snapshot.platform}
+      data-renderer-ready="true"
+      sidebarOpen={sidebarOpen}
+      sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
+    >
+      <SidebarGlassFilters />
+      <NavigationSidebar
+        className="sidebar"
+        peek={sidebarPeek && !sidebarOpen}
+        onMouseEnter={requestSidebarPeek}
+        onMouseMove={requestSidebarPeek}
+        onMouseLeave={() => {
+          sidebarHoverSuppressed.current = false;
+          if (
+            !projectSidebar.current
+              ?.querySelector('[data-part="main"]')
+              ?.querySelector(":focus-visible")
+          )
+            closeSidebarPeek();
+        }}
+        onBlur={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget) &&
+            !(
+              event.relatedTarget instanceof Element &&
+              event.relatedTarget.closest(".thread-menu")
+            ) &&
+            !event.currentTarget.matches(":hover")
+          )
+            closeSidebarPeek();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && sidebarPeek) {
+            closeSidebarPeek();
+            sidebarHoverSuppressed.current = true;
+            requestAnimationFrame(() => {
+              projectSidebar.current
+                ?.querySelector<HTMLButtonElement>(".rail-brand")
+                ?.focus({ preventScroll: true });
+            });
+          }
+        }}
+        rail={
+          <div className="sidebar-rail">
+            <button
+              className="rail-brand"
+              type="button"
+              aria-label={t.leftSidebar}
+              onClick={() => changeSidebarOpen(true)}
+            >
+              <ArtemisMark />
+            </button>
+            <nav aria-label={t.activityBar}>
+              {navigationItems.map(([view, label, icon]) => (
+                <button
+                  type="button"
+                  className="activity-button rail-item"
+                  key={view}
+                  data-nav-view={view}
+                  aria-label={label}
+                  title={label}
+                  aria-current={activeView === view ? "page" : undefined}
+                  onClick={() => setActiveView(view)}
+                >
+                  {icon}
+                </button>
+              ))}
+            </nav>
+            <span aria-hidden="true" className="rail-sep" />
+            <button
+              className="rail-anchor"
+              type="button"
+              title={activeWorkspaceLabel}
+              aria-label={t.projects}
+              onClick={() => {
+                setActiveView("workspace");
+                changeSidebarOpen(true);
+              }}
+            >
+              <FolderIcon />
+            </button>
+            <span className="rail-sp" />
+            <button
+              type="button"
+              className="rail-avatar"
+              title={username}
+              aria-label={username}
+              onClick={(event) => openSettings("general", event.currentTarget)}
+            >
+              {userInitials(username)}
+            </button>
+            <button
+              type="button"
+              className="rail-item"
+              aria-label={t.settings}
+              title={t.settings}
+              onClick={(event) => openSettings("general", event.currentTarget)}
+            >
+              <SettingsIcon />
+            </button>
+          </div>
+        }
+        footer={
+          <div className="sidebar-footer">
+            <button
+              className="activity-button foot-icon"
+              type="button"
+              aria-label={t.settings}
+              title={t.settings}
+              onClick={(event) => openSettings("general", event.currentTarget)}
+            >
+              <SettingsIcon />
+            </button>
+            <span className="local-indicator" title={username}>
+              <span aria-hidden="true" className="sidebar-profile-avatar">
+                {runtimeSettings?.profileAvatar ? (
+                  <img alt="" src={runtimeSettings.profileAvatar} />
+                ) : (
+                  userInitials(username)
+                )}
+              </span>
+              <span className="local-user-name">{username}</span>
+              {runtimeSettings?.update.currentVersion && (
+                <button
+                  className="app-version"
+                  onClick={(event) =>
+                    openSettings("maintenance", event.currentTarget)
+                  }
+                  title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                  type="button"
+                >
+                  v{runtimeSettings.update.currentVersion}
+                </button>
+              )}
+            </span>
+            {runtimeSettings?.update.availableVersion && (
+              <button
+                className={
+                  runtimeSettings.update.state === "downloaded"
+                    ? "update-btn downloaded"
+                    : "update-btn"
+                }
+                type="button"
+                aria-label={uiText(
+                  locale,
+                  runtimeSettings.update.state === "downloaded"
+                    ? "Update.install"
+                    : runtimeSettings.update.manualUpdate
+                      ? "Update.manualDownload"
+                      : "Update.download",
+                )}
+                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.install" : runtimeSettings.update.manualUpdate ? "Update.manualDownload" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
+                disabled={
+                  installingUpdate ||
+                  ["checking", "downloading"].includes(
+                    runtimeSettings.update.state,
+                  )
+                }
+                onClick={async () => {
+                  try {
+                    if (runtimeSettings.update.manualDownloadUrl) {
+                      window.open(
+                        runtimeSettings.update.manualDownloadUrl,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    } else if (runtimeSettings.update.state === "downloaded") {
+                      setInstallingUpdate(true);
+                      await window.artemis.installUpdate();
+                    } else {
+                      const update = await window.artemis.downloadUpdate();
+                      setRuntimeSettings((current) =>
+                        current ? { ...current, update } : current,
+                      );
+                      if (update.state === "error")
+                        setToast({
+                          error: true,
+                          message: update.message ?? update.state,
+                        });
+                    }
+                  } catch (error) {
+                    setInstallingUpdate(false);
+                    setToast({
+                      error: true,
+                      message:
+                        error instanceof Error ? error.message : String(error),
+                    });
+                  }
+                }}
+              >
+                {runtimeSettings.update.state === "downloaded" ? (
+                  uiText(
+                    locale,
+                    installingUpdate ? "Update.installing" : "Update.install",
+                  )
+                ) : (
+                  <ArtemisIcon name="download" />
+                )}
+              </button>
+            )}
+            {(runtimeSettings?.update.state === "downloading" ||
+              runtimeSettings?.update.state === "downloaded") && (
+              <div className="sidebar-update-progress">
+                {runtimeSettings.update.state === "downloading" ? (
+                  <>
+                    <span>
+                      {statusText(locale, "downloading")}{" "}
+                      <span>
+                        {Math.round(runtimeSettings.update.progress ?? 0)}%
+                      </span>
+                    </span>
+                    <progress
+                      aria-label={statusText(locale, "downloading")}
+                      max={100}
+                      value={runtimeSettings.update.progress ?? 0}
+                    />
+                  </>
+                ) : (
+                  <span role="status">
+                    {uiText(
+                      locale,
+                      installingUpdate
+                        ? "Update.installing"
+                        : "Update.downloaded",
+                    )}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        }
+        header={
+          <>
+            <div className="sidebar-top">
+              <div className="sidebar-brand">
+                <button
+                  type="button"
+                  className="brand-button"
+                  aria-label="Artemis"
+                  onClick={() => changeSidebarOpen(true)}
+                >
+                  <ArtemisMark />
+                  <strong>Artemis</strong>
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-collapse"
+                  aria-label={t.leftSidebar}
+                  aria-expanded={sidebarOpen}
+                  title={t.leftSidebar}
+                  onClick={() => changeSidebarOpen((open) => !open)}
+                >
+                  <LeftSidebarIcon />
+                </button>
+              </div>
+            </div>
+            <PanelHeader
+              actions={
+                <div className="sidebar-header-actions">
+                  <label
+                    className={
+                      query ? "sidebar-search has-query" : "sidebar-search"
+                    }
+                  >
+                    <SearchIcon />
+                    <input
+                      aria-label={t.search}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder={t.search}
+                      value={query}
+                    />
+                  </label>
+                </div>
+              }
+              className="sidebar-header"
+              headingLevel={2}
+              title={t.tasks}
+            />
+            <nav className="sidebar-nav" aria-label={t.activityBar}>
+              {navigationItems.map(([view, label, icon]) => (
+                <button
+                  type="button"
+                  className="activity-button nav-row"
+                  key={view}
+                  data-nav-view={view}
+                  aria-label={label}
+                  title={label}
+                  aria-current={activeView === view ? "page" : undefined}
+                  onClick={() => setActiveView(view)}
+                >
+                  {icon}
+                  <span>{label}</span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="nav-row"
+                onClick={() => beginNewConversation()}
+              >
+                <ArtemisIcon name="edit-square" />
+                <span>{uiText(locale, "App.inline9")}</span>
+              </button>
+            </nav>
+          </>
+        }
+        label={t.projects}
+        open={sidebarOpen}
+        ref={projectSidebar}
+      >
+        <div
+          aria-label={t.projects}
+          className="project-tree"
+          onKeyDown={(event) =>
+            handleProjectTreeKeyDown(event.nativeEvent, {
+              container: projectTreeElement.current,
+              focusRow: focusProjectTreeRow,
+              collapseRow: collapseProjectTreeRow,
+              expandRow: expandProjectTreeRow,
+              activateRow: activateProjectTreeRow,
+              rtl: document.documentElement.dir === "rtl",
+            })
+          }
+          ref={projectTreeElement}
+          role="tree"
+        >
+          <section
+            aria-expanded={projectsExpanded}
+            aria-level={1}
+            className="project-group project-collection"
+            data-tree-kind="collection"
+            data-tree-level={1}
+            data-tree-row-id="collection:projects"
+            onFocus={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setTreeActiveRowId("collection:projects");
+            }}
+            role="treeitem"
+            tabIndex={
+              treeActiveRowId === "collection:projects" ||
+              treeActiveRowId === undefined
+                ? 0
+                : -1
+            }
+          >
+            <div className="project-row project-group-row">
+              <button
+                aria-expanded={projectsExpanded}
+                aria-label={
+                  projectsExpanded ? t.collapseProjects : t.expandProjects
+                }
+                className="project-group-select"
+                onClick={() => toggleProjectsExpansion()}
+                title={projectsExpanded ? t.collapseProjects : t.expandProjects}
+                type="button"
+              >
+                <span className="project-group-title">{t.projects}</span>
+                <ChevronIcon />
+              </button>
+              <button
+                aria-label={
+                  hasExpandedProject
+                    ? t.collapseAllProjectHistories
+                    : t.expandAllProjectHistories
+                }
+                className="project-collapse-all"
+                disabled={projects.length === 0}
+                onClick={() =>
+                  setProjectHistoriesCollapsed(
+                    projects.map((project) => project.id),
+                    hasExpandedProject,
+                  )
+                }
+                title={
+                  hasExpandedProject
+                    ? t.collapseAllProjectHistories
+                    : t.expandAllProjectHistories
+                }
+                type="button"
+              >
+                <ArtemisIcon
+                  height={12}
+                  name={hasExpandedProject ? "collapse" : "expand"}
+                  width={12}
+                />
+              </button>
+              <Tooltip align="end" label={t.openProject}>
+                <button
+                  aria-label={t.openProject}
+                  className="project-new-thread"
+                  onClick={() => void openProject()}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              </Tooltip>
+            </div>
+            <div
+              className="project-collection-rows"
+              hidden={!projectsExpanded}
+              role="group"
+            >
+              {projects.map((project) => {
+                const hasActiveTask = snapshot.threads.some(
+                  (thread) =>
+                    thread.projectId === project.id &&
+                    (thread.status === "running" ||
+                      thread.status === "waiting-approval"),
+                );
+                const matchesProject = project.name
+                  .toLowerCase()
+                  .includes(query.trim().toLowerCase());
+                const projectThreads = orderProjectThreadsByPreference(
+                  sortProjectThreads(
+                    snapshot.threads
+                      .filter(
+                        (thread) =>
+                          thread.projectId === project.id && !thread.archived,
+                      )
+                      .filter(
+                        (thread) =>
+                          !isWorkspaceDraftThread(thread) &&
+                          (!imThreadStatus[thread.id]?.group?.native ||
+                            !!imThreadStatus[thread.id]?.group?.retired ||
+                            !!imThreadStatus[thread.id]?.parentThreadId),
+                      )
+                      .filter(
+                        (thread) =>
+                          matchesProject ||
+                          thread.title
+                            .toLowerCase()
+                            .includes(query.trim().toLowerCase()),
+                      ),
+                    snapshot.events,
+                    promptSubmittedAtByThread,
+                  ),
+                  runtimeSettings?.projectThreadOrder?.[project.id],
+                );
+                const expanded = expandedProjectIds.has(project.id);
+                const projectOpen = !collapsedProjectIds.has(project.id);
+                const visibleThreads = expanded
+                  ? projectThreads
+                  : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
+                return (
+                  <section
+                    aria-expanded={projectOpen}
+                    aria-level={2}
+                    data-tree-kind="project"
+                    className={`project-group nested-project${
+                      draggedProjectId === project.id ? " dragging" : ""
+                    }${
+                      projectDropTarget?.projectId === project.id
+                        ? ` drop-${projectDropTarget.edge}`
+                        : ""
+                    }`}
+                    hidden={!projectsExpanded}
+                    key={project.id}
+                    onDragOver={(event) => {
+                      if (!draggedProjectId || draggedProjectId === project.id)
+                        return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      const bounds = event.currentTarget
+                        .querySelector(":scope > .project-row")
+                        ?.getBoundingClientRect();
+                      if (!bounds) return;
+                      setProjectDropTarget({
+                        projectId: project.id,
+                        edge:
+                          event.clientY < bounds.top + bounds.height / 2
+                            ? "before"
+                            : "after",
+                      });
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (!draggedProjectId || !projectDropTarget) return;
+                      const previousOrder = projects.map(
+                        (candidate) => candidate.id,
+                      );
+                      const order = reorderProjectIds(
+                        previousOrder,
+                        draggedProjectId,
+                        projectDropTarget.projectId,
+                        projectDropTarget.edge,
+                      );
+                      setDraggedProjectId(undefined);
+                      setProjectDropTarget(undefined);
+                      void persistProjectOrder(order, previousOrder);
+                    }}
+                    data-tree-level={2}
+                    data-tree-row-id={`project:${project.id}`}
+                    onFocus={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      setTreeActiveRowId(`project:${project.id}`);
+                    }}
+                    role="treeitem"
+                    tabIndex={
+                      treeActiveRowId === `project:${project.id}` ? 0 : -1
+                    }
+                  >
+                    <div
+                      className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
+                      draggable
+                      onDragEnd={() => {
+                        setDraggedProjectId(undefined);
+                        setProjectDropTarget(undefined);
+                      }}
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", project.id);
+                        setDraggedProjectId(project.id);
+                        setProjectDropTarget(undefined);
+                      }}
+                    >
+                      <button
+                        aria-label={
+                          projectOpen
+                            ? t.collapseProjectHistory
+                            : t.expandProjectHistory
+                        }
+                        className="project-toggle"
+                        aria-expanded={projectOpen}
+                        aria-controls={`project-thread-list-${project.id}`}
+                        onClick={() => toggleProjectHistory(project.id)}
+                        title={
+                          projectOpen
+                            ? t.collapseProjectHistory
+                            : t.expandProjectHistory
+                        }
+                        type="button"
+                      >
+                        <FolderIcon open={projectOpen} />
+                      </button>
+                      <button
+                        className="project-select"
+                        onClick={() => toggleProjectHistory(project.id)}
+                        title={project.path}
+                      >
+                        <span className="project-title">{project.name}</span>
+                      </button>
+                      <Tooltip align="end" label={t.newTask}>
+                        <button
+                          aria-label={`${t.newTask}: ${project.name}`}
+                          className="project-new-thread"
+                          onClick={() => beginNewConversation(project.id)}
+                          type="button"
+                        >
+                          <ArtemisIcon
+                            name="edit-square"
+                            width={16}
+                            height={16}
+                          />
+                        </button>
+                      </Tooltip>
+                      <Tooltip align="end" label={t.moreProjectActions}>
+                        <button
+                          aria-label={t.moreProjectActions}
+                          className="project-action"
+                          onClick={() => {
+                            setThreadMenuId(undefined);
+                            setProjectMenuId((current) =>
+                              current === project.id ? undefined : project.id,
+                            );
+                          }}
+                        >
+                          <ArtemisIcon name="more" width={16} height={16} />
+                        </button>
+                      </Tooltip>
+                      {projectMenuId === project.id && (
+                        <div className="project-menu">
+                          <button
+                            onClick={(event) => {
+                              setHooksQuery({ projectId: project.id });
+                              setProjectMenuId(undefined);
+                              openSettings("hooks", event.currentTarget);
+                            }}
+                          >
+                            <ArtemisIcon name="hooks" width={16} height={16} />
+                            <span>{uiText(locale, "Hooks.title")}</span>
+                          </button>
+                          <button
+                            disabled={
+                              hasActiveTask ||
+                              !snapshot.threads.some(
+                                (thread) =>
+                                  thread.projectId === project.id &&
+                                  !thread.archived,
+                              )
+                            }
+                            onClick={() =>
+                              void updateProjectThreads(project, "archive")
+                            }
+                          >
+                            <ArtemisIcon
+                              name="archive"
+                              width={16}
+                              height={16}
+                            />
+                            <span>{uiText(locale, "App.inline7")}</span>
+                          </button>
+                          <button
+                            className="danger"
+                            disabled={
+                              hasActiveTask ||
+                              !snapshot.threads.some(
+                                (thread) => thread.projectId === project.id,
+                              )
+                            }
+                            onClick={() =>
+                              void updateProjectThreads(project, "delete")
+                            }
+                          >
+                            <ArtemisIcon name="trash" width={16} height={16} />
+                            <span>{uiText(locale, "App.inline8")}</span>
+                          </button>
+                          <button
+                            className="danger"
+                            disabled={hasActiveTask}
+                            onClick={() => void removeProject(project)}
+                            title={
+                              hasActiveTask
+                                ? t.stopTasksBeforeRemove
+                                : t.removeProject
+                            }
+                          >
+                            <ArtemisIcon name="trash" width={16} height={16} />
+                            <span>{t.removeProject}</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {projectOpen && (
+                      <div
+                        className="project-thread-list"
+                        id={`project-thread-list-${project.id}`}
+                        role="group"
+                      >
+                        {visibleThreads.map((thread) => (
+                          <div
+                            className={`project-thread-row${
+                              thread.id === activeThreadId ? " selected" : ""
+                            }${
+                              draggedThread?.threadId === thread.id
+                                ? " dragging"
+                                : ""
+                            }${
+                              threadDropTarget?.threadId === thread.id
+                                ? ` drop-${threadDropTarget.edge}`
+                                : ""
+                            }`}
+                            draggable={
+                              threadRename?.threadId !== thread.id &&
+                              !query.trim()
+                            }
+                            key={thread.id}
+                            aria-selected={thread.id === activeThreadId}
+                            aria-level={3}
+                            data-tree-kind="thread"
+                            data-tree-level={3}
+                            data-tree-row-id={`thread:${thread.id}`}
+                            onFocus={(event) => {
+                              if (event.target !== event.currentTarget) return;
+                              setTreeActiveRowId(`thread:${thread.id}`);
+                            }}
+                            role="treeitem"
+                            tabIndex={
+                              treeActiveRowId === `thread:${thread.id}` ? 0 : -1
+                            }
+                            onDragEnd={() => {
+                              setDraggedThread(undefined);
+                              setThreadDropTarget(undefined);
+                            }}
+                            onDragOver={(event) => {
+                              if (
+                                !draggedThread ||
+                                draggedThread.projectId !== project.id ||
+                                draggedThread.threadId === thread.id
+                              ) {
+                                return;
+                              }
+                              event.preventDefault();
+                              event.stopPropagation();
+                              event.dataTransfer.dropEffect = "move";
+                              const bounds =
+                                event.currentTarget.getBoundingClientRect();
+                              setThreadDropTarget({
+                                projectId: project.id,
+                                threadId: thread.id,
+                                edge:
+                                  event.clientY < bounds.top + bounds.height / 2
+                                    ? "before"
+                                    : "after",
+                              });
+                            }}
+                            onDragStart={(event) => {
+                              if (query.trim()) {
+                                event.preventDefault();
+                                return;
+                              }
+                              event.stopPropagation();
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData(
+                                "text/plain",
+                                thread.id,
+                              );
+                              setDraggedThread({
+                                projectId: project.id,
+                                threadId: thread.id,
+                              });
+                              setThreadDropTarget(undefined);
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (
+                                !draggedThread ||
+                                !threadDropTarget ||
+                                draggedThread.projectId !== project.id ||
+                                threadDropTarget.projectId !== project.id
+                              ) {
+                                return;
+                              }
+                              const previousOrder = projectThreads.map(
+                                (candidate) => candidate.id,
+                              );
+                              const order = reorderThreadIds(
+                                previousOrder,
+                                draggedThread.threadId,
+                                threadDropTarget.threadId,
+                                threadDropTarget.edge,
+                              );
+                              setDraggedThread(undefined);
+                              setThreadDropTarget(undefined);
+                              void persistProjectThreadOrder(
+                                project.id,
+                                order,
+                                previousOrder,
+                              );
+                            }}
+                          >
+                            <>
+                              <button
+                                className="thread-select"
+                                onClick={() => {
+                                  discardNewConversationDraft();
+                                  setActiveView("workspace");
+                                  setActiveProjectId(project.id);
+                                  setActiveThreadId(thread.id);
+                                  setMode(thread.mode);
+                                  setThreadMenuId(undefined);
+                                }}
+                              >
+                                <ThreadStatusIndicator
+                                  thread={thread}
+                                  locale={locale}
+                                  events={snapshot.events[thread.id]}
+                                  historyState={historyPages[thread.id]?.state}
+                                />
+                                {imThreadStatus[thread.id] && (
+                                  <ImThreadConnection
+                                    status={imThreadStatus[thread.id]!}
+                                    channelIcon={
+                                      <ThreadChannelMark
+                                        channel={
+                                          imThreadStatus[thread.id]?.channel ??
+                                          ""
+                                        }
+                                        locale={locale}
+                                      />
+                                    }
+                                    locale={locale}
+                                  />
+                                )}
+                                <span
+                                  className="thread-title"
+                                  onPointerEnter={prepareThreadTitleScroll}
+                                  title={visibleThreadTitle(thread.title)}
+                                >
+                                  <ThreadTitleContent
+                                    hideChannel={
+                                      !!imThreadStatus[thread.id]?.group
+                                        ?.retired
+                                    }
+                                    title={thread.title}
+                                    locale={locale}
+                                  />
+                                </span>
+                                <ThreadWaitingBadge
+                                  thread={thread}
+                                  locale={locale}
+                                />
+                                <time
+                                  className="thread-time"
+                                  dateTime={thread.updatedAt}
+                                  title={new Date(
+                                    thread.updatedAt,
+                                  ).toLocaleString(locale)}
+                                >
+                                  {thread.notification?.unread
+                                    ? uiText(locale, "App_copy.unreadShort")
+                                    : formatSidebarTime(
+                                        thread.updatedAt,
+                                        clockMs,
+                                        locale,
+                                      )}
+                                </time>
+                              </button>
+                              <Tooltip align="end" label={t.moreActions}>
+                                <button
+                                  aria-label={t.moreActions}
+                                  aria-haspopup="menu"
+                                  aria-expanded={threadMenuId === thread.id}
+                                  className="thread-action"
+                                  onClick={(event) => {
+                                    threadMenuAnchor.current =
+                                      event.currentTarget;
+                                    setProjectMenuId(undefined);
+                                    setThreadMenuId((current) =>
+                                      current === thread.id
+                                        ? undefined
+                                        : thread.id,
+                                    );
+                                  }}
+                                >
+                                  <ArtemisIcon
+                                    name="more"
+                                    width={16}
+                                    height={16}
+                                  />
+                                </button>
+                              </Tooltip>
+                              {threadMenuId === thread.id && (
+                                <Popover
+                                  anchorRef={threadMenuAnchor}
+                                  align="end"
+                                  className="thread-menu"
+                                  label={t.moreActions}
+                                  onOpenChange={(open) => {
+                                    if (!open) setThreadMenuId(undefined);
+                                  }}
+                                  open
+                                  role="menu"
+                                >
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => beginRenameThread(thread)}
+                                  >
+                                    <ArtemisIcon
+                                      name="edit"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.renameTask}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    disabled={
+                                      thread.status === "running" ||
+                                      thread.status === "waiting-approval"
+                                    }
+                                    onClick={() => void forkThread(thread)}
+                                  >
+                                    <ArtemisIcon
+                                      name="branch"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.forkTask}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    disabled={
+                                      thread.status === "running" ||
+                                      thread.status === "waiting-approval"
+                                    }
+                                    onClick={() =>
+                                      void setThreadArchived(thread, true)
+                                    }
+                                  >
+                                    <ArtemisIcon
+                                      name="archive"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.archiveTask}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    className="danger"
+                                    disabled={
+                                      thread.status === "running" ||
+                                      thread.status === "waiting-approval"
+                                    }
+                                    onClick={() => void deleteThread(thread)}
+                                  >
+                                    <ArtemisIcon
+                                      name="trash"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{t.deleteTask}</span>
+                                  </button>
+                                </Popover>
+                              )}
+                            </>
+                          </div>
+                        ))}
+                        {projectThreads.length >
+                          PROJECT_THREAD_PREVIEW_LIMIT && (
+                          <button
+                            aria-level={3}
+                            className="project-expand-toggle"
+                            data-tree-kind="show-more"
+                            data-tree-level={3}
+                            data-tree-row-id={`show-more:${project.id}`}
+                            onFocus={(event) => {
+                              if (event.target !== event.currentTarget) return;
+                              setTreeActiveRowId(`show-more:${project.id}`);
+                            }}
+                            role="treeitem"
+                            tabIndex={
+                              treeActiveRowId === `show-more:${project.id}`
+                                ? 0
+                                : -1
+                            }
+                            aria-expanded={expanded}
+                            onClick={() => toggleProjectPreview(project.id)}
+                            type="button"
+                          >
+                            {expanded ? t.showFewerTasks : t.showMoreTasks}
+                          </button>
+                        )}
+                        {query.trim() && projectThreads.length === 0 && (
+                          <span className="project-no-matches">
+                            {t.noTasks}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          </section>
+          <section
+            aria-expanded={temporaryConversationsOpen}
+            aria-level={1}
+            className="project-group temporary-conversations"
+            data-tree-kind="temporary"
+            data-tree-level={1}
+            data-tree-row-id="temporary:conversations"
+            onFocus={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setTreeActiveRowId("temporary:conversations");
+            }}
+            role="treeitem"
+            tabIndex={treeActiveRowId === "temporary:conversations" ? 0 : -1}
+          >
+            <div
+              className={`project-row project-group-row ${
+                !activeProjectId ? "active" : ""
+              }`}
+            >
+              <button
+                aria-controls="temporary-conversation-list"
+                aria-expanded={temporaryConversationsOpen}
+                aria-label={
+                  temporaryConversationsOpen
+                    ? t.collapseTemporaryConversations
+                    : t.expandTemporaryConversations
+                }
+                className="project-group-select"
+                onClick={() => void toggleTemporaryConversations()}
+                title={t.temporaryConversations}
+                type="button"
+              >
+                <span className="project-group-title">
+                  {t.temporaryConversations}
+                </span>
+                <ChevronIcon />
+              </button>
+              <Tooltip align="end" label={t.newTask}>
+                <button
+                  aria-label={`${t.newTask}: ${t.temporaryConversations}`}
+                  className="project-new-thread"
+                  onClick={beginTemporaryConversation}
+                  type="button"
+                >
+                  <PlusIcon />
+                </button>
+              </Tooltip>
+            </div>
+            <div
+              className="project-thread-list"
+              hidden={!temporaryConversationsOpen}
+              id="temporary-conversation-list"
+              role="group"
+            >
+              {temporaryThreads.map((thread) => (
+                <div
+                  aria-selected={thread.id === activeThreadId}
+                  aria-level={2}
+                  className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}
+                  data-tree-kind="thread"
+                  data-tree-level={2}
+                  data-tree-row-id={`thread:${thread.id}`}
+                  key={thread.id}
+                  onFocus={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    setTreeActiveRowId(`thread:${thread.id}`);
+                  }}
+                  role="treeitem"
+                  tabIndex={treeActiveRowId === `thread:${thread.id}` ? 0 : -1}
+                >
+                  <>
+                    <button
+                      className="thread-select"
+                      onClick={() => {
+                        discardNewConversationDraft();
+                        setActiveView("workspace");
+                        setActiveProjectId(undefined);
+                        setActiveThreadId(thread.id);
+                        setMode(thread.mode);
+                        setThreadMenuId(undefined);
+                      }}
+                      type="button"
+                    >
+                      <ThreadStatusIndicator
+                        thread={thread}
+                        locale={locale}
+                        events={snapshot.events[thread.id]}
+                        historyState={historyPages[thread.id]?.state}
+                      />
+                      {imThreadStatus[thread.id] && (
+                        <ImThreadConnection
+                          status={imThreadStatus[thread.id]!}
+                          channelIcon={
+                            <ThreadChannelMark
+                              channel={imThreadStatus[thread.id]?.channel ?? ""}
+                              locale={locale}
+                            />
+                          }
+                          locale={locale}
+                        />
+                      )}
+                      <span
+                        className="thread-title"
+                        onPointerEnter={prepareThreadTitleScroll}
+                        title={visibleThreadTitle(thread.title)}
+                      >
+                        <ThreadTitleContent
+                          hideChannel={
+                            !!imThreadStatus[thread.id]?.group?.retired
+                          }
+                          title={thread.title}
+                          locale={locale}
+                        />
+                      </span>
+                      <ThreadWaitingBadge thread={thread} locale={locale} />
+                      <time
+                        className="thread-time"
+                        dateTime={thread.updatedAt}
+                        title={new Date(thread.updatedAt).toLocaleString(
+                          locale,
+                        )}
+                      >
+                        {thread.notification?.unread
+                          ? uiText(locale, "App_copy.unreadShort")
+                          : formatSidebarTime(
+                              thread.updatedAt,
+                              clockMs,
+                              locale,
+                            )}
+                      </time>
+                    </button>
+                    <Tooltip align="end" label={t.moreActions}>
+                      <button
+                        aria-label={t.moreActions}
+                        aria-haspopup="menu"
+                        aria-expanded={threadMenuId === thread.id}
+                        className="thread-action"
+                        onClick={(event) => {
+                          threadMenuAnchor.current = event.currentTarget;
+                          setProjectMenuId(undefined);
+                          setThreadMenuId((current) =>
+                            current === thread.id ? undefined : thread.id,
+                          );
+                        }}
+                        type="button"
+                      >
+                        <ArtemisIcon name="more" width={16} height={16} />
+                      </button>
+                    </Tooltip>
+                    {threadMenuId === thread.id && (
+                      <Popover
+                        anchorRef={threadMenuAnchor}
+                        align="end"
+                        className="thread-menu"
+                        label={t.moreActions}
+                        onOpenChange={(open) => {
+                          if (!open) setThreadMenuId(undefined);
+                        }}
+                        open
+                        role="menu"
+                      >
+                        <button
+                          role="menuitem"
+                          onClick={() => beginRenameThread(thread)}
+                        >
+                          <ArtemisIcon name="edit" width={16} height={16} />
+                          <span>{t.renameTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          disabled={
+                            thread.status === "running" ||
+                            thread.status === "waiting-approval"
+                          }
+                          onClick={() => void forkThread(thread)}
+                        >
+                          <ArtemisIcon name="branch" width={16} height={16} />
+                          <span>{t.forkTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          disabled={
+                            thread.status === "running" ||
+                            thread.status === "waiting-approval"
+                          }
+                          onClick={() => void setThreadArchived(thread, true)}
+                        >
+                          <ArtemisIcon name="archive" width={16} height={16} />
+                          <span>{t.archiveTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          className="danger"
+                          disabled={
+                            thread.status === "running" ||
+                            thread.status === "waiting-approval"
+                          }
+                          onClick={() => void deleteThread(thread)}
+                        >
+                          <ArtemisIcon name="trash" width={16} height={16} />
+                          <span>{t.deleteTask}</span>
+                        </button>
+                      </Popover>
+                    )}
+                  </>
+                </div>
+              ))}
+              {query.trim() && temporaryThreads.length === 0 && (
+                <span className="project-no-matches">{t.noTasks}</span>
+              )}
+            </div>
+          </section>
+        </div>
+      </NavigationSidebar>
+
+      <ApplicationShellResizer
+        aria-valuemax={PROJECT_SIDEBAR_WIDTH_MAX}
+        aria-valuemin={PROJECT_SIDEBAR_WIDTH_MIN}
+        aria-valuenow={projectSidebarWidth ?? defaultProjectSidebarWidth}
+        className="project-sidebar-resizer"
+        label={t.resizeProjectsSidebar}
+        onWheel={(event) => {
+          if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+          const viewport = projectSidebar.current?.querySelector<HTMLElement>(
+            '[data-part="main"] > [data-part="content"]',
+          );
+          if (!viewport) return;
+          const unit =
+            event.deltaMode === 1
+              ? 16
+              : event.deltaMode === 2
+                ? viewport.clientHeight
+                : 1;
+          viewport.scrollBy({ top: event.deltaY * unit, behavior: "instant" });
+        }}
+        onKeyDown={resizeProjectSidebarFromKeyboard}
+        onPointerCancel={cancelProjectSidebarResize}
+        onPointerDown={beginProjectSidebarResize}
+        onPointerMove={moveProjectSidebarResize}
+        onPointerUp={finishProjectSidebarResize}
+        open={sidebarOpen}
+      />
+
+      <section className="workspace">
+        {activeView !== "workspace" && (
+          <Toolbar
+            actions={null}
+            className="workspace-header"
+            label={activeWorkspaceLabel}
+          >
+            <div className="workspace-header-leading">
+              <button
+                aria-expanded={sidebarOpen}
+                aria-label={t.leftSidebar}
+                className="left-sidebar-toggle"
+                onClick={() => changeSidebarOpen((open) => !open)}
+                title={t.leftSidebar}
+              >
+                <LeftSidebarIcon />
+              </button>
+              <div className="workspace-heading">
+                <strong dir="auto">{activeWorkspaceLabel}</strong>
+              </div>
+            </div>
+          </Toolbar>
+        )}
+        {toast && (activeView !== "workspace" || activeThread?.archived) && (
+          <TransientNotice
+            dismissLabel={t.dismissNotice}
+            notice={toast}
+            onDismiss={() => setToast(undefined)}
+            placement="view"
+          />
+        )}
+        {activeView === "token-usage" ? (
+          <Suspense fallback={<div className="view-loading">…</div>}>
+            <TokenUsagePage
+              locale={locale}
+              {...(runtimeSettings?.profileAvatar
+                ? { profileAvatar: runtimeSettings.profileAvatar }
+                : {})}
+              username={username}
+            />
+          </Suspense>
+        ) : activeView === "automations" ? (
+          <Suspense fallback={<div className="view-loading">…</div>}>
+            <AutomationPage
+              locale={locale}
+              settings={runtimeSettings}
+              onConfirm={requestConfirmation}
+              onOpenThread={(threadId) => void openAutomationThread(threadId)}
+              projects={projects}
+            />
+          </Suspense>
+        ) : activeView === "archive" ? (
+          <ArchivePage
+            locale={locale}
+            onOpen={(thread) => {
+              discardNewConversationDraft();
+              setActiveProjectId(thread.projectId);
+              setActiveThreadId(thread.id);
+              setMode(thread.mode);
+              setActiveView("workspace");
+            }}
+            onDelete={(thread) => void deleteThread(thread)}
+            onRestore={(thread) => void setThreadArchived(thread, false)}
+            projects={projects}
+            threads={snapshot.threads}
+          />
+        ) : activeView === "resources" ? (
+          <Suspense fallback={<div className="view-loading">…</div>}>
+            <ResourceCenter
+              locale={locale}
+              onReviewHooks={(pluginId, trigger) => {
+                setHooksQuery({
+                  pluginId,
+                  ...(activeProjectId ? { projectId: activeProjectId } : {}),
+                });
+                openSettings("hooks", trigger);
+              }}
+              onConfirm={requestConfirmation}
+              onSettingsChange={(value) => {
+                setRuntimeSettings(value);
+                setApprovalPolicy(value.approvalPolicy);
+                setSnapshot((current) =>
+                  current
+                    ? {
+                        ...current,
+                        locale: value.resolvedLocale,
+                      }
+                    : current,
+                );
+              }}
+              {...(runtimeSettings ? { settings: runtimeSettings } : {})}
+            />
+          </Suspense>
+        ) : (
+          <>
+            <Toolbar
+              actions={
+                <div className="header-actions">
+                  <span
+                    className="status-pill"
+                    onAnimationStart={synchronizeTurnIndicator}
+                  >
+                    <span className={`status-dot ${statusDotStatus}`} />
+                    <span className="status-pill-label">
+                      {permissionBlock && !turnActive
+                        ? uiText(locale, "ImPermission.waiting")
+                        : delegationWaiting
+                          ? uiText(locale, "ImDelegation.waitingShort")
+                          : runPresentation.status === "completed"
+                            ? t.completed
+                            : statusLabel(threadState, locale, clockMs)}
+                    </span>
+                    {!remoteWaiting && runPresentation.status !== "idle" && (
+                      <time
+                        dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                      >
+                        {formatRunDuration(runPresentation.elapsedMs)}
+                      </time>
+                    )}
+                  </span>
+                  {activeProject && (
+                    <EnvironmentPanel
+                      key={environmentWorkspaceKey}
+                      actionsDisabled={
+                        projectBranchActionsDisabled ||
+                        Boolean(activeThread?.archived)
+                      }
+                      onOpenUsage={() => setActiveView("token-usage")}
+                      workspaceIsWorktree={Boolean(
+                        activeThread && activeThread.target !== "local",
+                      )}
+                      onWorktreesChanged={async () => {
+                        const refreshed = await window.artemis.getSnapshot();
+                        setSnapshot((current) =>
+                          preserveLoadedEvents(refreshed, current),
+                        );
+                      }}
+                      onWorkspaceHandoff={
+                        activeThread
+                          ? async (destination) => {
+                              await window.artemis.handoffWorkspace(
+                                activeThread.id,
+                                destination,
+                              );
+                              const refreshed =
+                                await window.artemis.getSnapshot();
+                              setSnapshot((current) =>
+                                preserveLoadedEvents(refreshed, current),
+                              );
+                            }
+                          : undefined
+                      }
+                      agents={environmentAgents}
+                      onMentionMember={groupMentions.insert}
+                      memberRemovalDisabled={turnActive || busy}
+                      onRemoveMember={async (deviceId) => {
+                        if (!activeThread) return false;
+                        try {
+                          await window.artemis.manageIm({
+                            action: "remove-conversation-member",
+                            threadId: activeThread.id,
+                            deviceId,
+                          });
+                          setToast(uiText(locale, "App.inline10"));
+                          return true;
+                        } catch (error) {
+                          setToast({
+                            error: true,
+                            message:
+                              error instanceof Error
+                                ? error.message
+                                : String(error),
+                          });
+                          return false;
+                        }
+                      }}
+                      imGroup={
+                        activeThread
+                          ? imThreadStatus[activeThread.id]?.group
+                          : undefined
+                      }
+                      attachments={attachments}
+                      defaultOpen={Boolean(threadState?.turnOrder.length)}
+                      dockOpen={workspaceDockOpen}
+                      locale={locale}
+                      mcpUsages={environmentMcpUsages}
+                      onAddProject={() => void openProject()}
+                      onAddSources={() => void selectPromptAttachments()}
+                      onConfirm={requestConfirmation}
+                      onMessage={(message, error) =>
+                        setToast(error ? { error: true, message } : message)
+                      }
+                      onOpenAgent={openChildAgentPanel}
+                      onOpenReview={openReviewScopePanel}
+                      onOpenTeam={openAgentTeamPanel}
+                      onOpenUrl={openConversationExternalLink}
+                      onViewAllSources={openSourcesPanel}
+                      project={activeProject}
+                      {...(environmentRefreshKey
+                        ? { refreshKey: environmentRefreshKey }
+                        : {})}
+                      sources={environmentSources}
+                      taskTitle={activeThread?.title ?? activeProject.name}
+                      teams={environmentTeams}
+                      {...(activeThreadId ? { threadId: activeThreadId } : {})}
+                    />
+                  )}
+                  {!activeThread?.archived && (
+                    <button
+                      aria-expanded={workspaceDockOpen}
+                      aria-label={t.rightSidebar}
+                      className="right-sidebar-toggle"
+                      onClick={toggleRightSidebar}
+                      ref={workspaceDockToggleElement}
+                      title={t.rightSidebar}
+                    >
+                      <RightSidebarIcon />
+                    </button>
+                  )}
+                </div>
+              }
+              className="workspace-header"
+              label={activeWorkspaceLabel}
+            >
+              <div className="workspace-header-leading">
+                <button
+                  aria-expanded={sidebarOpen}
+                  aria-label={t.leftSidebar}
+                  className="left-sidebar-toggle"
+                  onClick={() => changeSidebarOpen((open) => !open)}
+                  title={t.leftSidebar}
+                >
+                  <LeftSidebarIcon />
+                </button>
+                <div className="workspace-heading">
+                  <strong dir="auto">{activeWorkspaceLabel}</strong>
+                  {activeThread && (
+                    <>
+                      <span className="header-separator">/</span>
+                      <span className="workspace-thread-title">
+                        {activeThread.title}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </Toolbar>
+
+            <div
+              className="workspace-content"
+              data-resizing={workspaceDockResizing || undefined}
+              ref={workspaceContent}
+            >
+              <ConversationSurface
+                className="conversation"
+                id="conversation"
+                label={t.conversation}
+                state={
+                  !activeThread ||
+                  (!activeThread.archived &&
+                    loadedEventThreads.current.has(activeThread.id) &&
+                    activeEvents.length === 0 &&
+                    !activeHistory?.state.order.length &&
+                    !busy)
+                    ? "empty"
+                    : "ready"
+                }
+              >
+                <TimelineViewport
+                  className="timeline-scroll"
+                  label={t.conversationHistory}
+                  onPointerDown={(event) => {
+                    const container = event.currentTarget;
+                    const bounds = container.getBoundingClientRect();
+                    const scrollbarEdge = Math.max(
+                      container.offsetWidth - container.clientWidth,
+                      12,
+                    );
+                    const direction =
+                      window.getComputedStyle(container).direction;
+                    const overScrollbar =
+                      direction === "rtl"
+                        ? event.clientX <= bounds.left + scrollbarEdge
+                        : event.clientX >= bounds.right - scrollbarEdge;
+                    timelineScrollbarPointerActive.current = overScrollbar;
+                  }}
+                  onScroll={(event) => {
+                    const container = event.currentTarget;
+                    if (
+                      container.scrollTop < 240 &&
+                      (timelineScrollIntent.current ||
+                        timelineScrollbarPointerActive.current)
+                    )
+                      loadEarlierHistory();
+                    timelinePinned.current = resolveTimelinePinned({
+                      clientHeight: container.clientHeight,
+                      pinned: timelinePinned.current,
+                      scrollHeight: container.scrollHeight,
+                      scrollTop: container.scrollTop,
+                      userInitiated:
+                        timelineScrollIntent.current ||
+                        timelineScrollbarPointerActive.current,
+                    });
+                    const threadId = activeThreadIdRef.current;
+                    if (
+                      threadId &&
+                      pendingTimelineRestore.current?.threadId !== threadId
+                    ) {
+                      timelineScrollSnapshots.current.set(threadId, {
+                        pinned: timelinePinned.current,
+                        scrollTop: container.scrollTop,
+                      });
+                    }
+                    timelineScrollIntent.current = false;
+                  }}
+                  onWheel={() => {
+                    timelineScrollIntent.current = true;
+                    window.requestAnimationFrame(() => {
+                      timelineScrollIntent.current = false;
+                    });
+                  }}
+                  ref={timelineScroll}
+                >
+                  {activeHistoryPending ? (
+                    activeHistoryError !== undefined ? (
+                      <ErrorState
+                        className="conversation-history-feedback"
+                        action={
+                          <Button
+                            onClick={() => {
+                              if (!activeThreadId) return;
+                              setHistoryLoadErrors((current) => {
+                                const next = { ...current };
+                                delete next[activeThreadId];
+                                return next;
+                              });
+                              setHistoryRetry((current) => current + 1);
+                            }}
+                          >
+                            {uiText(locale, "App_copy.historyRetry")}
+                          </Button>
+                        }
+                      >
+                        {uiText(locale, "App_copy.historyLoadFailed")}
+                      </ErrorState>
+                    ) : (
+                      <LoadingState
+                        className="conversation-history-feedback"
+                        label={uiText(locale, "App_copy.loadingHistory")}
+                        lines={3}
+                      />
+                    )
+                  ) : !activeThread ||
+                    (!activeThread.archived &&
+                      loadedEventThreads.current.has(activeThread.id) &&
+                      activeEvents.length === 0 &&
+                      !activeHistory?.state.order.length &&
+                      !busy) ? (
+                    <ConversationEmptyState
+                      className="conversation-empty-state"
+                      icon={<ArtemisMark />}
+                      label={`${emptyConversationGreeting.title}. ${emptyConversationLabel}`}
+                      title={<h1>{emptyConversationGreeting.title}</h1>}
+                      detail={
+                        <p className="conversation-greeting-detail">
+                          {activeProject ? (
+                            <>
+                              {emptyConversationPrefix}
+                              <bdi className="conversation-project-name">
+                                {activeProject.name}
+                              </bdi>
+                              {emptyConversationSuffix}
+                            </>
+                          ) : (
+                            emptyConversationGreeting.temporaryPrompt
+                          )}
+                        </p>
+                      }
+                    />
+                  ) : (
+                    <Fragment>
+                      {activeHistory?.cursor ? (
+                        <button type="button" onClick={loadEarlierHistory}>
+                          {uiText(locale, "App_copy.loadEarlierMessages")}
+                        </button>
+                      ) : null}
+                      <Timeline
+                        imGroup={
+                          activeThread
+                            ? imThreadStatus[activeThread.id]?.group
+                            : undefined
+                        }
+                        installedPlugins={installedPlugins}
+                        installedSkills={installedSkills}
+                        mcpServers={runtimeSettings?.mcpServers}
+                        locale={locale}
+                        onExternalLink={openConversationExternalLink}
+                        onFileLink={openConversationFileLink}
+                        onFileLinkContextMenu={openConversationFileLinkMenu}
+                        onOpenChildAgent={openChildAgentPanel}
+                        onOpenTurnReview={openReviewTurnPanel}
+                        onCopyText={copyConversationText}
+                        onEditUserMessage={
+                          activeThread?.archived
+                            ? undefined
+                            : editConversationMessage
+                        }
+                        onResolve={resolveApprovalRequest}
+                        onResolveUserInput={resolveUserInputRequest}
+                        onUndoTurnChanges={(turnId) =>
+                          void undoTurnChanges(turnId)
+                        }
+                        state={threadState!}
+                      />
+                    </Fragment>
+                  )}
+                  {activeThread &&
+                    runPresentation.status !== "idle" &&
+                    !latestTimelineEntryIsCompaction && (
+                      <TurnStatus
+                        className={`turn-status ${remoteWaiting ? "waiting-approval" : runPresentation.status}`}
+                        onAnimationStart={synchronizeTurnIndicator}
+                        durationLabel={
+                          remoteWaiting ? undefined : (
+                            <time
+                              dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                              title={t.elapsed}
+                            >
+                              {formatRunDuration(runPresentation.elapsedMs)}
+                            </time>
+                          )
+                        }
+                        label={t.elapsed}
+                        state={
+                          remoteWaiting ||
+                          runPresentation.status === "waiting-approval" ||
+                          runPresentation.status === "waiting-user-input"
+                            ? "waiting"
+                            : runPresentation.status
+                        }
+                        statusLabel={
+                          permissionBlock && !turnActive
+                            ? uiText(locale, "ImPermission.waiting")
+                            : delegationWaiting
+                              ? uiText(locale, "ImDelegation.waitingShort")
+                              : runPresentation.status === "running"
+                                ? statusLabel(threadState, locale, clockMs)
+                                : runPresentation.status === "waiting-approval"
+                                  ? t.waiting
+                                  : runPresentation.status ===
+                                      "waiting-user-input"
+                                    ? t.waitingInput
+                                    : runPresentation.status === "failed"
+                                      ? t.failed
+                                      : t.completed
+                        }
+                      />
+                    )}
+                </TimelineViewport>
+
+                {activeThread?.archived && turnFailureBanner}
+
+                {activeThread?.archived && (
+                  <div className="archived-readonly" role="status">
+                    <ArchiveIcon />
+                    <span>
+                      <strong>{t.archivedReadOnly}</strong>
+                      <small>{t.archivedReadOnlyDetail}</small>
+                    </span>
+                    <button
+                      onClick={() =>
+                        void setThreadArchived(activeThread, false)
+                      }
+                    >
+                      {t.restoreTask}
+                    </button>
+                  </div>
+                )}
+
+                {retiredGroup && (
+                  <div className="composer-wrap">
+                    <div className="im-retired-notice" role="status">
+                      <ArtemisIcon name="agents" width={18} height={18} />
+                      <span>
+                        {uiText(
+                          locale,
+                          retiredGroup === "dissolved"
+                            ? "ImThreadConnection.dissolvedDetail"
+                            : "ImThreadConnection.archivedDetail",
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {!activeThread?.archived && !retiredGroup && (
+                  <div className="composer-wrap">
+                    {turnFailureBanner}
+                    <Suspense fallback={null}>
+                      <ComputerUseControls locale={locale} />
+                    </Suspense>
+                    <Suspense fallback={null}>
+                      <HookTaskNotice
+                        locale={locale}
+                        {...(activeThreadId
+                          ? { threadId: activeThreadId }
+                          : {})}
+                        {...(activeProjectId
+                          ? { projectId: activeProjectId }
+                          : {})}
+                        mode={mode}
+                        onReview={(trigger) => {
+                          setHooksQuery({
+                            ...(activeThreadId
+                              ? { threadId: activeThreadId }
+                              : {}),
+                            ...(activeProjectId
+                              ? { projectId: activeProjectId }
+                              : {}),
+                          });
+                          openSettings("hooks", trigger);
+                        }}
+                      />
+                    </Suspense>
+                    {permissionBlock && (
+                      <div className="sandbox-notice" role="status">
+                        <span>{permissionBlock}</span>
+                        <button
+                          type="button"
+                          onClick={(event) =>
+                            openSettings("general", event.currentTarget)
+                          }
+                        >
+                          {uiText(locale, "ImPermission.settings")}
+                        </button>
+                      </div>
+                    )}
+                    {activeThread && (
+                      <ImDelegationWaitStatus
+                        key={activeThread.id}
+                        waits={
+                          imThreadStatus[activeThread.id]?.delegationWaits ?? []
+                        }
+                        locale={locale}
+                      />
+                    )}
+                    {taskPlan && (
+                      <TaskPlanProgress locale={locale} plan={taskPlan} />
+                    )}
+                    {toast && (
+                      <TransientNotice
+                        dismissLabel={t.dismissNotice}
+                        notice={toast}
+                        onDismiss={() => setToast(undefined)}
+                        placement="composer"
+                      />
+                    )}
+                    <>
+                      {!snapshot.sandbox.available && (
+                        <div className="sandbox-notice">
+                          <ArtemisIcon
+                            className="icon"
+                            height={16}
+                            name="warning"
+                            width={16}
+                          />
+                          <span>
+                            <strong>{t.sandboxUnavailable}</strong>
+                            <small>{t.sandboxDetail}</small>
+                          </span>
+                        </div>
+                      )}
+                      {queuedFollowUps.length > 0 && (
+                        <QueuedMessageGroup
+                          className="queued-message-bar"
+                          heading={
+                            <>
+                              <QueueIcon />
+                              <strong>
+                                {t.queuedMessages.replace(
+                                  "{{count}}",
+                                  String(queuedFollowUps.length),
+                                )}
+                              </strong>
+                            </>
+                          }
+                          label={t.queuedMessages.replace(
+                            "{{count}}",
+                            String(queuedFollowUps.length),
+                          )}
+                          state={busy ? "busy" : "queued"}
+                        >
+                          {queuedFollowUps.map((message, index) => {
+                            const editing =
+                              editingQueuedMessage?.index === index;
+                            const itemLabel = t.queueItem.replace(
+                              "{{number}}",
+                              String(index + 1),
+                            );
+                            return (
+                              <QueuedMessageItem
+                                actions={
+                                  editing ? undefined : (
+                                    <>
+                                      <button
+                                        aria-label={`${t.queueSteer}: ${itemLabel}`}
+                                        className="queued-message-steer"
+                                        disabled={busy || contextCompacting}
+                                        onClick={() =>
+                                          void steerQueuedMessage(index)
+                                        }
+                                        title={t.queueSteerHint}
+                                        type="button"
+                                      >
+                                        <SteerIcon />
+                                        <span>{t.queueSteer}</span>
+                                      </button>
+                                      {index > 0 && (
+                                        <button
+                                          aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
+                                          className="queued-message-prioritize"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void moveQueuedMessageToFront(index)
+                                          }
+                                          title={t.queueMoveToFrontHint}
+                                          type="button"
+                                        >
+                                          <MoveToFrontIcon />
+                                        </button>
+                                      )}
+                                      <button
+                                        aria-label={`${t.queueEdit}: ${itemLabel}`}
+                                        className="queued-message-edit"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          setEditingQueuedMessage({
+                                            index,
+                                            value: message,
+                                          })
+                                        }
+                                        title={t.queueEdit}
+                                        type="button"
+                                      >
+                                        <EditIcon />
+                                      </button>
+                                      <button
+                                        aria-label={`${t.queueDelete}: ${itemLabel}`}
+                                        className="queued-message-delete"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void deleteQueuedMessage(index)
+                                        }
+                                        title={t.queueDelete}
+                                        type="button"
+                                      >
+                                        <TrashIcon />
+                                      </button>
+                                    </>
+                                  )
+                                }
+                                className="queued-message-item"
+                                data-queued-index={index}
+                                index={index + 1}
+                                key={String(index)}
+                                state={busy ? "busy" : "queued"}
+                              >
+                                {editing ? (
+                                  <QueuedMessageEditor
+                                    busy={busy}
+                                    cancelLabel={t.queueCancel}
+                                    errorDetail={queuedSaveErrorDetail}
+                                    errorLabel={t.queueSaveError}
+                                    retryLabel={t.queueRetry}
+                                    saveLabel={t.queueSave}
+                                    textareaLabel={t.queueEdit}
+                                    value={editingQueuedMessage.value}
+                                    focusReturnTarget={() =>
+                                      document.querySelector<HTMLElement>(
+                                        `[data-queued-index="${index}"] .queued-message-steer`,
+                                      )
+                                    }
+                                    onCancel={() =>
+                                      setEditingQueuedMessage(undefined)
+                                    }
+                                    onSave={async () =>
+                                      (await saveQueuedMessage(
+                                        index,
+                                        editingQueuedMessage.value,
+                                      )) === true
+                                    }
+                                    onSuccess={() =>
+                                      setEditingQueuedMessage(undefined)
+                                    }
+                                    onValueChange={(value) =>
+                                      setEditingQueuedMessage({ index, value })
+                                    }
+                                  />
+                                ) : (
+                                  <span
+                                    className="queued-message-content"
+                                    title={message}
+                                  >
+                                    {message}
+                                  </span>
+                                )}
+                              </QueuedMessageItem>
+                            );
+                          })}
+                        </QueuedMessageGroup>
+                      )}
+                      <DecisionComposer
+                        decision={pendingComposerDecision}
+                        locale={locale}
+                        onResolveApproval={resolveApprovalRequest}
+                        onResolveUserInput={resolveUserInputRequest}
+                        onAcceptPlan={
+                          activeThread?.archived
+                            ? undefined
+                            : async (plan, executionMode) => {
+                                const result = await window.artemis.acceptPlan({
+                                  threadId: threadState!.threadId,
+                                  planId: plan.planId,
+                                  revision: plan.revision,
+                                  mode: executionMode,
+                                });
+                                setMode(executionMode);
+                                updateThreadInSnapshot(result.thread);
+                              }
+                        }
+                        onRevisePlan={
+                          activeThread?.archived
+                            ? undefined
+                            : async (text) => {
+                                const result = await window.artemis.revisePlan({
+                                  threadId: threadState!.threadId,
+                                  text,
+                                });
+                                setMode("plan");
+                                updateThreadInSnapshot(result.thread);
+                              }
+                        }
+                        context={
+                          <div className="composer-context-row">
+                            <ComposerContextBar
+                              key={environmentWorkspaceKey}
+                              threadId={activeThread?.id}
+                              {...(activeProject ? { activeProject } : {})}
+                              projectActionsDisabled={
+                                busy ||
+                                turnActive ||
+                                Boolean(
+                                  activeThread &&
+                                  (!loadedEventThreads.current.has(
+                                    activeThread.id,
+                                  ) ||
+                                    (threadState?.order.length ?? 0) > 0),
+                                )
+                              }
+                              branchActionsDisabled={
+                                projectBranchActionsDisabled
+                              }
+                              locale={locale}
+                              mode={mode}
+                              modeActionsDisabled={
+                                turnActive ||
+                                busy ||
+                                pendingComposerDecision?.kind === "plan"
+                              }
+                              onClearProject={() => {
+                                discardNewConversationDraft();
+                                beginTemporaryConversation();
+                              }}
+                              onError={(message) =>
+                                setToast({ error: true, message })
+                              }
+                              onModeChange={(nextMode) =>
+                                void selectMode(nextMode)
+                              }
+                              onOpenProject={openProject}
+                              onSelectProject={(project) => {
+                                discardNewConversationDraft();
+                                beginNewConversation(project.id);
+                              }}
+                              projects={projects}
+                            />
+                            {activeThread?.goal && (
+                              <GoalBar
+                                clockMs={clockMs}
+                                disabled={goalMutationPending}
+                                goal={activeThread.goal}
+                                locale={locale}
+                                onClear={() => void updateActiveGoal("clear")}
+                                onEdit={openGoalEditor}
+                                onPause={() => void updateActiveGoal("pause")}
+                                onResume={() => void updateActiveGoal("resume")}
+                              />
+                            )}
+                            {pendingComposerDecision &&
+                              pendingComposerDecision.kind !== "plan" && (
+                                <button
+                                  aria-label={t.stop}
+                                  className="send-button stop decision-stop"
+                                  disabled={!turnRunning}
+                                  onClick={() => void cancelActiveTurn()}
+                                  title={t.stop}
+                                  type="button"
+                                >
+                                  <span />
+                                </button>
+                              )}
+                          </div>
+                        }
+                        className="composer"
+                        label={t.prompt}
+                        onDragEnter={handleAttachmentDragEnter}
+                        onDragLeave={handleAttachmentDragLeave}
+                        onDragOver={handleAttachmentDragOver}
+                        onDrop={handleAttachmentDrop}
+                      >
+                        {attachmentDragActive && (
+                          <div className="composer-drop-overlay">
+                            <PlusIcon />
+                            <strong>{t.dropAttachments}</strong>
+                            <small>{t.dropAttachmentsDetail}</small>
+                          </div>
+                        )}
+                        {skillCommandMenuOpen && (
+                          <div
+                            aria-label={t.installedSkills}
+                            className="slash-command-menu"
+                            id="skill-command-menu"
+                            ref={slashCommandMenu}
+                            role="listbox"
+                          >
+                            {goalSuggestionIndex >= 0 && (
+                              <button
+                                aria-selected={
+                                  goalSuggestionIndex === activeSlashSuggestion
+                                }
+                                className={`slash-command-suggestion${goalSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                id={`skill-command-option-${goalSuggestionIndex}`}
+                                onClick={() => selectComposerCommand("/goal ")}
+                                role="option"
+                                tabIndex={-1}
+                              >
+                                <CommandArtwork command="goal" />
+                                <span>
+                                  <strong>{t.goalCommand}</strong>
+                                  <small>{t.goalCommandDetail}</small>
+                                </span>
+                              </button>
+                            )}
+                            {compactSuggestionIndex >= 0 && (
+                              <button
+                                aria-selected={
+                                  compactSuggestionIndex ===
+                                  activeSlashSuggestion
+                                }
+                                className={`slash-command-suggestion${compactSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                id={`skill-command-option-${compactSuggestionIndex}`}
+                                onClick={() =>
+                                  selectComposerCommand("/compact")
+                                }
+                                role="option"
+                                tabIndex={-1}
+                              >
+                                <CommandArtwork command="compact" />
+                                <span>
+                                  <strong>{t.compactCommand}</strong>
+                                  <small>{t.compactCommandDetail}</small>
+                                </span>
+                              </button>
+                            )}
+                            {initSuggestionIndex >= 0 && (
+                              <button
+                                aria-selected={
+                                  initSuggestionIndex === activeSlashSuggestion
+                                }
+                                className={`slash-command-suggestion${initSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                id={`skill-command-option-${initSuggestionIndex}`}
+                                onClick={() => selectComposerCommand("/init")}
+                                role="option"
+                                tabIndex={-1}
+                              >
+                                <CommandArtwork command="init" />
+                                <span>
+                                  <strong>{t.initCommand}</strong>
+                                  <small>{t.initCommandDetail}</small>
+                                </span>
+                              </button>
+                            )}
+                            {modeSuggestions.map(({ index, mode }) => {
+                              const commandLabel = `/${mode}`;
+                              const commandDetail =
+                                mode === "plan"
+                                  ? t.planCommandDetail
+                                  : mode === "work"
+                                    ? uiText(locale, "Plan.workDetail")
+                                    : uiText(locale, "Plan.codemodeDetail");
+                              return (
+                                <button
+                                  aria-selected={
+                                    index === activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${index}`}
+                                  key={mode}
+                                  onClick={() => void selectModeCommand(mode)}
+                                  role="option"
+                                  tabIndex={-1}
+                                >
+                                  <CommandArtwork command={mode} />
+                                  <span>
+                                    <strong>{commandLabel}</strong>
+                                    <small>{commandDetail}</small>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                            {skillsLoading ? (
+                              <div className="slash-command-status">
+                                {t.loadingSkills}
+                              </div>
+                            ) : skillsError ? (
+                              <div className="slash-command-status error">
+                                {skillsError}
+                              </div>
+                            ) : skillSuggestions.length > 0 ? (
+                              <>
+                                {pluginSkillSuggestions.length > 0 && (
+                                  <div className="slash-command-heading">
+                                    {t.installedPlugins}
+                                  </div>
+                                )}
+                                {pluginSkillSuggestions.map(
+                                  ({ index, plugin, skill }) => (
+                                    <button
+                                      aria-selected={
+                                        index === activeSlashSuggestion
+                                      }
+                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                      id={`skill-command-option-${index}`}
+                                      key={skill.id}
+                                      onClick={() => selectSkillCommand(skill)}
+                                      role="option"
+                                      tabIndex={-1}
+                                    >
+                                      <ResourceAvatar
+                                        brandColor={plugin.brandColor}
+                                        iconDataUrl={plugin.iconDataUrl}
+                                        pluginName={plugin.name}
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
+                                      <span>
+                                        <strong>{skill.name}</strong>
+                                        <small title={skill.description}>
+                                          {plugin.displayName} ·{" "}
+                                          {skill.description}
+                                        </small>
+                                      </span>
+                                    </button>
+                                  ),
+                                )}
+                                {standaloneSkillSuggestions.length > 0 && (
+                                  <div className="slash-command-heading">
+                                    {t.installedSkills}
+                                  </div>
+                                )}
+                                {standaloneSkillSuggestions.map(
+                                  ({ index, skill }) => (
+                                    <button
+                                      aria-selected={
+                                        index === activeSlashSuggestion
+                                      }
+                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                      id={`skill-command-option-${index}`}
+                                      key={skill.id}
+                                      onClick={() => selectSkillCommand(skill)}
+                                      role="option"
+                                      tabIndex={-1}
+                                    >
+                                      <ResourceAvatar
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
+                                      <span>
+                                        <strong>{skill.name}</strong>
+                                        <small>{skill.description}</small>
+                                      </span>
+                                    </button>
+                                  ),
+                                )}
+                              </>
+                            ) : (
+                              <div className="slash-command-status">
+                                {installedSkills.some((skill) => skill.enabled)
+                                  ? t.noMatchingSkills
+                                  : t.noInstalledSkills}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {designDocBinding && (
+                          <div
+                            className="composer-active-file"
+                            title={designDocBinding.name}
+                          >
+                            <span className="composer-active-file-label">
+                              {locale.startsWith("zh") ? "编辑中" : "Editing"}
+                            </span>
+                            <span className="composer-active-file-name">
+                              {designDocBinding.name}
+                            </span>
+                          </div>
+                        )}
+                        {((!skillCommandMenuOpen &&
+                          selectedSkills.length > 0) ||
+                          hasRegularAttachments) && (
+                          <div className="composer-resource-strip">
+                            {!skillCommandMenuOpen &&
+                              selectedSkills.map((skill) => (
+                                <ComposerSkillChip
+                                  key={skill.id}
+                                  skill={skill}
+                                  plugin={installedPluginBySkillName.get(
+                                    skill.name,
+                                  )}
+                                  removeLabel={t.removeSelectedSkill}
+                                  onRemove={() =>
+                                    removeSelectedSkill(skill.name)
+                                  }
+                                />
+                              ))}
+                            {hasRegularAttachments && (
+                              <ComposerAttachments
+                                key={activeComposerDraftKey}
+                                attachments={attachments}
+                                locale={locale}
+                                onRemove={(index) => {
+                                  const attachment = attachments[index];
+                                  if (
+                                    attachment &&
+                                    isAttachmentReference(attachment)
+                                  )
+                                    void window.artemis.cancelPromptAttachment(
+                                      attachment.id,
+                                    );
+                                  setAttachments((current) =>
+                                    current.filter(
+                                      (_item, itemIndex) => itemIndex !== index,
+                                    ),
+                                  );
+                                }}
+                              />
+                            )}
+                          </div>
+                        )}
+                        {hasOfficeAnnotations && (
+                          <OfficeAnnotationCards
+                            key={activeComposerDraftKey}
+                            attachments={attachments}
+                            locale={locale}
+                            disabled={busy}
+                            onChange={(index, id, text) => {
+                              const next = changeOfficeAnnotation(
+                                draftAttachments.current.get(
+                                  activeComposerDraftKey,
+                                ) ?? [],
+                                index,
+                                id,
+                                text,
+                              );
+                              if (!next) {
+                                setToast(t.attachmentLimit);
+                                return false;
+                              }
+                              setAttachments(next);
+                              return true;
+                            }}
+                            onLocate={({ path, annotation }) => {
+                              if (!activeThreadId) return;
+                              setOfficeAnnotationFocus({
+                                threadId: activeThreadId,
+                                path,
+                                annotation: { ...annotation },
+                              });
+                              openWorkspaceTab("office", { path });
+                            }}
+                          />
+                        )}
+                        {customAgentTasks.length > 0 && (
+                          <CustomAgentTaskBlocks
+                            tasks={customAgentTasks}
+                            focusTaskId={focusAgentTaskId}
+                            locale={locale}
+                            onChange={(id, text) =>
+                              setCustomAgentTasks(
+                                customAgentTasks.map((task) =>
+                                  task.id === id ? { ...task, text } : task,
+                                ),
+                              )
+                            }
+                            onRemove={(id) => {
+                              setCustomAgentTasks(
+                                customAgentTasks.filter(
+                                  (task) => task.id !== id,
+                                ),
+                              );
+                              promptInput.current?.focus();
+                            }}
+                          />
+                        )}
+                        <CustomAgentMentionMenu
+                          mention={customAgentMention}
+                          locale={locale}
+                        />
+                        <div className="composer-input">
+                          {customAgentTasks.length > 0 && (
+                            <div className="composer-agent-main-label">
+                              {uiText(locale, "App.inline11")}
+                            </div>
+                          )}
+                          <textarea
+                            aria-activedescendant={
+                              customAgentMention.open
+                                ? `custom-agent-mention-${customAgentMention.activeIndex}`
+                                : skillCommandMenuOpen &&
+                                    slashCommandSuggestions.length > 0
+                                  ? `skill-command-option-${activeSlashSuggestion}`
+                                  : undefined
+                            }
+                            aria-autocomplete="list"
+                            aria-controls={
+                              customAgentMention.open
+                                ? "custom-agent-mention-menu"
+                                : skillCommandMenuOpen
+                                  ? "skill-command-menu"
+                                  : undefined
+                            }
+                            aria-expanded={
+                              customAgentMention.open || skillCommandMenuOpen
+                            }
+                            aria-label={t.prompt}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              groupMentions.changed(
+                                event.target.selectionStart,
+                              );
+                              customAgentMention.changed(
+                                event.target.selectionStart,
+                              );
+                              setPrompt(value);
+                              setSkillMenuDismissed(false);
+                              promptHistoryNavigation.current = {
+                                index: -1,
+                                draft: value,
+                              };
+                            }}
+                            onSelect={(event) => {
+                              groupMentions.selected(
+                                event.currentTarget.selectionStart,
+                              );
+                              customAgentMention.selected(
+                                event.currentTarget.selectionStart,
+                              );
+                            }}
+                            onKeyDown={(event) => {
+                              if (customAgentMention.keyDown(event)) return;
+                              if (
+                                event.key === "Tab" &&
+                                event.shiftKey &&
+                                !event.nativeEvent.isComposing &&
+                                !turnActive &&
+                                !busy
+                              ) {
+                                event.preventDefault();
+                                void selectMode(nextRunMode(mode));
+                                return;
+                              }
+                              if (
+                                skillCommandMenuOpen &&
+                                slashCommandSuggestions.length > 0 &&
+                                !event.nativeEvent.isComposing
+                              ) {
+                                if (event.key === "ArrowDown") {
+                                  event.preventDefault();
+                                  setActiveSlashSuggestion(
+                                    (current) =>
+                                      (current + 1) %
+                                      slashCommandSuggestions.length,
+                                  );
+                                  return;
+                                }
+                                if (event.key === "ArrowUp") {
+                                  event.preventDefault();
+                                  setActiveSlashSuggestion(
+                                    (current) =>
+                                      (current -
+                                        1 +
+                                        slashCommandSuggestions.length) %
+                                      slashCommandSuggestions.length,
+                                  );
+                                  return;
+                                }
+                                if (
+                                  (event.key === "Enter" ||
+                                    event.key === "Tab") &&
+                                  !event.shiftKey
+                                ) {
+                                  event.preventDefault();
+                                  const suggestion =
+                                    slashCommandSuggestions[
+                                      activeSlashSuggestion
+                                    ];
+                                  if (suggestion?.kind === "goal") {
+                                    selectComposerCommand("/goal ");
+                                  } else if (suggestion?.kind === "compact") {
+                                    selectComposerCommand("/compact");
+                                  } else if (suggestion?.kind === "init") {
+                                    selectComposerCommand("/init");
+                                  } else if (
+                                    suggestion?.kind === "plan" ||
+                                    suggestion?.kind === "work" ||
+                                    suggestion?.kind === "codemode"
+                                  ) {
+                                    void selectModeCommand(suggestion.kind);
+                                  } else if (suggestion?.kind === "skill") {
+                                    selectSkillCommand(suggestion.skill);
+                                  }
+                                  return;
+                                }
+                              }
+                              if (
+                                skillCommandMenuOpen &&
+                                event.key === "Escape"
+                              ) {
+                                event.preventDefault();
+                                setSkillMenuDismissed(true);
+                                return;
+                              }
+                              if (
+                                !skillCommandMenuOpen &&
+                                !event.nativeEvent.isComposing &&
+                                (event.key === "ArrowUp" ||
+                                  event.key === "ArrowDown")
+                              ) {
+                                const navigation = navigatePromptHistory(
+                                  activePromptHistory,
+                                  prompt,
+                                  promptHistoryNavigation.current,
+                                  event.key === "ArrowUp" ? "previous" : "next",
+                                );
+                                if (navigation) {
+                                  event.preventDefault();
+                                  promptHistoryNavigation.current = navigation;
+                                  setPrompt(navigation.value);
+                                  setSkillMenuDismissed(true);
+                                  window.requestAnimationFrame(() => {
+                                    promptInput.current?.setSelectionRange(
+                                      navigation.value.length,
+                                      navigation.value.length,
+                                    );
+                                  });
+                                  return;
+                                }
+                              }
+                              if (
+                                event.key === "Enter" &&
+                                !event.shiftKey &&
+                                !event.nativeEvent.isComposing
+                              ) {
+                                event.preventDefault();
+                                void sendPrompt();
+                              }
+                            }}
+                            onPaste={handleAttachmentPaste}
+                            placeholder={
+                              activeThread &&
+                              imThreadStatus[activeThread.id]?.group
+                                ? uiText(locale, "App.inline12")
+                                : hasOfficeAnnotations
+                                  ? officeAnnotationCopy(locale).placeholder
+                                  : designDocBinding
+                                    ? locale.startsWith("zh")
+                                      ? `让 Artemis 修改 ${designDocBinding.name}…`
+                                      : `Ask Artemis to edit ${designDocBinding.name}…`
+                                    : t.prompt
+                            }
+                            ref={promptInput}
+                            rows={1}
+                            value={prompt}
+                          />
+                        </div>
+                        <div className="composer-toolbar">
+                          <div className="composer-leading">
+                            <button
+                              aria-label={t.addAttachments}
+                              className="composer-icon-button"
+                              onClick={() => void selectPromptAttachments()}
+                              title={t.addAttachments}
+                            >
+                              <PlusIcon />
+                            </button>
+                            <div
+                              className="approval-policy-control"
+                              ref={approvalPolicyRoot}
+                            >
+                              <button
+                                aria-expanded={approvalMenuOpen}
+                                aria-haspopup="menu"
+                                className="approval-policy-trigger"
+                                disabled={approvalChangeLocked}
+                                onClick={() => {
+                                  setModelPickerOpen(false);
+                                  setApprovalMenuOpen((current) => !current);
+                                }}
+                                title={t.approvalPolicy}
+                              >
+                                <ArtemisIcon
+                                  className="icon"
+                                  name={
+                                    approvalPolicy === "full-access"
+                                      ? "approval-full"
+                                      : approvalPolicy === "agent"
+                                        ? "approval-agent"
+                                        : "approval-ask"
+                                  }
+                                  width={18}
+                                  height={18}
+                                />
+                                <span>{approvalPolicyLabel}</span>
+                                <ChevronIcon />
+                              </button>
+                              {approvalMenuOpen && (
+                                <div
+                                  aria-label={t.approvalPolicy}
+                                  className="approval-policy-menu"
+                                  role="menu"
+                                >
+                                  <strong className="approval-policy-heading">
+                                    {t.approvalPolicy}
+                                  </strong>
+                                  <button
+                                    aria-checked={approvalPolicy === "ask"}
+                                    className={
+                                      approvalPolicy === "ask" ? "selected" : ""
+                                    }
+                                    disabled={approvalChangeLocked}
+                                    onClick={() =>
+                                      void changeApprovalPolicy("ask")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ArtemisIcon
+                                      className="icon"
+                                      name="approval-ask"
+                                      width={18}
+                                      height={18}
+                                    />
+                                    <span>
+                                      <strong>{t.askApproval}</strong>
+                                      <small>{t.askApprovalDetail}</small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "ask" ? "✓" : ""}
+                                    </b>
+                                  </button>
+                                  <button
+                                    aria-checked={approvalPolicy === "agent"}
+                                    className={
+                                      approvalPolicy === "agent"
+                                        ? "selected"
+                                        : ""
+                                    }
+                                    disabled={approvalChangeLocked}
+                                    onClick={() =>
+                                      void changeApprovalPolicy("agent")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ArtemisIcon
+                                      className="icon"
+                                      name="approval-agent"
+                                      width={18}
+                                      height={18}
+                                    />
+                                    <span>
+                                      <strong>{t.agentApproval}</strong>
+                                      <small>{t.agentApprovalDetail}</small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "agent" ? "✓" : ""}
+                                    </b>
+                                  </button>
+                                  <button
+                                    aria-checked={
+                                      approvalPolicy === "full-access"
+                                    }
+                                    className={`danger ${
+                                      approvalPolicy === "full-access"
+                                        ? "selected"
+                                        : ""
+                                    }`}
+                                    disabled={
+                                      approvalChangeLocked ||
+                                      !snapshot.sandbox.available
+                                    }
+                                    onClick={() =>
+                                      void changeApprovalPolicy("full-access")
+                                    }
+                                    role="menuitemradio"
+                                  >
+                                    <ArtemisIcon
+                                      className="icon"
+                                      name="approval-full"
+                                      width={18}
+                                      height={18}
+                                    />
+                                    <span>
+                                      <strong>{t.fullAccess}</strong>
+                                      <small>
+                                        {snapshot.sandbox.available
+                                          ? t.fullAccessDetail
+                                          : t.fullAccessUnavailable}
+                                      </small>
+                                    </span>
+                                    <b aria-hidden="true">
+                                      {approvalPolicy === "full-access"
+                                        ? "✓"
+                                        : ""}
+                                    </b>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="composer-trailing">
+                            <ContextUsageIndicator
+                              contextWindow={
+                                runtimeSettings?.contextWindow ??
+                                activeModel?.contextWindow
+                              }
+                              locale={locale}
+                              usage={threadState?.contextUsage}
+                            />
+                            <div
+                              className="model-picker-control"
+                              ref={modelPickerRoot}
+                            >
+                              <button
+                                aria-expanded={modelPickerOpen}
+                                aria-haspopup="menu"
+                                aria-label={t.modelPicker}
+                                className="model-button"
+                                disabled={
+                                  busy ||
+                                  turnActive ||
+                                  switchableModels.length === 0
+                                }
+                                onClick={() => {
+                                  setApprovalMenuOpen(false);
+                                  setModelPickerSection("model");
+                                  setModelFilter("");
+                                  setModelPickerOpen((current) => !current);
+                                }}
+                                title={t.modelPicker}
+                                type="button"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="model-compact-icon"
+                                >
+                                  <ModelIcon />
+                                </span>
+                                <span className="model-information">
+                                  <strong>{activeModelLabel}</strong>
+                                  {activeThinkingLevel && (
+                                    <small>{activeThinkingLevel}</small>
+                                  )}
+                                </span>
+                                <ChevronIcon />
+                              </button>
+                              {modelPickerOpen && (
+                                <div
+                                  aria-label={t.modelPicker}
+                                  className="model-picker-menu"
+                                  data-section={modelPickerSection}
+                                  onMouseEnter={cancelModelPickerHoverClose}
+                                  onMouseLeave={scheduleModelPickerHoverClose}
+                                  role="menu"
+                                >
+                                  <div className="model-picker-navigation">
+                                    <button
+                                      className={
+                                        modelPickerSection === "model"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      onClick={() =>
+                                        setModelPickerSection("model")
+                                      }
+                                      onMouseEnter={() =>
+                                        setModelPickerSection("model")
+                                      }
+                                      role="menuitem"
+                                      type="button"
+                                    >
+                                      <strong>{t.modelPickerModel}</strong>
+                                      <span>{activeModelLabel}</span>
+                                      <i aria-hidden="true">
+                                        <ChevronIcon />
+                                      </i>
+                                    </button>
+                                    <button
+                                      className={
+                                        modelPickerSection === "thinking"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={
+                                        !activeSelection ||
+                                        !activeModelSupportsReasoning
+                                      }
+                                      onClick={() =>
+                                        setModelPickerSection("thinking")
+                                      }
+                                      onMouseEnter={() =>
+                                        setModelPickerSection("thinking")
+                                      }
+                                      role="menuitem"
+                                      type="button"
+                                    >
+                                      <strong>{t.thinking}</strong>
+                                      <span>{activeThinkingLevel ?? "—"}</span>
+                                      <i aria-hidden="true">
+                                        <ChevronIcon />
+                                      </i>
+                                    </button>
+                                  </div>
+                                  {modelPickerSection === "model" && (
+                                    <label className="model-picker-search">
+                                      <SearchIcon />
+                                      <input
+                                        aria-label={uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearch",
+                                        )}
+                                        placeholder={uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearch",
+                                        )}
+                                        value={modelFilter}
+                                        onChange={(event) =>
+                                          setModelFilter(event.target.value)
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (
+                                            event.key !== "Escape" &&
+                                            event.key !== "Tab"
+                                          )
+                                            event.stopPropagation();
+                                        }}
+                                      />
+                                    </label>
+                                  )}
+                                  {modelPickerSection === "model" &&
+                                    filteredModels.length === 0 && (
+                                      <span
+                                        className="model-picker-empty"
+                                        role="status"
+                                      >
+                                        {uiText(
+                                          locale,
+                                          "SettingsPanel_labels.modelSearchEmpty",
+                                        )}
+                                      </span>
+                                    )}
+                                  <div
+                                    aria-label={
+                                      modelPickerSection === "model"
+                                        ? t.modelPickerModel
+                                        : t.thinking
+                                    }
+                                    className="model-picker-options"
+                                    role="menu"
+                                  >
+                                    {modelPickerSection === "thinking" && (
+                                      <div className="model-picker-options-heading">
+                                        {t.thinking}
+                                      </div>
+                                    )}
+                                    {modelPickerSection === "model"
+                                      ? filteredModels.map((model) => {
+                                          const selected =
+                                            model.providerId ===
+                                              activeSelection?.providerId &&
+                                            model.modelId ===
+                                              activeSelection.modelId;
+                                          return (
+                                            <button
+                                              aria-checked={selected}
+                                              className={
+                                                selected ? "selected" : ""
+                                              }
+                                              key={modelIdentity(
+                                                model.providerId,
+                                                model.modelId,
+                                              )}
+                                              onClick={() =>
+                                                void switchComposerModel(model)
+                                              }
+                                              role="menuitemradio"
+                                              title={`${model.name}
+${model.providerId} · ${model.modelId}`}
+                                              type="button"
+                                            >
+                                              <span>
+                                                <strong>{model.name}</strong>
+                                              </span>
+                                              <b aria-hidden="true">
+                                                {selected ? "✓" : ""}
+                                              </b>
+                                            </button>
+                                          );
+                                        })
+                                      : modelPickerThinkingLevels.map(
+                                          (level) => {
+                                            const selected =
+                                              activeSelection?.ultraMode !==
+                                                true &&
+                                              level ===
+                                                activeSelection?.thinkingLevel;
+                                            return (
+                                              <button
+                                                aria-checked={selected}
+                                                className={
+                                                  selected ? "selected" : ""
+                                                }
+                                                key={level}
+                                                onClick={() =>
+                                                  void switchComposerThinking(
+                                                    level,
+                                                  )
+                                                }
+                                                role="menuitemradio"
+                                                type="button"
+                                              >
+                                                <span>
+                                                  <strong>
+                                                    {thinkingLevelLabel(
+                                                      level,
+                                                      locale,
+                                                    )}
+                                                  </strong>
+                                                </span>
+                                                <b aria-hidden="true">
+                                                  {selected ? "✓" : ""}
+                                                </b>
+                                              </button>
+                                            );
+                                          },
+                                        )}
+                                    {modelPickerSection === "thinking" &&
+                                      activeModelSupportsReasoning && (
+                                        <button
+                                          aria-checked={activeUltraMode}
+                                          className={`ultra-mode-option${
+                                            activeUltraMode ? " selected" : ""
+                                          }`}
+                                          onClick={() =>
+                                            void switchComposerThinking(
+                                              activeModelHighestThinkingLevel,
+                                              true,
+                                            )
+                                          }
+                                          role="menuitemradio"
+                                          type="button"
+                                        >
+                                          <span>
+                                            <strong>{t.ultraMode}</strong>
+                                            <small>{t.ultraModeQuota}</small>
+                                          </span>
+                                          <b aria-hidden="true">
+                                            {activeUltraMode ? "✓" : ""}
+                                          </b>
+                                        </button>
+                                      )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {turnActive ? (
+                              <div className="run-actions">
+                                <button
+                                  className="send-button"
+                                  disabled={
+                                    (customAgentTasks.length === 0 &&
+                                      !prompt.trim() &&
+                                      attachments.length === 0 &&
+                                      selectedSkills.length === 0) ||
+                                    busy
+                                  }
+                                  onClick={() => void sendPrompt()}
+                                  title={t.followUp}
+                                >
+                                  <ArtemisIcon
+                                    className="icon"
+                                    height={17}
+                                    name="send"
+                                    width={17}
+                                    strokeWidth={1.8}
+                                    fallback={
+                                      <path d="m6 12 6-6 6 6m-6-6v12" />
+                                    }
+                                  />
+                                </button>
+                                <button
+                                  className="send-button stop"
+                                  disabled={!turnRunning}
+                                  onClick={() => void cancelActiveTurn()}
+                                  title={t.stop}
+                                >
+                                  <ArtemisIcon
+                                    height={12}
+                                    name="stop"
+                                    width={12}
+                                  />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="send-button"
+                                disabled={
+                                  (customAgentTasks.length === 0 &&
+                                    !prompt.trim() &&
+                                    attachments.length === 0 &&
+                                    selectedSkills.length === 0) ||
+                                  busy
+                                }
+                                onClick={() => void sendPrompt()}
+                                title={t.send}
+                              >
+                                <ArtemisIcon
+                                  className="icon"
+                                  height={17}
+                                  name="send"
+                                  width={17}
+                                  strokeWidth={1.8}
+                                  fallback={<path d="m6 12 6-6 6 6m-6-6v12" />}
+                                />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </DecisionComposer>
+                    </>
+                  </div>
+                )}
+              </ConversationSurface>
+
+              {!activeThread?.archived && (
+                <>
+                  <WorkspaceDockResizer
+                    controls="conversation workspace-tool-dock"
+                    label={t.resizeRightSidebar}
+                    maximum={dockWidthBounds.max}
+                    minimum={dockWidthBounds.min}
+                    open={workspaceDockOpen}
+                    onKeyDown={resizeWorkspaceDockFromKeyboard}
+                    onPointerCancel={cancelWorkspaceDockResize}
+                    onPointerDown={beginWorkspaceDockResize}
+                    onPointerMove={moveWorkspaceDockResize}
+                    onPointerUp={finishWorkspaceDockResize}
+                    value={dockWidthNow}
+                    valueText={`${t.rightSidebar}: ${dockWidthNow}px`}
+                  />
+                  <WorkspaceDock
+                    id="workspace-tool-dock"
+                    label={t.rightSidebar}
+                    open={workspaceDockOpen}
+                    ref={workspaceDock}
+                    resizing={workspaceDockResizing}
+                    style={
+                      {
+                        "--workspace-dock-width": `${workspaceDockWidth ?? DEFAULT_WORKSPACE_DOCK_WIDTH}px`,
+                      } as CSSProperties
+                    }
+                  >
+                    <WorkspaceTabBar
+                      add={
+                        <div className="workspace-tab-add-wrap">
+                          <button
+                            aria-expanded={workspaceTabMenuOpen}
+                            aria-label={t.addTab}
+                            className="workspace-tab-add"
+                            onClick={(event) => {
+                              // 菜单画在透明子窗口里（独立原生层，盖得住
+                              // 设计面板的 WebContentsView）。开着时再点
+                              // "+"= 关闭（原生菜单语义）。
+                              if (workspaceTabMenuOpen) {
+                                setWorkspaceTabMenuOpen(false);
+                                void window.artemis.closeWorkspaceTabMenu();
+                                return;
+                              }
+                              setWorkspaceTabMenuOpen(true);
+                              const rect =
+                                event.currentTarget.getBoundingClientRect();
+                              // 设计任务一项目一份：tab 已开则不再列出，
+                              // 未开时选择复用既有 tab 而非新建。
+                              const designOpen = workspaceTabs.tabs.some(
+                                (tab) => tab.kind === "design",
+                              );
+                              const entries: WorkspaceTabMenuEntry[] = [
+                                ...(activeProject
+                                  ? [
+                                      {
+                                        kind: "review" as const,
+                                        label: t.reviewPanel,
+                                      },
+                                    ]
+                                  : []),
+                                { kind: "terminal", label: t.terminal },
+                                { kind: "browser", label: t.browser },
+                                { kind: "file", label: t.files },
+                                ...(designPluginAvailable && !designOpen
+                                  ? [
+                                      {
+                                        kind: "design" as const,
+                                        label: t.designTab,
+                                      },
+                                    ]
+                                  : []),
+                              ];
+                              void window.artemis.showWorkspaceTabMenu({
+                                html: buildWorkspaceTabMenuHtml(entries),
+                                anchorRight: rect.right,
+                                anchorTop: rect.bottom + 4,
+                              });
+                            }}
+                            title={t.addTab}
+                            type="button"
+                          >
+                            <ArtemisIcon
+                              className="icon"
+                              height={14}
+                              name="plus"
+                              width={14}
+                            />
+                          </button>
+                        </div>
+                      }
+                      label={t.rightSidebar}
+                      onKeyDown={(event) =>
+                        handleWorkspaceTabBarKeyDown(event, {
+                          tabs: workspaceTabs.tabs,
+                          activeTabId: workspaceTabs.activeTabId,
+                          rtl: localeDirection(locale) === "rtl",
+                          activate: (tabId) =>
+                            dispatchWorkspaceTab({
+                              type: "activate",
+                              tabId,
+                            }),
+                          focusTab: focusWorkspaceTab,
+                        })
+                      }
+                      overflow={workspaceTabScrollState.hasOverflow}
+                      scrollEnd={
+                        <button
+                          aria-label={t.scrollTabsRight}
+                          disabled={!workspaceTabScrollState.canScrollRight}
+                          onClick={() => scrollWorkspaceTabs(1)}
+                          title={t.scrollTabsRight}
+                          type="button"
+                        >
+                          <TabScrollIcon direction="right" />
+                        </button>
+                      }
+                      scrollProps={{
+                        onScroll: syncWorkspaceTabScrollState,
+                        onWheel: handleWorkspaceTabWheel,
+                      }}
+                      scrollRef={workspaceTabScroll}
+                      scrollStart={
+                        <button
+                          aria-label={t.scrollTabsLeft}
+                          disabled={!workspaceTabScrollState.canScrollLeft}
+                          onClick={() => scrollWorkspaceTabs(-1)}
+                          title={t.scrollTabsLeft}
+                          type="button"
+                        >
+                          <TabScrollIcon direction="left" />
+                        </button>
+                      }
+                      trackRef={workspaceTabTrack}
+                    >
+                      {workspaceTabs.tabs.map((tab) => (
+                        <WorkspaceTabSurface
+                          active={workspaceTabs.activeTabId === tab.id}
+                          closeIcon={<CloseIcon />}
+                          closeLabel={`${t.closeTab}: ${tab.title}`}
+                          closeTitle={t.closeTab}
+                          icon={
+                            <WorkspaceTabIcon
+                              childAgentId={tab.childAgentId}
+                              kind={tab.kind}
+                              path={tab.path}
+                            />
+                          }
+                          id={workspaceTabDomId(tab.id)}
+                          key={tab.id}
+                          label={tab.title}
+                          onClose={() =>
+                            closeWorkspaceTab(tab.id, { moveFocus: true })
+                          }
+                          onSelect={() =>
+                            dispatchWorkspaceTab({
+                              type: "activate",
+                              tabId: tab.id,
+                            })
+                          }
+                          panelId={`${workspaceTabDomId(tab.id)}-pane`}
+                          rootRef={
+                            workspaceTabs.activeTabId === tab.id
+                              ? activeWorkspaceTabElement
+                              : undefined
+                          }
+                          selectRef={(element) => {
+                            if (element) {
+                              workspaceTabButtons.current.set(tab.id, element);
+                            } else {
+                              workspaceTabButtons.current.delete(tab.id);
+                            }
+                          }}
+                          tabIndex={
+                            workspaceTabs.activeTabId === tab.id ||
+                            (!workspaceTabs.activeTabId &&
+                              workspaceTabs.tabs[0]?.id === tab.id)
+                              ? 0
+                              : -1
+                          }
+                          title={tab.path ?? tab.title}
+                        />
+                      ))}
+                    </WorkspaceTabBar>
+                    <div className="workspace-tab-content">
+                      {workspaceTabs.tabs.length === 0 && (
+                        <WorkspaceLauncher label={t.rightSidebar}>
+                          {activeProject && (
+                            <WorkspaceLauncherAction
+                              icon={<WorkspaceLauncherIcon kind="review" />}
+                              label={t.reviewPanel}
+                              onActivate={openReviewPanel}
+                              shortcut="Ctrl+Alt+B"
+                            />
+                          )}
+                          <WorkspaceLauncherAction
+                            icon={<WorkspaceLauncherIcon kind="terminal" />}
+                            label={t.terminal}
+                            onActivate={openTerminalPanel}
+                            shortcut="Ctrl+J"
+                          />
+                          <WorkspaceLauncherAction
+                            icon={<WorkspaceLauncherIcon kind="browser" />}
+                            label={t.browser}
+                            onActivate={openBrowserPanel}
+                          />
+                          <WorkspaceLauncherAction
+                            icon={<WorkspaceLauncherIcon kind="files" />}
+                            label={t.files}
+                            onActivate={openFilesPanel}
+                          />
+                          {designPluginAvailable && (
+                            <WorkspaceLauncherAction
+                              icon={<WorkspaceLauncherIcon kind="design" />}
+                              label={t.designTab}
+                              onActivate={() => openWorkspaceTab("design")}
+                            />
+                          )}
+                        </WorkspaceLauncher>
+                      )}
+                      {workspaceTabs.tabs.map((tab) => (
+                        <WorkspaceTabPane
+                          active={workspaceTabs.activeTabId === tab.id}
+                          id={`${workspaceTabDomId(tab.id)}-pane`}
+                          key={tab.id}
+                          labelledBy={workspaceTabDomId(tab.id)}
+                        >
+                          {tab.kind === "review" && (
+                            <ReviewSurface
+                              busy={reviewTransitionPending || !reviewDiff}
+                              label={t.reviewPanel}
+                            >
+                              <ReviewToolbar>
+                                <div className="review-comparison-primary">
+                                  <div className="review-scope-select">
+                                    <CodexSelect<ReviewScope>
+                                      ariaLabel={t.comparison}
+                                      onChange={selectReviewScope}
+                                      options={[
+                                        ...(reviewScope === "turn"
+                                          ? [
+                                              {
+                                                value: "turn" as const,
+                                                label: t.thisTurn,
+                                              },
+                                            ]
+                                          : []),
+                                        {
+                                          value: "unstaged",
+                                          label: t.unstaged,
+                                        },
+                                        { value: "staged", label: t.staged },
+                                        {
+                                          value: "last-turn",
+                                          label: t.lastTurn,
+                                        },
+                                        { value: "branch", label: t.branch },
+                                      ]}
+                                      size="compact"
+                                      value={reviewScope}
+                                    />
+                                  </div>
+                                  <button
+                                    aria-label={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
+                                    aria-busy={reviewRefreshing}
+                                    className="review-toolbar-action"
+                                    disabled={
+                                      reviewRefreshing || !activeThreadId
+                                    }
+                                    onClick={async () => {
+                                      setReviewRefreshing(true);
+                                      try {
+                                        const diff = await refreshDiff(true);
+                                        if (diff?.available)
+                                          setToast(t.diffRefreshed);
+                                      } finally {
+                                        setReviewRefreshing(false);
+                                      }
+                                    }}
+                                    title={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
+                                    type="button"
+                                  >
+                                    <RefreshIcon />
+                                  </button>
+                                </div>
+                                <div className="review-comparison-route">
+                                  {reviewScope === "branch" ? (
+                                    <>
+                                      <label className="base-ref-field">
+                                        <span>{t.baseRef}</span>
+                                        <input
+                                          aria-label={t.baseRef}
+                                          onChange={(event) =>
+                                            setReviewBaseRef(event.target.value)
+                                          }
+                                          placeholder={
+                                            reviewDiff?.baseRef ?? "main"
+                                          }
+                                          value={reviewBaseRef}
+                                        />
+                                      </label>
+                                      <span aria-hidden="true">→</span>
+                                      <strong>HEAD</strong>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span>HEAD</span>
+                                      <span aria-hidden="true">→</span>
+                                      <strong>
+                                        {reviewScope === "unstaged"
+                                          ? t.unstaged
+                                          : reviewScope === "staged"
+                                            ? t.staged
+                                            : reviewScope === "turn"
+                                              ? t.thisTurn
+                                              : t.lastTurn}
+                                      </strong>
+                                    </>
+                                  )}
+                                </div>
+                              </ReviewToolbar>
+                              <ReviewWorkspace>
+                                <ReviewDiffReader label={t.comparison}>
+                                  {!reviewDiff && (
+                                    <ReviewState state="loading">…</ReviewState>
+                                  )}
+                                  {reviewDiff?.available &&
+                                    !reviewDiff.files.length && (
+                                      <ReviewState state="empty">
+                                        <div className="review-empty-illustration">
+                                          <ReviewEmptyIcon />
+                                        </div>
+                                        <strong>{t.noChanges}</strong>
+                                        <p>{t.changesAppearHere}</p>
+                                      </ReviewState>
+                                    )}
+                                  {reviewDiff && !reviewDiff.available && (
+                                    <ReviewState state="error">
+                                      {reviewMessage(
+                                        locale,
+                                        reviewDiff.message ?? "",
+                                      )}
+                                    </ReviewState>
+                                  )}
+                                  {reviewDiff?.available &&
+                                    selectedReviewFile && (
+                                      <ReviewDiffSurface
+                                        data-language={
+                                          filePresentation(
+                                            selectedReviewFile.path,
+                                          ).language
+                                        }
+                                        key={selectedReviewFile.id}
+                                        state={
+                                          commentLineId ? "dirty" : "selected"
+                                        }
+                                      >
+                                        <ReviewDiffHeader>
+                                          <span className="file-status">
+                                            {selectedReviewFile.status ===
+                                            "added"
+                                              ? "A"
+                                              : selectedReviewFile.status ===
+                                                  "deleted"
+                                                ? "D"
+                                                : "M"}
+                                          </span>
+                                          <span className="review-file-path">
+                                            {selectedReviewFile.path}
+                                          </span>
+                                          <span className="review-file-stats">
+                                            <span className="addition">
+                                              +{selectedReviewFile.additions}
+                                            </span>
+                                            <span className="deletion">
+                                              −{selectedReviewFile.deletions}
+                                            </span>
+                                          </span>
+                                          <span className="review-actions">
+                                            {reviewScope === "unstaged" && (
+                                              <>
+                                                <button
+                                                  className="review-action"
+                                                  disabled={
+                                                    reviewBusy || turnActive
+                                                  }
+                                                  onClick={() =>
+                                                    void mutateReview("stage", {
+                                                      kind: "file",
+                                                      id: selectedReviewFile.id,
+                                                    })
+                                                  }
+                                                >
+                                                  {t.stage}
+                                                </button>
+                                                <button
+                                                  className="review-action danger"
+                                                  disabled={
+                                                    reviewBusy || turnActive
+                                                  }
+                                                  onClick={() =>
+                                                    void mutateReview(
+                                                      "revert",
+                                                      {
+                                                        kind: "file",
+                                                        id: selectedReviewFile.id,
+                                                      },
+                                                    )
+                                                  }
+                                                >
+                                                  {t.revert}
+                                                </button>
+                                              </>
+                                            )}
+                                            {reviewScope === "staged" && (
+                                              <button
+                                                className="review-action"
+                                                disabled={
+                                                  reviewBusy || turnActive
+                                                }
+                                                onClick={() =>
+                                                  void mutateReview("unstage", {
+                                                    kind: "file",
+                                                    id: selectedReviewFile.id,
+                                                  })
+                                                }
+                                              >
+                                                {t.unstage}
+                                              </button>
+                                            )}
+                                          </span>
+                                        </ReviewDiffHeader>
+                                        {selectedReviewFile.hunks.map(
+                                          (hunk) => (
+                                            <ReviewDiffHunk key={hunk.id}>
+                                              <div className="review-hunk">
+                                                <code title={hunk.header}>
+                                                  {hunk.header}
+                                                </code>
+                                                <span className="review-file-stats">
+                                                  <span className="addition">
+                                                    +{hunk.additions}
+                                                  </span>
+                                                  <span className="deletion">
+                                                    −{hunk.deletions}
+                                                  </span>
+                                                </span>
+                                                <span className="review-actions">
+                                                  {reviewScope ===
+                                                    "unstaged" && (
+                                                    <>
+                                                      <button
+                                                        className="review-action"
+                                                        disabled={
+                                                          reviewBusy ||
+                                                          turnActive
+                                                        }
+                                                        onClick={() =>
+                                                          void mutateReview(
+                                                            "stage",
+                                                            {
+                                                              kind: "hunk",
+                                                              id: hunk.id,
+                                                            },
+                                                          )
+                                                        }
+                                                      >
+                                                        {t.stage}
+                                                      </button>
+                                                      <button
+                                                        className="review-action danger"
+                                                        disabled={
+                                                          reviewBusy ||
+                                                          turnActive
+                                                        }
+                                                        onClick={() =>
+                                                          void mutateReview(
+                                                            "revert",
+                                                            {
+                                                              kind: "hunk",
+                                                              id: hunk.id,
+                                                            },
+                                                          )
+                                                        }
+                                                      >
+                                                        {t.revert}
+                                                      </button>
+                                                    </>
+                                                  )}
+                                                  {reviewScope === "staged" && (
+                                                    <button
+                                                      className="review-action"
+                                                      disabled={
+                                                        reviewBusy || turnActive
+                                                      }
+                                                      onClick={() =>
+                                                        void mutateReview(
+                                                          "unstage",
+                                                          {
+                                                            kind: "hunk",
+                                                            id: hunk.id,
+                                                          },
+                                                        )
+                                                      }
+                                                    >
+                                                      {t.unstage}
+                                                    </button>
+                                                  )}
+                                                </span>
+                                              </div>
+                                              <ReviewDiffLines>
+                                                {hunk.lines.map((line) => {
+                                                  const comments =
+                                                    reviewComments.filter(
+                                                      (comment) =>
+                                                        comment.scope ===
+                                                          reviewScope &&
+                                                        comment.lineId ===
+                                                          line.id,
+                                                    );
+                                                  return (
+                                                    <div
+                                                      className="review-line-group"
+                                                      key={line.id}
+                                                    >
+                                                      <ReviewDiffLine
+                                                        data-line-id={line.id}
+                                                        kind={line.kind}
+                                                      >
+                                                        {reviewScope !==
+                                                          "turn" && (
+                                                          <button
+                                                            aria-label={
+                                                              t.addComment
+                                                            }
+                                                            className="review-comment-trigger"
+                                                            onClick={() => {
+                                                              setCommentLineId(
+                                                                line.id,
+                                                              );
+                                                              setCommentBody(
+                                                                "",
+                                                              );
+                                                            }}
+                                                            title={t.addComment}
+                                                          >
+                                                            +
+                                                          </button>
+                                                        )}
+                                                        <span className="review-line-number">
+                                                          {line.kind ===
+                                                          "deletion"
+                                                            ? line.oldLine
+                                                            : line.newLine}
+                                                        </span>
+                                                        <code>
+                                                          <HighlightedCodeLine
+                                                            content={
+                                                              line.text || " "
+                                                            }
+                                                            path={
+                                                              selectedReviewFile.path
+                                                            }
+                                                          />
+                                                        </code>
+                                                      </ReviewDiffLine>
+                                                      {comments.map(
+                                                        (comment) => (
+                                                          <div
+                                                            className="review-comment"
+                                                            key={comment.id}
+                                                          >
+                                                            <p>
+                                                              {comment.body}
+                                                            </p>
+                                                            <button
+                                                              aria-label={
+                                                                t.deleteComment
+                                                              }
+                                                              className="text-button danger"
+                                                              disabled={
+                                                                reviewBusy
+                                                              }
+                                                              onClick={() =>
+                                                                void deleteReviewComment(
+                                                                  comment,
+                                                                )
+                                                              }
+                                                            >
+                                                              {t.deleteComment}
+                                                            </button>
+                                                          </div>
+                                                        ),
+                                                      )}
+                                                      {commentLineId ===
+                                                        line.id && (
+                                                        <div className="review-comment-editor">
+                                                          <textarea
+                                                            aria-label={
+                                                              t.commentPlaceholder
+                                                            }
+                                                            autoFocus
+                                                            onChange={(event) =>
+                                                              setCommentBody(
+                                                                event.target
+                                                                  .value,
+                                                              )
+                                                            }
+                                                            placeholder={
+                                                              t.commentPlaceholder
+                                                            }
+                                                            value={commentBody}
+                                                          />
+                                                          <span>
+                                                            <button
+                                                              className="text-button"
+                                                              onClick={() => {
+                                                                setCommentLineId(
+                                                                  undefined,
+                                                                );
+                                                                setCommentBody(
+                                                                  "",
+                                                                );
+                                                              }}
+                                                            >
+                                                              {t.cancelComment}
+                                                            </button>
+                                                            <button
+                                                              className="primary-button compact"
+                                                              disabled={
+                                                                reviewBusy ||
+                                                                !commentBody.trim()
+                                                              }
+                                                              onClick={() =>
+                                                                void saveReviewComment(
+                                                                  line.id,
+                                                                )
+                                                              }
+                                                            >
+                                                              {t.saveComment}
+                                                            </button>
+                                                          </span>
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })}
+                                              </ReviewDiffLines>
+                                            </ReviewDiffHunk>
+                                          ),
+                                        )}
+                                      </ReviewDiffSurface>
+                                    )}
+                                </ReviewDiffReader>
+                                <ReviewFileSidebar label={t.changedFiles}>
+                                  <label className="review-file-filter">
+                                    <SearchIcon />
+                                    <input
+                                      aria-label={t.filterFiles}
+                                      onChange={(event) =>
+                                        setReviewFileQuery(event.target.value)
+                                      }
+                                      placeholder={t.filterFiles}
+                                      value={reviewFileQuery}
+                                    />
+                                  </label>
+                                  <div className="file-summary">
+                                    <span>{t.changedFiles}</span>
+                                    <strong>
+                                      {reviewDiff?.files.length ?? 0}
+                                    </strong>
+                                  </div>
+                                  <div className="review-file-list">
+                                    {filteredReviewFiles.map((file) => (
+                                      <button
+                                        aria-pressed={
+                                          selectedReviewFile?.id === file.id
+                                        }
+                                        className={
+                                          selectedReviewFile?.id === file.id
+                                            ? "review-file-entry selected"
+                                            : "review-file-entry"
+                                        }
+                                        key={file.id}
+                                        onClick={() =>
+                                          setSelectedReviewFilePath(file.path)
+                                        }
+                                        title={file.path}
+                                        type="button"
+                                      >
+                                        <span className="file-status">
+                                          {file.status === "added"
+                                            ? "A"
+                                            : file.status === "deleted"
+                                              ? "D"
+                                              : "M"}
+                                        </span>
+                                        <span className="review-file-path">
+                                          {file.path}
+                                        </span>
+                                        <span className="review-file-stats">
+                                          <span className="addition">
+                                            +{file.additions}
+                                          </span>
+                                          <span className="deletion">
+                                            −{file.deletions}
+                                          </span>
+                                        </span>
+                                      </button>
+                                    ))}
+                                    {Boolean(
+                                      reviewDiff?.files.length &&
+                                      !filteredReviewFiles.length,
+                                    ) && (
+                                      <div className="review-file-list-empty">
+                                        {t.noMatchingFiles}
+                                      </div>
+                                    )}
+                                  </div>
+                                </ReviewFileSidebar>
+                              </ReviewWorkspace>
+                            </ReviewSurface>
+                          )}
+                          {tab.kind === "sources" && activeThread && (
+                            <SourcesPanel
+                              agents={environmentAgents}
+                              attachments={attachments}
+                              locale={locale}
+                              mcpUsages={environmentMcpUsages}
+                              onOpenUrl={openConversationExternalLink}
+                              onOpenAgent={openChildAgentPanel}
+                              onOpenFile={openResolvedWorkspaceFile}
+                              sources={environmentSources}
+                              threadId={activeThread.id}
+                            />
+                          )}
+                          {tab.kind === "goal" && activeThread?.goal && (
+                            <GoalEditorPanel
+                              clockMs={clockMs}
+                              goal={activeThread.goal}
+                              key={activeThread.goal.goalId}
+                              locale={locale}
+                              onError={(message) =>
+                                setToast({ error: true, message })
+                              }
+                              onSaved={updateThreadInSnapshot}
+                            />
+                          )}
+                          {tab.kind === "terminal" && (
+                            <Suspense
+                              fallback={
+                                <TerminalSurface
+                                  busy
+                                  className="terminal-panel view-loading"
+                                  label={tab.title}
+                                  state="connecting"
+                                >
+                                  <TerminalViewport>
+                                    <TerminalState state="connecting">
+                                      …
+                                    </TerminalState>
+                                  </TerminalViewport>
+                                </TerminalSurface>
+                              }
+                            >
+                              <TerminalPanel
+                                locale={locale}
+                                threadId={activeThread?.id}
+                                title={tab.title}
+                                emptyMessage={t.terminalLocked}
+                                theme={runtimeSettings?.theme ?? "system"}
+                              />
+                            </Suspense>
+                          )}
+                          {tab.kind === "browser" && (
+                            <WorkspaceBrowserPanel
+                              key={`${activeThreadId ?? "project"}:${tab.id}`}
+                              addressPlaceholder={t.browserAddress}
+                              backLabel={t.browserBack}
+                              emptyMessage={t.noHtmlPreview}
+                              forwardLabel={t.browserForward}
+                              goLabel={t.browserGo}
+                              initialUrl={tab.url}
+                              locale={locale}
+                              path={
+                                tab.url
+                                  ? undefined
+                                  : (tab.path ?? latestHtmlChange?.path)
+                              }
+                              refreshLabel={t.refreshPreview}
+                              revision={
+                                tab.revision ?? latestHtmlChange?.eventId
+                              }
+                              threadId={activeThreadId}
+                              title={tab.title}
+                            />
+                          )}
+                          {tab.kind === "markdown" && (
+                            <MarkdownReaderPanel
+                              editLabel={t.editFile}
+                              emptyMessage={t.noMarkdownPreview}
+                              imageFailureMessage={t.imageFailedToLoad}
+                              path={tab.path ?? latestMarkdownChange?.path}
+                              refreshLabel={t.refreshPreview}
+                              revision={
+                                tab.revision ?? latestMarkdownChange?.eventId
+                              }
+                              richLabel={t.richText}
+                              saveLabel={t.saveFile}
+                              savedLabel={t.saved}
+                              savingLabel={t.saving}
+                              sourceLabel={t.sourceText}
+                              threadId={activeThreadId}
+                              title={tab.title}
+                              unsavedLabel={t.unsaved}
+                            />
+                          )}
+                          {tab.kind === "design" && activeThreadId ? (
+                            designPluginAvailable ? (
+                              <Suspense fallback={<span>…</span>}>
+                                <DesignPluginPanel
+                                  key={`${activeThreadId}:${tab.id}`}
+                                  threadId={activeThreadId}
+                                  panelId="workspace"
+                                  active={workspaceTabs.activeTabId === tab.id}
+                                  onCandidate={(
+                                    text,
+                                    annotations,
+                                    document,
+                                    autoSend,
+                                    images,
+                                  ) => {
+                                    const trimmed = text.trim();
+                                    if (!trimmed || !activeThreadId) return;
+                                    void (async () => {
+                                      try {
+                                        // Keep the credential with this draft until the host
+                                        // accepts the actual startTurn/followUpTurn request.
+                                        const accepted =
+                                          await window.artemis.acceptDesignPanelCandidate(
+                                            activeThreadId,
+                                            trimmed,
+                                          );
+                                        if (
+                                          activeThreadIdRef.current !==
+                                          activeThreadId
+                                        ) {
+                                          await window.artemis.discardDesignPanelCandidate(
+                                            accepted.credential,
+                                          );
+                                          return;
+                                        }
+                                        const previous =
+                                          designPanelCredentials.current.get(
+                                            activeComposerDraftKey,
+                                          );
+                                        designPanelCredentials.current.delete(
+                                          activeComposerDraftKey,
+                                        );
+                                        if (previous)
+                                          await window.artemis
+                                            .discardDesignPanelCandidate(
+                                              previous.credential,
+                                            )
+                                            .catch(() => undefined);
+                                        if (autoSend === false) {
+                                          await window.artemis.stageDesignPanelSend(
+                                            accepted.credential,
+                                          );
+                                        } else {
+                                          designPanelCredentials.current.set(
+                                            activeComposerDraftKey,
+                                            {
+                                              text: trimmed,
+                                              credential: accepted.credential,
+                                            },
+                                          );
+                                        }
+                                        if (document?.html.trim()) {
+                                          const merged =
+                                            addDesignDocumentAttachment(
+                                              draftAttachments.current.get(
+                                                activeComposerDraftKey,
+                                              ) ?? [],
+                                              document,
+                                            );
+                                          if (merged) setAttachments(merged);
+                                        }
+                                        // 面板附图（OD imageAttachments）：dataURL
+                                        // → 裸图片附件（PromptImage，与粘贴同形）
+                                        if (images && images.length > 0) {
+                                          const imageAttachments =
+                                            images.flatMap((dataUrl, index) => {
+                                              const match =
+                                                /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(
+                                                  dataUrl,
+                                                );
+                                              if (!match) return [];
+                                              const mime = match[1] as
+                                                | "image/png"
+                                                | "image/jpeg"
+                                                | "image/webp"
+                                                | "image/gif";
+                                              return [
+                                                {
+                                                  name: `panel-image-${index + 1}.${mime === "image/jpeg" ? "jpg" : mime.slice(6)}`,
+                                                  mimeType: mime,
+                                                  data: match[2] ?? "",
+                                                },
+                                              ];
+                                            });
+                                          const withImages =
+                                            appendPromptAttachments(
+                                              draftAttachments.current.get(
+                                                activeComposerDraftKey,
+                                              ) ?? [],
+                                              imageAttachments,
+                                            );
+                                          draftAttachments.current.set(
+                                            activeComposerDraftKey,
+                                            withImages.attachments,
+                                          );
+                                          setAttachments(
+                                            withImages.attachments,
+                                          );
+                                        }
+                                        designAnnotationDrafts.current.set(
+                                          activeComposerDraftKey,
+                                          (() => {
+                                            const draft =
+                                              designAnnotationDrafts.current.get(
+                                                activeComposerDraftKey,
+                                              ) ?? new DesignAnnotationDraft();
+                                            draft.add(
+                                              annotations,
+                                              document ?? undefined,
+                                            );
+                                            return draft;
+                                          })(),
+                                        );
+                                        setPrompt(trimmed);
+                                        if (autoSend !== false) {
+                                          designPanelAutoSendText.current = {
+                                            draftKey: activeComposerDraftKey,
+                                            text: trimmed,
+                                          };
+                                        }
+                                        window.requestAnimationFrame(() =>
+                                          promptInput.current?.focus(),
+                                        );
+                                      } catch {
+                                        setToast({
+                                          error: true,
+                                          message: locale.startsWith("zh")
+                                            ? "候选入账失败"
+                                            : "Failed to accept the candidate",
+                                        });
+                                      }
+                                    })();
+                                  }}
+                                  onBinding={(binding) => {
+                                    setDesignDocBinding(binding);
+                                  }}
+                                  failureMessage={t.designTab}
+                                />
+                              </Suspense>
+                            ) : (
+                              <div
+                                className="design-plugin-panel-disabled"
+                                style={{
+                                  display: "flex",
+                                  flex: 1,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: 24,
+                                  color:
+                                    "var(--artemis-color-text-secondary, #9399b2)",
+                                }}
+                              >
+                                {locale.startsWith("zh")
+                                  ? "设计插件已移除：请在 插件市场 → 随应用提供的插件 中重新获取。"
+                                  : "The design plugin was removed. Get it again from Plugins → Bundled."}
+                              </div>
+                            )
+                          ) : null}
+                          {tab.kind === "office" &&
+                          activeThreadId &&
+                          tab.path ? (
+                            <Suspense fallback={<span>…</span>}>
+                              <OfficeFilePanel
+                                key={`${activeThreadId}:${tab.id}`}
+                                threadId={activeThreadId}
+                                path={tab.path}
+                                retryLabel={t.refreshPreview}
+                                onOpened={(artifactSessionId) =>
+                                  dispatchWorkspaceTab({
+                                    type: "update",
+                                    tabId: tab.id,
+                                    updates: { artifactSessionId },
+                                  })
+                                }
+                                view={
+                                  tab.artifactSessionId
+                                    ? threadState?.artifacts?.[
+                                        tab.artifactSessionId
+                                      ]
+                                    : undefined
+                                }
+                                locale={locale}
+                                onSnapshot={recoverOfficeSnapshot}
+                                annotationFocus={
+                                  officeAnnotationFocus?.threadId ===
+                                    activeThreadId &&
+                                  officeAnnotationFocus.path === tab.path
+                                    ? officeAnnotationFocus.annotation
+                                    : undefined
+                                }
+                                onAnnotate={(annotation) => {
+                                  if (busy) return false;
+                                  const next = addOfficeAnnotation(
+                                    draftAttachments.current.get(
+                                      activeComposerDraftKey,
+                                    ) ?? [],
+                                    tab.path!,
+                                    annotation,
+                                  );
+                                  if (!next) {
+                                    setToast(t.attachmentLimit);
+                                    return false;
+                                  }
+                                  setAttachments(next);
+                                  window.requestAnimationFrame(() =>
+                                    promptInput.current?.focus(),
+                                  );
+                                  return true;
+                                }}
+                              />
+                            </Suspense>
+                          ) : null}
+                          {tab.kind === "file" && (
+                            <WorkspaceFilesPanel
+                              locale={locale}
+                              onOpenOffice={(path) =>
+                                openWorkspaceTab("office", { path })
+                              }
+                              previewLabel={t.previewFile}
+                              binaryMessage={t.binaryFile}
+                              editFileLabel={t.editFile}
+                              imageFailureMessage={t.imageFailedToLoad}
+                              filterPlaceholder={t.filterFiles}
+                              onFileSelected={(path) =>
+                                dispatchWorkspaceTab({
+                                  type: "update",
+                                  tabId: tab.id,
+                                  updates: {
+                                    path,
+                                    title:
+                                      path
+                                        .replaceAll("\\", "/")
+                                        .split("/")
+                                        .at(-1) ?? t.files,
+                                  },
+                                })
+                              }
+                              onOpenHtml={openHtmlFromFiles}
+                              onOpenReader={(path) =>
+                                openWorkspaceTab("markdown", { path })
+                              }
+                              readerLabel={t.openLinkedFile}
+                              openFileMessage={t.openFileFromTree}
+                              refreshLabel={t.refreshPreview}
+                              richLabel={t.richText}
+                              saveLabel={t.saveFile}
+                              savedLabel={t.saved}
+                              selectedPath={tab.path}
+                              savingLabel={t.saving}
+                              sourceLabel={t.sourceText}
+                              threadId={activeThreadId}
+                              title={tab.title}
+                              unsavedLabel={t.unsaved}
+                            />
+                          )}
+                          {tab.kind === "agent-team" && (
+                            <AgentTeamPanel
+                              active={workspaceTabs.activeTabId === tab.id}
+                              controlPending={agentTeamControlPending}
+                              locale={locale}
+                              members={Object.values(
+                                threadState?.childAgents ?? {},
+                              ).filter(
+                                (child) => child.teamId === tab.agentTeamId,
+                              )}
+                              messages={(
+                                threadState?.agentTeamMessageOrder ?? []
+                              )
+                                .map(
+                                  (messageId) =>
+                                    threadState?.agentTeamMessages[messageId],
+                                )
+                                .filter(
+                                  (message): message is AgentTeamMessageState =>
+                                    Boolean(
+                                      message &&
+                                      message.teamId === tab.agentTeamId,
+                                    ),
+                                )}
+                              onOpenChildAgent={openChildAgentPanel}
+                              onStop={(team) => void stopAgentTeam(team)}
+                              runtimeAvailable={turnActive}
+                              team={
+                                tab.agentTeamId
+                                  ? threadState?.agentTeams[tab.agentTeamId]
+                                  : undefined
+                              }
+                            />
+                          )}
+                          {tab.kind === "child-agent" && (
+                            <ChildAgentPanel
+                              active={workspaceTabs.activeTabId === tab.id}
+                              child={
+                                tab.childAgentId
+                                  ? threadState?.childAgents[tab.childAgentId]
+                                  : undefined
+                              }
+                              clockMs={clockMs}
+                              locale={locale}
+                              onControl={(child, action) =>
+                                void controlChildAgent(child, action)
+                              }
+                              pendingAction={childAgentControlPending}
+                            />
+                          )}
+                        </WorkspaceTabPane>
+                      ))}
+                    </div>
+                  </WorkspaceDock>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+
+      {failedTabClose && (
+        <Dialog
+          open
+          label={locale.startsWith("zh") ? "文件尚未保存" : "File not saved"}
+          onOpenChange={(open) => {
+            if (!open) setFailedTabClose(undefined);
+          }}
+        >
+          <h2>{locale.startsWith("zh") ? "文件尚未保存" : "File not saved"}</h2>
+          <p>{failedTabClose.path}</p>
+          <p>{failedTabClose.message}</p>
+          <p>
+            {locale.startsWith("zh")
+              ? "可以重试保存，或保留 Office 草稿并关闭。保留的草稿尚未写入文档，重新打开此文件后可继续处理。"
+              : "Retry saving, or retain the Office draft and close. Retained drafts are not saved to the document; reopen this file to recover them."}
+          </p>
+          <Button onClick={() => setFailedTabClose(undefined)}>
+            {locale.startsWith("zh") ? "继续编辑" : "Keep editing"}
+          </Button>
+          <Button onClick={() => void closeWorkspaceTab(failedTabClose.tabId)}>
+            {locale.startsWith("zh") ? "重试保存" : "Retry save"}
+          </Button>
+          <Button
+            onClick={() => {
+              try {
+                retainWorkspaceDrafts(
+                  failedTabClose.threadId,
+                  failedTabClose.path,
+                );
+                void closeWorkspaceTab(failedTabClose.tabId, {
+                  moveFocus: true,
+                });
+              } catch (error) {
+                setFailedTabClose({
+                  ...failedTabClose,
+                  message: String(error),
+                });
+              }
+            }}
+          >
+            {locale.startsWith("zh")
+              ? "保留草稿并关闭"
+              : "Retain draft and close"}
+          </Button>
+        </Dialog>
+      )}
+      {threadRename && (
+        <Dialog
+          className="thread-rename-dialog"
+          label={t.renameTaskTitle}
+          aria-describedby="thread-rename-hint"
+          initialFocusRef={threadRenameInput}
+          returnFocusRef={threadMenuAnchor}
+          onOpenChange={(open) => {
+            if (!open) setThreadRename(undefined);
+          }}
+          open
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              const thread = snapshot?.threads.find(
+                (item) => item.id === threadRename.threadId,
+              );
+              if (thread && threadRename.title.trim())
+                void renameThread(thread, threadRename.title);
+            }}
+          >
+            <header>
+              <h2>{t.renameTaskTitle}</h2>
+              <button
+                aria-label={t.renameClose}
+                className="thread-rename-close"
+                onClick={() => setThreadRename(undefined)}
+                type="button"
+              >
+                <CloseIcon />
+              </button>
+            </header>
+            <p id="thread-rename-hint">{t.renameTaskHint}</p>
+            <input
+              aria-label={t.taskNamePrompt}
+              className="thread-rename-input"
+              ref={threadRenameInput}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => {
+                const title = event.currentTarget.value;
+                setThreadRename((current) =>
+                  current ? { ...current, title } : current,
+                );
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && event.nativeEvent.isComposing)
+                  event.preventDefault();
+              }}
+              value={threadRename.title}
+            />
+            <footer>
+              <button type="button" onClick={() => setThreadRename(undefined)}>
+                {t.renameCancel}
+              </button>
+              <button
+                className="thread-rename-save"
+                type="submit"
+                disabled={!threadRename.title.trim()}
+              >
+                {t.renameSave}
+              </button>
+            </footer>
+          </form>
+        </Dialog>
+      )}
+
+      {settingsOpen && (
+        <Suspense
+          fallback={
+            <Dialog
+              className="settings-panel settings-loading"
+              label={t.settings}
+              onOpenChange={(open) => {
+                if (!open) setSettingsOpen(false);
+              }}
+              open
+              returnFocusRef={settingsTrigger}
+            >
+              <LoadingState label={t.loadingSettings} />
+            </Dialog>
+          }
+        >
+          <SettingsPanel
+            username={username}
+            initialSettings={runtimeSettings}
+            initialTab={settingsTab}
+            hooksQuery={hooksQuery}
+            locale={locale}
+            projects={projects}
+            onClose={() => setSettingsOpen(false)}
+            returnFocusRef={settingsTrigger}
+            onSettingsChange={(value, options) => {
+              setRuntimeSettings(value);
+              setApprovalPolicy(value.approvalPolicy);
+              setSnapshot((current) =>
+                current
+                  ? {
+                      ...current,
+                      locale: value.resolvedLocale,
+                    }
+                  : current,
+              );
+              if (options?.refreshThreads) {
+                void window.artemis
+                  .getSnapshot()
+                  .then((refreshed) => {
+                    setSnapshot((current) =>
+                      preserveLoadedEvents(refreshed, current),
+                    );
+                  })
+                  .catch((error) => {
+                    setToast(
+                      error instanceof Error ? error.message : String(error),
+                    );
+                  });
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
+      {confirmation && (
+        <Dialog
+          aria-describedby="confirmation-message"
+          aria-labelledby="confirmation-title"
+          className={`confirmation-dialog ${confirmation.tone}`}
+          label={
+            confirmation.title ??
+            (confirmation.tone === "danger"
+              ? t.confirmationDangerTitle
+              : t.confirmationTitle)
+          }
+          onOpenChange={(open) => {
+            if (!open) resolveConfirmation(false);
+          }}
+          open
+          role="alertdialog"
+        >
+          <div className="confirmation-copy">
+            <h2 id="confirmation-title">
+              {confirmation.title ??
+                (confirmation.tone === "danger"
+                  ? t.confirmationDangerTitle
+                  : t.confirmationTitle)}
+            </h2>
+            <p id="confirmation-message">{confirmation.message}</p>
+          </div>
+          <div className="confirmation-actions">
+            <Button
+              className="secondary-button"
+              variant="secondary"
+              onClick={() => resolveConfirmation(false)}
+            >
+              {confirmation.cancelLabel ?? t.confirmationCancel}
+            </Button>
+            <Button
+              className={
+                confirmation.tone === "danger"
+                  ? "primary-button danger"
+                  : "primary-button"
+              }
+              variant={confirmation.tone === "danger" ? "danger" : "primary"}
+              onClick={() => resolveConfirmation(true)}
+            >
+              {confirmation.acceptLabel ?? t.confirmationAccept}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+
+      {fileLinkContextMenu && (
+        <div
+          className="file-link-context-backdrop"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setFileLinkContextMenu(undefined);
+          }}
+          onMouseDown={() => setFileLinkContextMenu(undefined)}
+        >
+          <div
+            aria-label={t.fileLinkMenu}
+            className="file-link-context-menu"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="menu"
+            style={{
+              left: `${fileLinkContextMenu.x}px`,
+              top: `${fileLinkContextMenu.y}px`,
+            }}
+            title={fileLinkContextMenu.file.path}
+          >
+            <button
+              autoFocus
+              onClick={() => {
+                const menu = fileLinkContextMenu;
+                setFileLinkContextMenu(undefined);
+                if (activeThreadIdRef.current === menu.threadId) {
+                  openResolvedWorkspaceFile(menu.file);
+                }
+              }}
+              role="menuitem"
+            >
+              {t.openLinkedFile}
+            </button>
+            <button
+              onClick={() => void revealConversationFile(fileLinkContextMenu)}
+              role="menuitem"
+            >
+              {t.revealLinkedFile}
+            </button>
+            {fileLinkContextMenu.file.executable && (
+              <button
+                className="run"
+                onClick={() => void runConversationFile(fileLinkContextMenu)}
+                role="menuitem"
+              >
+                {t.runLinkedFile}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </ApplicationShell>
+  );
+}
+
+function agentMemberStatus(status: ChildAgentState["status"], locale: Locale) {
+  const copy = UI_COPY.App_copy_9734[locale];
+  return { agentMemberStatusLabel: copy[status] }.agentMemberStatusLabel;
+}
+
+function agentMemberTone(status: ChildAgentState["status"]) {
+  return status === "completed"
+    ? "success"
+    : status === "failed" || status === "cancelled"
+      ? "danger"
+      : status === "running" || status === "blocked"
+        ? "warning"
+        : "neutral";
+}
+
+export function AgentTeamPanel({
+  active,
+  controlPending,
+  locale,
+  members,
+  messages,
+  onOpenChildAgent,
+  onStop,
+  runtimeAvailable,
+  team,
+}: {
+  active: boolean;
+  controlPending: boolean;
+  locale: Locale;
+  members: ChildAgentState[];
+  messages: AgentTeamMessageState[];
+  onOpenChildAgent: (child: ChildAgentState) => void;
+  onStop: (team: AgentTeamState) => void;
+  runtimeAvailable: boolean;
+  team: AgentTeamState | undefined;
+}) {
+  const messageList = useRef<HTMLDivElement>(null);
+  const labels = UI_COPY.App_labels[locale];
+  const teamStatusLabels = UI_COPY.App_teamStatusLabels[locale];
+  const messageKindLabels = UI_COPY.App_messageKindLabels[locale];
+  const teamRunning =
+    team &&
+    (team.status === "forming" ||
+      team.status === "running" ||
+      team.status === "blocked" ||
+      team.status === "integrating");
+  const teamId = team?.teamId ?? "";
+  const memberAgentIds = team?.memberAgentIds;
+  const { memberById, currentMembers, childrenByParent } = useMemo(
+    () => indexAgentTeamTree(members, memberAgentIds ?? []),
+    [memberAgentIds, members],
+  );
+  const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const expansionTeamId = useRef(teamId);
+  const manuallyToggledAgentIds = useRef(new Set<string>());
+  useEffect(() => {
+    const defaultExpanded = currentMembers
+      .filter(
+        (member) =>
+          (member.depth ?? 1) === 1 &&
+          (childrenByParent.get(member.agentId)?.length ?? 0) > 0,
+      )
+      .map((member) => member.agentId);
+    if (expansionTeamId.current !== teamId) {
+      expansionTeamId.current = teamId;
+      manuallyToggledAgentIds.current.clear();
+      setExpandedAgentIds(new Set(defaultExpanded));
+      return;
+    }
+    setExpandedAgentIds((current) => {
+      const next = new Set(current);
+      let changed = false;
+      for (const agentId of defaultExpanded) {
+        if (
+          !next.has(agentId) &&
+          !manuallyToggledAgentIds.current.has(agentId)
+        ) {
+          next.add(agentId);
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [childrenByParent, currentMembers, teamId]);
+  const visibleMembers = useMemo(() => {
+    return visibleAgentTeamMembers(childrenByParent, expandedAgentIds);
+  }, [childrenByParent, expandedAgentIds]);
+  const agentName = (agentId: string) =>
+    agentId === "parent"
+      ? labels.parent
+      : agentId === "all"
+        ? labels.everyone
+        : (memberById.get(agentId)?.label ?? agentId);
+
+  useLayoutEffect(() => {
+    if (!active || !messageList.current) return;
+    messageList.current.scrollTop = messageList.current.scrollHeight;
+  }, [active, messages.length]);
+
+  if (!team) {
+    return (
+      <section className="agent-team-panel unavailable">
+        <div className="agent-team-empty">
+          <ChildAgentIcon
+            className="agent-team-empty-icon"
+            identity="agent-team"
+          />
+          <strong>{labels.title}</strong>
+          <p>{labels.unavailable}</p>
+          <span aria-hidden="true" className="agent-team-skeleton">
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className={`agent-team-panel ${team.status}`}>
+      <header className="agent-team-header">
+        <div>
+          <span className="agent-team-eyebrow">{labels.title}</span>
+          <strong title={team.mission}>{team.mission}</strong>
+          <Badge
+            className="agent-panel-status"
+            tone={
+              team.status === "completed"
+                ? "success"
+                : team.status === "blocked" || team.status === "aborted"
+                  ? "danger"
+                  : "warning"
+            }
+          >
+            {(team.status === "running"
+              ? teamStatusLabels.teamRunning
+              : teamStatusLabels[team.status]) +
+              (!runtimeAvailable && teamRunning ? ` · ${labels.history}` : "")}
+          </Badge>
+        </div>
+      </header>
+      {team.error && <p className="agent-team-error">{team.error}</p>}
+      <div className="agent-team-grid">
+        <aside className="agent-team-members">
+          <h3>
+            {labels.teamMembers} · {currentMembers.length}
+          </h3>
+          <div className="agent-team-member-list">
+            {visibleMembers.map((member) => {
+              const childCount =
+                childrenByParent.get(member.agentId)?.length ?? 0;
+              const expanded = expandedAgentIds.has(member.agentId);
+              return (
+                <div
+                  className={`agent-team-member ${member.status}`}
+                  key={member.agentId}
+                  style={{
+                    paddingInlineStart: 12 + ((member.depth ?? 1) - 1) * 16,
+                  }}
+                >
+                  {childCount > 0 ? (
+                    <button
+                      aria-expanded={expanded}
+                      aria-label={`${expanded ? labels.collapse : labels.expand}: ${member.label}`}
+                      className="agent-team-member-disclosure"
+                      onClick={() => {
+                        manuallyToggledAgentIds.current.add(member.agentId);
+                        setExpandedAgentIds((current) => {
+                          const next = new Set(current);
+                          if (next.has(member.agentId)) {
+                            next.delete(member.agentId);
+                          } else {
+                            next.add(member.agentId);
+                          }
+                          return next;
+                        });
+                      }}
+                      type="button"
+                    >
+                      <ArtemisIcon name="chev-right" />
+                    </button>
+                  ) : null}
+                  <button
+                    className="agent-team-member-open"
+                    onClick={() => onOpenChildAgent(member)}
+                    type="button"
+                  >
+                    <ChildAgentIcon identity={member.agentId} />
+                    <span className="agent-team-member-summary">
+                      <strong>{member.label}</strong>
+                      <small>
+                        {member.customAgent
+                          ? customAgentInstanceIdentity(
+                              member.customAgent,
+                              locale,
+                            )
+                          : member.status === "completed"
+                            ? agentMemberStatus(member.status, locale)
+                            : (member.currentTool ??
+                              member.activity
+                                ?.split("\n")
+                                .find((line) => line.trim()) ??
+                              agentMemberStatus(member.status, locale))}
+                      </small>
+                    </span>
+                    {member.status === "completed" ? (
+                      <span className="agent-team-member-view">
+                        {labels.teamView}
+                      </span>
+                    ) : (
+                      <Badge
+                        className="agent-panel-status"
+                        tone={agentMemberTone(member.status)}
+                      >
+                        {agentMemberStatus(member.status, locale)}
+                      </Badge>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+        <section className="agent-team-collaboration">
+          <h3>{labels.teamMessages}</h3>
+          <div className="agent-team-message-list" ref={messageList}>
+            {messages.length === 0 ? (
+              <p className="agent-team-message-empty">{labels.noMessages}</p>
+            ) : (
+              messages.map((message) => (
+                <article
+                  className={`agent-team-message ${message.kind}`}
+                  key={message.messageId}
+                >
+                  <header>
+                    <strong>{agentName(message.fromAgentId)}</strong>
+                    <span title={agentName(message.recipient)}>
+                      {messageKindLabels[message.kind]}
+                      {message.recipient !== "all" &&
+                      message.recipient !== "parent"
+                        ? ` → ${agentName(message.recipient)}`
+                        : ""}
+                    </span>
+                    <time>
+                      {new Intl.DateTimeFormat(locale, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(message.createdAt))}
+                    </time>
+                  </header>
+                  <p>{message.content}</p>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+        {teamRunning && runtimeAvailable && (
+          <div className="agent-team-footer">
+            <Button
+              variant="quiet"
+              disabled={controlPending}
+              onClick={() => onStop(team)}
+            >
+              {labels.teamStop}
+            </Button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function ChildAgentPanel({
+  active,
+  child,
+  clockMs,
+  locale,
+  onControl,
+  pendingAction,
+}: {
+  active: boolean;
+  child: ChildAgentState | undefined;
+  clockMs: number;
+  locale: Locale;
+  onControl: (
+    child: ChildAgentState,
+    action: "steer" | "cancel" | "retry",
+  ) => void;
+  pendingAction: string | undefined;
+}) {
+  const CHILD_AGENT_SCROLL_THRESHOLD = 64;
+  const childAgentScrollContainer = useRef<HTMLDivElement>(null);
+  const childAgentFollowOutput = useRef(true);
+  const labels = UI_COPY.App_labels_10125[locale];
+  const content = child?.error ?? child?.output ?? child?.activity;
+  const running = child?.status === "queued" || child?.status === "running";
+  const lastActivityMs = child?.lastActivityAt
+    ? Date.parse(child.lastActivityAt)
+    : undefined;
+  const silentMilliseconds = lastActivityMs
+    ? Math.max(0, clockMs - lastActivityMs)
+    : 0;
+  const health =
+    child?.health === "stalled" ||
+    (child?.status === "running" &&
+      !child?.currentTool &&
+      silentMilliseconds >= CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS)
+      ? "stalled"
+      : child?.health === "suspect" ||
+          (child?.status === "running" && silentMilliseconds >= 60_000)
+        ? "suspect"
+        : "healthy";
+  const healthLabel =
+    child?.status === "running"
+      ? health === "stalled"
+        ? labels.unresponsive
+        : health === "suspect"
+          ? labels.longRunning
+          : undefined
+      : undefined;
+  const startedMilliseconds = child?.startedAt
+    ? Date.parse(child.startedAt)
+    : child?.updatedAt
+      ? Date.parse(child.updatedAt)
+      : clockMs;
+  const elapsedMilliseconds = Math.max(0, clockMs - startedMilliseconds);
+  const lastActivityLabel =
+    silentMilliseconds < 1_000
+      ? labels.justNow
+      : labels.ago.replace(
+          "{{duration}}",
+          formatRunDuration(silentMilliseconds),
+        );
+  const currentToolElapsed = child?.currentToolStartedAt
+    ? Math.max(0, clockMs - Date.parse(child.currentToolStartedAt))
+    : undefined;
+  const controlPending = child
+    ? pendingAction?.startsWith(`${child.agentId}:`)
+    : false;
+  const handleChildAgentScroll = (event: ReactUIEvent<HTMLElement>) => {
+    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
+    childAgentFollowOutput.current =
+      scrollHeight - scrollTop - clientHeight <= CHILD_AGENT_SCROLL_THRESHOLD;
+  };
+
+  useLayoutEffect(() => {
+    if (!active || !childAgentFollowOutput.current) return;
+    const container = childAgentScrollContainer.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [active, content, child?.status]);
+
+  return (
+    <section
+      aria-live="polite"
+      className={`child-agent-panel ${child?.status ?? "unavailable"} ${health}`}
+    >
+      <header className="child-agent-panel-header">
+        <span>
+          <strong>{child?.label ?? labels.subagent}</strong>
+          {child && (
+            <Badge
+              className="agent-panel-status"
+              tone={agentMemberTone(child.status)}
+            >
+              {agentMemberStatus(child.status, locale) +
+                (healthLabel ? ` · ${healthLabel}` : "")}
+            </Badge>
+          )}
+        </span>
+        {child && child.status !== "completed" && (
+          <div className="child-agent-panel-actions">
+            {running && (
+              <button
+                className="child-agent-panel-control"
+                disabled={controlPending}
+                onClick={() => onControl(child, "steer")}
+                type="button"
+              >
+                {labels.nudge}
+              </button>
+            )}
+            {(running || child.status === "cancelling") && (
+              <button
+                className="child-agent-panel-control danger"
+                disabled={controlPending || child.status === "cancelling"}
+                onClick={() => onControl(child, "cancel")}
+                type="button"
+              >
+                {labels.childStop}
+              </button>
+            )}
+            {(child.status === "failed" ||
+              child.status === "blocked" ||
+              child.status === "cancelled") && (
+              <button
+                className="child-agent-panel-control"
+                disabled={controlPending}
+                onClick={() => onControl(child, "retry")}
+                type="button"
+              >
+                {labels.retry}
+              </button>
+            )}
+          </div>
+        )}
+      </header>
+      {child?.customAgent && (
+        <p className="child-agent-panel-identity">
+          {customAgentInstanceIdentity(child.customAgent, locale)}
+        </p>
+      )}
+      {child && child.status !== "completed" && (
+        <details className="child-agent-panel-runtime-bar">
+          <summary>{labels.runtimeDetails}</summary>
+          <dl className="child-agent-panel-runtime">
+            <div>
+              <dt>{labels.elapsed}</dt>
+              <dd>{formatRunDuration(elapsedMilliseconds)}</dd>
+            </div>
+            <div>
+              <dt>{labels.lastActivity}</dt>
+              <dd>{lastActivityLabel}</dd>
+            </div>
+            <div>
+              <dt>{labels.currentTool}</dt>
+              <dd>
+                {child.currentTool ?? "—"}
+                {child.currentTool && currentToolElapsed !== undefined
+                  ? ` · ${formatRunDuration(currentToolElapsed)}`
+                  : ""}
+              </dd>
+            </div>
+            {healthLabel && (
+              <div className="child-agent-panel-health">
+                <dt>{labels.health}</dt>
+                <dd>{healthLabel}</dd>
+              </div>
+            )}
+          </dl>
+        </details>
+      )}
+      <div
+        className="child-agent-panel-body"
+        onScroll={handleChildAgentScroll}
+        ref={childAgentScrollContainer}
+      >
+        <div className="child-agent-panel-body-inner">
+          {!child ? (
+            <p className="child-agent-panel-empty">{labels.unavailable}</p>
+          ) : (
+            <>
+              {child.task && (
+                <section className="child-agent-panel-task">
+                  <span>{labels.task}</span>
+                  <p>{child.task}</p>
+                </section>
+              )}
+              {(child.activity || child.currentTool) && (
+                <section className="child-agent-panel-task">
+                  <span>{labels.activityLog}</span>
+                  {child.currentTool && (
+                    <div className="child-agent-activity-row">
+                      <span>{child.currentTool}</span>
+                      <Badge
+                        className="agent-panel-status"
+                        tone={agentMemberTone(child.status)}
+                      >
+                        {agentMemberStatus(child.status, locale)}
+                      </Badge>
+                    </div>
+                  )}
+                  {child.activity && (
+                    <MarkdownContent
+                      className="child-agent-activity-log"
+                      text={child.activity}
+                    />
+                  )}
+                </section>
+              )}
+              {child.output || child.error ? (
+                <section className="child-agent-panel-task">
+                  <span>{labels.result}</span>
+                  <MarkdownContent
+                    className={
+                      child.error
+                        ? "child-agent-panel-output error"
+                        : "child-agent-panel-output"
+                    }
+                    text={child.error ?? child.output ?? ""}
+                  />
+                </section>
+              ) : !child.activity && !child.currentTool ? (
+                <p className="child-agent-panel-empty">{labels.waiting}</p>
+              ) : null}
+              {child.status === "completed" && (
+                <Button
+                  className="child-agent-panel-retry"
+                  variant="quiet"
+                  disabled={controlPending}
+                  onClick={() => onControl(child, "retry")}
+                >
+                  {labels.retry}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function ToolActivityGroupCard({
+  active,
+  locale,
+  onFileLink,
+  tools,
+  pluginForTool,
+}: {
+  active: boolean;
+  locale: Locale;
+  onFileLink: (href: string) => void;
+  tools: readonly ToolState[];
+  pluginForTool?: (tool: ToolState) => ToolPlugin | undefined;
+}) {
+  const [open, setExpanded] = useState(false);
+  const view = toolActivityPatternView(tools, active, locale);
+  const firstPlugin = tools[0] && pluginForTool?.(tools[0]);
+  const plugin =
+    firstPlugin &&
+    tools.every((tool) => pluginForTool?.(tool)?.id === firstPlugin.id)
+      ? firstPlugin
+      : undefined;
+  const mixedActivity =
+    tools.some((tool) => toolActivityKind(tool.name, tool.input) === "bash") &&
+    tools.some((tool) =>
+      ["read", "search"].includes(toolActivityKind(tool.name, tool.input)),
+    );
+  const disclosureLabels = UI_COPY.App_disclosureLabels[locale];
+  const summary = mixedActivity
+    ? disclosureLabels.toolGroupCalls
+    : tools.length > 1 && view.fileActivity
+      ? view.kind === "write"
+        ? disclosureLabels.toolGroupEdit
+        : disclosureLabels.toolGroupRead
+      : view.summary;
+
+  return (
+    <ToolActivity
+      className={`tool-card ${view.state}${open ? " open" : ""}${plugin ? " tool-card-plugin" : ""}`}
+      collapseLabel={disclosureLabels.collapse}
+      disclosureIcon={<ArtemisIcon height={14} name="chev-right" width={14} />}
+      expandLabel={disclosureLabels.expand}
+      expanded={open}
+      icon={
+        <span className="tool-activity-icon">
+          {plugin ? (
+            <ResourceAvatar
+              kind="plugin"
+              name={plugin.displayName}
+              pluginName={plugin.name}
+              iconDataUrl={plugin.iconDataUrl}
+              brandColor={plugin.brandColor}
+            />
+          ) : view.actualStatus === "completed" ? (
+            <ArtemisIcon name="check" />
+          ) : view.actualStatus === "failed" ? (
+            <ArtemisIcon name="warning" />
+          ) : (
+            <ToolActivityIcon kind={view.kind} />
+          )}
+        </span>
+      }
+      label={`${plugin ? `${plugin.displayName}, ` : ""}${summary}, ${view.statusLabel}`}
+      onExpandedChange={setExpanded}
+      state={view.state}
+      statusLabel={view.statusLabel}
+      summary={
+        <span className="tool-summary-label" title={summary}>
+          {summary}
+          {tools.length > 1 && (
+            <span className="tool-group-count">{tools.length}</span>
+          )}
+        </span>
+      }
+    >
+      {(view.fileActivity || mixedActivity) && (
+        <ol className="tool-activity-list">
+          {tools.map((tool) => {
+            const detail = summarizeToolDetail(tool, locale);
+            const path = toolActivityPath(tool.input);
+            const prefix =
+              path && detail.endsWith(path)
+                ? detail.slice(0, -path.length)
+                : detail;
+            const row = (
+              <>
+                <span className="tool-item-label">
+                  {prefix}
+                  {path && detail.endsWith(path) && (
+                    <button
+                      className="tool-file-link"
+                      onClick={() => onFileLink(path)}
+                      type="button"
+                    >
+                      {path}
+                    </button>
+                  )}
+                </span>
+                <span className="tool-item-status" data-state={tool.status}>
+                  {toolActivityPatternView([tool], false, locale).statusLabel}
+                </span>
+              </>
+            );
+            return (
+              <li className={tool.status} key={tool.id}>
+                {mixedActivity && (tool.input !== undefined || tool.output) ? (
+                  <details className="tool-item-details">
+                    <summary
+                      aria-label={`${uiText(locale, "EnvironmentPanel_labels.details")}: ${detail}`}
+                    >
+                      {row}
+                      <ArtemisIcon name="chev-right" height={12} width={12} />
+                    </summary>
+                    <pre>
+                      {[
+                        formatToolInput(tool.name, tool.input),
+                        formatToolOutput(tool.name, tool.output),
+                      ]
+                        .filter(Boolean)
+                        .join("\n")}
+                    </pre>
+                  </details>
+                ) : (
+                  row
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {!mixedActivity && view.kind === "bash" && view.bashTranscript && (
+        <pre aria-live="polite" className="bash-transcript" role="log">
+          {view.bashTranscript}
+        </pre>
+      )}
+      {!view.fileActivity && view.kind !== "bash" && (
+        <div className="tool-details">
+          {tools.map((tool) => {
+            const input = formatToolInput(tool.name, tool.input);
+            const output = formatToolOutput(tool.name, tool.output);
+            const detailPlugin = !plugin ? pluginForTool?.(tool) : undefined;
+            if (!input && !output && !detailPlugin && !tool.images?.length)
+              return null;
+            return (
+              <section
+                key={tool.id}
+                className={
+                  tool.parentToolCallId ? "tool-nested-call" : undefined
+                }
+                data-parent-tool-call={tool.parentToolCallId}
+              >
+                {detailPlugin ? (
+                  <span className="tool-detail-plugin">
+                    <ResourceAvatar
+                      kind="plugin"
+                      name={detailPlugin.displayName}
+                      pluginName={detailPlugin.name}
+                      iconDataUrl={detailPlugin.iconDataUrl}
+                      brandColor={detailPlugin.brandColor}
+                    />
+                    {detailPlugin.displayName}
+                  </span>
+                ) : null}
+                <span>{summarizeToolDetail(tool, locale)}</span>
+                {input && <pre>{input}</pre>}
+                {output && <pre>{output}</pre>}
+                {tool.images?.map((image, index) => (
+                  <a
+                    key={index}
+                    href={`data:${image.mimeType};base64,${image.data}`}
+                    download={`generated-${tool.id}-${index}.${image.mimeType.split("/")[1]}`}
+                  >
+                    <img
+                      className="tool-result-image"
+                      alt={tool.name}
+                      src={`data:${image.mimeType};base64,${image.data}`}
+                    />
+                  </a>
+                ))}
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </ToolActivity>
+  );
+}
+
+export function TurnChangeSetCard({
+  locale,
+  onReview,
+  onUndo,
+  turn,
+  undoEnabled,
+}: {
+  locale: Locale;
+  onReview: (turnId: string, path?: string) => void;
+  onUndo: (turnId: string) => void;
+  turn: TurnViewState;
+  undoEnabled: boolean;
+}) {
+  const t = appCopy(locale);
+  const changeSet = turn.changeSet;
+  if (!changeSet || changeSet.files.length === 0) return null;
+  const multiple = changeSet.files.length > 1;
+  const previewFiles = changeSet.files.slice(0, 3);
+  const remainingFiles = multiple ? changeSet.files.slice(3) : [];
+  const hasTextChanges = changeSet.files.some((file) => !file.binary);
+  const singleBinary = !multiple && changeSet.files[0]!.binary;
+  const title = multiple
+    ? t.editedFiles.replace("{{count}}", String(changeSet.files.length))
+    : `${t.editedFile} ${changeSet.files[0]!.path.split("/").at(-1)}`;
+  const fileRow = (file: (typeof changeSet.files)[number]) => {
+    const separator = file.path.lastIndexOf("/") + 1;
+    return (
+      <li key={file.path}>
+        <button
+          aria-label={`${t.reviewChanges} ${file.path}`}
+          className="turn-change-file"
+          onClick={() => onReview(turn.id, file.path)}
+          title={file.path}
+          type="button"
+        >
+          <span className="turn-change-file-path">
+            <span className="turn-change-directory">
+              {file.path.slice(0, separator)}
+            </span>
+            <span>{file.path.slice(separator)}</span>
+          </span>
+          {file.binary ? (
+            <small>{t.binaryChange}</small>
+          ) : (
+            <span className="turn-change-file-stats">
+              <span className="addition" data-count={file.additions}>
+                +{file.additions}
+              </span>
+              <span className="deletion" data-count={file.deletions}>
+                −{file.deletions}
+              </span>
+            </span>
+          )}
+        </button>
+      </li>
+    );
+  };
+
+  return (
+    <TurnChangeSummary
+      aria-description={t.taskPeriodChanges}
+      className={`turn-change-card ${changeSet.status}`}
+      header={
+        <>
+          <div className="turn-change-heading">
+            <span className="turn-change-icon" aria-hidden="true">
+              <ArtemisIcon className="icon" name="changes" />
+            </span>
+            <div className="turn-change-heading-copy">
+              <strong title={multiple ? title : changeSet.files[0]!.path}>
+                {title}
+              </strong>
+              {singleBinary ? (
+                <span className="turn-change-binary">{t.binaryChange}</span>
+              ) : (
+                hasTextChanges && (
+                  <span className="turn-change-total">
+                    <span className="addition" data-count={changeSet.additions}>
+                      +{changeSet.additions}
+                    </span>
+                    <span className="deletion" data-count={changeSet.deletions}>
+                      −{changeSet.deletions}
+                    </span>
+                  </span>
+                )
+              )}
+            </div>
+          </div>
+          <div className="turn-change-actions">
+            {changeSet.status === "undone" ? (
+              <span className="turn-change-undone">{t.changesUndone}</span>
+            ) : (
+              <button
+                disabled={!undoEnabled}
+                onClick={() => onUndo(turn.id)}
+                title={changeSet.message}
+                type="button"
+              >
+                {t.undoChanges}
+                <ArtemisIcon className="icon" name="undo" />
+              </button>
+            )}
+            <button
+              className="turn-change-review"
+              onClick={() => onReview(turn.id)}
+              type="button"
+            >
+              {t.reviewChanges}
+            </button>
+          </div>
+        </>
+      }
+      label={title}
+      state={changeSet.status === "unavailable" ? "failed" : changeSet.status}
+    >
+      {previewFiles.length > 0 && (
+        <ol className="turn-change-files">{previewFiles.map(fileRow)}</ol>
+      )}
+      {remainingFiles.length > 0 && (
+        <details className="turn-change-more">
+          <summary>
+            {t.showMoreFiles.replace(
+              "{{count}}",
+              String(remainingFiles.length),
+            )}
+            <ChevronIcon />
+          </summary>
+          <ol className="turn-change-files">{remainingFiles.map(fileRow)}</ol>
+        </details>
+      )}
+      {changeSet.message && (
+        <p className="turn-change-message">{changeSet.message}</p>
+      )}
+    </TurnChangeSummary>
+  );
+}
+
+export function Timeline({
+  imGroup,
+  installedPlugins,
+  installedSkills,
+  mcpServers,
+  state,
+  locale,
+  onExternalLink,
+  onFileLink,
+  onFileLinkContextMenu,
+  onOpenChildAgent,
+  onOpenTurnReview,
+  onCopyText,
+  onEditUserMessage,
+  onResolve,
+  onResolveUserInput,
+  onUndoTurnChanges,
+}: {
+  imGroup?: ImGroupContext | undefined;
+  installedPlugins: readonly InstalledArtemisPlugin[];
+  installedSkills: readonly InstalledSkill[];
+  mcpServers?: readonly McpServerStatus[] | undefined;
+  state: ThreadViewState;
+  locale: Locale;
+  onExternalLink: (href: string) => void;
+  onFileLink: (href: string) => void;
+  onFileLinkContextMenu: (
+    href: string,
+    position: { x: number; y: number },
+  ) => void;
+  onOpenChildAgent: (child: ChildAgentState) => void;
+  onOpenTurnReview: (turnId: string, path?: string) => void;
+  onCopyText: (text: string) => Promise<void>;
+  onEditUserMessage: ((text: string) => void) | undefined;
+  onResolve: ResolveApprovalDecision;
+  onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
+  onUndoTurnChanges: (turnId: string) => void;
+}) {
+  const t = appCopy(locale);
+  const resolvePlugin = useMemo(
+    () =>
+      createToolPluginResolver(
+        installedPlugins,
+        mcpServers?.flatMap((server) => server.tools) ?? [],
+      ),
+    [installedPlugins, mcpServers],
+  );
+  const pluginForTool = (tool: ToolState) =>
+    resolvePlugin(
+      tool,
+      state.entryTurnIds[`tool:${tool.id}`],
+      state.mcpToolUses,
+    );
+  const groupedTimeline = useMemo(() => {
+    const assigned = new Set<string>();
+    const turns = state.turnOrder.flatMap((turnId) => {
+      const turn = state.turns[turnId];
+      if (!turn) return [];
+      for (const entry of turn.order) assigned.add(entry);
+      return [
+        {
+          turn,
+          entries: groupTimelineActivities(
+            turn.order,
+            state.tools,
+            state.messageParts,
+          ),
+        },
+      ];
+    });
+    return {
+      turns,
+      unassigned: groupTimelineActivities(
+        state.order.filter((entry) => !assigned.has(entry)),
+        state.tools,
+        state.messageParts,
+      ),
+    };
+  }, [
+    state.order,
+    state.tools,
+    state.turnOrder,
+    state.turns,
+    state.messageParts,
+  ]);
+  const activeTimelineEntries = groupedTimeline.turns.findLast(
+    ({ turn }) => turn.status === "running",
+  )?.entries;
+  const activeToolGroupKey =
+    activeTimelineEntries && state.queue.steering.length === 0
+      ? latestVisibleToolGroupKey(activeTimelineEntries, state.messageParts)
+      : undefined;
+  const childStatusLabels = UI_COPY.App_childStatusLabels[locale];
+  const latestCompletedTurnId = state.turnOrder.findLast(
+    (turnId) => state.turns[turnId]?.status === "completed",
+  );
+  const renderTimelineEntry = (
+    timelineEntry: ReturnType<typeof groupTimelineActivities>[number],
+  ): ReactNode => {
+    if (timelineEntry.kind === "tool-group") {
+      const tools = timelineEntry.toolIds.flatMap((toolId) => {
+        const tool = state.tools[toolId];
+        return tool ? [tool] : [];
+      });
+      return tools.length > 0 ? (
+        <ToolActivityGroupCard
+          active={timelineEntry.key === activeToolGroupKey}
+          key={timelineEntry.key}
+          locale={locale}
+          onFileLink={onFileLink}
+          tools={tools}
+          pluginForTool={pluginForTool}
+        />
+      ) : null;
+    }
+    const entry = timelineEntry.entry;
+    const separator = entry.indexOf(":");
+    const kind = entry.slice(0, separator);
+    const id = entry.slice(separator + 1);
+    if (separator < 0 || !id) return null;
+    const turn = state.turns[state.entryTurnIds[entry] ?? ""];
+    if (kind === "plan") {
+      const plan = state.plans?.find((p) => p.planId === id);
+      return plan ? (
+        <PlanConfirmationCard key={entry} plan={plan} locale={locale} />
+      ) : null;
+    }
+    if (kind === "user") {
+      const message = state.userMessages[id];
+      if (!message) return null;
+      const messageAttachments = userMessageAttachments(state, id);
+      const images = messageAttachments.filter(
+        (source) => source.kind === "image",
+      );
+      const files = messageAttachments.filter(
+        (source) => source.kind === "file",
+      );
+      const skillNames = selectedSkillNamesForPrompt(message.text);
+      // 结构化批注块是发给模型的载荷；气泡只显示用户自己的话
+      // （OD 把批注渲染成附件卡片，这里是显示侧等价物）。
+      const visibleText = promptWithoutSelectedSkills(
+        stripDesignAnnotationBlock(imUserMessageText(message.text, imGroup)),
+      );
+      const editable =
+        onEditUserMessage !== undefined &&
+        (turn?.status === "cancelled" || turn?.status === "failed");
+      return (
+        <Fragment key={entry}>
+          {images.length > 0 && (
+            <div className="message-attachments">
+              {images.map((source) => (
+                <MessageImageAttachment
+                  key={`${state.threadId}:${source.sourceId}`}
+                  threadId={state.threadId}
+                  sourceId={source.sourceId}
+                  name={source.name}
+                  thumbnail={source.attachment?.thumbnail}
+                  locale={locale}
+                />
+              ))}
+            </div>
+          )}
+          <ConversationMessage
+            actions={
+              <>
+                <Tooltip label={t.copyMessage}>
+                  <button
+                    aria-label={t.copyMessage}
+                    className="message-action"
+                    onClick={() => void onCopyText(visibleText || message.text)}
+                    type="button"
+                  >
+                    <CopyIcon />
+                  </button>
+                </Tooltip>
+                {editable && (
+                  <button
+                    aria-label={t.editAndResend}
+                    className="message-action"
+                    onClick={() => onEditUserMessage(message.text)}
+                    title={t.editAndResend}
+                    type="button"
+                  >
+                    <EditIcon />
+                  </button>
+                )}
+              </>
+            }
+            capabilities={
+              skillNames.length > 0 ? (
+                <>
+                  {skillNames.map((name) => {
+                    const skill = installedSkills.find(
+                      (candidate) => candidate.name === name,
+                    );
+                    const plugin = installedPlugins.find((candidate) =>
+                      candidate.skillNames.includes(name),
+                    );
+                    return (
+                      <span className="user-message-capability" key={name}>
+                        <span
+                          className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
+                        >
+                          <ResourceAvatar
+                            kind="skill"
+                            name={name}
+                            pluginName={plugin?.name}
+                            iconDataUrl={plugin?.iconDataUrl}
+                            brandColor={plugin?.brandColor}
+                          />
+                        </span>
+                        <strong>{skill?.name ?? name}</strong>
+                      </span>
+                    );
+                  })}
+                </>
+              ) : undefined
+            }
+            className="user-message"
+            key={entry}
+            kind="user"
+          >
+            {files.length > 0 && (
+              <div className="message-attachments">
+                {files.map((source) => (
+                  <FileAttachment
+                    key={source.sourceId}
+                    name={source.name}
+                    id={source.attachment?.id}
+                    threadId={state.threadId}
+                    locale={locale}
+                    compact
+                  />
+                ))}
+              </div>
+            )}
+            {visibleText && (
+              <div className="user-message-text">{visibleText}</div>
+            )}
+          </ConversationMessage>
+        </Fragment>
+      );
+    }
+    if (kind === "compaction") {
+      const compaction = state.contextCompactions[id];
+      if (!compaction) return null;
+      return (
+        <ContextCompactionStatus
+          compaction={compaction}
+          key={entry}
+          locale={locale}
+        />
+      );
+    }
+    if (kind === "part") {
+      const part = state.messageParts[id];
+      if (!part) return null;
+      if (part.type === "thinking") return null;
+      return (
+        <ConversationMessage
+          actions={
+            <Tooltip label={t.copyMessage}>
+              <button
+                aria-label={t.copyMessage}
+                className="message-action"
+                onClick={() => void onCopyText(part.text)}
+                type="button"
+              >
+                <CopyIcon />
+              </button>
+            </Tooltip>
+          }
+          className="assistant-message"
+          key={entry}
+          kind="assistant"
+          state={turn?.status === "running" ? "streaming" : "ready"}
+        >
+          <MarkdownContent
+            fileLinkIcons
+            videoThreadId={state.threadId}
+            locale={locale}
+            onExternalLink={onExternalLink}
+            onFileLink={onFileLink}
+            onFileLinkContextMenu={onFileLinkContextMenu}
+            text={part.text}
+          />
+        </ConversationMessage>
+      );
+    }
+    if (kind === "input") {
+      const input = state.userInputs[id];
+      if (!input || input.status === "pending") return null;
+      if (isMultiQuestionUserInput(input)) {
+        return (
+          <MultiQuestionUserInputCard
+            active={false}
+            input={input}
+            key={entry}
+            locale={locale}
+            onResolve={onResolveUserInput}
+          />
+        );
+      }
+      return (
+        <UserInputCard
+          active={false}
+          input={input}
+          key={entry}
+          locale={locale}
+          onResolve={onResolveUserInput}
+        />
+      );
+    }
+    if (kind === "approval") {
+      const approval = state.approvals[id];
+      if (!approval || approval.status === "pending") return null;
+      return (
+        <ApprovalDecisionCard
+          key={entry}
+          approval={approval}
+          locale={locale}
+          onResolve={onResolve}
+          {...(approval.actorAgentId
+            ? {
+                actorLabel: `${t.agentActor}: ${state.childAgents[approval.actorAgentId]?.label ?? approval.actorAgentId}`,
+              }
+            : {})}
+        />
+      );
+    }
+    if (kind === "child") {
+      const child = state.childAgents[id];
+      if (child?.parentAgentId && child.parentAgentId !== "parent") {
+        return null;
+      }
+      return child ? (
+        <AgentActivity
+          indicator={
+            <span aria-hidden="true" className="child-agent-open-icon">
+              <ArtemisIcon
+                className="icon"
+                height={14}
+                name="chev-right"
+                width={14}
+              />
+            </span>
+          }
+          className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}
+          icon={
+            <ChildAgentIcon
+              className="child-agent-icon"
+              identity={child.agentId}
+            />
+          }
+          key={entry}
+          label={`${child.label}, ${childStatusLabels[child.status]}`}
+          onActivate={() => onOpenChildAgent(child)}
+          state={child.status}
+          statusLabel={childStatusLabels[child.status]}
+          title={child.label}
+        />
+      ) : null;
+    }
+    return null;
+  };
+
+  return (
+    <TimelineSurface className="timeline">
+      {groupedTimeline.turns.map(({ entries, turn }, turnIndex) => (
+        <HistoryTurn
+          key={`${state.threadId}:${turn.id}`}
+          cacheKey={`${state.threadId}:${turn.id}`}
+          active={turn.status === "running"}
+          initialVisible={turnIndex >= groupedTimeline.turns.length - 12}
+        >
+          {() => {
+            if (turn.status !== "completed") {
+              return (
+                <TimelineTurn
+                  className="timeline-turn"
+                  key={turn.id}
+                  state={turn.status}
+                >
+                  {entries.map(renderTimelineEntry)}
+                  <TurnChangeSetCard
+                    locale={locale}
+                    onReview={onOpenTurnReview}
+                    onUndo={onUndoTurnChanges}
+                    turn={turn}
+                    undoEnabled={
+                      turn.id === latestCompletedTurnId &&
+                      state.status === "idle" &&
+                      turn.changeSet?.undoAvailable === true
+                    }
+                  />
+                </TimelineTurn>
+              );
+            }
+            const finalEntry = turn.finalPartId
+              ? entries.find(
+                  (entry) =>
+                    entry.kind === "entry" &&
+                    entry.entry === `part:${turn.finalPartId}`,
+                )
+              : entries.findLast(
+                  (entry) =>
+                    entry.kind === "entry" && entry.entry.startsWith("part:"),
+                );
+            const userEntries = entries.filter(
+              (entry) =>
+                entry.kind === "entry" && entry.entry.startsWith("user:"),
+            );
+            const planEntries = entries.filter(
+              (entry) =>
+                entry.kind === "entry" && entry.entry.startsWith("plan:"),
+            );
+            const executionEntries = entries.filter(
+              (entry) =>
+                entry !== finalEntry &&
+                !userEntries.includes(entry) &&
+                !planEntries.includes(entry),
+            );
+            return (
+              <TimelineTurn
+                className="timeline-turn completed"
+                key={turn.id}
+                state="completed"
+              >
+                {userEntries.map(renderTimelineEntry)}
+                <TurnExecutionDisclosure
+                  className="turn-execution-details"
+                  label={`${t.workedFor} ${formatWorkedDuration(turn.durationMs)}`}
+                  summary={
+                    <>
+                      <span>
+                        {t.workedFor} {formatWorkedDuration(turn.durationMs)}
+                      </span>
+                      <ArtemisIcon
+                        className="icon"
+                        height={14}
+                        name="chev-right"
+                        width={14}
+                      />
+                    </>
+                  }
+                >
+                  {() => (
+                    <div className="turn-execution-entries">
+                      {executionEntries.map(renderTimelineEntry)}
+                    </div>
+                  )}
+                </TurnExecutionDisclosure>
+                {finalEntry ? renderTimelineEntry(finalEntry) : null}
+                {planEntries.map(renderTimelineEntry)}
+                <TurnChangeSetCard
+                  locale={locale}
+                  onReview={onOpenTurnReview}
+                  onUndo={onUndoTurnChanges}
+                  turn={turn}
+                  undoEnabled={
+                    turn.id === latestCompletedTurnId &&
+                    state.status === "idle" &&
+                    turn.changeSet?.undoAvailable === true
+                  }
+                />
+              </TimelineTurn>
+            );
+          }}
+        </HistoryTurn>
+      ))}
+      {groupedTimeline.unassigned.map(renderTimelineEntry)}
+      {state.queue.steering.map((message, index) => (
+        <ConversationMessage
+          className="user-message steering-message"
+          key={`steering:${index}:${message}`}
+          kind="steering"
+          state="queued"
+        >
+          {message}
+        </ConversationMessage>
+      ))}
+      {state.error && (
+        <TurnStatus
+          className="error-card"
+          label={t.failed}
+          state="failed"
+          statusLabel={localizedTurnFailure(t, state.error, state.errorCode)}
+        />
+      )}
+    </TimelineSurface>
+  );
+}
+
+function ContextCompactionStatus({
+  compaction,
+  locale,
+}: {
+  compaction: ThreadViewState["contextCompactions"][string];
+  locale: Locale;
+}) {
+  const t = appCopy(locale);
+  const completionDeadline = compaction.completedAt
+    ? Date.parse(compaction.completedAt) +
+      COMPACTION_COMPLETION_NOTICE_MILLISECONDS
+    : 0;
+  const [visible, setVisible] = useState(
+    () => compaction.status !== "completed" || completionDeadline > Date.now(),
+  );
+
+  useEffect(() => {
+    if (compaction.status !== "completed") {
+      setVisible(true);
+      return;
+    }
+    const remainingMilliseconds = completionDeadline - Date.now();
+    if (remainingMilliseconds <= 0) {
+      setVisible(false);
+      return;
+    }
+    setVisible(true);
+    const timer = window.setTimeout(
+      () => setVisible(false),
+      remainingMilliseconds,
+    );
+    return () => window.clearTimeout(timer);
+  }, [compaction.id, compaction.status, completionDeadline]);
+
+  if (!visible) return null;
+  const label =
+    compaction.status === "running"
+      ? t.contextCompacting
+      : compaction.status === "failed"
+        ? t.contextCompactionFailed
+        : compaction.status === "cancelled"
+          ? t.contextCompactionCancelled
+          : t.contextCompacted;
+  return (
+    <TurnStatus
+      className={`turn-status compaction-status ${compaction.status}`}
+      label={label}
+      state={compaction.status === "cancelled" ? "idle" : compaction.status}
+      statusLabel={compaction.error ?? label}
+    />
+  );
+}

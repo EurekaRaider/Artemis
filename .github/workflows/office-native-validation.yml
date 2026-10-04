@@ -16,12 +16,12 @@ name: Office native validation
       - .github/workflows/office-native-validation.yml
       - scripts/office/**
       - apps/desktop/native/office-bridge/**
-      - apps/desktop/src/main/office-*.ts
-      - apps/desktop/src/main/capability-*.ts
-      - apps/desktop/src/renderer/Office*.tsx
-      - apps/desktop/src/renderer/office-*
-      - apps/desktop/test/office-*.test.ts
-      - apps/desktop/test/capability-pack-service.test.ts
+      - apps/desktop/src/main/office/**
+      - apps/desktop/src/main/capabilities/**
+      - apps/desktop/src/renderer/office/**
+      - apps/desktop/src/renderer/capabilities/**
+      - apps/desktop/test/**/office*.test.ts
+      - apps/desktop/test/main/capabilities/capability-pack-service.test.ts
       - packages/protocol/src/artifact.ts
       - packages/protocol/src/capability-pack.ts
       - package-lock.json
@@ -128,8 +128,8 @@ jobs:
         if: success()
         run: >-
           node node_modules/vitest/vitest.mjs run --no-file-parallelism
-          apps/desktop/test/office-document-service.test.ts apps/desktop/test/office-session-service.test.ts
-          apps/desktop/test/office-uno-engine.test.ts apps/desktop/test/capability-pack-service.test.ts
+          apps/desktop/test/main/office/office-document-service.test.ts apps/desktop/test/main/office/office-session-service.test.ts
+          apps/desktop/test/main/office/office-uno-engine.test.ts apps/desktop/test/main/capabilities/capability-pack-service.test.ts
           packages/protocol/test/artifact.test.ts
         env:
           NODE_OPTIONS: "--no-experimental-webstorage"

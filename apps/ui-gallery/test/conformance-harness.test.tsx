@@ -167,7 +167,7 @@ import {
   WORKFLOW_COMPONENT_CONTRACTS,
 } from "@artemis/ui/workflow";
 
-import conformanceMatrix from "../src/conformance-matrix.json" with { type: "json" };
+import conformanceMatrix from "../src/conformance/conformance-matrix.json" with { type: "json" };
 import {
   applyGalleryMode,
   applyGallerySkin,
@@ -176,14 +176,14 @@ import {
   installGalleryStressSkinStyles,
   type GalleryMode,
   type GallerySkin,
-} from "../src/gallery-app.js";
+} from "../src/app/gallery-app.js";
 import {
   STRESS_SKIN_ID,
   stressSkinCss,
   stressSkinPackage,
-} from "../src/stress-skin-fixture.mjs";
+} from "../src/themes/stress-skin-fixture.mjs";
 
-const galleryCss = readFileSync("src/gallery.css", "utf8");
+const galleryCss = readFileSync("src/styles/gallery.css", "utf8");
 const workflowSource = readFileSync(
   "../../packages/ui/src/workflow.tsx",
   "utf8",

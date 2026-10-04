@@ -1,0 +1,77 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+const root = fileURLToPath(new URL("../../../../", import.meta.url));
+const releaseVersion = "1.7.0";
+const workspacePaths = [
+  "packages/plugin-contract",
+  "packages/plugin-sdk",
+  "apps/desktop",
+  "apps/ui-gallery",
+  "packages/agent-host",
+  "packages/gateway",
+  "packages/platform",
+  "packages/protocol",
+  "packages/theme-artemis",
+  "packages/theme-contract",
+  "packages/ui",
+];
+
+function json(path: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(root, path), "utf8")) as Record<
+    string,
+    unknown
+  >;
+}
+
+describe("release version", () => {
+  it("keeps manifests, lockfile, MCP identity, and theme at v1.7.0", () => {
+    const manifests = [json("package.json")];
+    for (const workspacePath of workspacePaths) {
+      manifests.push(json(join(workspacePath, "package.json")));
+    }
+
+    for (const manifest of manifests) {
+      expect(manifest.version).toBe(releaseVersion);
+      for (const [name, version] of Object.entries(
+        (manifest.dependencies ?? {}) as Record<string, string>,
+      )) {
+        if (name.startsWith("@artemis/")) expect(version).toBe(releaseVersion);
+      }
+    }
+
+    const lock = json("package-lock.json") as {
+      version?: string;
+      packages?: Record<
+        string,
+        { version?: string; dependencies?: Record<string, string> }
+      >;
+    };
+    expect(lock.version).toBe(releaseVersion);
+    for (const packagePath of ["", ...workspacePaths]) {
+      const entry = lock.packages?.[packagePath];
+      expect(entry?.version).toBe(releaseVersion);
+      for (const [name, version] of Object.entries(entry?.dependencies ?? {})) {
+        if (name.startsWith("@artemis/")) expect(version).toBe(releaseVersion);
+      }
+    }
+
+    const mcp = readFileSync(
+      join(root, "apps/desktop/src/main/mcp/mcp-client-manager.ts"),
+      "utf8",
+    );
+    const themeArtemisSource = readFileSync(
+      join(root, "packages/theme-artemis/src/index.ts"),
+      "utf8",
+    );
+    expect(mcp.match(/version: "1\.7\.0"/gu)).toHaveLength(3);
+    expect(
+      themeArtemisSource.match(
+        /ARTEMIS_THEME_VERSION = "([^"]+)" as const;/u,
+      )?.[1],
+    ).toBe(releaseVersion);
+  });
+});

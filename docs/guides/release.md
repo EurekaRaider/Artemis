@@ -1,3 +1,5 @@
+[English / 简体中文](release-en.md)
+
 # 构建与发布
 
 仅支持 Windows x64 和 macOS arm64。CI 使用 GitHub 托管的 `windows-2025` 与 `macos-15`，覆盖 main push、外部 fork PR 和手动调用。PR 权限只读，不读取签名密钥，不使用 `pull_request_target` 执行贡献者代码。

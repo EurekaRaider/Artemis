@@ -1,12 +1,12 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { createThreadViewState } from "@artemis/protocol";
-import { Timeline, UserInputCard } from "../../src/renderer/App";
-import { MultiQuestionUserInputCard } from "../../src/renderer/MultiQuestionUserInputCard";
-import { i18n } from "../../src/renderer/i18n";
+import { Timeline, UserInputCard } from "../../src/renderer/app/App";
+import { MultiQuestionUserInputCard } from "../../src/renderer/conversation/MultiQuestionUserInputCard";
+import { i18n } from "../../src/renderer/app/i18n";
 import "@artemis/ui/styles.css";
-import "../../src/renderer/styles.css";
-import "../../src/renderer/prototype-migration.css";
+import "../../src/renderer/styles/styles.css";
+import "../../src/renderer/styles/prototype-migration.css";
 import "@artemis/theme-artemis/theme.css";
 
 void i18n.changeLanguage("zh-CN");

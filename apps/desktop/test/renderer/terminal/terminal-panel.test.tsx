@@ -1,0 +1,201 @@
+// @vitest-environment jsdom
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { TerminalPanel } from "../../../src/renderer/terminal/TerminalPanel.js";
+import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
+
+const terminals = vi.hoisted(
+  () =>
+    [] as Array<{
+      options: Record<string, any>;
+      write: ReturnType<typeof vi.fn>;
+      writeln: ReturnType<typeof vi.fn>;
+      dispose: ReturnType<typeof vi.fn>;
+      select: ReturnType<typeof vi.fn>;
+      scrollToLine: ReturnType<typeof vi.fn>;
+      refresh: ReturnType<typeof vi.fn>;
+    }>,
+);
+vi.mock("@xterm/xterm", () => ({
+  Terminal: class {
+    cols = 80;
+    rows = 24;
+    write = vi.fn();
+    writeln = vi.fn();
+    dispose = vi.fn();
+    buffer = { active: { viewportY: 4 } };
+    getSelectionPosition() {
+      return { start: { x: 2, y: 5 }, end: { x: 8, y: 5 } };
+    }
+    select = vi.fn();
+    scrollToLine = vi.fn();
+    refresh = vi.fn();
+    constructor(public options: Record<string, any>) {
+      terminals.push(this);
+    }
+    loadAddon() {}
+    open() {}
+    focus() {}
+    onData() {
+      return { dispose() {} };
+    }
+  },
+}));
+vi.mock("@xterm/addon-fit", () => ({
+  FitAddon: class {
+    fit() {}
+  },
+}));
+afterEach(() => {
+  terminals.length = 0;
+  vi.unstubAllGlobals();
+  document.documentElement.removeAttribute("style");
+});
+
+it("uses a complete light palette with contrast protection and preserves the live terminal on theme changes", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const open = vi.fn(async () => ({
+    terminalId: "terminal",
+    shell: "zsh",
+    sandboxImplementation: "desktop-user",
+  }));
+  const close = vi.fn(async () => {});
+  stubWindowArtemis({
+    openTerminal: open,
+    closeTerminal: close,
+    resizeTerminal: vi.fn(async () => {}),
+    onTerminalData: vi.fn(() => () => {}),
+    onTerminalExit: vi.fn(() => () => {}),
+  });
+  const props = {
+    locale: "en" as const,
+    threadId: "task",
+    title: "Terminal",
+    emptyMessage: "No terminal",
+  };
+  const view = render(<TerminalPanel {...props} theme="light" />);
+  await act(async () => {});
+  const terminal = terminals[0]!;
+  expect(terminal.options.minimumContrastRatio).toBe(4.5);
+  act(() => window.dispatchEvent(new Event("artemis:appearance-applied")));
+  expect(terminal.select).toHaveBeenCalledWith(2, 5, 6);
+  expect(terminal.scrollToLine).toHaveBeenCalledWith(4);
+  expect(terminal.refresh).toHaveBeenCalledWith(0, 23);
+  expect(terminal.options.theme).toMatchObject({
+    background: "#ffffff",
+    foreground: "#1f2023",
+    selectionForeground: "#1f2023",
+  });
+  for (const name of [
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+    "brightBlack",
+    "brightRed",
+    "brightGreen",
+    "brightYellow",
+    "brightBlue",
+    "brightMagenta",
+    "brightCyan",
+    "brightWhite",
+  ])
+    expect(terminal.options.theme[name], name).toMatch(/^#[0-9a-f]{6}$/i);
+  view.rerender(<TerminalPanel {...props} theme="dark" />);
+  expect(terminal.options.theme.background).toBe("#0d0e10");
+  expect(terminal.options.minimumContrastRatio).toBe(4.5);
+  view.rerender(<TerminalPanel {...props} theme="light" />);
+  expect(terminal.options.theme.background).toBe("#ffffff");
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(terminal.dispose).not.toHaveBeenCalled();
+  view.unmount();
+  expect(close).toHaveBeenCalledExactlyOnceWith("terminal");
+});
+
+it("updates exit messages in the current language without restarting the terminal", async () => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("matchMedia", () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const open = vi.fn(async () => ({
+    terminalId: "terminal",
+    shell: "zsh",
+    sandboxImplementation: "desktop-user",
+  }));
+  const close = vi.fn(async () => {});
+  let exit: (event: { terminalId: string; exitCode: number }) => void;
+  stubWindowArtemis({
+    openTerminal: open,
+    closeTerminal: close,
+    resizeTerminal: vi.fn(async () => {}),
+    onTerminalData: vi.fn(() => () => {}),
+    onTerminalExit: vi.fn((listener) => {
+      exit = listener;
+      return () => {};
+    }),
+  });
+  const view = render(
+    <TerminalPanel
+      threadId="task"
+      theme="light"
+      locale="en"
+      title="Terminal"
+      emptyMessage="No terminal"
+    />,
+  );
+  await act(async () => {});
+  const terminal = terminals[0]!;
+  view.rerender(
+    <TerminalPanel
+      threadId="task"
+      theme="light"
+      locale="zh-CN"
+      title="终端"
+      emptyMessage="终端不可用"
+    />,
+  );
+  await act(async () => {});
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(close).not.toHaveBeenCalled();
+  expect(terminal.dispose).not.toHaveBeenCalled();
+  act(() => exit({ terminalId: "terminal", exitCode: 7 }));
+  expect(terminal.writeln).toHaveBeenCalledWith("\r\n[进程已退出，退出码：7]");
+  expect(screen.getByText("进程已退出，退出码：7")).toBeTruthy();
+  view.rerender(
+    <TerminalPanel
+      threadId="task"
+      theme="light"
+      locale="de"
+      title="Terminal"
+      emptyMessage="Kein Terminal"
+    />,
+  );
+  expect(screen.getByText("Prozess mit Code 7 beendet")).toBeTruthy();
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(terminal.writeln).toHaveBeenCalledTimes(1);
+  view.unmount();
+  expect(close).toHaveBeenCalledExactlyOnceWith("terminal");
+});

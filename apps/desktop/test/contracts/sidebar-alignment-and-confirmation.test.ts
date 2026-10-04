@@ -1,0 +1,201 @@
+import { findCssDeclarations } from "./css-test-utils.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+const source = (relativePath: string) =>
+  readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
+
+const appSource = source("../../src/renderer/app/App.tsx");
+const stylesSource = source("../../src/renderer/styles/styles.css");
+
+function sourceBetween(value: string, start: string, end: string): string {
+  const startIndex = value.indexOf(start);
+  const endIndex = value.indexOf(end, startIndex + start.length);
+  expect(startIndex, `Missing source start: ${start}`).toBeGreaterThanOrEqual(
+    0,
+  );
+  expect(endIndex, `Missing source end: ${end}`).toBeGreaterThan(startIndex);
+  return value.slice(startIndex, endIndex);
+}
+
+function cssDeclarations(selector: string): string {
+  const declarations = findCssDeclarations(stylesSource, selector);
+  expect(declarations, `Missing CSS selector ${selector}`).toBeDefined();
+  return declarations ?? "";
+}
+
+function rendererConfirmationHelper(actionSource: string): string {
+  const match = actionSource.match(
+    /await\s+(?<helper>[A-Za-z_$][\w$]*)\(\s*t\.[A-Za-z_$][\w$]*/u,
+  );
+  expect(
+    match,
+    "Action must await the renderer confirmation helper",
+  ).not.toBeNull();
+  return match?.groups?.helper ?? "";
+}
+
+describe("Codex sidebar alignment and in-app confirmations", () => {
+  it("uses one exact text column for folder and conversation labels while preserving the selected row", () => {
+    const projectTree = sourceBetween(
+      appSource,
+      '<div\n          aria-label={t.projects}\n          className="project-tree"',
+      "</NavigationSidebar>",
+    );
+    expect(projectTree).toContain(
+      '<span className="project-title">{project.name}</span>',
+    );
+
+    const sharedGrid = stylesSource.match(
+      /\.project-select\s*,\s*\.thread-select\s*\{(?<body>[^}]*)\}/u,
+    );
+    expect(
+      sharedGrid,
+      "Project and conversation buttons must share one grid contract",
+    ).not.toBeNull();
+    expect(sharedGrid?.groups?.body).toContain("display: grid");
+    const sharedMarkerColumn = sharedGrid?.groups?.body.match(
+      /grid-template-columns:\s*var\((?<name>--[A-Za-z0-9-]+)\)\s+minmax\(0,\s*1fr\)/u,
+    );
+    expect(sharedMarkerColumn).not.toBeNull();
+    expect(stylesSource).toContain(`${sharedMarkerColumn?.groups?.name}:`);
+
+    expect(cssDeclarations(".project-title")).toContain("grid-column: 2");
+    expect(cssDeclarations(".thread-select .thread-title")).toContain(
+      "grid-column: 2",
+    );
+    const threadSelect = sourceBetween(
+      projectTree,
+      'className="thread-select"',
+      "</button>",
+    );
+    expect(threadSelect.indexOf("status-dot")).toBeLessThan(
+      threadSelect.indexOf("thread-title"),
+    );
+    const threadStatusDot = cssDeclarations(
+      ".thread-select .thread-status-indicator",
+    );
+    expect(threadStatusDot).toContain("grid-column: 1");
+    expect(threadStatusDot).toContain("justify-self: end");
+    expect(threadStatusDot).not.toContain("position: absolute");
+    expect(threadStatusDot).not.toMatch(/\bright:/u);
+    expect(cssDeclarations(".project-thread-list")).toContain(
+      "padding-left: 0",
+    );
+    expect(cssDeclarations(".project-thread-row")).toContain("margin-left: 0");
+    expect(cssDeclarations(".project-thread-row")).toContain("padding-left: 0");
+
+    // 悬浮/选中背景以背景图形式实现（高度收 1px），颜色仍取自同一变量。
+    expect(cssDeclarations(".project-thread-row:hover")).toContain(
+      "linear-gradient(var(--hover), var(--hover))",
+    );
+    expect(cssDeclarations(".project-thread-row.selected")).toContain(
+      "linear-gradient(var(--selected), var(--selected))",
+    );
+  });
+
+  it("keeps root groups icon-free and aligns their contents at the first project level", () => {
+    const projects = sourceBetween(
+      appSource,
+      'className="project-group project-collection"',
+      "{projects.map((project) => {",
+    );
+    const temporary = sourceBetween(
+      appSource,
+      'className="project-group temporary-conversations"',
+      "</NavigationSidebar>",
+    );
+
+    expect(projects).toContain('className="project-group-select"');
+    expect(projects).toContain(
+      '<span className="project-group-title">{t.projects}</span>',
+    );
+    expect(projects).not.toContain("<FolderIcon");
+    expect(temporary).toContain('className="project-group-select"');
+    expect(temporary).toContain('className="project-group-title"');
+    expect(temporary).not.toContain("<FolderIcon");
+    expect(cssDeclarations(".nested-project")).toContain(
+      "margin-inline-start: 0",
+    );
+  });
+
+  it("scrolls only overflowing conversation titles while their text is hovered", () => {
+    const projectTree = sourceBetween(
+      appSource,
+      '<div\n          aria-label={t.projects}\n          className="project-tree"',
+      "</NavigationSidebar>",
+    );
+
+    expect(projectTree).toContain('className="thread-title"');
+    expect(projectTree).toContain("onPointerEnter={prepareThreadTitleScroll}");
+    /* 渠道图标+跑马灯结构在 ThreadTitleContent 组件内（树外定义）。 */
+    expect(projectTree).toContain("<ThreadTitleContent");
+    expect(appSource).toContain('className="thread-title-text"');
+    expect(appSource).toContain("titleWidth - viewport.clientWidth");
+    expect(appSource).toContain('dataset.overflowing = "true"');
+
+    const scrollingTitle = cssDeclarations(
+      '.thread-title[data-overflowing="true"]:hover .thread-title-text',
+    );
+    expect(scrollingTitle).toContain("animation: thread-title-scroll");
+    expect(scrollingTitle).toContain("text-overflow: clip");
+    expect(stylesSource).toMatch(/@keyframes\s+thread-title-scroll\s*\{/u);
+    expect(stylesSource).toMatch(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.thread-title\[data-overflowing="true"\]:hover\s+\.thread-title-text[\s\S]*?animation:\s*none/u,
+    );
+  });
+
+  it("routes delete, archive, project removal, and revert through one styled in-app dialog", () => {
+    const actionSources = [
+      sourceBetween(
+        appSource,
+        "const mutateReview = useCallback(",
+        "const saveReviewComment = useCallback(",
+      ),
+      sourceBetween(
+        appSource,
+        "const removeProject = useCallback(",
+        "const beginRenameThread = useCallback(",
+      ),
+      sourceBetween(
+        appSource,
+        "const deleteThread = useCallback(",
+        "const setThreadArchived = useCallback(",
+      ),
+      sourceBetween(
+        appSource,
+        "const setThreadArchived = useCallback(",
+        "const forkThread = useCallback(",
+      ),
+    ];
+    const helpers = actionSources.map(rendererConfirmationHelper);
+
+    expect(new Set(helpers).size).toBe(1);
+    for (const actionSource of actionSources) {
+      expect(actionSource).not.toContain("window.confirm");
+      expect(actionSource).not.toContain("confirmResourceAction");
+    }
+
+    expect(appSource).toMatch(/role=["{]alertdialog/u);
+    expect(appSource).toContain("<Dialog");
+    expect(appSource).toContain(
+      "className={`confirmation-dialog ${confirmation.tone}`}",
+    );
+    expect(appSource).not.toContain('className="confirmation-icon"');
+    expect(appSource).toContain('className="confirmation-actions"');
+    expect(appSource).toContain(
+      'variant={confirmation.tone === "danger" ? "danger" : "primary"}',
+    );
+    const copy = cssDeclarations(".confirmation-copy");
+    expect(copy).toContain("overflow-wrap: anywhere");
+    expect(cssDeclarations(".confirmation-copy p")).toContain(
+      "white-space: pre-line",
+    );
+
+    const actions = cssDeclarations(".confirmation-actions");
+    expect(actions).toContain("display: flex");
+    expect(actions).toContain("justify-content: flex-end");
+  });
+});

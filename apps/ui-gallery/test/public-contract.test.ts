@@ -4,7 +4,7 @@ import {
   MANAGEMENT_COMPONENT_CONTRACTS,
   validateManagementComponentContracts,
 } from "@artemis/ui/management";
-import { galleryContract } from "../src/gallery-contract.js";
+import { galleryContract } from "../src/conformance/gallery-contract.js";
 
 describe("UI Gallery public package contract", () => {
   it("consumes the public UI and Artemis theme exports", () => {

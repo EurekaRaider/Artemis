@@ -1,0 +1,499 @@
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  symlink,
+  rm,
+  realpath,
+  access,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer } from "node:http";
+import { describe, it, expect } from "vitest";
+import {
+  checkedRemotePath,
+  buildRemoteShellLaunch,
+  buildScopedImShellLaunch,
+  validateImShellScope,
+  runRemoteShell,
+} from "../../../src/main/im/im-sandbox.js";
+
+it("allows commands in scopes larger than 50,000 entries while preserving link isolation", async () => {
+  const { link, readFile } = await import("node:fs/promises");
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "artemis-im-large-")),
+  );
+  const workspace = join(root, "project");
+  try {
+    await mkdir(join(workspace, "bulk"), { recursive: true });
+    for (let start = 0; start < 50_010; start += 128) {
+      await Promise.all(
+        Array.from({ length: Math.min(128, 50_010 - start) }, (_, offset) =>
+          writeFile(
+            join(workspace, "bulk", `${start + offset}.txt`),
+            "allowed\n",
+          ),
+        ),
+      );
+    }
+    await writeFile(join(root, "secret.txt"), "LARGE_SCOPE_SECRET");
+    await link(join(root, "secret.txt"), join(workspace, "bulk", "hard"));
+    if (process.platform !== "win32")
+      await symlink(
+        join(root, "secret.txt"),
+        join(workspace, "bulk", "escape"),
+      );
+    const scope = { audience: "owner", readPaths: [], writePaths: ["bulk"] };
+    const policy = await validateImShellScope(workspace, scope);
+    expect(policy).toEqual({
+      denyRead: [join(workspace, "bulk", "hard")],
+      denyWrite: [join(workspace, "bulk", "hard")],
+    });
+    if (process.platform === "darwin") {
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          workspace,
+          "set -e; sysctl -n hw.memsize; cat bulk/50009.txt | tr a-z A-Z > bulk/output; mkdir bulk/work; cp bulk/output bulk/work/copy; mv bulk/work/copy bulk/work/moved; cat bulk/work/moved; rm bulk/work/moved; rmdir bulk/work; if cat bulk/hard; then exit 41; fi; if cat bulk/escape; then exit 42; fi; if printf changed > bulk/hard; then exit 43; fi; printf SHELL_COMPLETED",
+          false,
+          scope,
+          "darwin",
+          policy,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output).toMatch(/^[0-9]+\n/);
+      expect(result.output).toContain("ALLOWED\n");
+      expect(result.output).toContain("SHELL_COMPLETED");
+      expect(result.output).not.toContain("LARGE_SCOPE_SECRET");
+      expect(await readFile(join(workspace, "bulk", "output"), "utf8")).toBe(
+        "ALLOWED\n",
+      );
+      expect(await readFile(join(root, "secret.txt"), "utf8")).toBe(
+        "LARGE_SCOPE_SECRET",
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 120_000);
+
+it("never falls back to a broad Windows or Linux shell for scoped work", () => {
+  for (const platform of ["win32", "linux"] as const)
+    expect(() =>
+      buildScopedImShellLaunch(
+        "/project",
+        "echo test",
+        false,
+        { audience: "owner", readPaths: ["src"], writePaths: ["src"] },
+        platform,
+      ),
+    ).toThrow(/细粒度/);
+});
+
+it("grants whole-project reads for an empty read scope while writes stay closed", () => {
+  const launch = buildScopedImShellLaunch(
+    "/project",
+    "echo test",
+    false,
+    { audience: "owner", readPaths: [], writePaths: [] },
+    "darwin",
+  );
+  const profile = launch.args[1] as string;
+  expect(profile).toContain('(allow file-read* (subpath "/project"))');
+  expect(profile).not.toContain("(allow file-write*");
+  expect(profile).toContain("(deny file-read-data file-write* (regex");
+});
+
+it.runIf(process.platform === "darwin")(
+  "enforces scoped native reads, writes and protected files independently of command text",
+  async () => {
+    const { readFile, link } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-scoped-")),
+    );
+    try {
+      await mkdir(join(root, "src"));
+      await mkdir(join(root, "docs"));
+      await writeFile(join(root, "private.txt"), "OUTSIDE_SCOPE_SENTINEL");
+      await writeFile(join(root, "src", ".env"), "PROTECTED_SENTINEL");
+      await writeFile(join(root, "src", "AGENTS.md"), "CONTROL_SENTINEL");
+      await writeFile(join(root, "docs", "guide.txt"), "READABLE_SENTINEL");
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "cat docs/guide.txt; cat private.txt; cat src/.env; cat src/AGENTS.md; printf altered > docs/guide.txt; printf altered > src/.env; printf allowed > src/output.txt; ln private.txt src/link.txt; cat src/link.txt",
+          false,
+          {
+            audience: "owner",
+            readPaths: ["src", "docs"],
+            writePaths: ["src"],
+          },
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output, JSON.stringify(result)).toContain(
+        "READABLE_SENTINEL",
+      );
+      expect(result.output).not.toMatch(
+        /OUTSIDE_SCOPE_SENTINEL|PROTECTED_SENTINEL|CONTROL_SENTINEL/,
+      );
+      expect(await readFile(join(root, "src", "output.txt"), "utf8")).toBe(
+        "allowed",
+      );
+      expect(await readFile(join(root, "src", ".env"), "utf8")).toBe(
+        "PROTECTED_SENTINEL",
+      );
+      expect(await readFile(join(root, "docs", "guide.txt"), "utf8")).toBe(
+        "READABLE_SENTINEL",
+      );
+      await link(
+        join(root, "private.txt"),
+        join(root, "src", "preexisting-link.txt"),
+      );
+      await expect(
+        validateImShellScope(root, {
+          audience: "owner",
+          readPaths: ["src"],
+          writePaths: ["src"],
+        }),
+      ).resolves.toMatchObject({
+        denyRead: [join(root, "src", "preexisting-link.txt")],
+        denyWrite: [join(root, "src", "preexisting-link.txt")],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+describe("remote filesystem policy", () => {
+  it("rejects traversal and symlink escapes before executing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "artemis-im-policy-"));
+    try {
+      const workspace = join(root, "project");
+      await mkdir(workspace);
+      await writeFile(join(root, "secret"), "private");
+      await symlink(
+        root,
+        join(workspace, "escape"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+      await expect(checkedRemotePath(workspace, "../secret")).rejects.toThrow();
+      await expect(
+        checkedRemotePath(workspace, "escape/secret"),
+      ).rejects.toThrow();
+      await expect(checkedRemotePath(workspace, "new/file.txt")).resolves.toBe(
+        join(await realpath(workspace), "new/file.txt"),
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it("keeps inherited credentials and user shell startup files out of remote commands", () => {
+    const launch = buildRemoteShellLaunch(
+      "/tmp/project",
+      "env",
+      false,
+      "darwin",
+    );
+    expect(launch.executable).toBe("/usr/bin/sandbox-exec");
+    expect(launch.args[1]).toContain("(deny network*)");
+    expect(launch.env).not.toHaveProperty("OPENAI_API_KEY");
+    expect(launch.env?.HOME).toBe("/tmp/project");
+    expect(launch.args).not.toContain("-l");
+    expect(() =>
+      buildRemoteShellLaunch("/tmp/project", "pwd", false, "linux"),
+    ).toThrow();
+  });
+});
+
+it.runIf(process.platform === "darwin")(
+  "enforces the native Seatbelt filesystem and minimal environment",
+  async () => {
+    const { realpath, readFile } = await import("node:fs/promises");
+    const { runRemoteShell } =
+      await import("../../../src/main/im/im-sandbox.js");
+    const root = await mkdtemp(join(tmpdir(), "artemis-im-native-"));
+    try {
+      const actual = await realpath(root),
+        workspace = join(actual, "project");
+      await mkdir(workspace);
+      const secret = join(actual, "secret");
+      await writeFile(secret, "PRIVATE_NATIVE_SENTINEL");
+      const quote = (v: string) => `'${v.replaceAll("'", "'\\''")}'`;
+      const result = await runRemoteShell(
+        buildRemoteShellLaunch(
+          workspace,
+          `printf allowed > local.txt; cat ${quote(secret)}; printf leak > ${quote(secret)}; /usr/bin/env`,
+          false,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output).not.toContain("PRIVATE_NATIVE_SENTINEL");
+      expect(result.output).not.toContain("OPENAI_API_KEY=");
+      expect(await readFile(secret, "utf8")).toBe("PRIVATE_NATIVE_SENTINEL");
+      expect(await readFile(join(workspace, "local.txt"), "utf8")).toBe(
+        "allowed",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "enforces read-only mode and the native network grant",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "artemis-im-network-"));
+    let requests = 0;
+    const server = createServer((_request, response) => {
+      requests++;
+      response.end("NETWORK_ALLOWED");
+    });
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve),
+    );
+    try {
+      const workspace = await realpath(root);
+      const signal = new AbortController().signal;
+      const deniedWrite = await runRemoteShell(
+        buildRemoteShellLaunch(
+          workspace,
+          "printf denied > readonly.txt",
+          false,
+          "darwin",
+          undefined,
+          "plan",
+        ),
+        signal,
+        5,
+      );
+      expect(deniedWrite.exitCode).not.toBe(0);
+      const address = server.address() as { port: number };
+      const command = `/usr/bin/curl --noproxy '*' --max-time 3 http://127.0.0.1:${address.port}`;
+      const deniedNetwork = await runRemoteShell(
+        buildRemoteShellLaunch(workspace, command, false),
+        signal,
+        5,
+      );
+      expect(deniedNetwork.exitCode).not.toBe(0);
+      expect(requests).toBe(0);
+      const allowedNetwork = await runRemoteShell(
+        buildRemoteShellLaunch(workspace, command, true),
+        signal,
+        5,
+      );
+      expect(allowedNetwork.output).toContain("NETWORK_ALLOWED");
+      expect(requests).toBe(1);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "runs unrelated commands with links present but denies escaping and hard-linked files",
+  async () => {
+    const { link, readFile } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-links-")),
+    );
+    try {
+      await mkdir(join(root, "src"));
+      await writeFile(join(root, "secret.txt"), "LINK_SECRET_SENTINEL");
+      await writeFile(join(root, "src", "ok.txt"), "LINK_ALLOWED_SENTINEL");
+      await symlink("ok.txt", join(root, "src", "safe"));
+      await symlink("../secret.txt", join(root, "src", "escape"));
+      await link(join(root, "secret.txt"), join(root, "src", "hard"));
+      const scope = {
+        audience: "owner",
+        readPaths: ["src", ".codegraph", "AGENTS.md"],
+        writePaths: ["src", ".codegraph"],
+      };
+      const blocked = await validateImShellScope(root, scope);
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "echo SHELL_STARTED; /usr/sbin/sysctl -n hw.memsize; cat src/safe; cat src/escape; cat src/hard; echo changed > src/hard; mv src/hard src/moved; cat src/moved; ln src/hard src/alias; cat src/alias; echo done",
+          false,
+          scope,
+          "darwin",
+          blocked,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output).toContain("SHELL_STARTED");
+      expect(result.output).toMatch(/\n[0-9]+\n/);
+      expect(result.output).toContain("LINK_ALLOWED_SENTINEL");
+      expect(result.output).not.toContain("LINK_SECRET_SENTINEL");
+      expect(await readFile(join(root, "secret.txt"), "utf8")).toBe(
+        "LINK_SECRET_SENTINEL",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "allows authorized hard links but cannot write a read-only alias",
+  async () => {
+    const { link, readFile } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-inodes-")),
+    );
+    try {
+      await mkdir(join(root, "src"));
+      await mkdir(join(root, "docs"));
+      await writeFile(join(root, "src", "one"), "INITIAL");
+      await link(join(root, "src", "one"), join(root, "src", "two"));
+      await writeFile(join(root, "docs", "guide"), "READ_ONLY_SENTINEL");
+      await link(join(root, "docs", "guide"), join(root, "src", "guide"));
+      const scope = { audience: "owner", readPaths: [], writePaths: ["src"] };
+      const policy = await validateImShellScope(root, scope);
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "cat src/two; echo ALLOWED > src/two; cat src/guide; echo forbidden > src/guide; echo done",
+          false,
+          scope,
+          "darwin",
+          policy,
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.output).toContain("INITIAL");
+      expect(result.output).toContain("READ_ONLY_SENTINEL");
+      expect(await readFile(join(root, "src", "one"), "utf8")).toBe(
+        "ALLOWED\n",
+      );
+      expect(await readFile(join(root, "docs", "guide"), "utf8")).toBe(
+        "READ_ONLY_SENTINEL",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "allows future ordinary files and build dot-directories with explicit project writes, while protecting secrets",
+  async () => {
+    const { readFile } = await import("node:fs/promises");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-project-write-")),
+    );
+    try {
+      await writeFile(join(root, ".env"), "SECRET_SENTINEL");
+      await writeFile(join(root, ".env.example"), "EXAMPLE");
+      await mkdir(join(root, ".git"));
+      await writeFile(join(root, ".git", "config"), "SECRET_SENTINEL");
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          root,
+          "set -e; mkdir future .cache; printf OK > future/new.txt; printf CACHE > .cache/build; cat .env.example; if cat .env; then exit 41; fi; if cat .git/config; then exit 42; fi; if printf bad > .env.production; then exit 43; fi; if printf bad > id_dsa; then exit 44; fi; if printf bad > .npmrc; then exit 45; fi; if printf bad > .env.; then exit 46; fi; cat future/new.txt .cache/build",
+          false,
+          {
+            audience: "owner",
+            readPaths: [],
+            writePaths: [],
+            writeMode: "project",
+          },
+        ),
+        new AbortController().signal,
+        10,
+      );
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output).toContain("EXAMPLE");
+      expect(result.output).toContain("OKCACHE");
+      expect(result.output).not.toContain("SECRET_SENTINEL");
+      expect(await readFile(join(root, ".env"), "utf8")).toBe(
+        "SECRET_SENTINEL",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "runs Node and npm with isolated home/cache while host secrets stay unreadable",
+  async () => {
+    const { prepareImShellRuntime } =
+      await import("../../../src/main/im/im-shell-runtime.js");
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-im-node-")),
+    );
+    const project = join(root, "project");
+    await mkdir(project);
+    await writeFile(join(root, "private.txt"), "HOST_SECRET");
+    await writeFile(
+      join(project, "package.json"),
+      JSON.stringify({
+        scripts: {
+          test: "node -e \"require('fs').writeFileSync('.cache/result', 'OK'); console.log('NODE_TEST_OK')\"",
+        },
+      }),
+    );
+    const runtime = await prepareImShellRuntime();
+    try {
+      expect(runtime.node).toBeDefined();
+      expect(runtime.npm).toBeDefined();
+      const result = await runRemoteShell(
+        buildScopedImShellLaunch(
+          project,
+          `set -e; mkdir .cache; node --version; npm test; if cat '${join(root, "private.txt")}'; then exit 42; fi`,
+          false,
+          {
+            audience: "owner",
+            readPaths: [],
+            writePaths: [],
+            writeMode: "project",
+          },
+          "darwin",
+          undefined,
+          runtime,
+        ),
+        new AbortController().signal,
+        20,
+      );
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output).toContain("NODE_TEST_OK");
+      expect(result.output).not.toContain("HOST_SECRET");
+      expect(runtime.env.HOME).not.toBe(process.env.HOME);
+    } finally {
+      await runtime.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+it.runIf(process.platform === "darwin")(
+  "prepares the runtime env without host config reads (isolated OPENSSL_CONF)",
+  async () => {
+    const { prepareImShellRuntime } =
+      await import("../../../src/main/im/im-shell-runtime.js");
+    const runtime = await prepareImShellRuntime();
+    try {
+      // The runtime may legitimately lack node (not installed); when present,
+      // the isolated env must pin every config OpenSSL would otherwise read
+      // from its compiled-in OPENSSLDIR (e.g. Homebrew /opt/homebrew/etc/…).
+      if (runtime.node) {
+        expect(runtime.env.OPENSSL_CONF).toBeDefined();
+        expect(runtime.env.OPENSSL_CONF).not.toMatch(/^\/opt\//u);
+        expect(runtime.env.OPENSSL_CONF).not.toMatch(/^\/etc\//u);
+        await expect(access(runtime.env.OPENSSL_CONF)).resolves.toBeUndefined();
+      }
+    } finally {
+      await runtime.dispose();
+    }
+  },
+);

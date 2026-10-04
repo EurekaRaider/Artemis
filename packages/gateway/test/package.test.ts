@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extract } from "tar";
 import { expect, it } from "vitest";
-import { packageGateway } from "../../../scripts/package-gateway.mjs";
+import { packageGateway } from "../../../scripts/build/package-gateway.mjs";
 
 it("runs the exported package outside the repository with no npm install and preserves generated secrets", async () => {
   const root = await mkdtemp(join(tmpdir(), "artemis-gateway-portable-"));

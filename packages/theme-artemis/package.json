@@ -25,7 +25,7 @@
     "./dist/theme.css"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && node ../../scripts/build-ui-package-assets.mjs theme-artemis",
+    "build": "tsc -p tsconfig.json && node ../../scripts/build/build-ui-package-assets.mjs theme-artemis",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -1,7 +1,7 @@
 import { isExecutionMode } from "@artemis/protocol";
 import type { BrokerExecutionRequest, Thread } from "@artemis/protocol";
 import type { McpServerConfig } from "../../shared/api.js";
-import { modelMayAutoApprove } from "../approval-mode.js";
+import { modelMayAutoApprove } from "../security/approval-mode.js";
 import type { ComputerUseHost } from "./host.js";
 
 // The grant is created by a native host dialog, never by a tool argument.

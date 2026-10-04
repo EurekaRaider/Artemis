@@ -11,16 +11,16 @@
       "import": "./dist/index.js"
     },
     "./builtin-models": {
-      "types": "./dist/builtin-models.d.ts",
-      "import": "./dist/builtin-models.js"
+      "types": "./dist/models/builtin-models.d.ts",
+      "import": "./dist/models/builtin-models.js"
     },
     "./custom-agent-capabilities": {
-      "types": "./dist/custom-agent-capabilities.d.ts",
-      "import": "./dist/custom-agent-capabilities.js"
+      "types": "./dist/policy/custom-agent-capabilities.d.ts",
+      "import": "./dist/policy/custom-agent-capabilities.js"
     },
     "./turn-prompt": {
-      "types": "./dist/turn-prompt.d.ts",
-      "import": "./dist/turn-prompt.js"
+      "types": "./dist/context/turn-prompt.d.ts",
+      "import": "./dist/context/turn-prompt.js"
     }
   },
   "files": [

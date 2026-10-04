@@ -1,0 +1,1479 @@
+import {
+  reportChannelDrop,
+  validateChannelEvent,
+} from "./channel-diagnostics.js";
+import { imText } from "../i18n/im-localization.js";
+import {
+  feishuNativeLink,
+  feishuNativePost,
+  localizeFeishuNative,
+} from "./feishu/feishu-native.js";
+import type { AppLocale } from "@artemis/protocol";
+import { createDecipheriv, createHash, randomUUID } from "node:crypto";
+import type { IncomingHttpHeaders } from "node:http";
+import WebSocket from "ws";
+import { z } from "zod";
+import {
+  type ChannelEvent,
+  type ImConversation,
+  type ImReply,
+  type ImGroupRoster,
+} from "@artemis/protocol";
+import { sameSecret } from "../store.js";
+
+const base = {
+  id: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9_-]+$/),
+  name: z.string().min(1).max(100),
+  tenantId: z.string().min(1).max(256),
+  enabled: z.boolean(),
+};
+export const channelConnectionSchema = z
+  .discriminatedUnion("channel", [
+    z
+      .object({
+        ...base,
+        channel: z.literal("wecom"),
+        botId: z.string().min(1),
+        secret: z.string().min(1),
+      })
+      .strict(),
+    z
+      .object({
+        ...base,
+        channel: z.literal("feishu"),
+        /* Scan-minted apps cannot query their tenant; a websocket subscription
+           is authenticated by the app credentials and adopts the tenant key
+           from its first event, so only that transport may start empty. */
+        tenantId: z.string().max(256),
+        appId: z.string().min(1),
+        botOpenId: z.string().min(1),
+        appSecret: z.string().min(1),
+        transport: z.enum(["webhook", "websocket"]).optional(),
+        domain: z.enum(["feishu", "lark"]).optional(),
+        verificationToken: z.string().min(1).optional(),
+        encryptKey: z.string().min(1).optional(),
+      })
+      .strict(),
+    z
+      .object({
+        ...base,
+        channel: z.literal("slack"),
+        appId: z.string().min(1),
+        botUserId: z.string().min(1),
+        botToken: z.string().startsWith("xoxb-").max(1024),
+        appToken: z.string().startsWith("xapp-").max(1024),
+      })
+      .strict(),
+  ])
+  .superRefine((connection, context) => {
+    if (
+      connection.channel === "feishu" &&
+      connection.transport !== "websocket"
+    ) {
+      for (const key of ["verificationToken", "encryptKey"] as const) {
+        if (!connection[key])
+          context.addIssue({
+            code: "custom",
+            path: [key],
+            message: "Required for Feishu HTTPS callbacks.",
+          });
+      }
+    }
+    if (!connection.tenantId) {
+      const websocket =
+        connection.channel === "feishu" && connection.transport === "websocket";
+      if (!websocket)
+        context.addIssue({
+          code: "custom",
+          path: ["tenantId"],
+          message: "Required unless the Feishu websocket transport adopts it.",
+        });
+    }
+  });
+export type ChannelConnection = z.infer<typeof channelConnectionSchema>;
+export interface ChannelStatus {
+  id: string;
+  name: string;
+  channel: ChannelConnection["channel"];
+  state: "disabled" | "connecting" | "connected" | "error";
+  error?: string;
+}
+export function validateMentionUserId(value: string): string {
+  if (
+    !/^[a-zA-Z0-9_.@-]+$/u.test(value) ||
+    /^(?:@?all|here|everyone)$/iu.test(value)
+  )
+    throw new Error("Invalid mention identity.");
+  return value;
+}
+
+export interface ChannelAdapter {
+  status(locale?: AppLocale): ChannelStatus;
+  start(): void;
+  stop(): void;
+  send(
+    conversation: ImConversation,
+    text: string,
+    idempotencyKey: string,
+    mentionUserId?: string,
+  ): Promise<string | undefined>;
+  sendNative?(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    recipient: string,
+    locale?: AppLocale,
+  ): Promise<string | undefined>;
+  publish?(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    key: string,
+    authorize: () => void,
+  ): Promise<string | undefined>;
+  groupMembers?(
+    conversation: ImConversation,
+    includePresence?: boolean,
+  ): Promise<ImGroupRoster>;
+  groupPresence?(
+    members: ImGroupRoster["members"],
+  ): Promise<ImGroupRoster["members"]>;
+  groupInfo?(conversation: ImConversation): Promise<{
+    name?: string;
+    nameError?: "missing-scope";
+    unavailable?: "archived" | "removed" | "dissolved" | "access-denied";
+  }>;
+  /** Optional capability: replace a shared task-status card without generating another notification. */
+  statusCard?(
+    conversation: ImConversation,
+    text: string,
+    idempotencyKey: string,
+    messageId?: string,
+    locale?: AppLocale,
+  ): Promise<string>;
+  /** Optional capability: stream live text into a Feishu CardKit card. */
+  streamCard?(
+    conversation: ImConversation,
+    text: string,
+    idempotencyKey: string,
+    state?: FeishuStreamCardState,
+    streaming?: boolean,
+  ): Promise<FeishuStreamCardState>;
+  approvalCard?(
+    conversation: ImConversation,
+    text: string,
+    idempotencyKey: string,
+    approval: NonNullable<ImReply["approval"]>,
+    locale?: AppLocale,
+  ): Promise<string>;
+  typing?(
+    messageId: string,
+    active: boolean,
+    reactionId?: string,
+  ): Promise<string | undefined>;
+  attachment(
+    event: ChannelEvent,
+    index: number,
+  ): Promise<{ data: Buffer; mimeType: string; name: string }>;
+}
+/** Persisted streaming-card state so updates resume after gateway restarts. */
+export interface FeishuStreamCardState {
+  messageId: string;
+  createdAt: number;
+  cardId?: string;
+  sequence?: number;
+  streaming?: boolean;
+}
+
+export class ChannelRateLimit extends Error {
+  constructor(readonly seconds: number) {
+    super("Channel rate limit reached.");
+  }
+}
+export class ChannelUnavailable extends Error {}
+export class DeliveryUncertain extends Error {}
+
+function record(value: unknown): Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+function string(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+function parseObject(value: string): Record<string, any> {
+  try {
+    return record(JSON.parse(value));
+  } catch {
+    return {};
+  }
+}
+export function splitImText(value: string, maxBytes = 3500): string[] {
+  const parts: string[] = [];
+  let part = "";
+  let bytes = 0;
+  for (const char of value) {
+    const size = Buffer.byteLength(char);
+    if (bytes + size > maxBytes) {
+      parts.push(part);
+      part = "";
+      bytes = 0;
+    }
+    part += char;
+    bytes += size;
+  }
+  if (part) parts.push(part);
+  return parts;
+}
+
+/** Some WeCom file callbacks omit a filename. Recover supported document types before desktop parsing. */
+export function wecomAttachmentName(
+  name: string,
+  data: Buffer,
+  disposition: string | null,
+): string {
+  if (name !== "attachment") return name;
+  const encoded = /filename\*=UTF-8''([^;]+)/iu.exec(disposition ?? "")?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      /* Fall through to a plain filename or document signature. */
+    }
+  }
+  const plain = /filename="([^"]+)"/iu.exec(disposition ?? "")?.[1];
+  if (plain) return plain;
+  if (data.subarray(0, 5).toString() === "%PDF-") return "attachment.pdf";
+  if (data.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 3, 4]))) {
+    for (const [entry, extension] of [
+      ["word/document.xml", "docx"],
+      ["xl/workbook.xml", "xlsx"],
+      ["ppt/presentation.xml", "pptx"],
+    ])
+      if (data.includes(Buffer.from(entry!))) return `attachment.${extension}`;
+  }
+  return name; // The desktop still validates UTF-8 text or rejects unsupported binary data.
+}
+
+export function normalizeWecom(
+  connection: Extract<ChannelConnection, { channel: "wecom" }>,
+  value: unknown,
+): ChannelEvent | undefined {
+  const raw = record(value),
+    body = record(raw.body),
+    from = record(body.from);
+  if (raw.cmd !== "aibot_msg_callback" && raw.cmd !== "aibot_event_callback")
+    return undefined;
+  if (body.aibotid !== connection.botId || !string(from.userid))
+    return undefined;
+  let text = string(record(body.text).content);
+  const attachments: ChannelEvent["attachments"] = [];
+  const add = (kind: "image" | "file", input: unknown) => {
+    const item = record(input);
+    if (string(item.url))
+      attachments.push({
+        kind,
+        name:
+          string(item.filename) ||
+          (kind === "image" ? "image.png" : "attachment"),
+        resourceId: string(body.msgid),
+        url: string(item.url),
+        ...(string(item.aeskey) ? { decryptionKey: string(item.aeskey) } : {}),
+      });
+    else reportChannelDrop("wecom", body.msgtype, "missing-resource");
+  };
+  if (body.msgtype === "image") add("image", body.image);
+  if (body.msgtype === "file") add("file", body.file);
+  if (body.msgtype === "mixed")
+    for (const item of Array.isArray(record(body.mixed).msg_item)
+      ? body.mixed.msg_item
+      : []) {
+      const entry = record(item);
+      if (entry.msgtype === "text")
+        text += `\n${string(record(entry.text).content)}`;
+      if (entry.msgtype === "image") add("image", entry.image);
+    }
+  if (body.msgtype === "event") {
+    const event = record(body.event);
+    if (event.eventtype !== "template_card_event") return undefined;
+    text = string(event.event_key);
+  }
+  if (!text.trim() && !attachments.length) {
+    reportChannelDrop("wecom", body.msgtype, "empty-message");
+    return undefined;
+  }
+  return validateChannelEvent("wecom", body.msgtype, {
+    version: 1,
+    messageId: string(body.msgid),
+    identity: {
+      channel: "wecom",
+      connectionId: connection.id,
+      tenantId: connection.tenantId,
+      appId: connection.botId,
+      userId: from.userid,
+    },
+    conversation: {
+      connectionId: connection.id,
+      id: body.chattype === "group" ? string(body.chatid) : from.userid,
+      kind: body.chattype === "group" ? "group" : "direct",
+    },
+    text: text
+      .trim()
+      .replace(/^@\S+\s*/u, "")
+      .trim(),
+    timestamp:
+      Number(body.create_time) > 0
+        ? Number(body.create_time) * 1000
+        : Date.now(),
+    mentioned: true,
+    bot: false,
+    attachments,
+  });
+}
+
+export function verifyFeishu(
+  connection: Extract<ChannelConnection, { channel: "feishu" }>,
+  raw: string,
+  headers: IncomingHttpHeaders,
+  now = Date.now(),
+): Record<string, any> {
+  if (
+    connection.transport === "websocket" ||
+    !connection.encryptKey ||
+    !connection.verificationToken
+  )
+    throw new Error("Feishu HTTPS callback transport is not configured.");
+  const timestamp = string(headers["x-lark-request-timestamp"]),
+    nonce = string(headers["x-lark-request-nonce"]),
+    signature = string(headers["x-lark-signature"]);
+  let data = parseObject(raw);
+  if (typeof data.encrypt === "string") {
+    const encrypted = Buffer.from(data.encrypt, "base64");
+    const key = createHash("sha256").update(connection.encryptKey).digest();
+    const decipher = createDecipheriv(
+      "aes-256-cbc",
+      key,
+      encrypted.subarray(0, 16),
+    );
+    data = parseObject(
+      Buffer.concat([
+        decipher.update(encrypted.subarray(16)),
+        decipher.final(),
+      ]).toString("utf8"),
+    );
+  }
+  const token = string(data.token) || string(record(data.header).token);
+  if (!sameSecret(token, connection.verificationToken))
+    throw new Error("Invalid Feishu verification token.");
+  // URL verification has no user action; authenticated event delivery additionally requires its raw-body signature.
+  if (data.type === "url_verification" && string(data.challenge)) return data;
+  if (
+    !/^\d+$/u.test(timestamp) ||
+    Math.abs(now - Number(timestamp) * 1000) > 300000 ||
+    !nonce ||
+    !signature
+  )
+    throw new Error("Missing or expired Feishu signature.");
+  const expected = createHash("sha256")
+    .update(timestamp + nonce + connection.encryptKey + raw)
+    .digest("hex");
+  if (!sameSecret(expected, signature.toLowerCase()))
+    throw new Error("Invalid Feishu signature.");
+  if (
+    record(data.header).app_id !== connection.appId ||
+    record(data.header).tenant_key !== connection.tenantId
+  )
+    throw new Error("Feishu app or tenant does not match this connection.");
+  return data;
+}
+export function normalizeFeishu(
+  connection: Extract<ChannelConnection, { channel: "feishu" }>,
+  value: unknown,
+): ChannelEvent | undefined {
+  const data = record(value),
+    header = record(data.header),
+    event = record(data.event),
+    message = record(event.message),
+    sender = record(event.sender);
+  if (header.event_type !== "im.message.receive_v1") return undefined;
+  let content: Record<string, any>;
+  try {
+    content = record(JSON.parse(string(message.content)));
+  } catch {
+    reportChannelDrop("feishu", message.message_type, "invalid-content");
+    return undefined;
+  }
+  let text = string(content.text),
+    messageId = string(message.message_id),
+    userId = string(record(sender.sender_id).open_id),
+    chatId = string(message.chat_id);
+  const mentionItems = Array.isArray(message.mentions)
+    ? message.mentions.map(record)
+    : [];
+  const mentions = mentionItems
+    .flatMap((item) => {
+      const userId = string(record(item.id).open_id);
+      const name = string(item.name).trim().slice(0, 200);
+      return userId && name ? [{ userId, name }] : [];
+    })
+    .slice(0, 100);
+  let mentioned =
+    Array.isArray(message.mentions) &&
+    message.mentions.some(
+      (item: any) => item.id?.open_id === connection.botOpenId,
+    );
+  const bot = sender.sender_type === "bot" || sender.sender_type === "app";
+  let firstMention: string | undefined;
+  const renderMention = (userId: string, name: string): string => {
+    const first = firstMention === undefined;
+    firstMention ??= userId;
+    // Only the addressed mention is routing syntax; later names are task content.
+    return userId === connection.botOpenId && (bot || first)
+      ? ""
+      : `@${name || userId}`;
+  };
+  const replacements = new Map(
+    mentionItems.flatMap((item) => {
+      const key = string(item.key);
+      const userId = string(record(item.id).open_id);
+      return key && userId
+        ? [[key, { userId, name: string(item.name).trim() }] as const]
+        : [];
+    }),
+  );
+  // Longest keys first, with one pass so display names stay literal.
+  const pattern = [...replacements.keys()]
+    .sort((a, b) => b.length - a.length)
+    .map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+  const replaceMentions = (value: string): string =>
+    pattern
+      ? value.replace(new RegExp(pattern, "g"), (key) => {
+          const item = replacements.get(key)!;
+          return renderMention(item.userId, item.name);
+        })
+      : value;
+  // Card actions use the issued-card identity and single-use receiver, never arbitrary commands.
+  const attachments: ChannelEvent["attachments"] = [];
+  const nativeLinks: string[] = [];
+  if (message.message_type === "post") {
+    // The event normally carries the selected locale directly. Older clients
+    // wrap it in a locale key; select one rendition, never duplicate every locale.
+    const post = Array.isArray(content.content)
+      ? content
+      : (Object.values(content)
+          .map(record)
+          .find((item) => Array.isArray(item.content)) ?? {});
+    const lines = [replaceMentions(string(post.title))];
+    for (const row of Array.isArray(post.content) ? post.content : []) {
+      if (!Array.isArray(row)) continue;
+      lines.push(
+        row
+          .map((value) => {
+            const node = record(value);
+            if (
+              node.tag === "img" &&
+              string(node.image_key) &&
+              !attachments.some((item) => item.resourceId === node.image_key)
+            )
+              attachments.push({
+                kind: "image",
+                name: `image-${attachments.length + 1}.png`,
+                resourceId: node.image_key,
+              });
+            if (node.tag === "at") {
+              const key = string(node.user_id);
+              const reference = replacements.get(key);
+              const userId = reference?.userId ?? key;
+              return renderMention(
+                userId,
+                reference?.name ||
+                  string(node.user_name) ||
+                  mentions.find((item) => item.userId === userId)?.name ||
+                  "",
+              );
+            }
+            if (node.tag === "a") {
+              const native = feishuNativeLink(
+                string(node.href),
+                chatId,
+                connection.domain ?? "feishu",
+              );
+              if (native) nativeLinks.push(native);
+              return [replaceMentions(string(node.text)), string(node.href)]
+                .filter(Boolean)
+                .join(" ");
+            }
+            return node.tag === "text" || node.tag === "md"
+              ? replaceMentions(string(node.text))
+              : "";
+          })
+          .join(""),
+      );
+    }
+    text = lines.filter(Boolean).join("\n");
+  }
+  if (message.message_type !== "post") text = replaceMentions(text);
+  if (!bot && message.chat_type !== "p2p")
+    mentioned = firstMention === connection.botOpenId;
+  if (
+    (sender.sender_type === "bot" || sender.sender_type === "app") &&
+    nativeLinks.length === 1
+  )
+    text = nativeLinks[0]!;
+  if (sender.sender_type === "bot" || sender.sender_type === "app") {
+    const native = localizeFeishuNative(
+      text.trim(),
+      userId,
+      mentioned,
+      connection,
+    );
+    if (native) text = native;
+    else if (text.trim().startsWith("ARTEMIS-IM/1:")) return undefined;
+  }
+  if (message.message_type === "image" && string(content.image_key))
+    attachments.push({
+      kind: "image",
+      name: "image.png",
+      resourceId: content.image_key,
+    });
+  if (message.message_type === "file" && string(content.file_key))
+    attachments.push({
+      kind: "file",
+      name: string(content.file_name) || "attachment",
+      resourceId: content.file_key,
+    });
+  if (!text.trim() && !attachments.length) {
+    reportChannelDrop("feishu", message.message_type, "empty-message");
+    return undefined;
+  }
+  return validateChannelEvent("feishu", message.message_type, {
+    version: 1,
+    messageId,
+    identity: {
+      channel: "feishu",
+      connectionId: connection.id,
+      tenantId: connection.tenantId,
+      appId: connection.appId,
+      userId,
+    },
+    conversation: {
+      connectionId: connection.id,
+      id: chatId,
+      kind: message.chat_type === "p2p" ? "direct" : "group",
+    },
+    text: text.trim(),
+    timestamp: Number(message.create_time) || Date.now(),
+    mentioned,
+    ...(mentions.length ? { mentions } : {}),
+    bot: sender.sender_type === "bot" || sender.sender_type === "app",
+    ...(string(message.parent_id) ? { replyTo: message.parent_id } : {}),
+    attachments,
+  });
+}
+
+export async function boundedResponse(response: Response): Promise<Buffer> {
+  if (!response.ok)
+    throw new Error(`Attachment download failed (${response.status}).`);
+  if (Number(response.headers.get("content-length")) > 10 * 1024 * 1024)
+    throw new Error("Attachment exceeds 10 MiB.");
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Empty attachment response.");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const next = await reader.read();
+      if (next.done) break;
+      size += next.value.length;
+      if (size > 10 * 1024 * 1024)
+        throw new Error("Attachment exceeds 10 MiB.");
+      chunks.push(next.value);
+    }
+  } finally {
+    await reader.cancel();
+  }
+  return Buffer.concat(chunks);
+}
+
+// Only explicit adapter mention targets may notify users; model-authored tags
+// must remain literal when a reply is rendered as Markdown.
+function escapeFeishuMentions(text: string): string {
+  return text.replace(/<\/?at\b[^>]*>/giu, (tag) =>
+    tag.replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
+  );
+}
+
+export class FeishuAdapter implements ChannelAdapter {
+  private token = "";
+  private tokenExpires = 0;
+  private error: string | undefined;
+  private refresh: ReturnType<typeof setInterval> | undefined;
+  private stopped = true;
+  constructor(
+    readonly config: Extract<ChannelConnection, { channel: "feishu" }>,
+  ) {}
+  protected get apiOrigin(): string {
+    return this.config.domain === "lark"
+      ? "https://open.larksuite.com"
+      : "https://open.feishu.cn";
+  }
+  start(): void {
+    if (!this.config.enabled || !this.stopped) return;
+    this.stopped = false;
+    const check = () => {
+      void this.accessToken()
+        .then(() => {
+          this.error = undefined;
+        })
+        .catch(() => {
+          this.error =
+            "Feishu authentication failed. Check app credentials and tenant access.";
+        });
+    };
+    check();
+    this.refresh = setInterval(check, 60000);
+  }
+  stop(): void {
+    this.stopped = true;
+    clearInterval(this.refresh);
+  }
+  status(): ChannelStatus {
+    return {
+      id: this.config.id,
+      name: this.config.name,
+      channel: "feishu",
+      state: this.stopped
+        ? "disabled"
+        : this.error
+          ? "error"
+          : this.tokenExpires > Date.now()
+            ? "connected"
+            : "connecting",
+      ...(this.error ? { error: this.error } : {}),
+    };
+  }
+  private async accessToken(): Promise<string> {
+    if (this.token && this.tokenExpires > Date.now()) return this.token;
+    const response = await fetch(
+      `${this.apiOrigin}/open-apis/auth/v3/tenant_access_token/internal`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          app_id: this.config.appId,
+          app_secret: this.config.appSecret,
+        }),
+        signal: AbortSignal.timeout(10000),
+      },
+    ).catch(() => {
+      throw new ChannelUnavailable(
+        "Feishu authentication is temporarily unavailable.",
+      );
+    });
+    const body = record(
+      await response.json().catch(() => {
+        throw new ChannelUnavailable(
+          "Feishu authentication response was incomplete.",
+        );
+      }),
+    );
+    if (!response.ok || body.code !== 0 || !string(body.tenant_access_token))
+      throw new ChannelUnavailable("Feishu authentication failed.");
+    this.token = body.tenant_access_token;
+    this.tokenExpires =
+      Date.now() + Math.max(0, (Number(body.expire) - 60) * 1000);
+    return this.token;
+  }
+  async sendNative(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    recipient: string,
+    locale?: AppLocale,
+  ) {
+    if (!/^[a-zA-Z0-9_-]+$/u.test(recipient) && recipient !== "*")
+      throw new Error("Invalid native bot identity.");
+    return this.message(
+      conversation,
+      feishuNativePost(text, recipient, locale),
+      "post",
+      key,
+    );
+  }
+  async publish(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    key: string,
+    authorize: () => void,
+  ) {
+    authorize();
+    const form = new FormData();
+    form.set("file_type", "stream");
+    form.set("file_name", file.name);
+    form.set("file", new Blob([new Uint8Array(file.data)]), file.name);
+    const token = await this.accessToken();
+    authorize();
+    const response = await fetch(`${this.apiOrigin}/open-apis/im/v1/files`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+      redirect: "error",
+      signal: AbortSignal.timeout(30000),
+    }).catch(() => {
+      throw new ChannelUnavailable("File upload is unavailable.");
+    });
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 60,
+      );
+    const body = record(await response.json());
+    const fileKey = string(record(body.data).file_key);
+    if (!response.ok || body.code !== 0 || !fileKey)
+      throw new Error("Feishu file upload was rejected.");
+    authorize();
+    return this.message(
+      conversation,
+      { file_key: fileKey },
+      "file",
+      key,
+      undefined,
+      authorize,
+    );
+  }
+  async groupMembers(conversation: ImConversation): Promise<ImGroupRoster> {
+    const members = new Map<string, ImGroupRoster["members"][number]>();
+    const cursors = new Set<string>();
+    let cursor = "";
+    // The list endpoint returns both people and bots, unlike /members.
+    let complete = false;
+    let error: ImGroupRoster["error"];
+    const signal = AbortSignal.timeout(10000);
+    try {
+      const token = await this.accessToken();
+      for (let page = 0; page < 100; page++) {
+        const query = new URLSearchParams({
+          member_id_type: "open_id",
+          page_size: "100",
+        });
+        if (cursor) query.set("page_token", cursor);
+        const response = await fetch(
+          `${this.apiOrigin}/open-apis/im/v1/chats/${encodeURIComponent(conversation.id)}/members/list?${query}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            redirect: "error",
+            signal,
+          },
+        );
+        if (response.status === 429) {
+          error = "rate-limited";
+          break;
+        }
+        const body = record(await response.json());
+        if (
+          body.code === 99991672 ||
+          body.code === 99991679 ||
+          response.status === 403
+        ) {
+          error = "missing-scope";
+          break;
+        }
+        const data = record(body.data);
+        if (
+          !response.ok ||
+          body.code !== 0 ||
+          !Array.isArray(data.users) ||
+          !Array.isArray(data.bots) ||
+          typeof data.has_more !== "boolean"
+        )
+          throw new ChannelUnavailable("Group members are unavailable.");
+        let capped = false;
+        for (const [values, kind] of [
+          [data.users, "human"],
+          [data.bots, "bot"],
+        ] as const) {
+          for (const value of values) {
+            const item = record(value),
+              userId = string(item.member_id);
+            if (
+              !userId ||
+              (item.member_id_type !== undefined &&
+                item.member_id_type !== "open_id")
+            )
+              throw new ChannelUnavailable("Invalid group member identity.");
+            if (members.size >= 10000 && !members.has(userId)) {
+              capped = true;
+              break;
+            }
+            members.set(userId, {
+              identity: {
+                channel: "feishu",
+                connectionId: this.config.id,
+                tenantId: this.config.tenantId,
+                appId: this.config.appId,
+                userId,
+              },
+              name: (string(item.name) || userId).slice(0, 200),
+              kind,
+              ...(kind === "bot" && userId === this.config.botOpenId
+                ? { self: true }
+                : {}),
+            });
+          }
+        }
+        if (
+          capped ||
+          (Array.isArray(data.truncations) && data.truncations.length > 0)
+        ) {
+          error = "partial";
+          break;
+        }
+        if (!data.has_more) {
+          complete = true;
+          break;
+        }
+        cursor = string(data.page_token);
+        if (!cursor || cursors.has(cursor)) break;
+        cursors.add(cursor);
+      }
+    } catch {
+      error = "unavailable";
+    }
+    return {
+      members: [...members.values()],
+      complete,
+      ...(!complete || error ? { error: error ?? "partial" } : {}),
+    };
+  }
+  async groupInfo(conversation: ImConversation) {
+    const response = await fetch(
+      `${this.apiOrigin}/open-apis/im/v1/chats/${encodeURIComponent(conversation.id)}`,
+      {
+        headers: { Authorization: `Bearer ${await this.accessToken()}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 60,
+      );
+    const body = record(await response.json());
+    if (!response.ok || body.code !== 0)
+      throw new ChannelUnavailable("Group information is unavailable.");
+    const data = record(body.data);
+    return {
+      ...(string(data.name) ? { name: string(data.name).slice(0, 100) } : {}),
+      ...(data.chat_status === "dissolved" ||
+      data.chat_status === "dissolved_save"
+        ? { unavailable: "dissolved" as const }
+        : {}),
+    };
+  }
+  async send(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    mentionUserId?: string,
+  ): Promise<string> {
+    const mention =
+      mentionUserId && conversation.kind === "group"
+        ? [[{ tag: "at", user_id: validateMentionUserId(mentionUserId) }]]
+        : [];
+    return this.message(
+      conversation,
+      {
+        zh_cn: {
+          content: [
+            ...mention,
+            [{ tag: "md", text: escapeFeishuMentions(text) }],
+          ],
+        },
+      },
+      "post",
+      key,
+    );
+  }
+  async statusCard(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    messageId?: string,
+    locale?: AppLocale,
+  ): Promise<string> {
+    return this.message(
+      conversation,
+      {
+        config: { wide_screen_mode: true, update_multi: true },
+        header: {
+          template: "blue",
+          title: { tag: "plain_text", content: imText(locale, "cardTitle") },
+        },
+        elements: [
+          {
+            tag: "div",
+            text: { tag: "lark_md", content: escapeFeishuMentions(text) },
+          },
+        ],
+      },
+      "interactive",
+      key,
+      messageId,
+    );
+  }
+  /** Update one CardKit entity, preserving the existing status message. */
+  async streamCard(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    state?: FeishuStreamCardState,
+    streaming = true,
+  ): Promise<FeishuStreamCardState> {
+    const elementId = "reply_text";
+    const content = text.slice(-30000);
+    const card = {
+      schema: "2.0",
+      config: { streaming_mode: streaming, update_multi: true },
+      body: {
+        elements: [{ tag: "markdown", element_id: elementId, content }],
+      },
+    };
+    if (state?.cardId) {
+      const sequence = (state.sequence ?? 0) + 1;
+      const uuid = createHash("sha256").update(key).digest("hex").slice(0, 32);
+      if (streaming && state.streaming) {
+        await this.cardkitRequest(
+          `cards/${encodeURIComponent(state.cardId)}/elements/${elementId}/content`,
+          "PUT",
+          { content, sequence, uuid },
+        );
+      } else {
+        // Full updates also close streaming mode on completion/waiting, or
+        // reopen the same card when another turn starts.
+        await this.cardkitRequest(
+          `cards/${encodeURIComponent(state.cardId)}`,
+          "PUT",
+          {
+            card: { type: "card_json", data: JSON.stringify(card) },
+            sequence,
+            uuid,
+          },
+        );
+      }
+      return { ...state, sequence, streaming };
+    }
+    // Obtain the card id before publishing anything: a confirmed creation
+    // rejection can fall back without duplicating a message already sent.
+    const created = await this.cardkitRequest("cards", "POST", {
+      type: "card_json",
+      data: JSON.stringify(card),
+    });
+    const cardId = string(record(created.data).card_id);
+    if (!cardId)
+      throw new Error("Feishu did not return a streaming card entity id.");
+    const messageId = await this.message(
+      conversation,
+      { type: "card", data: { card_id: cardId } },
+      "interactive",
+      key,
+      state?.messageId,
+    );
+    return {
+      messageId,
+      createdAt: state?.createdAt ?? Date.now(),
+      cardId,
+      sequence: 0,
+      streaming,
+    };
+  }
+  /** Shared CardKit REST plumbing with the same failure mapping as message(). */
+  private async cardkitRequest(
+    path: string,
+    method: "POST" | "PUT",
+    payload: unknown,
+  ): Promise<Record<string, unknown>> {
+    const token = await this.accessToken();
+    let response: Response;
+    try {
+      response = await fetch(`${this.apiOrigin}/open-apis/cardkit/v1/${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch {
+      throw new DeliveryUncertain(
+        "Feishu streaming update could not be confirmed.",
+      );
+    }
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 30,
+      );
+    if (response.status >= 500)
+      throw new DeliveryUncertain(
+        "Feishu streaming server failed before confirming the update.",
+      );
+    let body: Record<string, any>;
+    try {
+      body = record(await response.json());
+    } catch {
+      throw new DeliveryUncertain("Feishu streaming response was incomplete.");
+    }
+    if (body.code === 230020 || body.code === 99991400)
+      throw new ChannelRateLimit(30);
+    if (body.code !== 0)
+      throw new Error(
+        `Feishu rejected the streaming update (${Number(body.code)}).`,
+      );
+    return body;
+  }
+  async approvalCard(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    approval: NonNullable<ImReply["approval"]>,
+    locale?: AppLocale,
+  ): Promise<string> {
+    if (conversation.kind !== "direct")
+      throw new Error("Approval cards require a direct conversation.");
+    return this.message(
+      conversation,
+      {
+        config: { wide_screen_mode: true, update_multi: true },
+        header: {
+          template: "orange",
+          title: {
+            tag: "plain_text",
+            content: imText(locale, "approvalTitle"),
+          },
+        },
+        elements: [
+          { tag: "div", text: { tag: "plain_text", content: text } },
+          {
+            tag: "action",
+            actions: (["yes", "no"] as const).map((decision) => ({
+              tag: "button",
+              type: decision === "yes" ? "primary" : "default",
+              text: {
+                tag: "plain_text",
+                content: imText(
+                  locale,
+                  decision === "yes" ? "approveOnce" : "deny",
+                ),
+              },
+              value: { artemisApprovalToken: approval.token, decision },
+            })),
+          },
+        ],
+      },
+      "interactive",
+      key,
+    );
+  }
+  async typing(
+    messageId: string,
+    active: boolean,
+    reactionId?: string,
+  ): Promise<string | undefined> {
+    const url = `${this.apiOrigin}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reactions`;
+    const headers = {
+      Authorization: `Bearer ${await this.accessToken()}`,
+      "Content-Type": "application/json",
+    };
+    const request = async (path: string, init?: RequestInit) => {
+      const response = await fetch(path, {
+        ...init,
+        headers,
+        signal: AbortSignal.timeout(10000),
+      });
+      const body = record(await response.json());
+      if (!response.ok || body.code !== 0)
+        throw new Error(
+          "Feishu Typing unavailable. Check message reaction permissions.",
+        );
+      return record(body.data);
+    };
+    if (!reactionId || !active) {
+      reactionId = undefined;
+      // Recover an acknowledged-lost reaction after a network failure/restart.
+      // Only the current bot's Typing reaction is eligible for cleanup.
+      let page = "";
+      do {
+        const data = await request(
+          `${url}?reaction_type=Typing&page_size=50${page ? `&page_token=${encodeURIComponent(page)}` : ""}`,
+        );
+        const own = (Array.isArray(data.items) ? data.items : [])
+          .map(record)
+          .find(
+            (item) =>
+              record(item.operator).operator_type === "app" &&
+              record(item.operator).operator_id === this.config.appId &&
+              record(item.reaction_type).emoji_type === "Typing",
+          );
+        reactionId = own ? string(own.reaction_id) : undefined;
+        page = data.has_more ? string(data.page_token) : "";
+      } while (!reactionId && page);
+    }
+    if (active)
+      return (
+        reactionId ||
+        string(
+          (
+            await request(url, {
+              method: "POST",
+              body: JSON.stringify({ reaction_type: { emoji_type: "Typing" } }),
+            })
+          ).reaction_id,
+        ) ||
+        undefined
+      );
+    if (reactionId)
+      await request(`${url}/${encodeURIComponent(reactionId)}`, {
+        method: "DELETE",
+      });
+    return undefined;
+  }
+  private async message(
+    conversation: ImConversation,
+    content: unknown,
+    type: "text" | "post" | "interactive" | "file",
+    key: string,
+    messageId?: string,
+    authorize?: () => void,
+  ): Promise<string> {
+    const token = await this.accessToken();
+    authorize?.();
+    let response: Response;
+    try {
+      response = await fetch(
+        messageId
+          ? `${this.apiOrigin}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}`
+          : `${this.apiOrigin}/open-apis/im/v1/messages?receive_id_type=chat_id`,
+        {
+          method: messageId ? "PATCH" : "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: JSON.stringify(content),
+            ...(messageId
+              ? {}
+              : {
+                  receive_id: conversation.id,
+                  msg_type: type,
+                  uuid: createHash("sha256")
+                    .update(key)
+                    .digest("hex")
+                    .slice(0, 32),
+                }),
+          }),
+          signal: AbortSignal.timeout(15000),
+        },
+      );
+    } catch {
+      throw new DeliveryUncertain("Feishu delivery could not be confirmed.");
+    }
+    if (response.status === 429)
+      throw new ChannelRateLimit(
+        Number(response.headers.get("retry-after")) || 30,
+      );
+    if (response.status >= 500)
+      throw new DeliveryUncertain(
+        "Feishu server failed before confirming delivery.",
+      );
+    let body: Record<string, any>;
+    try {
+      body = record(await response.json());
+    } catch {
+      throw new DeliveryUncertain("Feishu delivery response was incomplete.");
+    }
+    if (body.code === 230020 || body.code === 99991400)
+      throw new ChannelRateLimit(30);
+    if (body.code !== 0)
+      throw new Error(`Feishu rejected the message (${Number(body.code)}).`);
+    const result = messageId || string(record(body.data).message_id);
+    if (!result)
+      throw new DeliveryUncertain("Feishu did not confirm the message ID.");
+    return result;
+  }
+  async attachment(event: ChannelEvent, index: number) {
+    const item = event.attachments[index];
+    if (!item) throw new Error("Attachment does not exist.");
+    const response = await fetch(
+      `${this.apiOrigin}/open-apis/im/v1/messages/${encodeURIComponent(event.messageId)}/resources/${encodeURIComponent(item.resourceId)}?type=${item.kind}`,
+      {
+        headers: { Authorization: `Bearer ${await this.accessToken()}` },
+        signal: AbortSignal.timeout(30000),
+        redirect: "error",
+      },
+    );
+    return {
+      data: await boundedResponse(response),
+      mimeType:
+        response.headers.get("content-type")?.split(";")[0] ??
+        "application/octet-stream",
+      name: item.name,
+    };
+  }
+}
+
+export class WecomAdapter implements ChannelAdapter {
+  private socket: WebSocket | undefined;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private heartbeat: ReturnType<typeof setInterval> | undefined;
+  private stopped = true;
+  private connected = false;
+  private error: string | undefined;
+  private pending = new Map<
+    string,
+    {
+      resolve(body: Record<string, any>): void;
+      reject(error: Error): void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
+  constructor(
+    readonly config: Extract<ChannelConnection, { channel: "wecom" }>,
+    private readonly receive: (event: ChannelEvent) => void,
+  ) {}
+  status(): ChannelStatus {
+    return {
+      id: this.config.id,
+      name: this.config.name,
+      channel: "wecom",
+      state: this.error
+        ? "error"
+        : this.stopped
+          ? "disabled"
+          : this.connected
+            ? "connected"
+            : "connecting",
+      ...(this.error ? { error: this.error } : {}),
+    };
+  }
+  start(): void {
+    if (!this.config.enabled) return;
+    this.stopped = false;
+    this.connect();
+  }
+  stop(): void {
+    this.stopped = true;
+    this.connected = false;
+    clearTimeout(this.timer);
+    clearInterval(this.heartbeat);
+    this.socket?.close();
+    for (const item of this.pending.values()) {
+      clearTimeout(item.timer);
+      item.reject(
+        new DeliveryUncertain("WeCom connection closed before confirmation."),
+      );
+    }
+    this.pending.clear();
+  }
+  private connect(): void {
+    if (this.stopped) return;
+    const socket = new WebSocket("wss://openws.work.weixin.qq.com", {
+      maxPayload: 2 * 1024 * 1024,
+      handshakeTimeout: 10000,
+    });
+    this.socket = socket;
+    socket.on("open", () => {
+      void this.command("aibot_subscribe", {
+        bot_id: this.config.botId,
+        secret: this.config.secret,
+      })
+        .then(() => {
+          this.connected = true;
+          this.error = undefined;
+          this.heartbeat = setInterval(() => {
+            void this.command("ping", {}).catch(() => socket.close());
+          }, 30000);
+        })
+        .catch(() => {
+          this.error = "WeCom authentication failed.";
+          socket.close();
+        });
+    });
+    socket.on("message", (data) => {
+      try {
+        const raw = record(JSON.parse(data.toString()));
+        const requestId = string(record(raw.headers).req_id);
+        const waiter = this.pending.get(requestId);
+        if (waiter && raw.errcode !== undefined) {
+          clearTimeout(waiter.timer);
+          this.pending.delete(requestId);
+          if (raw.errcode === 0) waiter.resolve(record(raw.body));
+          else
+            waiter.reject(
+              raw.errcode === 45009
+                ? new ChannelRateLimit(30)
+                : new Error(`WeCom rejected request (${Number(raw.errcode)}).`),
+            );
+          return;
+        }
+        if (record(record(raw.body).event).eventtype === "disconnected_event") {
+          this.error =
+            "Another process owns this bot connection. Stop the competing connection before reconnecting.";
+          this.stop();
+          return;
+        }
+        const event = normalizeWecom(this.config, raw);
+        if (event) this.receive(event);
+      } catch {
+        this.error = "Invalid WeCom event.";
+      }
+    });
+    socket.on("error", () => {
+      this.error = "WeCom connection failed.";
+    });
+    socket.on("close", () => {
+      this.connected = false;
+      clearInterval(this.heartbeat);
+      for (const item of this.pending.values()) {
+        clearTimeout(item.timer);
+        item.reject(
+          new DeliveryUncertain("WeCom connection closed before confirmation."),
+        );
+      }
+      this.pending.clear();
+      if (!this.stopped) this.timer = setTimeout(() => this.connect(), 5000);
+    });
+  }
+  private command(
+    cmd: string,
+    body: unknown,
+    id: string = randomUUID(),
+  ): Promise<Record<string, any>> {
+    if (this.socket?.readyState !== WebSocket.OPEN)
+      return Promise.reject(new ChannelUnavailable("WeCom is offline."));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new DeliveryUncertain("WeCom response timed out."));
+      }, 15000);
+      this.pending.set(id, { resolve, reject, timer });
+      this.socket!.send(JSON.stringify({ cmd, headers: { req_id: id }, body }));
+    });
+  }
+  async publish(
+    conversation: ImConversation,
+    file: { name: string; data: Buffer },
+    key: string,
+    authorize: () => void,
+  ): Promise<undefined> {
+    const chunkSize = 512 * 1024;
+    authorize();
+    const initial = await this.command("aibot_upload_media_init", {
+      type: "file",
+      filename: file.name,
+      total_size: file.data.length,
+      total_chunks: Math.ceil(file.data.length / chunkSize),
+      md5: createHash("md5").update(file.data).digest("hex"),
+    });
+    const uploadId = string(initial.upload_id);
+    if (!uploadId) throw new Error("WeCom did not return an upload ID.");
+    for (let offset = 0; offset < file.data.length; offset += chunkSize) {
+      authorize();
+      await this.command("aibot_upload_media_chunk", {
+        upload_id: uploadId,
+        chunk_index: offset / chunkSize,
+        base64_data: file.data
+          .subarray(offset, offset + chunkSize)
+          .toString("base64"),
+      });
+    }
+    authorize();
+    const result = await this.command("aibot_upload_media_finish", {
+      upload_id: uploadId,
+    });
+    const mediaId = string(result.media_id);
+    if (!mediaId) throw new Error("WeCom did not return a file ID.");
+    authorize();
+    await this.command(
+      "aibot_send_msg",
+      { chatid: conversation.id, msgtype: "file", file: { media_id: mediaId } },
+      key,
+    );
+    return undefined;
+  }
+  async send(
+    conversation: ImConversation,
+    text: string,
+    key: string,
+    mentionUserId?: string,
+  ): Promise<undefined> {
+    if (!this.connected) throw new ChannelUnavailable("WeCom is offline.");
+    const mention =
+      mentionUserId && conversation.kind === "group"
+        ? `<@${validateMentionUserId(mentionUserId)}>\n`
+        : "";
+    await this.command(
+      "aibot_send_msg",
+      {
+        chatid: conversation.id,
+        chat_type: conversation.kind === "direct" ? 1 : 2,
+        msgtype: "markdown",
+        markdown: { content: mention + text },
+      },
+      createHash("sha256").update(key).digest("hex").slice(0, 32),
+    );
+    return undefined;
+  }
+  async attachment(event: ChannelEvent, index: number) {
+    const item = event.attachments[index];
+    if (!item?.url) throw new Error("Attachment does not exist.");
+    const url = new URL(item.url);
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      !["qq.com", "qpic.cn", "weixin.qq.com"].some(
+        (domain) =>
+          url.hostname === domain || url.hostname.endsWith(`.${domain}`),
+      )
+    )
+      throw new Error("Untrusted WeCom attachment origin.");
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(30000),
+      redirect: "error",
+    });
+    let data = await boundedResponse(response);
+    if (item.decryptionKey) {
+      const key = Buffer.from(item.decryptionKey, "base64");
+      if (key.length !== 32) throw new Error("Invalid attachment key.");
+      const decipher = createDecipheriv(
+        "aes-256-cbc",
+        key,
+        key.subarray(0, 16),
+      );
+      decipher.setAutoPadding(false);
+      data = Buffer.concat([decipher.update(data), decipher.final()]);
+      const padding = data.at(-1) ?? 0;
+      if (
+        padding < 1 ||
+        padding > 32 ||
+        !data.subarray(-padding).every((byte) => byte === padding)
+      )
+        throw new Error("Invalid attachment padding.");
+      data = data.subarray(0, -padding);
+    }
+    return {
+      data,
+      mimeType:
+        item.kind === "image" ? "image/png" : "application/octet-stream",
+      name: wecomAttachmentName(
+        item.name,
+        data,
+        response.headers.get("content-disposition"),
+      ),
+    };
+  }
+}

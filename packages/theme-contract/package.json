@@ -23,7 +23,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && node ../../scripts/build-ui-package-assets.mjs theme-contract",
+    "build": "tsc -p tsconfig.json && node ../../scripts/build/build-ui-package-assets.mjs theme-contract",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   }

@@ -65,3 +65,10 @@
   notarization, stapling, update, and rollback evidence on macOS.
 - Windows release verification must inspect the final packaged artifact,
   including its effective ACLs, from the path users will run.
+
+## Repository layout
+
+- Follow [the directory guide](docs/guides/repository-layout.md). Keep process boundaries and group feature code within them.
+- Tests mirror their source owner; structural checks belong in `test/contracts/` and shared fixtures in `test/fixtures/`. Source scanners must recurse into feature directories.
+- Keep public package exports, npm command names and compiled worker/preload paths stable when moving source files. Update CI path filters and script root resolution together.
+- Run `npm run verify:layout` after directory changes. Store verification output under ignored `artifacts/verification/<topic>/<run>/`; do not put generated reports at the repository root.

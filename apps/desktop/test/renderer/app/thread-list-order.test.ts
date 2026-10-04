@@ -1,0 +1,237 @@
+import { describe, expect, it } from "vitest";
+import { I18N_RESOURCES } from "../../../src/shared/i18n/i18n-resources.js";
+
+import {
+  PROTOCOL_VERSION,
+  type AgentEvent,
+  type Thread,
+} from "@artemis/protocol";
+import {
+  isWorkspaceDraftThread,
+  orderProjectThreadsByPreference,
+  reorderThreadIds,
+  sortProjectThreads,
+} from "../../../src/renderer/app/thread-list-order.js";
+
+function thread(
+  id: string,
+  status: Thread["status"],
+  updatedAt: string,
+): Thread {
+  return {
+    id,
+    projectId: "project-1",
+    title: id,
+    mode: "work",
+    target: "local",
+    status,
+    pinned: false,
+    archived: false,
+    createdAt: "2026-08-02T00:00:00.000Z",
+    updatedAt,
+  };
+}
+
+function promptEvent(threadId: string, timestamp: string): AgentEvent {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    eventId: `${threadId}-prompt`,
+    threadId,
+    turnId: `${threadId}-turn`,
+    seq: 0,
+    timestamp,
+    payload: {
+      type: "user.message",
+      messageId: `${threadId}-message`,
+      text: "prompt",
+    },
+  };
+}
+
+describe("sidebar conversation order", () => {
+  it("recognizes generated workspace drafts in every application language", () => {
+    for (const { main } of Object.values(I18N_RESOURCES)) {
+      for (const title of [main.newTask, main.waitingForTask]) {
+        const draft = {
+          ...thread("draft", "idle", "2026-08-02T03:00:00.000Z"),
+          title,
+        };
+        expect(isWorkspaceDraftThread(draft), title).toBe(true);
+        expect(
+          isWorkspaceDraftThread({ ...draft, sessionFile: "session.jsonl" }),
+          title,
+        ).toBe(false);
+      }
+    }
+  });
+  it("uses a persisted manual order without changing the default order", () => {
+    const threads = [
+      thread("first", "idle", "2026-08-02T03:00:00.000Z"),
+      thread("second", "idle", "2026-08-02T02:00:00.000Z"),
+      thread("third", "idle", "2026-08-02T01:00:00.000Z"),
+    ];
+
+    expect(orderProjectThreadsByPreference(threads, undefined)).toEqual(
+      threads,
+    );
+    expect(
+      orderProjectThreadsByPreference(threads, ["third", "first"]).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["third", "first", "second"]);
+  });
+
+  it("moves a conversation to the indicated insertion edge", () => {
+    expect(
+      reorderThreadIds(
+        ["first", "second", "third"],
+        "third",
+        "first",
+        "before",
+      ),
+    ).toEqual(["third", "first", "second"]);
+    expect(
+      reorderThreadIds(
+        ["first", "second", "third"],
+        "first",
+        "second",
+        "after",
+      ),
+    ).toEqual(["second", "first", "third"]);
+  });
+
+  it("recognizes only untouched workspace-support threads as hidden drafts", () => {
+    const draft = {
+      ...thread("draft", "idle", "2026-08-02T04:00:00.000Z"),
+      title: "Waiting for task",
+    };
+
+    expect(isWorkspaceDraftThread(draft)).toBe(true);
+    expect(isWorkspaceDraftThread({ ...draft, title: "等待任务内容" })).toBe(
+      true,
+    );
+    expect(isWorkspaceDraftThread({ ...draft, title: "Real task" })).toBe(
+      false,
+    );
+    expect(isWorkspaceDraftThread({ ...draft, status: "failed" })).toBe(false);
+    expect(
+      isWorkspaceDraftThread({ ...draft, sessionFile: "/tmp/session.jsonl" }),
+    ).toBe(false);
+    expect(
+      isWorkspaceDraftThread({
+        ...draft,
+        goal: {
+          threadId: "draft",
+          goalId: "goal-1",
+          objective: "Ship it",
+          status: "active" as const,
+          tokensUsed: 0,
+          timeUsedSeconds: 0,
+          revision: 1,
+          createdAt: "2026-08-28T00:00:00.000Z",
+          updatedAt: "2026-08-28T00:00:00.000Z",
+        },
+      }),
+    ).toBe(false);
+    expect(isWorkspaceDraftThread({ ...draft, pinned: true })).toBe(false);
+    expect(isWorkspaceDraftThread({ ...draft, archived: true })).toBe(false);
+  });
+
+  it.each(["idle", "running", "waiting-approval"] as const)(
+    "keeps a pinned %s conversation above newer unpinned active conversations",
+    (status) => {
+      const pinned = {
+        ...thread("pinned", status, "2026-08-02T01:00:00.000Z"),
+        pinned: true,
+      };
+      const normal = thread("normal", "running", "2026-08-02T03:00:00.000Z");
+
+      expect(
+        sortProjectThreads([normal, pinned], {}).map(({ id }) => id),
+      ).toEqual(["pinned", "normal"]);
+    },
+  );
+
+  it.each([
+    ["normal-second", "pinned-second", "normal-first", "pinned-first"],
+    ["normal-second", "pinned-second"],
+  ])("keeps manual ordering within pin groups: %j", (...preference) => {
+    const threads = [
+      "pinned-first",
+      "normal-first",
+      "pinned-second",
+      "normal-second",
+    ].map((id) => ({
+      ...thread(id, "idle", "2026-08-02T01:00:00.000Z"),
+      pinned: id.startsWith("pinned"),
+    }));
+
+    expect(
+      orderProjectThreadsByPreference(
+        sortProjectThreads(threads, {}),
+        preference,
+      ).map(({ id }) => id),
+    ).toEqual([
+      "pinned-second",
+      "pinned-first",
+      "normal-second",
+      "normal-first",
+    ]);
+  });
+
+  it("keeps every active conversation above inactive conversations with the same pin state", () => {
+    const threads = [
+      thread("idle-newer", "idle", "2026-08-02T04:00:00.000Z"),
+      thread("running", "running", "2026-08-02T02:00:00.000Z"),
+      thread("waiting", "waiting-approval", "2026-08-02T01:00:00.000Z"),
+      thread("idle-older", "idle", "2026-08-02T00:00:00.000Z"),
+    ];
+
+    expect(sortProjectThreads(threads, {}).map(({ id }) => id)).toEqual([
+      "running",
+      "waiting",
+      "idle-newer",
+      "idle-older",
+    ]);
+  });
+
+  it("orders active conversations by their latest submitted prompt", () => {
+    const older = thread("older", "running", "2026-08-02T05:00:00.000Z");
+    const newer = thread(
+      "newer",
+      "waiting-approval",
+      "2026-08-02T01:00:00.000Z",
+    );
+
+    expect(
+      sortProjectThreads([older, newer], {
+        older: [promptEvent("older", "2026-08-02T02:00:00.000Z")],
+        newer: [promptEvent("newer", "2026-08-02T03:00:00.000Z")],
+      }).map(({ id }) => id),
+    ).toEqual(["newer", "older"]);
+  });
+
+  it("uses the local submission time until its event reaches the renderer", () => {
+    const first = thread("first", "running", "2026-08-02T02:00:00.000Z");
+    const second = thread("second", "running", "2026-08-02T03:00:00.000Z");
+
+    expect(
+      sortProjectThreads([first, second], {}, { first: 4, second: 3 }).map(
+        ({ id }) => id,
+      ),
+    ).toEqual(["first", "second"]);
+  });
+
+  it("preserves the existing order for inactive conversations", () => {
+    const threads = [
+      thread("pinned-or-recent", "idle", "2026-08-02T01:00:00.000Z"),
+      thread("next", "failed", "2026-08-02T04:00:00.000Z"),
+    ];
+
+    expect(sortProjectThreads(threads, {}).map(({ id }) => id)).toEqual([
+      "pinned-or-recent",
+      "next",
+    ]);
+    expect(threads.map(({ id }) => id)).toEqual(["pinned-or-recent", "next"]);
+  });
+});

@@ -1,0 +1,349 @@
+// @vitest-environment jsdom
+//
+// D#76 PR9A §5 test matrix: the five-tier icon size token family
+// (xs 12 / sm 14 / base 16 / lg 20 / xl 24), the named consumer migrations,
+// and the frozen baseline for everything intentionally left on literal
+// pixels in this PR.
+import { findCssDeclarations } from "./css-test-utils.js";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { resolve } from "node:path";
+import { createElement } from "react";
+import type { ComponentType } from "react";
+import { describe, expect, it } from "vitest";
+import { render } from "@testing-library/react";
+
+import "../fixtures/renderer-test-utils.js";
+
+import * as EnvironmentPanelIcons from "../../src/renderer/workspace/EnvironmentPanelIcons.js";
+import { SemanticResourceIcon } from "../../src/renderer/plugins/resource-icons.js";
+
+const stylesSource = readFileSync(
+  resolve(process.cwd(), "src/renderer/styles/styles.css"),
+  "utf8",
+);
+const publicUiStylesSource = readFileSync(
+  resolve(process.cwd(), "../../packages/ui/src/styles.css"),
+  "utf8",
+);
+const iconsSource = readFileSync(
+  resolve(process.cwd(), "src/renderer/workspace/EnvironmentPanelIcons.tsx"),
+  "utf8",
+);
+const resourceIconsSource = readFileSync(
+  resolve(process.cwd(), "src/renderer/plugins/resource-icons.tsx"),
+  "utf8",
+);
+const artemisIconsSource = readFileSync(
+  resolve(process.cwd(), "../../packages/ui/src/icons.tsx"),
+  "utf8",
+);
+const resourceCenterSource = readFileSync(
+  resolve(process.cwd(), "src/renderer/plugins/ResourceCenter.tsx"),
+  "utf8",
+);
+
+function cssRuleBlock(styles: string, selector: string): string {
+  const result = findCssDeclarations(styles, selector);
+  expect(result, `Missing CSS rule: ${selector}`).toBeDefined();
+  return result ?? "";
+}
+
+const TIER_ORDER = ["xs", "sm", "base", "lg", "xl"] as const;
+type Tier = (typeof TIER_ORDER)[number];
+const EXPECTED_TIER_PX: Record<Tier, number> = {
+  xs: 12,
+  sm: 14,
+  base: 16,
+  lg: 20,
+  xl: 24,
+};
+
+const rootBlock = cssRuleBlock(stylesSource, ":root");
+const tierPx = Object.fromEntries(
+  [...rootBlock.matchAll(/--icon-size-([a-z]+):\s*(\d+)px/g)].map((match) => [
+    match[1] as string,
+    Number(match[2]),
+  ]),
+) as Partial<Record<Tier, number>>;
+
+function tierValue(tier: Tier): string {
+  return String(tierPx[tier]);
+}
+
+const iconComponent = (name: string): ComponentType<object> =>
+  (EnvironmentPanelIcons as unknown as Record<string, ComponentType<object>>)[
+    name
+  ];
+
+// Renderer-wide emoji/dingbat scan (§2.5 freeze). Runs once at module scope;
+// both facts are asserted below so any drift fails loudly.
+const rendererDir = resolve(process.cwd(), "src/renderer");
+const dingbats: Record<string, { check: number; star: number }> = {};
+let coloredEmojiCount = 0;
+let variationSelectorCount = 0;
+const scanRendererSources = (dir: string) => {
+  for (const entry of readdirSync(dir)) {
+    const full = `${dir}/${entry}`;
+    if (statSync(full).isDirectory()) {
+      scanRendererSources(full);
+      continue;
+    }
+    if (!/\.(ts|tsx)$/.test(entry)) {
+      continue;
+    }
+    const text = readFileSync(full, "utf8");
+    coloredEmojiCount += [...text.matchAll(/\p{Emoji_Presentation}/gu)].length;
+    variationSelectorCount += [...text.matchAll(/\uFE0F/gu)].length;
+    const check = [...text.matchAll(/\u2713/gu)].length;
+    const star = [...text.matchAll(/\u2726/gu)].length;
+    if (check > 0 || star > 0) {
+      dingbats[full.slice(rendererDir.length + 1)] = { check, star };
+    }
+  }
+};
+scanRendererSources(rendererDir);
+
+describe("icon size tier tokens (D#76 PR9A §5)", () => {
+  it("defines exactly the five size tier tokens in :root", () => {
+    expect(Object.keys(tierPx).sort()).toEqual([...TIER_ORDER].sort());
+    const names = [
+      ...new Set(stylesSource.match(/--icon-size-[a-z0-9-]*/g) ?? []),
+    ].sort();
+    expect(names).toEqual(
+      [...TIER_ORDER].map((tier) => `--icon-size-${tier}`).sort(),
+    );
+    // Environment selectors use four pairs; catalogue actions add one reference.
+    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(14);
+  });
+
+  it("keeps tier values distinct and strictly increasing", () => {
+    const values = TIER_ORDER.map((tier) => tierPx[tier]);
+    expect(values).toEqual([12, 14, 16, 20, 24]);
+    for (let index = 1; index < values.length; index += 1) {
+      expect((values[index] ?? 0) > (values[index - 1] ?? 0)).toBe(true);
+    }
+    expect(new Set(values).size).toBe(TIER_ORDER.length);
+    expect(EXPECTED_TIER_PX).toEqual({
+      xs: tierPx.xs,
+      sm: tierPx.sm,
+      base: tierPx.base,
+      lg: tierPx.lg,
+      xl: tierPx.xl,
+    });
+  });
+
+  const SQUARE_ICONS: Array<[string, Tier]> = [
+    ["EnvironmentAddIcon", "lg"],
+    ["EnvironmentBranchIcon", "lg"],
+    ["EnvironmentChangesIcon", "lg"],
+    ["EnvironmentCommitIcon", "lg"],
+    ["EnvironmentCompareIcon", "lg"],
+    ["EnvironmentGithubIcon", "lg"],
+    ["EnvironmentPullRequestIcon", "lg"],
+    ["EnvironmentSourcesIcon", "lg"],
+    ["EnvironmentWebIcon", "lg"],
+    ["EnvironmentLocalIcon", "lg"],
+    ["EnvironmentExternalIcon", "base"],
+    ["EnvironmentSearchIcon", "base"],
+    ["EnvironmentCheckIcon", "base"],
+  ];
+
+  it.each(SQUARE_ICONS)(
+    "%s renders at its tier on the standard 24px grid",
+    (name: string, tier: Tier) => {
+      const { container } = render(
+        createElement(iconComponent(name), { "aria-hidden": "true" }),
+      );
+      const svg = container.querySelector("svg");
+      expect(svg).not.toBeNull();
+      expect(svg?.getAttribute("viewBox")).toBe("0 0 24 24");
+      expect(svg?.getAttribute("width")).toBe(tierValue(tier));
+      expect(svg?.getAttribute("height")).toBe(tierValue(tier));
+    },
+  );
+
+  it("EnvironmentChevronIcon uses the standard square grid at lg", () => {
+    const { container } = render(
+      createElement(EnvironmentPanelIcons.EnvironmentChevronIcon, {
+        "aria-hidden": "true",
+      }),
+    );
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 24 24");
+    expect(svg?.getAttribute("width")).toBe(tierValue("lg"));
+    expect(svg?.getAttribute("height")).toBe(tierValue("lg"));
+  });
+
+  const MIGRATED_RULES: Array<[string, Tier, number]> = [
+    // The trigger overrides the shared row rule with the v69 16px glyph.
+    [".environment-row-icon svg:not(.child-agent-mark)", "lg", 18],
+    [".environment-header-action svg", "lg", 18],
+    [".environment-chevron svg", "base", 16],
+    [".environment-branch-search > svg", "sm", 14],
+    [".environment-branch-list > button > svg", "base", 16],
+    [".environment-branch-list > button > i > svg", "base", 16],
+    [".environment-branch-actions > button > svg", "lg", 18],
+    [
+      ".environment-git-destination-trigger svg,\n.environment-git-destination-menu svg,\n.environment-git-actions svg",
+      "lg",
+      20,
+    ],
+  ];
+
+  it.each(MIGRATED_RULES)(
+    "%s sizes icons through its tier token",
+    (selector: string, tier: Tier, oldPx: number) => {
+      const block = cssRuleBlock(stylesSource, selector);
+      expect(block).toContain(`width: var(--icon-size-${tier})`);
+      expect(block).toContain(`height: var(--icon-size-${tier})`);
+      expect(block).not.toMatch(new RegExp(`(?<![a-z-])width:\\s*${oldPx}px`));
+      expect(block).not.toMatch(new RegExp(`(?<![a-z-])height:\\s*${oldPx}px`));
+    },
+  );
+
+  it("fills resource avatars with artwork while preserving semantic glyph geometry", () => {
+    for (const [selector, size] of [
+      [".resource-avatar", "39px"],
+      [".resource-avatar .resource-artwork", "100%"],
+      [".resource-avatar .resource-semantic-icon", "28px"],
+      [".resource-avatar .resource-semantic-icon svg", "28px"],
+    ]) {
+      const block = cssRuleBlock(stylesSource, selector!);
+      expect(block).toContain(`width: ${size}`);
+      expect(block).toContain(`height: ${size}`);
+    }
+    expect(
+      findCssDeclarations(stylesSource, ".resource-avatar svg"),
+    ).toBeUndefined();
+  });
+
+  it("delegates Resource Center action icon sizing and flex defense to public UI", () => {
+    const icon = cssRuleBlock(
+      publicUiStylesSource,
+      '[data-artemis-component="icon"]',
+    );
+    const svg = cssRuleBlock(
+      publicUiStylesSource,
+      '[data-artemis-component="icon"] > svg',
+    );
+    expect(icon).toContain("flex: 0 0 auto");
+    expect(icon).toContain("inline-size: 1em");
+    expect(icon).toContain("block-size: 1em");
+    expect(svg).toContain("inline-size: 1em");
+    expect(svg).toContain("block-size: 1em");
+  });
+
+  it("routes Resource Center line icons through the standard catalog", () => {
+    for (const [name, icon] of [
+      ["SearchIcon", "search"],
+      ["GearIcon", "gear"],
+      ["RefreshIcon", "refresh"],
+      ["PlusIcon", "plus"],
+      ["TrashIcon", "trash"],
+      ["BackIcon", "chev-left"],
+    ]) {
+      const start = resourceCenterSource.indexOf(`function ${name}()`);
+      const end = resourceCenterSource.indexOf("\nfunction ", start + 1);
+      const component = resourceCenterSource.slice(start, end);
+      expect(start).toBeGreaterThan(-1);
+      expect(component).toContain(`<ArtemisIcon name="${icon}"`);
+    }
+    expect(artemisIconsSource).toContain('stroke="currentColor"');
+    expect(artemisIconsSource).toContain('strokeLinecap="round"');
+    expect(artemisIconsSource).toContain('strokeLinejoin="round"');
+    expect(artemisIconsSource).toContain("strokeWidth = 1.5");
+    expect(artemisIconsSource).toContain("strokeWidth={strokeWidth}");
+  });
+
+  const PROTOTYPE_RULES: Array<[string, number]> = [
+    [".environment-trigger svg", 16],
+    [".agent-team-member-disclosure svg", 12],
+    [
+      ".workspace-file-kind .seti-file-icon,\n.workspace-file-kind .seti-file-icon svg",
+      16,
+    ],
+    [".sources-panel-icon svg", 16],
+    [".archive-empty-artwork", 64],
+  ];
+
+  it.each(PROTOTYPE_RULES)(
+    "%s keeps its v69 pixel size",
+    (selector: string, px: number) => {
+      const block = cssRuleBlock(stylesSource, selector);
+      expect(block).toMatch(new RegExp(`(?<![a-z-])width:\\s*${px}px`));
+      expect(block).toMatch(new RegExp(`(?<![a-z-])height:\\s*${px}px`));
+    },
+  );
+
+  it("keeps the child-window workspace menu icons at their v69 pixel size", () => {
+    // The "+" menu renders inside a transparent child window, so its CSS is
+    // inlined in the page builder rather than styles.css.
+    const menuHtmlSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/renderer/workspace/workspace-tab-menu-html.ts",
+      ),
+      "utf8",
+    );
+    expect(menuHtmlSource).toContain(
+      ".menu svg { color: ${muted}; height: 17px; width: 17px; }",
+    );
+  });
+
+  it("keeps EnvironmentPanelIcons on the shared standard catalog", () => {
+    expect(iconsSource).toContain('from "@artemis/ui/icons"');
+    expect(iconsSource).toContain("function EnvironmentBranchIcon");
+    expect(iconsSource).toContain("EnvironmentCompareIcon");
+    expect(iconsSource).toContain("EnvironmentPullRequestIcon");
+    expect(iconsSource).not.toContain("@phosphor-icons/react");
+  });
+
+  it("ships zero colored emoji across renderer sources", () => {
+    expect(coloredEmojiCount).toBe(0);
+    expect(variationSelectorCount).toBe(0);
+  });
+
+  it("freezes the remaining ✓/✦ text dingbat inventory after icon migration", () => {
+    expect(dingbats).toEqual({
+      "app/App.tsx": { check: 6, star: 0 },
+      "workspace/EnvironmentPanel.tsx": { check: 1, star: 0 },
+      "workspace/WorktreeManager.tsx": { check: 1, star: 0 },
+    });
+    const total = Object.values(dingbats).reduce(
+      (sum, counts) => sum + counts.check + counts.star,
+      0,
+    );
+    expect(total).toBe(8);
+    expect(
+      readFileSync(resolve(process.cwd(), "src/renderer/app/App.tsx"), "utf8"),
+    ).toMatch(/<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u);
+  });
+
+  it("uses the Artemis prototype glyph catalog instead of substitute icons", () => {
+    expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
+    expect(resourceIconsSource).not.toContain("@phosphor-icons/react");
+    expect(artemisIconsSource).toContain(
+      "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
+    );
+    expect(artemisIconsSource).toContain("data-artemis-icon={name}");
+    expect(stylesSource).not.toContain("--resource-icon-accent");
+    expect(stylesSource).not.toContain(
+      ".resource-avatar[data-icon] .resource-semantic-icon path[opacity]",
+    );
+  });
+
+  it("SemanticResourceIcon stays CSS-driven with em-relative attributes and no size prop", () => {
+    const { container } = render(
+      createElement(SemanticResourceIcon, { icon: "lightbulb" }),
+    );
+    const svg = container.querySelector("svg");
+    expect(svg).not.toBeNull();
+    // The Artemis icon catalog keeps 1em geometry so the tier tokens in
+    // styles.css remain the single source of rendered size.
+    expect(svg?.getAttribute("width")).toBe("1em");
+    expect(svg?.getAttribute("height")).toBe("1em");
+    expect(svg?.getAttribute("aria-hidden")).toBe("true");
+    expect(svg?.classList.contains("resource-semantic-icon")).toBe(true);
+    expect(resourceIconsSource).not.toContain("size={");
+  });
+});

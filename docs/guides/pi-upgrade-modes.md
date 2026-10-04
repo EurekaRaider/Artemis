@@ -1,3 +1,5 @@
+[English / 简体中文](pi-upgrade-modes-zh-CN.md)
+
 # Pi 1.0.2 and Artemis task modes
 
 Artemis uses Pi as its only agent loop. New tasks start in **Work**.

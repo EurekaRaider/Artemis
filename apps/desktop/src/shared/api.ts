@@ -9,7 +9,7 @@ import type {
   ResolvedSkinPackage,
   SkinSummary,
 } from "./appearance.js";
-import type { PluginLocalizations } from "./plugin-localization.js";
+import type { PluginLocalizations } from "./i18n/plugin-localization.js";
 import type {
   ConnectorDefinition,
   ConnectorCatalogEntry,

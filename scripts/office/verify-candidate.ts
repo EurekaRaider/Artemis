@@ -9,11 +9,11 @@ import {
   type ChildProcessWithoutNullStreams,
 } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { CapabilityPackService } from "../../apps/desktop/src/main/capability-pack-service.js";
+import { CapabilityPackService } from "../../apps/desktop/src/main/capabilities/capability-pack-service.js";
 import {
   UnoOfficeEngine,
   verifyOfficeNative,
-} from "../../apps/desktop/src/main/office-uno-engine.js";
+} from "../../apps/desktop/src/main/office/office-uno-engine.js";
 import type { CapabilityPackManifest } from "@artemis/protocol";
 
 const [candidatePath, rootPath, workspacePath, outputPath, probePath] =

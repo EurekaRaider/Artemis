@@ -3,12 +3,12 @@ import { createRoot } from "react-dom/client";
 
 import "@artemis/ui/styles.css";
 import "@artemis/theme-artemis/theme.css";
-import "./gallery.css";
+import "./styles/gallery.css";
 import {
   applyGallerySkin,
   GalleryApp,
   installGalleryStressSkinStyles,
-} from "./gallery-app.js";
+} from "./app/gallery-app.js";
 
 applyGallerySkin("default");
 installGalleryStressSkinStyles();

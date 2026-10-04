@@ -1,3 +1,5 @@
+[English / 简体中文](install-en.md)
+
 # Artemis 安装说明
 
 ## 选择安装包

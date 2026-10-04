@@ -41,7 +41,7 @@ jobs:
           fi
           test "$(head -n 1 docs/records/release-notes.md)" = "# Artemis $RELEASE_TAG"
       - name: Check signing credentials
-        run: node apps/desktop/scripts/validate-release-env.mjs mac
+        run: node apps/desktop/scripts/release/validate-release-env.mjs mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
@@ -82,7 +82,7 @@ jobs:
         run: npm run build:ui-libraries
       - name: Package and sign macOS arm64 DMG and ZIP
         run: |
-          node apps/desktop/scripts/validate-release-env.mjs mac
+          node apps/desktop/scripts/release/validate-release-env.mjs mac
           npm run sign:mac:arm64 -w @artemis/desktop
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -195,7 +195,7 @@ jobs:
         with:
           node-version: 26
       - name: Normalize reused Windows checkout to LF
-        run: node scripts/normalize-windows-checkout.mjs
+        run: node scripts/ci/normalize-windows-checkout.mjs
       - name: Verify native runner architecture
         run: node -e "if (process.platform !== 'win32' || process.arch !== 'x64') process.exit(1)"
       - run: npm ci
@@ -225,7 +225,7 @@ jobs:
           ARTEMIS_UPDATE_SEQUENCE: ${{ github.run_number }}
       - name: Verify NSIS installed Unicode path and Design sandbox
         working-directory: apps/desktop
-        run: node scripts/verify-windows-installed.mjs
+        run: node scripts/verify/native/verify-windows-installed.mjs
       - uses: actions/upload-artifact@v6
         with:
           name: release-windows-x64
@@ -266,7 +266,7 @@ jobs:
         env: {}
         run: |
           args=(release-inputs release-assets)
-          node scripts/collect-release-assets.mjs "${args[@]}"
+          node scripts/release/collect-release-assets.mjs "${args[@]}"
       - name: Publish verified client packages
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
@@ -301,7 +301,7 @@ jobs:
 
           # Only the validated allowlist is uploaded; never upload intermediate signing material.
 
-          node scripts/verify-slack-cli.mjs
+          node scripts/slack/verify-slack-cli.mjs
 
           node --input-type=module <<'NODE'
 
@@ -380,4 +380,4 @@ jobs:
       - name: Advance signed Windows platform channel and verify readback
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
-        run: node scripts/publish-windows-update-channel.mjs release-assets
+        run: node scripts/release/publish-windows-update-channel.mjs release-assets

@@ -1,3 +1,5 @@
+[English / 简体中文](ci-reliability-en.md)
+
 # CI 与验证维护
 
 维护基线：2026-09-29，Artemis 1.6.11。执行入口以[根 package.json](../../package.json)、[CI 工作流](../../.github/workflows/ci.yml)和[Release 工作流](../../.github/workflows/release.yml)为准；本文件保留长期验证约定，不把历史测试数量或旧流水线耗时当作当前结果。

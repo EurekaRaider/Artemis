@@ -1,3 +1,5 @@
+[English / 简体中文](visual-skins.md)
+
 # Visual skin plugin development
 
 Native Artemis plugins can contribute Skin v1 token packages or Skin v2 visual packages. Visual skins change colors, image and muted video wallpapers, fonts, semantic icons and host motion presets. Components, layout and business interactions remain controlled by Artemis. Skins execute no plugin code and download no remote resources.
@@ -118,6 +120,6 @@ Schemas for manifest-v2, integrity-v2, icons and motion ship in the bundle. Vali
 
 ## Verification
 
-`npm run verify:visual-skins` builds the standalone tools, runs external consumer tests, then launches real Electron with isolated data in two processes to check installation, media, switching, update, restart and removal. Evidence goes to ignored `artifacts/visual-skins/`. `npm run verify:desktop-skin` remains the v1 matrix and artifact verifier and requires a clean checkout.
+`npm run verify:visual-skins` builds the standalone tools, runs external consumer tests, then launches real Electron with isolated data in two processes to check installation, media, switching, update, restart and removal. Evidence goes to ignored `artifacts/verification/visual-skins/`. `npm run verify:desktop-skin` remains the v1 matrix and artifact verifier and requires a clean checkout.
 
 Release acceptance also requires full typecheck/tests/build, skin package and conformance gates, UI boundaries/convergence/performance and external consumers. macOS arm64 and Windows final installers, signing/notarization, update/rollback and real local/Git/signed offline installation paths require independent platform evidence.
