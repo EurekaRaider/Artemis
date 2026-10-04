@@ -60,6 +60,7 @@ async function fixture() {
     team: "TTEST",
     botMismatch: false,
     revoked: false,
+    deployWrite: Promise.resolve(),
   };
   const commands: SlackCliCommand[] = [];
   const run: NonNullable<SlackSetupOptions["run"]> = async (command) => {
@@ -85,13 +86,15 @@ async function fixture() {
       return { code: 0, output: "Authenticated" };
     }
     if (controls.unknown) throw new Error("network");
+    await controls.deployWrite;
     await writeFile(
       join(command.directory, "project", ".slack", "apps.json"),
       JSON.stringify({
         apps: { TTEST: { app_id: "ATEST", team_id: "TTEST" } },
       }),
     );
-    if (controls.interrupt)
+    if (controls.interrupt) {
+      command.signal.throwIfAborted();
       await new Promise<void>((_resolve, reject) =>
         command.signal.addEventListener(
           "abort",
@@ -99,6 +102,7 @@ async function fixture() {
           { once: true },
         ),
       );
+    }
     if (controls.approval)
       return { code: 0, output: "App approval request pending" };
     if (controls.revoked) return { code: 1, output: "token_revoked" };
@@ -366,11 +370,27 @@ describe("local Slack CLI setup transaction", () => {
   it("cancels the child, clears secrets, and reuses the recorded app on retry", async () => {
     const f = await fixture();
     f.controls.interrupt = true;
+    let releaseWrite!: () => void;
+    f.controls.deployWrite = new Promise<void>((resolve) => {
+      releaseWrite = resolve;
+    });
     const id = await authorize(f.service);
     await vi.waitFor(() =>
       expect(f.commands.some((c) => c.args[0] === "deploy")).toBe(true),
     );
-    const cancelled = await f.service.cancel(id);
+    const cancellation = f.service.cancel(id);
+    try {
+      await vi.waitFor(() =>
+        expect(
+          f.commands.find((c) => c.args[0] === "deploy")?.signal.aborted,
+        ).toBe(true),
+      );
+    } finally {
+      // Reproduce cancellation before the mock finishes its filesystem work
+      // and registers its abort listener (common on slower Windows runners).
+      releaseWrite();
+    }
+    const cancelled = await cancellation;
     expect(cancelled.state).toBe("idle");
     expect(cancelled.appId).toBe("ATEST");
     expect(cancelled.authorizationCommand).toBeUndefined();

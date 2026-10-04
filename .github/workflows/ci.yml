@@ -47,7 +47,7 @@ jobs:
         if: matrix.platform == 'windows-x64'
         run: |
           npm run build:core
-          npx vitest run --root apps/desktop --no-file-parallelism test/main/design/design-plugin-runtime-worker-sandbox.test.ts -t "allows reads and writes|denies network access|abnormal exit"
+          npx vitest run --root apps/desktop --no-file-parallelism test/main/design/design-plugin-runtime-worker-sandbox.test.ts test/main/im/im-slack-setup-service.test.ts -t "allows reads and writes|denies network access|abnormal exit|cancels the child"
       - name: Run portable CI checks
         run: npm run verify:ci
         env:
