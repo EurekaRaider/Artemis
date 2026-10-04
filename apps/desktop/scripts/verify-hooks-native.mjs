@@ -13,9 +13,7 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { prepareVisualLicenseFixture } from "./prepare-visual-license-fixture.mjs";
 
-// Development-only signed license fixture. The production/package license gate is unchanged.
 const desktop = fileURLToPath(new URL("../", import.meta.url));
 const output =
   process.env.ARTEMIS_HOOKS_EVIDENCE ??
@@ -144,7 +142,6 @@ app.on('browser-window-created', (_event, window) => {
 await import(${JSON.stringify(pathToFileURL(join(desktop, "dist-electron/main.js")).href)});
 `,
 );
-const restore = await prepareVisualLicenseFixture();
 try {
   const isolatedHome = join(stage, "home");
   await mkdir(isolatedHome, { recursive: true });
@@ -198,7 +195,6 @@ try {
   assert.equal(report.checks.length, 5);
   console.log(JSON.stringify(report));
 } finally {
-  await restore();
   await rm(stage, {
     recursive: true,
     force: true,

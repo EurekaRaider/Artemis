@@ -1,3 +1,4 @@
+import type { WindowsInstalledUpdater } from "./windows-installed-updater.js";
 import { checkWindowsRelease } from "./windows-release-check.js";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -110,6 +111,7 @@ export class ReleaseUpdateManager {
     private readonly onStatus: (status: ReleaseUpdateStatus) => void,
     private readonly packagedUpdateConfigPath?: string,
     private readonly checkWindows = checkWindowsRelease,
+    private readonly windowsInstalled?: WindowsInstalledUpdater,
   ) {
     this.status = {
       state: "disabled",
@@ -122,6 +124,11 @@ export class ReleaseUpdateManager {
     if (this.initialized) return;
     this.initialized = true;
     if (this.platform === "win32") {
+      if (this.windowsInstalled) {
+        await this.windowsInstalled.initialize();
+        this.status = this.windowsInstalled.getStatus();
+        return;
+      }
       this.update({
         state: this.isPackaged ? "idle" : "disabled",
         manualUpdate: true,
@@ -210,7 +217,7 @@ export class ReleaseUpdateManager {
   }
 
   getStatus(): ReleaseUpdateStatus {
-    return structuredClone(this.status);
+    return this.windowsInstalled?.getStatus() ?? structuredClone(this.status);
   }
 
   startAutomaticChecks(onError: (error: unknown) => void): void {
@@ -241,6 +248,7 @@ export class ReleaseUpdateManager {
   }
 
   async check(): Promise<ReleaseUpdateStatus> {
+    if (this.windowsInstalled) return this.windowsInstalled.check();
     if (
       ["disabled", "checking", "downloading", "downloaded"].includes(
         this.status.state,
@@ -279,6 +287,7 @@ export class ReleaseUpdateManager {
   }
 
   async download(): Promise<ReleaseUpdateStatus> {
+    if (this.windowsInstalled) return this.windowsInstalled.download();
     if (this.platform === "win32")
       throw new Error(
         "Windows ZIP updates must be downloaded in the browser and replaced manually.",
@@ -303,6 +312,7 @@ export class ReleaseUpdateManager {
   }
 
   async install(): Promise<void> {
+    if (this.windowsInstalled) return this.windowsInstalled.install();
     if (this.platform === "win32")
       throw new Error("Windows ZIP updates must be installed manually.");
     if (this.status.state !== "downloaded" || !this.downloadedVersion) {
@@ -316,6 +326,7 @@ export class ReleaseUpdateManager {
   }
 
   async markHealthy(): Promise<void> {
+    if (this.windowsInstalled) return this.windowsInstalled.markHealthy();
     if (this.platform === "win32") return;
     await this.recovery.markHealthy(this.currentVersion);
     // Cleanup is retried on the next healthy startup if a cache file is locked.

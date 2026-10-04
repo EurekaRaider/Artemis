@@ -15,16 +15,16 @@ import {
 } from "@artemis/protocol";
 const candidate = "artifacts/office/candidate";
 const out = "artifacts/office/windows-release";
-const expected =
-  "198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47";
 const report = JSON.parse(
   await readFile(join(candidate, "report.json"), "utf8"),
 );
+const expected = report.archive.sha256;
 if (
-  report.commit !== "f49232f414e5f653cfd6c1e2c4476c05cca409c6" ||
-  report.archive.sha256 !== expected
+  !process.env.OFFICE_CANDIDATE_COMMIT ||
+  report.commit !== process.env.OFFICE_CANDIDATE_COMMIT ||
+  !/^[a-f0-9]{64}$/.test(expected)
 )
-  throw Error("Unexpected retained candidate identity");
+  throw Error("Candidate is not from the verified source commit");
 const hash = createHash("sha256");
 let bytes = 0;
 for await (const chunk of createReadStream(
@@ -33,7 +33,7 @@ for await (const chunk of createReadStream(
   hash.update(chunk);
   bytes += chunk.length;
 }
-if (hash.digest("hex") !== expected || bytes !== 479661270)
+if (hash.digest("hex") !== expected || bytes !== report.archive.downloadBytes)
   throw Error("Candidate bytes changed");
 const catalog = JSON.parse(
   await readFile("apps/desktop/resources/office-runtime/catalog.json", "utf8"),
@@ -41,7 +41,9 @@ const catalog = JSON.parse(
 const input = JSON.parse(
   await readFile(join(candidate, "catalog.json"), "utf8"),
 ).manifests[0];
-const version = "1.0.1";
+const version = process.env.OFFICE_RUNTIME_VERSION;
+if (!/^\d+\.\d+\.\d+$/.test(version ?? ""))
+  throw Error("A stable runtime version is required");
 const keyId = "artemis-office-release-2026-09";
 const key = createPrivateKey(
   process.env.OFFICE_RUNTIME_ED25519_PRIVATE_KEY ?? "",

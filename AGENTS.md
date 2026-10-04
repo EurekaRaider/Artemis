@@ -61,7 +61,7 @@
   than the current request and system policy. Do not store secrets or transient
   task state in memory.
 - Do not claim Windows/macOS parity from protocol tests alone. macOS completion
-  requires real arm64 and x64 packaging plus native PTY, Seatbelt, signing,
+  requires real arm64 packaging plus native PTY, Seatbelt, signing,
   notarization, stapling, update, and rollback evidence on macOS.
 - Windows release verification must inspect the final packaged artifact,
   including its effective ACLs, from the path users will run.

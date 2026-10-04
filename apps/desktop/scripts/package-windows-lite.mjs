@@ -59,7 +59,7 @@ const builderArgs = [];
 if (release) {
   builderArgs.push("--config", "scripts/windows-zip-builder.config.cjs");
 }
-builderArgs.push("--win", "zip", "--x64", "--publish", "never");
+builderArgs.push("--win", "nsis", "zip", "--x64", "--publish", "never");
 await run(
   process.execPath,
   [

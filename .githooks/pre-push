@@ -1,4 +1,4 @@
 #!/bin/sh
-# Full CI runs only through the manually requested Release workflow.
+# Hosted CI runs on main pushes and pull requests.
 # The clean-checkout gate remains available as: npm run verify:prepush
 exit 0

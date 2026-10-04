@@ -137,12 +137,6 @@ for (const key of Object.keys(env))
     ["ELECTRON_RUN_AS_NODE", "ARTEMIS_DEV_SERVER_URL"].includes(key)
   )
     delete env[key];
-const { prepareVisualLicenseFixture } = await import(
-  pathToFileURL(
-    root + "/apps/desktop/scripts/prepare-visual-license-fixture.mjs",
-  ).href
-);
-const restoreLicense = await prepareVisualLicenseFixture();
 let app;
 try {
   app = await _electron.launch({
@@ -324,7 +318,6 @@ try {
   console.log("Native automation checks passed; screenshots in " + out);
 } finally {
   await app?.evaluate(({ app }) => app.exit(0)).catch(() => {});
-  await restoreLicense();
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
 }

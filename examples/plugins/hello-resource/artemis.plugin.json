@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "kind": "resource",
+  "id": "local.hello-resource",
+  "name": "hello-resource",
+  "version": "0.1.0",
+  "contributes": {
+    "skills": ["skills/hello"],
+    "skins": [],
+    "hooks": []
+  }
+}

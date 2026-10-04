@@ -94,7 +94,7 @@ Before publishing a paired host/marketplace release, record evidence for:
   scopes, revocation, cancellation, timeout and disconnect during a pending call.
 - Official remote MCP client registration/admission, tool availability and scope
   behavior. Keep unapproved remote services out of a public release.
-- macOS arm64 and x64 and Windows packaged browser callback, OS encryption, local
+- macOS arm64 and Windows x64 packaged browser callback, OS encryption, local
   runtime sandbox, Figma loopback, signing and installation/update behavior.
 - Google verification covering data sent to the selected model provider.
 - Signature/file-list/offline-archive verification after the final package build.

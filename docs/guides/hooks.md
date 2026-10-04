@@ -56,4 +56,4 @@ npm run build
 
 服务测试会启动真实本机进程并检查超时、取消。需要分别在 macOS 和 Windows 运行，不能用协议测试代替原生验收。最终安装包还需分别验证设置页、三个快捷入口、内容变化后重新审核及实际脚本执行。
 
-CI 工作流可用 `hooks_only=true` 在 macOS 与 Windows runner 上运行原生验收。界面测试使用隔离的开发态授权夹具，完成后重新构建工程包。Windows 打包检查验证实际 ZIP、ACL 和激活边界。生产包激活后的钩子界面仍需该机器的有效授权；测试夹具不会在打包应用中运行。
+CI 工作流可用 `hooks_only=true` 在 GitHub 托管的 macOS arm64 与 Windows x64 runner 上运行原生验收。界面测试使用隔离用户目录和无需激活的正常启动路径。Windows 打包检查验证实际产物与有效 ACL；真实桌面人工验收另行记录。

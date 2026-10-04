@@ -7,7 +7,7 @@ if (!process.env.CI) {
   const path = current.stdout?.trim();
   if (path && path !== ".githooks") {
     console.warn(
-      `Existing Git hooksPath ${path} was preserved. Full CI runs only when Release is requested.`,
+      `Existing Git hooksPath ${path} was preserved. Hosted CI runs on main pushes and pull requests.`,
     );
   } else {
     const result = spawnSync(

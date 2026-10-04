@@ -1,3 +1,5 @@
+import { PluginInstallTransaction } from "./plugin-install-transaction.js";
+import { normalizeResourceManifest } from "@artemis/plugin-contract";
 import { loadSkinPackage } from "./skin-package.js";
 import { isSkinRelativePath } from "@artemis/theme-contract";
 import type { SkinSummary } from "../shared/appearance.js";
@@ -3173,8 +3175,9 @@ export class ArtemisPluginService {
       throw new Error(
         "Artemis plugins require artemis.plugin.json with schemaVersion: 1. Convert this plugin before installing.",
       );
-    const manifest = record(await readJson(manifestPath, MAX_MANIFEST_BYTES));
-    assertNativeManifestVersion(manifest, "plugin");
+    const input = await readJson(manifestPath, MAX_MANIFEST_BYTES);
+    assertNativeManifestVersion(input, "plugin");
+    const manifest = normalizeResourceManifest(input);
     if (!manifest) {
       throw new Error("Plugin manifest must be a JSON object.");
     }
@@ -3223,9 +3226,11 @@ export class ArtemisPluginService {
       interfaceValue?.logo ?? interfaceValue?.composerIcon,
     );
     if (
-      manifest?.hooks !== undefined ||
-      (await exists(join(root, "hooks", "hooks.json"))) ||
-      (await exists(join(root, "hooks.json")))
+      manifest?.schemaVersion === 2
+        ? Array.isArray(manifest.hooks) && manifest.hooks.length > 0
+        : manifest?.hooks !== undefined ||
+          (await exists(join(root, "hooks", "hooks.json"))) ||
+          (await exists(join(root, "hooks.json")))
     ) {
       hasHooks = true;
       warnings.push(
@@ -3270,7 +3275,11 @@ export class ArtemisPluginService {
     }
 
     const skillDeclarations = manifestPaths(manifest?.skills);
-    if (!skillDeclarations.length && (await exists(join(root, "skills")))) {
+    if (
+      manifest.schemaVersion === 1 &&
+      !skillDeclarations.length &&
+      (await exists(join(root, "skills")))
+    ) {
       skillDeclarations.push("./skills/");
     }
     const skills: ParsedSkill[] = [];
@@ -3278,7 +3287,9 @@ export class ArtemisPluginService {
     for (const declaration of skillDeclarations) {
       const path = declaredPath(root, declaration, "Skill");
       const directory = await canonicalDirectory(path, root);
-      for (const skillRoot of await discoverSkillRoots(directory)) {
+      for (const skillRoot of manifest.schemaVersion === 2
+        ? [directory]
+        : await discoverSkillRoots(directory)) {
         const frontmatter = parseSkillFrontmatter(
           await readPluginText(
             join(skillRoot, "SKILL.md"),
@@ -4014,63 +4025,39 @@ export class ArtemisPluginService {
     nextMcp: McpServerConfig[],
     nextStore: PluginStore,
   ): Promise<void> {
-    const movedBackups: DirectoryMove[] = [];
-    const movedStages: DirectoryMove[] = [];
-    let mcpSaved = false;
-    try {
-      for (const move of moves) {
-        if (dirname(move.destination) === this.options.pluginsRoot)
-          await this.options.beforeSnapshotChange?.(basename(move.destination));
-      }
-      for (const move of moves) {
-        if (await exists(move.destination)) {
-          await rename(move.destination, move.backup);
-          movedBackups.push(move);
-        }
-      }
-      for (const move of moves) {
-        if (!move.stage) continue;
-        await rename(move.stage, move.destination);
-        movedStages.push(move);
-      }
-      await this.options.mcpStore.replaceAll(nextMcp);
-      mcpSaved = true;
-      await this.saveStore(nextStore);
-    } catch (error) {
-      if (mcpSaved) {
-        await this.options.mcpStore
-          .replaceAll(previousMcp)
-          .catch(() => undefined);
-      }
-      for (const move of [...movedStages].reverse()) {
-        await rm(move.destination, { recursive: true, force: true }).catch(
-          () => undefined,
-        );
-      }
-      for (const move of [...movedBackups].reverse()) {
-        if (await exists(move.backup)) {
-          await rename(move.backup, move.destination).catch(() => undefined);
-        }
-      }
-      for (const move of moves) {
-        if (move.stage) {
-          await rm(move.stage, { recursive: true, force: true }).catch(
-            () => undefined,
-          );
-        }
-      }
-      await this.options.afterSnapshotChange?.();
-      throw error;
+    for (const move of moves) {
+      if (dirname(move.destination) === this.options.pluginsRoot)
+        await this.options.beforeSnapshotChange?.(basename(move.destination));
     }
-    await this.options.afterSnapshotChange?.();
-    await Promise.allSettled(
-      movedBackups.map((move) =>
-        rm(move.backup, { recursive: true, force: true }),
-      ),
-    );
+    const previousStore = structuredClone(await this.loadStore());
+    try {
+      await this.installTransaction().commit(
+        moves,
+        previousStore,
+        nextStore,
+        previousMcp,
+        nextMcp,
+      );
+    } finally {
+      await this.options.afterSnapshotChange?.();
+    }
+  }
+
+  private installTransaction() {
+    return new PluginInstallTransaction<PluginStore, McpServerConfig[]>({
+      journalPath: `${this.options.statePath}.transaction.json`,
+      statePath: this.options.statePath,
+      roots: [this.options.pluginsRoot, this.options.skillsRoot],
+      saveStore: (value) => this.saveStore(value),
+      saveMcp: async (value) => {
+        await this.options.mcpStore.replaceAll(value);
+      },
+    });
   }
 
   private async loadStore(): Promise<PluginStore> {
+    if (this.state) return this.state;
+    await this.installTransaction().recover();
     if (this.state) return this.state;
     try {
       const input = record(

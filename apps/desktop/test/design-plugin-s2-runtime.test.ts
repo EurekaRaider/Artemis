@@ -169,6 +169,25 @@ async function setupBoundThread() {
 }
 
 describe("S2 runtime isolation", () => {
+  it("refuses dispatch after shutdown and makes disposal idempotent", async () => {
+    const ctx = await setupBoundThread();
+    try {
+      ctx.dispatch.dispose();
+      ctx.dispatch.dispose();
+      const result = await ctx.dispatch.dispatch({
+        threadId: ctx.threadId,
+        toolName: "design_get_state",
+        args: {},
+        mode: "work",
+      });
+      expect(result).toEqual({
+        status: "refused",
+        error: "Plugin dispatch has stopped",
+      });
+    } finally {
+      ctx.store.close();
+    }
+  });
   it("refuses archived tasks and grants for a different content hash", async () => {
     const ctx = await setupBoundThread();
     try {

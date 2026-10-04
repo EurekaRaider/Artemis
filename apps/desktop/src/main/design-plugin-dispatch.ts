@@ -122,6 +122,7 @@ export interface DispatchPluginToolStore {
 }
 
 export interface PluginDispatchHost {
+  windowsHelperPath?: string | undefined;
   store: DispatchPluginToolStore;
   revisionsRoot: string;
   scratchRoot: string;
@@ -154,12 +155,15 @@ export interface PluginDispatchHost {
 export function createDispatchPluginTool(host: PluginDispatchHost) {
   const revisionStore = new PluginRevisionStore(host.revisionsRoot);
   const managers = new Map<string, ThreadRuntimeManager>();
+  let disposed = false;
 
   const managerFor = (threadId: string): ThreadRuntimeManager => {
+    if (disposed) throw new Error("Plugin dispatch has stopped");
     let manager = managers.get(threadId);
     if (!manager) {
       manager = new ThreadRuntimeManager({
         threadId,
+        windowsHelperPath: host.windowsHelperPath,
         scratchRoot: host.scratchRoot,
         revisionsRoot: host.revisionsRoot,
       });
@@ -171,6 +175,8 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
   async function dispatch(
     input: DispatchPluginToolInput,
   ): Promise<{ status: string; result?: unknown; error?: string }> {
+    if (disposed)
+      return { status: "refused", error: "Plugin dispatch has stopped" };
     const store = host.store;
     let thread = store.getThread(input.threadId) as
       | {
@@ -529,7 +535,12 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     return manager.closeThread();
   }
 
-  return { dispatch, closeThread, revisionStore };
+  function dispose(): void {
+    disposed = true;
+    for (const manager of managers.values()) manager.dispose();
+    managers.clear();
+  }
+  return { dispatch, closeThread, dispose, revisionStore };
 }
 
 export type PluginDispatch = ReturnType<typeof createDispatchPluginTool>;

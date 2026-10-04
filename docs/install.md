@@ -2,33 +2,19 @@
 
 ## 选择安装包
 
-- Apple Silicon（M 系列芯片）Mac：选择文件名中带 `arm64` 的 DMG 安装包。
-- 64 位 Windows：选择文件名中带 `Windows-x64` 的 `.zip` 压缩包。
+仅支持 Windows x64 和 macOS arm64。正式附件位于 [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases)。无需注册码或设备激活。
 
-Lite 发布配置不生成 Intel x64 macOS 安装包，也不声明跨架构 macOS 完成度。
+## macOS arm64
 
-## macOS
+打开 DMG，将 `Artemis.app` 拖入“应用程序”后启动；ZIP 用户先完整解压，再移动到“应用程序”。正式发布包须经过签名、公证和 staple，不需要清除系统 quarantine 属性。若系统拒绝打开，检查下载是否完整及发布验收信息，不应把移除安全属性作为正常安装步骤。
 
-1. 打开 DMG 安装包，将 `Artemis.app` 拖入“应用程序”文件夹。
-2. 安装完成后打开“终端”，执行以下命令：
+## Windows x64
 
-   ```bash
-   xattr -dr com.apple.quarantine /Applications/Artemis.app
-   ```
+优先使用 `.exe` 当前用户级安装包，不要求管理员权限。安装版从独立的签名 Windows 索引检查更新；用户确认且任务结束、编辑保存后才重启安装。验证失败时不能安装。
 
-3. 从“应用程序”文件夹打开 Artemis。
+ZIP 保留手动更新：完整解压到用户拥有的普通目录，退出旧应用，再运行新目录中的 `Artemis.exe`。不要直接在压缩包内启动。希望启用安装版更新时，手动安装一次 NSIS 包；现有 userData 与项目文件不随安装目录替换。
 
-## Windows
-
-1. 使用文件资源管理器或 7-Zip 将 `.zip` 完整解压到当前用户拥有的普通目录，
-   不要直接在压缩包内运行程序，也不要解压到 `Program Files`。
-2. 双击解压目录中的 `Artemis.exe`。
-3. 如公司策略、SmartScreen 或 Smart App Control 拦截未签名工程包，请使用
-   Authenticode 签名的发布包，ZIP 本身不能绕过公司的应用执行策略。
-
-Windows 版本不提供安装器，也不执行安装器式自动更新。升级时先退出
-Artemis，下载新版 ZIP，解压到新的目录后运行新版
-`Artemis.exe`。
+Ed25519 验证保证更新清单与附件完整性，不代表 Authenticode 签名或 SmartScreen 信誉。系统或企业执行策略仍可能阻止未签名程序；不要关闭系统防护来绕过它。
 
 刷新 OpenAI 或自定义 GitHub 插件商店时，Artemis 直接通过系统网络栈
 下载 HTTPS 仓库归档，不会调用 `git.exe`，因此用户电脑无需安装 Git。公司网络

@@ -1,3 +1,9 @@
+import {
+  applyStreamBatch,
+  mergeThreadEvents,
+  preserveLoadedEvents,
+} from "./stream-snapshot.js";
+import { BoundedStateCache } from "./bounded-state-cache.js";
 import { PlanConfirmationCard } from "./PlanConfirmationCard.js";
 import { isExecutionMode } from "@artemis/protocol";
 import { claimUpdateAnnouncement } from "./update-announcement.js";
@@ -783,114 +789,6 @@ function statusLabel(
   }
 }
 
-function updateThreadStatus(
-  thread: Thread,
-  event: AgentEvent,
-): Thread["status"] {
-  switch (event.payload.type) {
-    case "turn.started":
-      return "running";
-    case "approval.requested":
-    case "user-input.requested":
-      return "waiting-approval";
-    case "turn.completed":
-      return "idle";
-    case "turn.failed":
-      return "failed";
-    default:
-      return thread.status;
-  }
-}
-
-function mergeThreadEvents(
-  history: AgentEvent[],
-  liveEvents: AgentEvent[],
-): AgentEvent[] {
-  if (history.length === 0) return liveEvents;
-  if (liveEvents.length === 0) return history;
-  const byId = new Map<string, AgentEvent>();
-  for (const event of history) byId.set(event.eventId, event);
-  for (const event of liveEvents) byId.set(event.eventId, event);
-  return [...byId.values()].sort((left, right) => left.seq - right.seq);
-}
-
-function eventChangesThread(event: AgentEvent): boolean {
-  return [
-    "thread.notification.updated",
-    "user-input.requested",
-    "turn.started",
-    "approval.requested",
-    "turn.completed",
-    "turn.failed",
-    "thread.goal.updated",
-    "thread.goal.cleared",
-  ].includes(event.payload.type);
-}
-
-function updateThreadFromEvent(thread: Thread, event: AgentEvent): Thread {
-  if (event.payload.type === "thread.notification.updated") {
-    if ((thread.notification?.revision ?? -1) >= event.payload.state.revision)
-      return thread;
-    return {
-      ...thread,
-      notification: event.payload.state,
-      status: event.payload.threadStatus ?? thread.status,
-    };
-  }
-  if (event.payload.type === "thread.goal.updated") {
-    if (
-      thread.goal?.goalId === event.payload.goal.goalId &&
-      event.payload.goal.revision < thread.goal.revision
-    ) {
-      return thread;
-    }
-    return { ...thread, goal: event.payload.goal };
-  }
-  if (event.payload.type === "thread.goal.cleared") {
-    if (
-      !thread.goal ||
-      thread.goal.goalId !== event.payload.goalId ||
-      event.payload.revision <= thread.goal.revision
-    ) {
-      return thread;
-    }
-    const { goal: _goal, ...withoutGoal } = thread;
-    return withoutGoal;
-  }
-  return {
-    ...thread,
-    status: updateThreadStatus(thread, event),
-    mode:
-      event.payload.type === "turn.started" ? event.payload.mode : thread.mode,
-  };
-}
-
-function preserveLoadedEvents(
-  refreshed: DesktopSnapshot,
-  current: DesktopSnapshot | undefined,
-): DesktopSnapshot {
-  const visibleThreads = new Set(refreshed.threads.map((thread) => thread.id));
-  return {
-    ...refreshed,
-    events: Object.fromEntries(
-      [
-        ...new Set([
-          ...Object.keys(current?.events ?? {}),
-          ...Object.keys(refreshed.events),
-        ]),
-      ]
-        .filter((threadId) => visibleThreads.has(threadId))
-        .map((threadId) => [
-          threadId,
-          mergeThreadEvents(
-            current?.events[threadId] ?? [],
-            refreshed.events[threadId] ?? [],
-          ),
-        ]),
-    ),
-  };
-}
-
 function visibleThreadTitle(title: string): string {
   return (
     promptWithoutSelectedSkills(title) ||
@@ -1555,16 +1453,13 @@ export function App() {
   const reviewDiffVersion = useRef(new Map<string, number>());
   const [reviewTransitionPending, startReviewTransition] = useTransition();
   const threadStateCache = useRef(
-    new Map<
-      string,
-      {
-        history?: ThreadHistoryPage;
-        eventCount: number;
-        lastEventId?: string;
-        mode: RunMode;
-        state: ThreadViewState;
-      }
-    >(),
+    new BoundedStateCache<{
+      history?: ThreadHistoryPage;
+      eventCount: number;
+      lastEventId?: string;
+      mode: RunMode;
+      state: ThreadViewState;
+    }>((id) => turnWatermarks.current.delete(id)),
   );
   const [officeSnapshots, setOfficeSnapshots] = useState<
     Record<string, ArtifactSnapshot>
@@ -3291,44 +3186,7 @@ export function App() {
       if (batch.length === 0) return;
       setSnapshot((current) => {
         if (!current) return current;
-        const grouped = new Map<string, AgentEvent[]>();
-        for (const event of batch) {
-          const events = grouped.get(event.threadId) ?? [];
-          events.push(event);
-          grouped.set(event.threadId, events);
-        }
-        const events = { ...current.events };
-        for (const [threadId, incoming] of grouped) {
-          const existing = events[threadId] ?? [];
-          const appended = [...existing];
-          let lastSeq = appended.at(-1)?.seq ?? -1;
-          for (const event of incoming) {
-            if (
-              event.seq <= lastSeq &&
-              appended.some((candidate) => candidate.eventId === event.eventId)
-            ) {
-              continue;
-            }
-            appended.push(event);
-            lastSeq = Math.max(lastSeq, event.seq);
-          }
-          events[threadId] = appended;
-        }
-        const threadEvents = batch.filter(eventChangesThread);
-        return {
-          ...current,
-          events,
-          threads:
-            threadEvents.length === 0
-              ? current.threads
-              : current.threads.map((thread) => {
-                  const updates = threadEvents.filter(
-                    (event) => event.threadId === thread.id,
-                  );
-                  if (updates.length === 0) return thread;
-                  return updates.reduce(updateThreadFromEvent, thread);
-                }),
-        };
+        return applyStreamBatch(current, batch);
       });
       const visibleText = batch.find(
         (event) =>
@@ -3971,13 +3829,6 @@ export function App() {
       mode: activeThread.mode,
       state: guardedState,
     });
-    if (threadStateCache.current.size > 8) {
-      const oldestThreadId = threadStateCache.current.keys().next().value;
-      if (oldestThreadId) {
-        threadStateCache.current.delete(oldestThreadId);
-        turnWatermarks.current.delete(oldestThreadId);
-      }
-    }
     const liveActivities = liveChildActivities[activeThread.id];
     if (!liveActivities) return guardedState;
     const childAgents = { ...guardedState.childAgents };

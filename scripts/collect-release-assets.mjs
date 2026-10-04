@@ -30,13 +30,15 @@ export async function collectReleaseAssets(
     const windows = platform === "windows-x64";
     if (
       manifest.distribution !==
-      (windows ? "manual-windows-zip" : "automatic-update")
+      (windows ? "nsis-and-manual-zip" : "automatic-update")
     )
       throw new Error("Unexpected release distribution");
     const base = windows
       ? `Artemis-Windows-x64-${version}`
       : `Artemis-macOS-arm64-${version}`;
-    const required = windows ? [`${base}.zip`] : [`${base}.dmg`, `${base}.zip`];
+    const required = windows
+      ? [`${base}.exe`, `${base}.zip`, "windows-x64-update.json"]
+      : [`${base}.dmg`, `${base}.zip`];
     const allowed = new Set(
       windows
         ? required

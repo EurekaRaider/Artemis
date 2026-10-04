@@ -1,162 +1,34 @@
 name: Release
-
-on:
+"on":
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "发布版本标签，必须与 package.json 一致，例如 v1.6.1"
+        description: 发布版本标签，必须与 package.json 一致，例如 v1.6.1
         required: true
         type: string
-      macos_only:
-        description: "仅发布 macOS arm64；需填写 release_sha 和 ci_run_id，核验三项 macOS CI 均成功"
-        required: false
-        type: boolean
-        default: false
-      release_sha:
-        description: "沿用已通过 CI 的提交（或仅含发布流程修复的后续提交）；留空则运行本次发布 CI"
-        required: false
-        type: string
-      ci_run_id:
-        description: "release_sha 对应的 CI 运行 ID；双平台须整体成功，仅 macOS 须三项 macOS 检查成功"
-        required: false
-        type: string
-      reuse_signed_macos_run_id:
-        description: "复用此发布运行中已签名的 macOS 应用，重新执行公证和验证"
-        required: false
-        type: string
-      reuse_verified_macos_run_id:
-        description: "复用此发布运行中已公证和验证的 macOS 最终产物"
-        required: false
-        type: string
-      reuse_verified_windows_run_id:
-        description: "复用相同源码提交下已通过 Windows ZIP 验证的发布产物"
-        required: false
-        type: string
-
 permissions:
   contents: read
   actions: read
-
 concurrency:
   group: release-desktop
   cancel-in-progress: false
-
 jobs:
   prepare:
     name: Validate release version and signing credentials
-    if: github.event.repository.private
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    runs-on: macos-15
     timeout-minutes: 10
     permissions:
-      actions: read
-      contents: write
-
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha || github.sha }}
-          fetch-depth: 0
-
-      - name: Verify previous CI before reusing it
-        if: inputs.macos_only || inputs.release_sha != '' || inputs.ci_run_id != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ inputs.release_sha }}
-          CI_RUN_ID: ${{ inputs.ci_run_id }}
-          MACOS_ONLY: ${{ inputs.macos_only }}
-        run: |
-          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ && "$CI_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
-          ci_sha="$(gh run view "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --json headSha,conclusion,workflowName,jobs | node --input-type=module -e '
-              import { readFileSync } from "node:fs";
-              const run = JSON.parse(readFileSync(0, "utf8"));
-              if (run.workflowName !== "CI" || !/^[a-f0-9]{40}$/u.test(run.headSha)) process.exit(1);
-              if (process.env.MACOS_ONLY === "true") {
-                for (const name of [
-                  "Test, typecheck, build and format (macos-arm64)",
-                  "Slack CLI native compatibility (macos-arm64)",
-                  "Visual convergence (macos-arm64)",
-                ]) {
-                  const jobs = run.jobs.filter(job => job.name === name);
-                  if (jobs.length !== 1 || jobs[0].status !== "completed" || jobs[0].conclusion !== "success") process.exit(1);
-                }
-              } else if (run.conclusion !== "success") process.exit(1);
-              process.stdout.write(run.headSha);
-            ')"
-          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          git merge-base --is-ancestor "$ci_sha" "$RELEASE_SHA"
-          while IFS= read -r changed; do
-            case "$changed" in
-              .github/workflows/release.yml|apps/desktop/scripts/verify-packaged-source-privacy.mjs|apps/desktop/scripts/verify-macos-native.mjs|scripts/collect-release-assets.mjs|apps/desktop/test/collect-release-assets.test.ts|apps/desktop/test/release-workflow-reuse.test.ts|docs/records/release-notes.md|README.md) ;;
-              *) echo "CI does not cover changed path: $changed" >&2; exit 1 ;;
-            esac
-          done < <(git diff --name-only "$ci_sha" "$RELEASE_SHA")
-
-      - name: Verify signed macOS application before reusing it
-        if: inputs.reuse_signed_macos_run_id != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MACOS_RUN_ID: ${{ inputs.reuse_signed_macos_run_id }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          [[ "$MACOS_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
-          verified="$(gh run view "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --json jobs --jq '[.jobs[] | select(.name == "Build and sign macOS arm64" and .conclusion == "success")] | length')"
-          test "$verified" = 1
-          assets="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
-          grep -Fxq signed-macos-arm64.tar.gz <<< "$assets"
-
-      - name: Verify completed macOS package before reusing it
-        if: inputs.reuse_verified_macos_run_id != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MACOS_RUN_ID: ${{ inputs.reuse_verified_macos_run_id }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
-        run: |
-          [[ "$MACOS_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
-          verified="$(gh run view "$MACOS_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --json headSha,workflowName,jobs \
-            --jq '[.headSha, .workflowName, ([.jobs[] | select(.name == "Notarize and verify macOS arm64" and .conclusion == "success")] | length)] | join(" ")')"
-          read -r mac_sha workflow_name job_count <<< "$verified"
-          test "$workflow_name $job_count" = "Release 1"
-          git merge-base --is-ancestor "$mac_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$mac_sha"
-          while IFS= read -r changed; do
-            case "$changed" in
-              .github/workflows/release.yml|scripts/slack-cli-release.mjs|scripts/test-slack-cli.mjs|apps/desktop/test/timeline-previews.test.tsx) ;;
-              *) echo "Verified macOS package does not cover changed path: $changed" >&2; exit 1 ;;
-            esac
-          done < <(git diff --name-only "$mac_sha" "$RELEASE_SHA")
-
-      - name: Verify completed Windows package before reusing it
-        if: inputs.reuse_verified_windows_run_id != ''
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          WINDOWS_RUN_ID: ${{ inputs.reuse_verified_windows_run_id }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
-        run: |
-          [[ "$WINDOWS_RUN_ID" =~ ^[0-9]+$ ]] || exit 1
-          verified="$(gh run view "$WINDOWS_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --json headSha,workflowName,jobs \
-            --jq '[.headSha, .workflowName, ([.jobs[] | select(.name == "Package and verify Windows x64 ZIP" and .conclusion == "success")] | length)] | join(" ")')"
-          read -r windows_sha workflow_name job_count <<< "$verified"
-          test "$workflow_name $job_count" = "Release 1"
-          if [[ "$windows_sha" != "$RELEASE_SHA" ]]; then
-            git merge-base --is-ancestor "$windows_sha" "$RELEASE_SHA" || git merge-base --is-ancestor "$RELEASE_SHA" "$windows_sha"
-            while IFS= read -r changed; do
-              test "$changed" = .github/workflows/release.yml || exit 1
-            done < <(git diff --name-only "$windows_sha" "$RELEASE_SHA")
-          fi
-
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
-
       - name: Verify requested release matches package version
         shell: bash
         env:
@@ -168,7 +40,6 @@ jobs:
             exit 1
           fi
           test "$(head -n 1 docs/records/release-notes.md)" = "# Artemis $RELEASE_TAG"
-
       - name: Check signing credentials
         run: node apps/desktop/scripts/validate-release-env.mjs mac
         env:
@@ -179,91 +50,36 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
           ARTEMIS_UPDATE_REPO: ArtemisRelease
-
+    if: github.ref == 'refs/heads/main'
   ci:
     name: Release CI
     needs: prepare
-    if: inputs.release_sha == ''
     uses: ./.github/workflows/ci.yml
-
-  stage-release:
-    name: Open private draft Release
-    needs: [prepare, ci]
-    if: always() && needs.prepare.result == 'success' && (needs.ci.result == 'success' || (inputs.release_sha != '' && needs.ci.result == 'skipped'))
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
-    outputs:
-      release-id: ${{ steps.metadata.outputs.release-id }}
-    permissions:
-      contents: write
-    timeout-minutes: 10
-    steps:
-      - name: Create or resume draft for this exact commit
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
-        run: |
-          existing="$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --json targetCommitish,isDraft \
-            --jq '[.targetCommitish, (.isDraft | tostring)] | join(" ")' 2>/dev/null || true)"
-          if [[ -n "$existing" ]]; then
-            if [[ "$existing" != "$RELEASE_SHA true" ]]; then
-              echo "Existing release must be a draft for this exact commit: $existing" >&2
-              exit 1
-            fi
-          else
-            gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --target "$RELEASE_SHA" --title "Artemis $RELEASE_TAG" \
-              --draft --notes "Private staging release for $RELEASE_SHA."
-          fi
-      - name: Provide draft Release ID to Windows runner
-        id: metadata
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
-        run: |
-          for attempt in 1 2 3; do
-            release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              --jq ".[] | select(.tag_name == \"$RELEASE_TAG\" and .draft and .target_commitish == \"$RELEASE_SHA\") | .id" || true)"
-            [[ "$release_id" =~ ^[0-9]+$ ]] && break
-            sleep 5
-          done
-          [[ "$release_id" =~ ^[0-9]+$ ]] || exit 1
-          echo "release-id=$release_id" >> "$GITHUB_OUTPUT"
-
   sign-macos:
     name: Build and sign macOS arm64
-    needs: stage-release
-    if: always() && needs.stage-release.result == 'success' && inputs.reuse_signed_macos_run_id == '' && inputs.reuse_verified_macos_run_id == ''
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    needs:
+      - prepare
+      - ci
+    runs-on: macos-15
     timeout-minutes: 180
     permissions:
-      contents: write
-
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha || github.sha }}
-
+          ref: ${{ github.sha }}
       - name: Verify native runner architecture
         shell: bash
         run: test "$(uname -m)" = arm64
-
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
-
       - name: Install dependencies
         run: npm ci
-
       - name: Build UI library dependencies for bundled plugin verification
         run: npm run build:ui-libraries
-
       - name: Package and sign macOS arm64 DMG and ZIP
         run: |
           node apps/desktop/scripts/validate-release-env.mjs mac
@@ -277,58 +93,38 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
           ARTEMIS_UPDATE_REPO: ArtemisRelease
-
-      # electron-builder 26.16.1 retries osx-sign three times (5/10/15 seconds).
       - name: Archive signed app and native verification modules
-        run: tar -czf signed-macos-arm64.tar.gz apps/desktop/release/mac-arm64 packages/platform/dist packages/protocol/dist
-
-      - name: Preserve signed app for independent notarization retries
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          GODEBUG: http2client=0
-        run: |
-          for attempt in 1 2 3; do
-            if gh release upload "$RELEASE_TAG" signed-macos-arm64.tar.gz --repo "$GITHUB_REPOSITORY" --clobber; then
-              exit 0
-            fi
-            echo "Signed app upload attempt $attempt failed; retrying in 5 seconds." >&2
-            sleep 5
-          done
-          exit 1
-
+        run: >-
+          tar -czf signed-macos-arm64.tar.gz apps/desktop/release/mac-arm64 packages/platform/dist
+          packages/protocol/dist
+      - name: Preserve signed app for notarization
+        uses: actions/upload-artifact@v6
+        with:
+          name: signed-macos-arm64
+          path: signed-macos-arm64.tar.gz
+          retention-days: 1
+          if-no-files-found: error
   package-macos:
     name: Notarize and verify macOS arm64
-    needs: [stage-release, sign-macos]
-    if: always() && needs.stage-release.result == 'success' && inputs.reuse_verified_macos_run_id == '' && (needs.sign-macos.result == 'success' || (inputs.reuse_signed_macos_run_id != '' && needs.sign-macos.result == 'skipped'))
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    needs: sign-macos
+    runs-on: macos-15
     timeout-minutes: 120
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 26
       - run: npm ci
-      - name: Download signed application from private draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern signed-macos-arm64.tar.gz --dir signed-input
+      - uses: actions/download-artifact@v6
+        with:
+          name: signed-macos-arm64
+          path: signed-input
       - name: Restore signed app without rebuilding or signing
         run: tar -xzf signed-input/signed-macos-arm64.tar.gz
-      - name: Restore prior Apple submission from this workflow run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq notarization-mac-arm64.json; then
-            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern notarization-mac-arm64.json --dir apps/desktop/release
-          fi
-
       - name: Notarize signed app and rebuild stapled archives
         run: npm run notarize:mac:arm64 -w @artemis/desktop
         env:
@@ -340,21 +136,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
           ARTEMIS_UPDATE_REPO: ArtemisRelease
-
-      - name: Save notarization submission evidence
-        if: always()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          state=apps/desktop/release/notarization-mac-arm64.json
-          if [[ -f "$state" ]]; then
-            gh release upload "$RELEASE_TAG" "$state" --repo "$GITHUB_REPOSITORY" --clobber
-          fi
-
       - name: Verify signature, notarization, native PTY, Seatbelt and rollback
         run: npm run verify:mac-native -w @artemis/desktop
-
       - name: Verify final DMG and ZIP applications
         shell: bash
         env:
@@ -386,30 +169,28 @@ jobs:
           mkdir "$mount_path"
           /usr/bin/hdiutil attach -readonly -nobrowse -mountpoint "$mount_path" "$dmg"
           verify_app "$mount_path/Artemis.app"
-
-      - name: Upload verified macOS arm64 release artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          cd apps/desktop/release
-          cp release-manifest.json release-manifest-macos-arm64.json
-          shopt -s nullglob
-          assets=(Artemis-macOS-arm64-*.dmg Artemis-macOS-arm64-*.zip Artemis-macOS-arm64-*.blockmap *-mac.yml)
-          gh release upload "$RELEASE_TAG" "${assets[@]}" release-manifest-macos-arm64.json --repo "$GITHUB_REPOSITORY" --clobber
-
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-macos-arm64
+          path: |-
+            apps/desktop/release/Artemis-macOS-arm64-*
+            apps/desktop/release/latest-mac.yml
+            apps/desktop/release/release-manifest.json
+          retention-days: 7
+          if-no-files-found: error
   package-windows:
-    name: Package and verify Windows x64 ZIP
-    needs: stage-release
-    if: always() && needs.stage-release.result == 'success' && !inputs.macos_only && inputs.reuse_verified_windows_run_id == ''
-    runs-on: [self-hosted, Windows, X64]
+    name: Package and verify Windows x64 NSIS and ZIP
+    needs:
+      - prepare
+      - ci
+    runs-on: windows-2025
     timeout-minutes: 90
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha || github.sha }}
+          ref: ${{ github.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 26
@@ -420,7 +201,7 @@ jobs:
       - run: npm ci
       - name: Build UI library dependencies for bundled plugin verification
         run: npm run build:ui-libraries
-      - name: Build and verify unsigned Windows ZIP
+      - name: Build and verify Windows installer and ZIP
         shell: pwsh
         run: |
           $logPath = Join-Path $env:RUNNER_TEMP 'artemis-windows-release.log'
@@ -439,132 +220,61 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ARTEMIS_REQUIRE_SIGNATURE: "0"
-      - name: Upload verified Windows ZIP directly to private draft
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
-          RELEASE_ID: ${{ needs.stage-release.outputs.release-id }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $PSNativeCommandUseErrorActionPreference = $false
-          $version = node -p "require('./package.json').version"
-          $zipPath = "apps/desktop/release/Artemis-Windows-x64-$version.zip"
-          $manifestPath = 'apps/desktop/release/release-manifest-windows-x64.json'
-          Copy-Item apps/desktop/release/release-manifest.json apps/desktop/release/release-manifest-windows-x64.json
-          $headers = @{
-            Authorization = "Bearer $env:GH_TOKEN"
-            Accept = 'application/vnd.github+json'
-            'X-GitHub-Api-Version' = '2022-11-28'
-          }
-          $repositoryUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY"
-          if ($env:RELEASE_ID -notmatch '^[0-9]+$') { throw 'Draft Release ID is missing' }
-          $release = Invoke-RestMethod -Method Get -Uri "$repositoryUri/releases/$env:RELEASE_ID" -Headers $headers
-          if ($release.tag_name -cne $env:RELEASE_TAG -or -not $release.draft -or $release.target_commitish -cne $env:RELEASE_SHA) {
-            throw "Release draft does not target $env:RELEASE_SHA"
-          }
-          $uploadUrl = $release.upload_url -replace '\{.*$', ''
-          foreach ($path in @($zipPath, $manifestPath)) {
-            if (-not (Test-Path $path -PathType Leaf)) { throw "Missing verified release asset: $path" }
-            $name = Split-Path $path -Leaf
-            $assetUri = "${uploadUrl}?name=$([System.Uri]::EscapeDataString($name))"
-            $contentType = if ($name.EndsWith('.zip')) { 'application/zip' } else { 'application/json' }
-            $size = (Get-Item $path).Length
-            $digest = "sha256:$((Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant())"
-            $responsePath = Join-Path $env:RUNNER_TEMP "$name-upload.json"
-            $uploaded = $null
-            for ($attempt = 1; $attempt -le 3; $attempt++) {
-              $current = Invoke-RestMethod -Method Get -Uri "$repositoryUri/releases/$env:RELEASE_ID" -Headers $headers
-              foreach ($asset in @($current.assets)) {
-                if ($asset.name -cne $name) { continue }
-                if ($asset.state -eq 'uploaded' -and $asset.size -eq $size -and $asset.digest -ceq $digest) {
-                  $uploaded = $asset
-                  break
-                }
-                Invoke-RestMethod -Method Delete -Uri "$repositoryUri/releases/assets/$($asset.id)" -Headers $headers
-              }
-              if ($uploaded) { break }
-              & curl.exe --http1.1 --connect-timeout 30 --max-time 1200 --fail-with-body --silent --show-error `
-                --request POST --header "Authorization: Bearer $env:GH_TOKEN" `
-                --header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28' `
-                --header "Content-Type: $contentType" --data-binary "@$((Resolve-Path $path).Path)" `
-                --output $responsePath $assetUri
-              if ($LASTEXITCODE -eq 0) {
-                $candidate = Get-Content $responsePath -Raw | ConvertFrom-Json
-                if ($candidate.name -ceq $name -and $candidate.state -eq 'uploaded' -and $candidate.size -eq $size -and $candidate.digest -ceq $digest) {
-                  $uploaded = $candidate
-                  break
-                }
-              }
-              Write-Warning "Release asset upload attempt $attempt failed for $name; retrying in 5 seconds."
-              Start-Sleep -Seconds 5
-            }
-            if (-not $uploaded) { throw "Release asset upload failed: $name" }
-          }
-          $global:LASTEXITCODE = 0
-
+          ARTEMIS_UPDATE_ED25519_PRIVATE_KEY: ${{ secrets.ARTEMIS_UPDATE_ED25519_PRIVATE_KEY }}
+          ARTEMIS_UPDATE_KEY_ID: release-2026-01
+          ARTEMIS_UPDATE_SEQUENCE: ${{ github.run_number }}
+      - name: Verify NSIS installed Unicode path and Design sandbox
+        working-directory: apps/desktop
+        run: node scripts/verify-windows-installed.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-windows-x64
+          path: |-
+            apps/desktop/release/Artemis-Windows-x64-*.exe
+            apps/desktop/release/Artemis-Windows-x64-*.zip
+            apps/desktop/release/windows-x64-update.json
+            apps/desktop/release/release-manifest.json
+          retention-days: 7
+          if-no-files-found: error
   publish:
     name: Publish client artifacts to ArtemisRelease
-    needs: [stage-release, package-macos, package-windows]
-    if: always() && needs.stage-release.result == 'success' && (needs.package-macos.result == 'success' || (inputs.reuse_verified_macos_run_id != '' && needs.package-macos.result == 'skipped')) && ((inputs.macos_only && needs.package-windows.result == 'skipped') || needs.package-windows.result == 'success' || (inputs.reuse_verified_windows_run_id != '' && needs.package-windows.result == 'skipped'))
+    needs:
+      - package-macos
+      - package-windows
     permissions:
-      contents: write
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+      contents: read
+      actions: read
+    runs-on: macos-15
     timeout-minutes: 180
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.release_sha || github.sha }}
-
-      - name: Download verified release artifacts
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          MACOS_ONLY: ${{ inputs.macos_only }}
-        shell: bash
-        run: |
-          mkdir -p release-inputs/release-macos-arm64
-          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'Artemis-macOS-arm64-*' --pattern '*-mac.yml' \
-            --pattern release-manifest-macos-arm64.json --dir release-inputs/release-macos-arm64
-          mv release-inputs/release-macos-arm64/release-manifest-macos-arm64.json release-inputs/release-macos-arm64/release-manifest.json
-          if [[ "$MACOS_ONLY" != true ]]; then
-            mkdir -p release-inputs/release-windows-x64
-            gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --pattern 'Artemis-Windows-x64-*.zip' --pattern release-manifest-windows-x64.json \
-              --dir release-inputs/release-windows-x64
-            mv release-inputs/release-windows-x64/release-manifest-windows-x64.json release-inputs/release-windows-x64/release-manifest.json
-          fi
-
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: release-*
+          path: release-inputs
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
-
       - name: Install release verification dependencies
         run: npm ci --ignore-scripts
-
       - name: Verify and collect selected platform release sets
         shell: bash
-        env:
-          MACOS_ONLY: ${{ inputs.macos_only }}
+        env: {}
         run: |
           args=(release-inputs release-assets)
-          if [[ "$MACOS_ONLY" == true ]]; then args+=(--macos-only); fi
           node scripts/collect-release-assets.mjs "${args[@]}"
-
-      # Office Runtime updates are verified by their independent release flow.
-      # Client releases reuse those immutable assets without downloading them.
       - name: Publish verified client packages
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
+          RELEASE_SHA: ${{ github.sha }}
         shell: bash
-        run: |
+        run: >
           retry() {
             for attempt in 1 2 3; do
               "$@" && return 0
@@ -572,31 +282,48 @@ jobs:
             done
             return 1
           }
+
           cp docs/records/release-notes.md "$RUNNER_TEMP/artemis-release-notes.md"
+
           printf '\nSource commit / 源码提交：`%s`.\n' "$RELEASE_SHA" >> "$RUNNER_TEMP/artemis-release-notes.md"
+
           target_repo=EurekaRaider/ArtemisRelease
-          existing="$(retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft 2>/dev/null || true)"
+
+          existing="$(retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft
+          2>/dev/null || true)"
+
           if [[ -z "$existing" ]]; then
             retry gh release create "$RELEASE_TAG" --repo "$target_repo" --title "Artemis $RELEASE_TAG" --draft --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
           elif [[ "$existing" != true ]]; then
             echo "Refusing to overwrite an existing public release." >&2
             exit 1
           fi
-          # Only the validated allowlist is uploaded; never mirror the private source repository.
+
+          # Only the validated allowlist is uploaded; never upload intermediate signing material.
+
           node scripts/verify-slack-cli.mjs
+
           node --input-type=module <<'NODE'
+
           import { execFileSync } from 'node:child_process';
+
           import { createHash } from 'node:crypto';
+
           import { readFileSync, readdirSync } from 'node:fs';
+
           import { setTimeout } from 'node:timers/promises';
+
           const repository = 'EurekaRaider/ArtemisRelease';
+
           const tag = process.env.RELEASE_TAG;
+
           const gh = (...args) => execFileSync('gh', args, {
             encoding: 'utf8',
             maxBuffer: 8 * 1024 * 1024,
             stdio: ['ignore', 'pipe', 'inherit'],
             env: { ...process.env, GODEBUG: 'http2client=0' },
           }).trim();
+
           async function api(path) {
             for (let attempt = 0; ; attempt++) {
               try { return JSON.parse(gh('api', `repos/${repository}/${path}`)); }
@@ -606,8 +333,11 @@ jobs:
               }
             }
           }
+
           const release = (await api('releases?per_page=100')).find(item => item.tag_name === tag);
+
           if (!release?.draft) throw new Error('Expected the existing release draft.');
+
           for (const name of readdirSync('release-assets').sort()) {
             const path = `release-assets/${name}`;
             const bytes = readFileSync(path);
@@ -635,8 +365,19 @@ jobs:
               await setTimeout(5000);
             }
           }
+
           NODE
-          retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json assets --jq '.assets[].name' | sort > "$RUNNER_TEMP/artemis-uploaded-assets.txt"
+
+          retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json assets --jq '.assets[].name' | sort >
+          "$RUNNER_TEMP/artemis-uploaded-assets.txt"
+
           (cd release-assets && printf '%s\n' *) | sort > "$RUNNER_TEMP/artemis-expected-assets.txt"
+
           diff -u "$RUNNER_TEMP/artemis-expected-assets.txt" "$RUNNER_TEMP/artemis-uploaded-assets.txt"
-          retry gh release edit "$RELEASE_TAG" --repo "$target_repo" --notes-file "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
+
+          retry gh release edit "$RELEASE_TAG" --repo "$target_repo" --notes-file
+          "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
+      - name: Advance signed Windows platform channel and verify readback
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+        run: node scripts/publish-windows-update-channel.mjs release-assets

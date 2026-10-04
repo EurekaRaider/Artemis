@@ -1,21 +1,24 @@
-# Artemis v1.6.19
+# Artemis v1.7.0
 
 ## 中文
 
-- **会话欢迎页**：按本地时间显示早晨、下午、晚上或深夜问候，结合用户名称和项目上下文，支持全部 14 种界面语言。
-- **消息操作**：修复消息下方操作按钮的显示与点击区域，复制按钮使用支持鼠标和键盘的统一提示。图片右键菜单新增“复制图片”。
-- **文件卡片**：时间线文件卡片使用彩色文件图标，HTML 文件采用网页图标。
-- **HTML 预览**：隔离的交互式 HTML 预览随内容调整高度，保留流式回复中的页面状态，避免视口高度反馈循环，并在失败时提供重试。
-- **Slack CLI**：将内置 CLI 更新至官方稳定版 **4.9.0**，同步三平台下载与二进制摘要。
-
-本次先发布 macOS arm64（签名、公证 DMG/ZIP），沿用已发布 Office Runtime。Windows x64 等待自托管 Windows runner 恢复并通过原生 CI 后再发布。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
+- 启动不再要求注册码、设备绑定或激活；保留插件信任、账号授权、凭据加密和原生沙箱。
+- 支持 Windows x64 和 macOS arm64，改用 GitHub 公共托管 CI。外部贡献通过 fork 与 PR，发布使用明确附件清单。
+- Windows 新增当前用户级 NSIS 安装包，ZIP 保持手动更新；安装版使用独立签名索引、附件验证、数据库快照和外部恢复助手。
+- Windows Design runtime 接入 AppContainer，限制网络、子进程和任务外访问。
+- 新增插件 v2 资源/交互契约、JSON Schema、轻量 runtime SDK 与开发工具；保留 v1 兼容和内容哈希授权。
+- 历史翻页读取分页投影，时间线共享可见区域调度，会话派生缓存采用数量和内存双限。
+- 更新 README、架构图、插件开发与双平台发布指南，移除过时的注册码及私有发布文档。
 
 ## English
 
-- **Conversation welcome**: show morning, afternoon, evening or late-night greetings based on local time, with the user name and project context in all 14 interface languages.
-- **Message actions**: fix the visibility and click area of actions below messages, and use the shared copy tooltip with mouse and keyboard support. Add Copy Image to the native image context menu.
-- **File cards**: use colored file artwork in timeline cards and a webpage icon for HTML files.
-- **HTML previews**: resize isolated interactive HTML previews to their content, retain page state during streamed replies, prevent viewport-height feedback loops and offer retry after failures.
-- **Slack CLI**: update the bundled CLI to official stable **4.9.0**, with refreshed download and executable digests for all three supported platforms.
+- Remove activation, registration codes and device binding while retaining plugin trust, account authorization, encrypted credentials and native isolation.
+- Target Windows x64 and macOS arm64 on GitHub-hosted CI, with fork pull requests and explicit release asset allowlists.
+- Add per-user Windows NSIS distribution alongside manual ZIP downloads. Installed updates use a signed platform index, verified artifacts, database snapshots and an external recovery helper.
+- Connect Windows Design runtimes to AppContainer with task-private writes, no network and child-process restrictions.
+- Add v2 resource/interactive plugin contracts, JSON Schema, a lightweight runtime SDK and development tools, retaining v1 compatibility and content-hash trust.
+- Read history from page-sized projections, share timeline visibility scheduling and bound derived-session caches by count and memory.
+- Refresh the README, architecture diagrams and developer/release documentation; remove obsolete activation and private-release instructions.
 
-This release publishes macOS arm64 first (signed, notarized DMG/ZIP), reusing published Office runtimes. Windows x64 publication awaits restoration of the self-hosted Windows runner and successful native CI. Intel macOS remains a local packaging target and is not included in this CD release.
+发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
+Release acceptance is established by the associated CI, final artifact checks and recorded platform tests, not by these change notes alone.

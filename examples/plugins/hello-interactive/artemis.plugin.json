@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 2,
+  "kind": "interactive",
+  "id": "local.hello-interactive",
+  "name": "hello-interactive",
+  "version": "0.1.0",
+  "engines": {
+    "artemisPluginApi": "1"
+  },
+  "projectTypes": [
+    {
+      "id": "notes",
+      "title": {
+        "en": "Notes",
+        "zh-CN": "笔记"
+      },
+      "targets": ["project", "temporary"],
+      "panelIds": ["notes"]
+    }
+  ],
+  "panels": [
+    {
+      "id": "notes",
+      "entry": "panel/index.html"
+    }
+  ],
+  "runtime": {
+    "entry": "runtime/index.mjs",
+    "protocolVersion": 1
+  },
+  "tools": [
+    {
+      "name": "notes_list",
+      "description": "Read this task's notes",
+      "effect": "state-read"
+    }
+  ],
+  "capabilities": {
+    "artifactStore": "thread",
+    "projectFiles": "explicit-import",
+    "network": "none",
+    "sessionInput": "host-user-action"
+  }
+}

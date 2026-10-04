@@ -1,3 +1,5 @@
+import { createDesktopUpdateService } from "./desktop-update-service.js";
+import { readFileSync as readStartupFile } from "node:fs";
 import { createDesignHandoffHandler } from "./design-plugin-handoff.js";
 import {
   deleteDesignDocument,
@@ -36,13 +38,7 @@ import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
 import { isMcpServerSupported } from "./computer-use/config.js";
 import { homedir as hookHomeDir } from "node:os";
 import type { HookQuery, HookInvocation } from "@artemis/protocol";
-import {
-  assertLicense,
-  canRunLicensed,
-  licensedIpc as ipcMain,
-  setLicenseShutdown,
-  suppressLicenseResume,
-} from "../license/runtime.js";
+import { ipcMain } from "electron";
 import { imText } from "@artemis/gateway";
 import { ImPermissionError, imRequiresApproval } from "./im-policy.js";
 import { ThreadHistoryService } from "./thread-history-service.js";
@@ -404,7 +400,6 @@ import {
 import { ReleaseUpdateManager } from "./release-update-manager.js";
 import { TrustedExtensionManager } from "./trusted-extension-manager.js";
 import { TrustedExtensionStore } from "./trusted-extension-store.js";
-import { UpdateRecoveryStore } from "./update-recovery-store.js";
 import {
   listWorkspaceDirectory,
   readWorkspaceFile,
@@ -596,6 +591,7 @@ function requireAppearanceSender(
 let trustedExtensionStore: TrustedExtensionStore | undefined;
 let trustedExtensionManager: TrustedExtensionManager | undefined;
 let releaseUpdateManager: ReleaseUpdateManager | undefined;
+let preparingUpdate = false;
 let releaseUpdateReady: Promise<void> = Promise.resolve();
 let diagnosticBundleService: DiagnosticBundleService | undefined;
 let taskSourceImageStore: TaskSourceImageStore | undefined;
@@ -899,6 +895,21 @@ const goalCreationAuthorizations = new Set<string>();
 const goalBlockerRecordedTurns = new Set<string>();
 const activeTurnDispatches = new Map<string, string>();
 let shuttingDown = false;
+let recoveringUpdate = false;
+if (process.platform === "win32") {
+  try {
+    recoveringUpdate = Boolean(
+      JSON.parse(
+        readStartupFile(
+          join(app.getPath("userData"), "windows-update/recovery.json"),
+          "utf8",
+        ),
+      ).pending,
+    );
+  } catch {
+    /* A fresh installation has no recovery transaction. */
+  }
+}
 const recoverableTurnQueues = new RecoverableTurnQueues();
 let agentHostRestart: Promise<void> | undefined;
 
@@ -1639,7 +1650,6 @@ async function endHookSession(threadId: string): Promise<void> {
 }
 
 function createAgentHostProcess(): AgentProcess {
-  assertLicense();
   const codexRuntimeRoot = codexPrimaryRuntimePath();
   return new AgentProcess(
     join(import.meta.dirname, "agent-worker.js"),
@@ -3077,7 +3087,7 @@ function scheduleGoalContinuation(
   scheduledGoalContinuations.add(threadId);
   setTimeout(() => {
     scheduledGoalContinuations.delete(threadId);
-    if (!store || !agentProcess || !canRunLicensed()) return;
+    if (!store || !agentProcess) return;
     const thread = store.getThread(threadId);
     if (
       !thread ||
@@ -4038,7 +4048,6 @@ async function executeApprovedShell(
   request: Extract<BrokerExecutionRequest, { kind: "shell.execute" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess) return;
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
@@ -4234,7 +4243,6 @@ async function executeApprovedLocalFile(
   request: LocalFileBrokerRequest,
   resolution: ApprovalResolution,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess) return;
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
@@ -4540,7 +4548,7 @@ async function handleBrokerRequest(
   workerRequestId: string,
   request: BrokerExecutionRequest,
 ): Promise<void> {
-  if (!canRunLicensed() || !agentProcess || !store) {
+  if (!agentProcess || !store) {
     return;
   }
   // PR#245 P1-5/P1-6 宿主执行边界重检：绑定设计插件的任务按「当前持久
@@ -5957,7 +5965,6 @@ async function executeApprovedWrite(
   request: Extract<BrokerExecutionRequest, { kind: "workspace.write" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess) {
     return;
   }
@@ -6010,7 +6017,6 @@ async function executeApprovedOffice(
   resolution: ApprovalResolution,
   emitApprovalResolution: boolean,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess) return;
   if (emitApprovalResolution) {
     emitPayload(request.threadId, request.turnId, {
@@ -6159,7 +6165,6 @@ async function executeApprovedMcp(
   resolution: ApprovalResolution,
   computerTaskGrant?: string,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess || !mcpClientManager) return;
   if (request.sandboxEscalation !== undefined) {
     const error = currentSandboxEscalationError(request);
@@ -6283,7 +6288,6 @@ async function executeApprovedExtension(
   request: Extract<BrokerExecutionRequest, { kind: "extension.call" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess || !trustedExtensionManager) return;
   if (request.sandboxEscalation !== undefined) {
     const error = currentSandboxEscalationError(request);
@@ -6342,7 +6346,6 @@ async function executeApprovedRemote(
   request: Extract<BrokerExecutionRequest, { kind: "remote.operation" }>,
   resolution: ApprovalResolution,
 ): Promise<void> {
-  if (!canRunLicensed()) return;
   if (!agentProcess || !imService) return;
   try {
     if (
@@ -6496,7 +6499,6 @@ async function createTaskThread(
   title?: string,
   taskId?: string,
 ): Promise<Thread | undefined> {
-  assertLicense();
   if (!store) {
     throw new Error("Application store is not ready.");
   }
@@ -6602,6 +6604,8 @@ async function startTaskTurn(
   input: StartTurnInput,
   options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
 ): Promise<StartTurnResult> {
+  if (preparingUpdate || shuttingDown)
+    throw new Error("Application is preparing to exit; retry after restart.");
   if (cleaningWorktreeThreads.has(input.threadId)) {
     throw new Error(
       "Worktree cleanup is in progress. Retry after it finishes.",
@@ -6636,7 +6640,6 @@ async function startTaskTurnUnchecked(
     acceptance?: PlanAcceptance;
   } = {},
 ): Promise<StartTurnResult> {
-  assertLicense();
   const mainReceivedAt = Date.now();
   const source = options.source ?? "user";
   if (agentHostRestart) await agentHostRestart;
@@ -7131,7 +7134,7 @@ function dispatchCheckpoint(
 }
 
 async function resumeInterruptedTurns(): Promise<void> {
-  if (suppressLicenseResume() || !canRunLicensed()) return;
+  if (recoveringUpdate) return;
   for (const [threadId, turnId] of [...activeTurns]) {
     const thread = store?.getThread(threadId);
     const checkpoint = store?.getTurnCheckpoint(threadId);
@@ -18933,7 +18936,7 @@ function createMainWindow(): BrowserWindow {
         pendingNotificationThreadId = undefined;
         window.webContents.send(IPC.automationThreadOpen, target);
       }
-      if (!smokeMode && !suppressLicenseResume()) {
+      if (!smokeMode && !recoveringUpdate) {
         for (const thread of store?.listThreads() ?? []) {
           if (thread.goal?.status === "active") {
             scheduleGoalContinuation(thread.id, thread.goal.goalId);
@@ -24010,6 +24013,8 @@ app
     // in the main process before any runtime spawn.
     pluginDispatch = createDispatchPluginTool({
       store,
+      windowsHelperPath:
+        process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
       revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
       scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
       // 卸载设计插件后拒绝一切工具调用：修订残留不等于插件可用。
@@ -24293,7 +24298,6 @@ app
         nodeExecutable: process.execPath,
       },
     );
-    assertLicense();
     imService.start();
     sleepPrevention.setEnabled(await settingsStore.preventSleepPreference());
     const systemMemory = process.getSystemMemoryInfo();
@@ -24554,51 +24558,46 @@ app
       process.platform === "win32" ? windowsSandboxHelperPath() : undefined,
       extensionWorkerPath(),
     );
-    const updateRecoveryRoot = join(app.getPath("userData"), "update-recovery");
-    releaseUpdateManager = new ReleaseUpdateManager(
-      autoUpdater,
-      new UpdateRecoveryStore(
-        join(updateRecoveryRoot, "state.json"),
-        join(updateRecoveryRoot, "artifacts"),
-        process.platform === "darwin"
-          ? join(
-              app.getPath("home"),
-              "Library",
-              "Caches",
-              "@artemisdesktop-updater",
-            )
-          : undefined,
+    releaseUpdateManager = await createDesktopUpdateService({
+      updater: autoUpdater,
+      version: app.getVersion(),
+      packaged: app.isPackaged,
+      platform: process.platform,
+      userData: app.getPath("userData"),
+      home: app.getPath("home"),
+      resources: process.resourcesPath,
+      executable: process.execPath,
+      application: installedApplicationPath(),
+      rollbackScript: rollbackScriptPath(),
+      environment: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([key, value]) =>
+            key.startsWith("ARTEMIS_UPDATE_") && value !== undefined,
+        ),
       ),
-      app.getVersion(),
-      app.isPackaged,
-      process.platform,
-      rollbackScriptPath(),
-      installedApplicationPath(),
-      {
-        ...(process.env.ARTEMIS_UPDATE_URL
-          ? { ARTEMIS_UPDATE_URL: process.env.ARTEMIS_UPDATE_URL }
-          : {}),
-        ...(process.env.ARTEMIS_UPDATE_OWNER
-          ? {
-              ARTEMIS_UPDATE_OWNER: process.env.ARTEMIS_UPDATE_OWNER,
-            }
-          : {}),
-        ...(process.env.ARTEMIS_UPDATE_REPO
-          ? {
-              ARTEMIS_UPDATE_REPO: process.env.ARTEMIS_UPDATE_REPO,
-            }
-          : {}),
-        ...(process.env.ARTEMIS_UPDATE_CHANNEL
-          ? {
-              ARTEMIS_UPDATE_CHANNEL: process.env.ARTEMIS_UPDATE_CHANNEL,
-            }
-          : {}),
+      onStatus: (status) =>
+        mainWindow?.webContents.send(IPC.updateStatus, status),
+      prepareToQuit: async () => {
+        if (activeTurns.size || startingTurns.size)
+          throw new Error(
+            "Finish or stop running tasks before installing an update.",
+          );
+        preparingUpdate = true;
+        automationScheduler?.stop();
+        if (!mainWindow || mainWindow.webContents.isDestroyed())
+          throw new Error(
+            "Cannot verify unsaved edits without the main window.",
+          );
+        await mainWindow.webContents.executeJavaScript(
+          "window.artemisFlushWorkspaceEdits()",
+        );
       },
-      (status) => {
-        mainWindow?.webContents.send(IPC.updateStatus, status);
+      cancelPreparation: () => {
+        preparingUpdate = false;
+        if (!recoveringUpdate) automationScheduler?.start();
       },
-      join(process.resourcesPath, "app-update.yml"),
-    );
+      quit: () => app.quit(),
+    });
     terminalService = new TerminalService(process.platform, {
       onData(terminalId, data) {
         mainWindow?.webContents.send(IPC.terminalData, { terminalId, data });
@@ -24644,7 +24643,6 @@ app
       onEvent: publishAutomationEvent,
       notify: automationRunNotification,
       launch: async (automation, run, linkThread) => {
-        assertLicense();
         const modelSettings = automation.modelSelection
           ? await resolveModelSelection(
               automation.modelSelection,
@@ -24716,12 +24714,31 @@ app
         });
       },
     );
-    assertLicense();
-    automationScheduler.start();
-    mainWindow.webContents.once("did-finish-load", () => {
+    if (!recoveringUpdate) automationScheduler.start();
+    const markUpdateHealthy = (event: Electron.IpcMainEvent) => {
+      if (
+        event.sender !== mainWindow?.webContents ||
+        event.senderFrame !== mainWindow.webContents.mainFrame
+      )
+        return;
+      ipcMain.removeListener(IPC.rendererReady, markUpdateHealthy);
       void releaseUpdateReady
         .then(async () => {
+          await agentProcess?.request(
+            { type: "runtime.concurrency.status", requestId: randomUUID() },
+            15000,
+          );
+          if (!store || !agentProcess || !mainWindow)
+            throw new Error("Application services are not healthy");
+          const rendered = await mainWindow.webContents.executeJavaScript(
+            "Boolean(window.artemis && document.getElementById('root')?.children.length)",
+          );
+          if (!rendered) throw new Error("Renderer is not ready");
           await releaseUpdateManager?.markHealthy();
+          if (recoveringUpdate) {
+            recoveringUpdate = false;
+            automationScheduler?.start();
+          }
           releaseUpdateManager?.startAutomaticChecks((error) => {
             diagnosticBundleService?.record({
               source: "main",
@@ -24733,7 +24750,8 @@ app
           });
         })
         .catch(() => undefined);
-    });
+    };
+    ipcMain.on(IPC.rendererReady, markUpdateHealthy);
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -24763,7 +24781,7 @@ app.on("before-quit", (event) => {
   computerUseHost?.dispose();
   if (
     !hookSessionsEnded &&
-    ((openedThreads.size && canRunLicensed()) || officeWorkbench || mainWindow)
+    (openedThreads.size || officeWorkbench || mainWindow)
   ) {
     event.preventDefault();
     if (!endingHookSessions) {
@@ -24774,11 +24792,14 @@ app.on("before-quit", (event) => {
             "window.artemisFlushWorkspaceEdits?.()",
           );
         shuttingDown = true;
+        automationScheduler?.stop();
+        pluginDispatch?.dispose();
+        designPanelHost?.disposeAll();
+        await Promise.allSettled([...activeTurns.keys()].map(cancelTaskTurn));
         hooksService?.dispose();
         await Promise.allSettled([
-          ...(canRunLicensed()
-            ? [...openedThreads].map((id) => endHookSession(id))
-            : []),
+          mcpClientManager?.dispose(),
+          ...[...openedThreads].map((id) => endHookSession(id)),
           officeWorkbench?.then(async (workbench) => {
             workbench.packs.cancel();
             await workbench.sessions.dispose();
@@ -24811,6 +24832,8 @@ app.on("before-quit", (event) => {
   automationScheduler?.stop();
   stopAgentCapacityMonitoring();
   terminalService?.dispose();
+  pluginDispatch?.dispose();
+  designPanelHost?.disposeAll();
   trustedExtensionManager?.dispose();
   hooksService?.dispose();
   if (packagedNodePtyRuntimeReady) {
@@ -24820,30 +24843,6 @@ app.on("before-quit", (event) => {
     );
   }
   void mcpClientManager?.dispose();
-  agentProcess?.dispose();
-});
-
-setLicenseShutdown(async () => {
-  shuttingDown = true;
-  imService?.stop();
-  automationScheduler?.stop();
-  terminalService?.dispose();
-  trustedExtensionManager?.dispose();
-  hooksService?.dispose();
-  const cancellations = [...activeTurns.keys()].map((threadId) =>
-    agentProcess?.request(
-      { type: "turn.cancel", requestId: randomUUID(), threadId },
-      2000,
-    ),
-  );
-  await Promise.allSettled([
-    ...cancellations,
-    mcpClientManager?.dispose(),
-    officeWorkbench?.then(async (workbench) => {
-      workbench.packs.cancel();
-      await workbench.sessions.dispose();
-    }),
-  ]);
   agentProcess?.dispose();
 });
 

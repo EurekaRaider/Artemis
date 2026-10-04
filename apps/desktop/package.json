@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.6.19",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -14,10 +14,9 @@
     "package:mac": "node scripts/package-mac-lite.mjs all",
     "setup:mac-signing": "node scripts/setup-macos-signing.mjs",
     "package:mac:arm64": "node scripts/package-mac-lite.mjs arm64",
-    "package:mac:x64": "node scripts/package-mac-lite.mjs x64",
     "package:win": "node scripts/package-windows-lite.mjs",
     "release:mac": "node scripts/package-mac-lite.mjs all --release",
-    "release:win": "node scripts/package-windows-lite.mjs --release && npm run verify:win-native && node scripts/finalize-release.mjs --windows-zip",
+    "release:win": "node scripts/package-windows-lite.mjs --release && npm run verify:win-native && node scripts/finalize-release.mjs --windows",
     "verify:mac-native": "node scripts/verify-macos-native.mjs",
     "verify:win-native": "node scripts/verify-windows-native.mjs",
     "verify:bundled-plugins": "vitest run --no-file-parallelism test/artemis-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
@@ -42,21 +41,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "sign:mac": "node scripts/package-mac-lite.mjs all --sign-only",
     "sign:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --sign-only",
-    "sign:mac:x64": "node scripts/package-mac-lite.mjs x64 --sign-only",
     "notarize:mac": "node scripts/package-mac-lite.mjs all --notarize-only",
     "notarize:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --notarize-only",
-    "notarize:mac:x64": "node scripts/package-mac-lite.mjs x64 --notarize-only",
-    "release:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --release",
-    "release:mac:x64": "node scripts/package-mac-lite.mjs x64 --release"
+    "release:mac:arm64": "node scripts/package-mac-lite.mjs arm64 --release"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.6.19",
-    "@artemis/gateway": "1.6.19",
-    "@artemis/platform": "1.6.19",
-    "@artemis/protocol": "1.6.19",
-    "@artemis/theme-artemis": "1.6.19",
-    "@artemis/theme-contract": "1.6.19",
-    "@artemis/ui": "1.6.19",
+    "@artemis/agent-host": "1.7.0",
+    "@artemis/gateway": "1.7.0",
+    "@artemis/platform": "1.7.0",
+    "@artemis/protocol": "1.7.0",
+    "@artemis/theme-artemis": "1.7.0",
+    "@artemis/theme-contract": "1.7.0",
+    "@artemis/ui": "1.7.0",
     "@earendil-works/pi-ai": "1.0.2",
     "@earendil-works/pi-coding-agent": "1.0.2",
     "@js-temporal/polyfill": "^0.5.1",
@@ -88,7 +84,8 @@
     "seti-file-icons": "0.0.8",
     "smol-toml": "^1.7.1",
     "tar": "7.5.22",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "@artemis/plugin-contract": "1.7.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
@@ -154,15 +151,13 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64",
-            "x64"
+            "arm64"
           ]
         }
       ],
@@ -181,6 +176,12 @@
       "artifactName": "Artemis-Windows-${arch}-${version}.${ext}",
       "target": [
         {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
           "target": "zip",
           "arch": [
             "x64"
@@ -194,6 +195,13 @@
         }
       ]
     },
-    "beforePack": "scripts/prepare-slack-cli.cjs"
+    "beforePack": "scripts/prepare-slack-cli.cjs",
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "runAfterFinish": false,
+      "include": "build/installer.nsh"
+    }
   }
 }

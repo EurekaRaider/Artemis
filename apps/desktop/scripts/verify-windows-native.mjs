@@ -1,4 +1,4 @@
-import { verifyPackagedLicense } from "./verify-packaged-license.mjs";
+import { verifyPackagedStartup } from "./verify-packaged-startup.mjs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -220,7 +220,7 @@ try {
   async function smokeExecutable(path, name) {
     const screenshotPath = join(temporaryDirectory, `${name}.png`);
     const userDataPath = join(temporaryDirectory, `${name}-user-data`);
-    return verifyPackagedLicense(path, userDataPath, screenshotPath);
+    return verifyPackagedStartup(path, userDataPath, screenshotPath);
   }
 
   const unpackedActivation = await smokeExecutable(

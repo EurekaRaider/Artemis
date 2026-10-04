@@ -96,47 +96,10 @@ function sha256Hex(input: string): string {
   return H.map((x) => (x >>> 0).toString(16).padStart(8, "0")).join("");
 }
 
-/** Draft manifest for artemis.plugin.json (S0 slice, schemaVersion 1). */
-export const pluginManifestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  id: z.string().min(1).max(200),
-  version: z.string().min(1).max(64),
-  engines: z.object({ artemisPluginApi: z.literal("1") }),
-  projectTypes: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(100),
-        title: z.record(z.string(), z.string()),
-        targets: z.array(z.enum(["project", "temporary"])),
-        panelIds: z.array(z.string()).min(1),
-      }),
-    )
-    .min(1),
-  panels: z
-    .array(z.object({ id: z.string().min(1), entry: z.string().min(1) }))
-    .min(1),
-  runtime: z.object({
-    entry: z.string().min(1),
-    protocolVersion: z.literal(1),
-  }),
-  tools: z
-    .array(
-      z.object({
-        name: z.string().min(1).max(100),
-        description: z.string().min(1).max(2000),
-        effect: z.enum(["artifact-write", "state-read"]),
-      }),
-    )
-    .min(1),
-  capabilities: z.object({
-    artifactStore: z.enum(["thread", "none"]),
-    projectFiles: z.literal("explicit-import"),
-    network: z.literal("none"),
-    sessionInput: z.literal("host-user-action"),
-  }),
-});
-
-export type PluginManifest = z.infer<typeof pluginManifestSchema>;
+export {
+  pluginManifestSchema,
+  type PluginManifest,
+} from "@artemis/plugin-contract";
 
 /**
  * The single restricted execution profile shipped in S0. Threads bound to a

@@ -1,3 +1,4 @@
+import { proposeCatalog } from "../catalog-pull-request.mjs";
 // Publish the merged design-pack catalog to the release host's main branch
 // (the URL the app's update check reads; mirrors publish-office-catalog.mjs).
 // Merges rather than replaces: existing pack manifests stay, the artemis-design
@@ -73,7 +74,7 @@ async function main() {
   versions.sort((a, b) => {
     const [aM, aN, aP] = a.split(".").map(Number);
     const [bM, bN, bP] = b.split(".").map(Number);
-    return bM - aM || bN - bN || bP - bP;
+    return bM - aM || bN - aN || bP - aP;
   });
   const next = JSON.parse(
     await readFile(join(dir, versions[0], "catalog.json"), "utf8"),
@@ -101,28 +102,12 @@ async function main() {
   }
 
   const merged = mergeDesignCatalogs(hosted, next);
-  const content = Buffer.from(JSON.stringify(merged, null, 2)).toString(
-    "base64",
-  );
-  const response = await fetch(
-    `https://api.github.com/repos/${REPO}/contents/${CATALOG_PATH}`,
-    {
-      method: "PUT",
-      headers: { ...headers, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: `Publish artemis-design catalog for ${versions[0]}`,
-        content,
-        ...(sha ? { sha } : {}),
-      }),
-    },
-  );
-  if (!response.ok)
-    throw new Error(
-      `Catalog publish failed: ${response.status} ${await response.text()}`,
-    );
-  console.log(
-    `Published ${CATALOG_PATH} (artemis-design ${versions[0]}, ${merged.manifests.length} manifests total)`,
-  );
+  await proposeCatalog({
+    repository: REPO,
+    path: CATALOG_PATH,
+    content: JSON.stringify(merged, null, 2) + "\n",
+    title: `Update artemis-design catalog for ${versions[0]}`,
+  });
 }
 
 if (

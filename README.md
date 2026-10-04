@@ -17,7 +17,7 @@ A local-first desktop agent for coding, research and everyday work.
   <a href="#plugin-marketplace-and-capability-center"><img alt="Plugin support" src="https://img.shields.io/badge/Plugins-Supported-FF0080?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTggM3Y1bTgtNXY1TTYgOGgxMnY0YTYgNiAwIDAgMS0xMiAwVjhabTYgMTB2NCIvPjwvc3ZnPg%3D%3D" /></a>
   <a href="#recurring-work-and-usage"><img alt="Scheduled automations" src="https://img.shields.io/badge/Automations-Scheduled-00B8D9?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHJlY3QgeD0iMyIgeT0iNSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE2IiByeD0iMiIvPjxwYXRoIGQ9Ik03IDN2NG0xMC00djRNMyAxMGgxOG0tOSAzdjNsMyAyIi8%2BPC9zdmc%2B" /></a>
   <a href="#platform-support"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078FF?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggc3Ryb2tlPSJub25lIiBmaWxsPSJ3aGl0ZSIgZD0iTTIgM2g5djhIMnptMTEgMGg5djhoLTl6TTIgMTNoOXY4SDJ6bTExIDBoOXY4aC05eiIvPjwvc3ZnPg%3D%3D" /></a>
-  <a href="#platform-support"><img alt="macOS Apple Silicon and Intel" src="https://img.shields.io/badge/macOS-Apple_Silicon_%C2%B7_Intel-7063B5?logo=apple&logoColor=white&labelColor=374151" /></a>
+  <a href="#platform-support"><img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple_Silicon-7063B5?logo=apple&logoColor=white&labelColor=374151" /></a>
 </p>
 
 [Quick start](#quick-start) · [Preview](#product-preview) · [Features](#core-capabilities) · [Permissions](#execution-permissions-and-trust-boundary) · [Development](#development-and-packaging)
@@ -28,7 +28,7 @@ A local-first desktop agent for coding, research and everyday work.
 
 <p align="center"><sub>Artemis desktop · persistent project conversation · dark theme</sub></p>
 
-![Artemis dark workspace with a research task, Markdown response and project sidebar](docs/assets/screenshots/workspace-dark.png)
+![Artemis dark workspace with a research task, Markdown response and project sidebar](docs/assets/images/workspace-dark.png)
 
 <p align="center">
   <strong>Local-first</strong>&nbsp;&nbsp;·&nbsp;&nbsp;
@@ -58,16 +58,15 @@ Arabic RTL, with light and dark themes.
 
 ## Quick start
 
-> [!NOTE]
-> Version **1.6.19** publishes macOS arm64 first (signed, notarized DMG/ZIP). Windows x64 awaits its runner and native CI.
-> CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
-> Repository access is required; public publication is a separate, manual decision.
-> See the [platform and installation notes](#platform-support).
+> Artemis is MIT-licensed and starts without activation or device registration.
+> Supported targets are Windows x64 and macOS arm64. Downloads remain at
+> [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases).
+> See [installation](docs/install.md) and [contribution rules](CONTRIBUTING.md).
 
 ### Run from source
 
-**Requirements:** Node.js 24+ · npm 11+ · Git · Windows 11 x64 or macOS 14+
-(Apple Silicon or Intel).
+**Requirements:** Node.js 26 · npm 11+ · Git · Windows 11 x64 or macOS 14+
+(Apple Silicon).
 
 ```bash
 git clone https://github.com/EurekaRaider/Artemis.git
@@ -92,7 +91,7 @@ IM previews use synthetic accounts and members. [Capture details](docs/records/r
 
 ### The project workspace
 
-![Artemis light workspace with persistent tasks, a completed conversation and model controls](docs/assets/screenshots/workspace-light.png)
+![Artemis light workspace with persistent tasks, a completed conversation and model controls](docs/assets/images/workspace-light.png)
 
 Keep conversations, model controls and project history together. Open Review,
 Terminal, Browser or files beside the task to inspect the work as it happens.
@@ -100,7 +99,7 @@ Terminal, Browser or files beside the task to inspect the work as it happens.
 <details>
 <summary><strong>Task environment · workspace, Git, Agents and sources</strong></summary>
 
-![Artemis environment panel showing workspace, Git state and Agent activity](docs/assets/screenshots/environment-panel-light.png)
+![Artemis environment panel showing workspace, Git state and Agent activity](docs/assets/images/environment-panel-light.png)
 
 Inspect the current checkout, switch branches, choose a comparison base and
 access commit or push actions. The same panel shows child Agents, task sources
@@ -112,16 +111,16 @@ and group members when available.
 
 <table>
   <tr>
-    <td width="50%"><a href="docs/assets/screenshots/git-review.png"><img src="docs/assets/screenshots/git-review.png" alt="Artemis Git Review showing unstaged TypeScript changes, changed files, Stage and Revert controls" /></a></td>
-    <td width="50%"><a href="docs/assets/screenshots/markdown-files.png"><img src="docs/assets/screenshots/markdown-files.png" alt="Artemis Markdown reader with project documentation, rich text and source modes" /></a></td>
+    <td width="50%"><a href="docs/assets/images/git-review.png"><img src="docs/assets/images/git-review.png" alt="Artemis Git Review showing unstaged TypeScript changes, changed files, Stage and Revert controls" /></a></td>
+    <td width="50%"><a href="docs/assets/images/markdown-files.png"><img src="docs/assets/images/markdown-files.png" alt="Artemis Markdown reader with project documentation, rich text and source modes" /></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Git Review</strong><br /><sub>Inspect a real diff with file and hunk controls.</sub></td>
     <td align="center"><strong>Files &amp; Markdown</strong><br /><sub>Read and edit project documents beside the task.</sub></td>
   </tr>
   <tr>
-    <td width="50%"><a href="docs/assets/screenshots/terminal.png"><img src="docs/assets/screenshots/terminal.png" alt="Artemis integrated terminal showing git status for the demonstration project" /></a></td>
-    <td width="50%"><a href="docs/assets/screenshots/agent-team.png"><img src="docs/assets/screenshots/agent-team.png" alt="Artemis Agent team panel showing two completed specialist tasks" /></a></td>
+    <td width="50%"><a href="docs/assets/images/terminal.png"><img src="docs/assets/images/terminal.png" alt="Artemis integrated terminal showing git status for the demonstration project" /></a></td>
+    <td width="50%"><a href="docs/assets/images/agent-team.png"><img src="docs/assets/images/agent-team.png" alt="Artemis Agent team panel showing two completed specialist tasks" /></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Native Terminal</strong><br /><sub>A real project terminal in the workspace dock.</sub></td>
@@ -133,8 +132,8 @@ and group members when available.
 
 <table>
   <tr>
-    <td width="50%"><a href="docs/assets/screenshots/automations.png"><img src="docs/assets/screenshots/automations.png" alt="Artemis Automations with two paused weekly project tasks and schedule controls" /></a></td>
-    <td width="50%"><a href="docs/assets/screenshots/token-usage.png"><img src="docs/assets/screenshots/token-usage.png" alt="Artemis Token Usage with demonstration totals, activity heatmap and token composition" /></a></td>
+    <td width="50%"><a href="docs/assets/images/automations.png"><img src="docs/assets/images/automations.png" alt="Artemis Automations with two paused weekly project tasks and schedule controls" /></a></td>
+    <td width="50%"><a href="docs/assets/images/token-usage.png"><img src="docs/assets/images/token-usage.png" alt="Artemis Token Usage with demonstration totals, activity heatmap and token composition" /></a></td>
   </tr>
   <tr>
     <td align="center"><strong>Automations</strong><br /><sub>Schedule recurring project work and inspect run history.</sub></td>
@@ -145,9 +144,9 @@ and group members when available.
 <details>
 <summary><strong>Settings and Simplified Chinese UI</strong></summary>
 
-![Artemis General settings with language and theme preferences](docs/assets/screenshots/settings-general.png)
+![Artemis General settings with language and theme preferences](docs/assets/images/settings-general.png)
 
-![Artemis workspace with Simplified Chinese navigation and composer controls](docs/assets/screenshots/workspace-zh-CN.png)
+![Artemis workspace with Simplified Chinese navigation and composer controls](docs/assets/images/workspace-zh-CN.png)
 
 </details>
 
@@ -225,7 +224,7 @@ Artemis Browser and native applications using the current vision model. The app
 includes the native helper; no separate toolchain or API key is needed.
 
 <p align="center">
-  <a href="docs/assets/screenshots/resources.png"><img src="docs/assets/screenshots/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>
+  <a href="docs/assets/images/resources.png"><img src="docs/assets/images/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>
 </p>
 <p align="center"><sub>Browse plugins, configure their connected accounts, and manage MCP servers and Skills.</sub></p>
 
@@ -367,176 +366,46 @@ npm run format:check
 boundary and performance contracts. For native visual verification, run
 `npm run verify:screenshot-matrix`.
 
-CI runs on pushes to `main`, same-repository pull requests and manual dispatches.
-The **Release** workflow requires CI for every selected platform, covering
-formatting, tests, types, builds, the production dependency audit and native checks. Local
-source checks do not establish native release acceptance on another platform.
-Windows AppContainer integration, native visual behavior, Slack CLI compatibility,
-and final ZIP verification run on the self-hosted Windows x64 runner.
+CI runs on pushes to `main`, fork pull requests and manual dispatches, using
+GitHub-hosted `windows-2025` and `macos-15`. Release requires both targets from
+the same source commit. Pull request jobs have read-only permissions and no
+release secrets. Native checks and actual installation evidence remain separate.
 
 ### Package the desktop
 
-Lite packaging includes the four document plugins and their JavaScript runtime
-libraries. It does not require a Codex installation.
+| Target | Command | Artifacts |
+| --- | --- | --- |
+| Windows x64 | `npm run package:win` | Per-user NSIS EXE and manual ZIP |
+| macOS arm64 | `npm run package:mac` | DMG and ZIP |
 
-| Target                     | Command                     |
-| -------------------------- | --------------------------- |
-| macOS · both architectures | `npm run package:mac`       |
-| macOS · Apple Silicon      | `npm run package:mac:arm64` |
-| macOS · Intel              | `npm run package:mac:x64`   |
-| Windows · x64 ZIP          | `npm run package:win`       |
+The Release workflow signs and notarizes macOS packages, verifies Windows
+artifacts, checks the final attachment allowlist and publishes to ArtemisRelease.
+Intermediate signed macOS apps use short-lived Actions artifacts.
+See the [release guide](docs/guides/release.md) for credentials and acceptance.
 
-Build with development dependencies installed (`npm ci --include=dev`). macOS
-packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
-macOS is a cross-build, not proof of Windows runtime compatibility.
+Installed Windows builds use an Ed25519-signed platform index, verified downloads
+and an external installation/recovery helper. Recovery requires the verified
+previous installer and a database snapshot. ZIP builds stay manual; install the
+NSIS package once to move to the installed update channel. macOS uses its existing
+in-app updater. No private repository credential is bundled in clients.
 
-The `1.6.19` local packaging configuration produces:
+### Develop a plugin
 
-| Target                    | Artifacts                                                       |
-| ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.19.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.19.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.19.dmg` and `.zip`   |
-
-Releases are started manually through **Release**, using tag `v1.6.19`, and
-published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
-after the selected platforms pass verification. By default, CD includes macOS
-arm64 DMG/ZIP and update metadata, plus an unsigned Windows x64 ZIP. For a
-macOS-only release, select `macos_only` and supply `release_sha` and `ci_run_id`;
-all three macOS CI jobs (tests/types/build/format, Slack CLI native compatibility
-and visual convergence) must have succeeded. Only named release assembly and
-documentation changes may follow that verified commit. Version `1.6.19` uses
-this macOS-only path while the Windows runner is unavailable. Intel macOS
-remains a local packaging target.
-
-macOS signing and notarization run in separate jobs. Signing retries at most
-three times; notarization waits and stapling each allow three attempts. The
-signed app and Apple submission ID are held in a private draft Release while
-jobs run; these staging files remain private and are never copied to the public Release. Use **Re-run failed jobs** to reuse
-successful CI/signing work and resume the same Apple submission. See the
-[release guide](docs/guides/macos-release.md).
-
-Windows checks for new public versions and opens the ZIP download in a browser;
-users replace the application manually. macOS retains in-app updates. Both use
-the public ArtemisRelease update source. No private repository token is bundled in the app.
-
-Version 1.6.18 adds plugin-provided visual skins with live preview, persistent
-selection, wallpapers, fonts, icons and motion presets. Plugins and marketplaces
-now use versioned Artemis manifests; existing installed plugin data migrates
-with a backup. The Pi SDK is upgraded to **1.0.0**. Documentation, examples and
-prototypes move into their dedicated directories.
-
-Version 1.6.17 adds timeline previews for images, audio, Mermaid diagrams, LaTeX formulas and isolated interactive HTML. Image zoom, retry controls, lazy loading and stable playback make previews usable while replies stream. Office documents and PDFs remain compact file cards that open the right-side viewer.
-
-Version 1.6.16 fixes Goal elapsed-time accumulation across usage updates, edits, pauses, and resumes. Timeline Markdown wraps long text, code, and tables within the available width while retaining existing copy controls. Office plugin descriptions now reflect whether the advanced capability is active; PDF descriptions clarify text reading and text-based creation across all 14 locales.
-
-Version 1.6.15 upgrades the Pi engine and model catalog to **0.99.1**, with Artemis continuing to control tool exposure and execution permissions. Patched HTTP and glob dependencies address high-severity findings from the release audit.
-
-Version 1.6.15 displays local animated SVG files directly in the conversation timeline, from image syntax or file links. CSS and SMIL animations remain active, duplicate references share one preview, and streamed text preserves the current image. SVG scripts remain disabled in image context.
-
-Timeline Markdown code blocks also include language labels and copy buttons with success feedback and failure retry. Local Office verification files under `outputs/` are excluded from Git while remaining available locally.
-
-Version 1.6.14 fixes timeline skill icons: Computer Use displays its monitor artwork, plugin-provided images remain preferred, and missing or failed images fall back to bundled brand or semantic artwork.
-
-Version 1.6.12 introduced scheduled tasks with clearer execution and schedule
-settings, a model picker and supported reasoning levels. Each automation retains
-its own model selection without changing the global default; execution-setting
-changes renew the existing authorization when required. Workspace tabs, the
-active tab and dock visibility now survive switching conversations and restarts.
-Sidebar visibility, Markdown rich/source mode and Office zoom, sheet view and
-**Go to latest change** preferences are also remembered. Replaying history keeps
-closed Office tabs closed. See the [bilingual release notes](docs/records/release-notes.md).
-
-Version 1.6.11 adds character-level text selection for Office comments. The
-**Go to latest change** switch explains that it follows the latest AI edit without
-affecting saving. Failed tab saves now show recovery actions: retry, keep editing,
-or explicitly retain an Office draft and close. Retained drafts are not saved to
-the document; reopen the file to recover them before continuing edits.
-
-Version 1.6.10 improves Office review across Word, PowerPoint and Excel: scroll
-continuously through preview pages, move the comment panel, clear selections with
-Escape or the clear control, and recover comment drafts when switching chats.
-Comments appear as editable cards in the composer with links back to their source.
-Region comments include visible text context when available; older-version
-locations are marked instead of silently applied to updated content. Office and
-CSV error messages can be dismissed while unsaved drafts remain available.
-
-Version 1.6.9 added the **Office workbench** with local DOCX/PPTX text editing,
-XLSX cell and formula editing, CSV editing, automatic saving, and undo/redo.
-Documents, Presentations and Spreadsheets share one optional Office runtime,
-with online installation, single-file offline import, update checks and repair.
-Office documents save to a working copy; external changes block conflicting
-writes. Native previews, page and sheet navigation, and region annotations stay
-in the right panel. Published runtimes cover macOS arm64 (1.0.0) and Windows x64 (1.0.1),
-with platform-specific online installation and single-file offline packages.
-
-This release also reuses explicitly granted Computer Use permissions within a
-task, preserves plugin icons across tool states, confirms successful no-update
-checks, and keeps activity heatmap tooltips visible inside scrolling panels.
-
-Version 1.6.8 adds the bundled **Computer Use** plugin for macOS 14+: operate
-Artemis Browser and native apps with the current vision-capable model. It adds
-per-app grants, separate foreground permission, Stop/Resume controls and immediate
-pause on user takeover. Batched actions verify each step; browser captures recover
-from transient rendering failures and wait for the panel to settle. The control
-bar follows the composer and uses native macOS glass. Windows hides this macOS-only
-plugin and ignores migrated Computer Use connections.
-
-Newly installed plugin MCP services and Connectors now start enabled; setup and
-connection status remain visible, and updates preserve existing disabled choices.
-See the [bilingual release notes](docs/records/release-notes.md) for details.
-
-Version 1.6.7 extends trusted lifecycle hooks to authorized IM Execute tasks,
-reports the reason when a hook blocks an initial prompt, and lets Plan and Review
-continue without running hooks. Group tasks can resume under the current confirmed
-sharing scope while expired actions and queued results stay invalidated. Update
-announcements appear once per version, with refined download and settings controls.
-
-Version 1.6.6 introduced lifecycle hooks with explicit, content-bound trust and
-desktop review in Settings → Hooks, and fixed update recovery cleanup timing and
-cache removal.
-
-Version 1.6.5 makes offline activation default to the operating system’s primary
-language, with English fallback when it is not one of the 14 supported languages.
-Manual language selections remain saved across restarts.
-
-Version 1.6.4 adds offline device-bound licensing with a persistent 14-language
-activation-page selector. The private license issuer is
-never included in client packages or public release assets.
-
-Version 1.6.3 restores plugin icons in conversation history immediately after
-restart, without requiring the skill menu to be opened. Saved DeepSeek Flash
-model IDs remain selectable and callable after catalog updates; compatibility
-labels are compact, with full IDs available on hover and long labels truncated
-inside their selection highlight.
-
-Feishu rich-text group messages now resolve mention placeholders before routing,
-so addressed text-and-image messages enter the queue together. Gateway regression
-tests cover group multimodal ingestion for Feishu, WeCom and Slack, and malformed
-messages produce diagnostics without logging message contents or credentials.
-These tests do not substitute for live-provider end-to-end verification.
-
-Version 1.6.2 fixes MCP switches to reflect saved enablement independently of
-connection health. Each server has its own pending toggle state, and connection
-changes and failure details appear in the resource list. Closed workspace MCP
-connections are recreated on the next tool call; **Test connection** reconnects
-an existing server without creating a new task.
-
-The MCP editor now supports encrypted environment variables alongside ordinary
-values and environment passthrough. Secret values are stored using OS encryption
-and kept out of `mcp.json`; leaving an existing secret value blank preserves it.
-macOS stdio servers retain private writable HOME, temporary and npm cache
-folders. The search proxy, bounded retry and restricted redirect handling from
-1.6.1 remain in place.
+Use `npm run plugin -- init DIR resource` or `interactive`, then `validate`,
+`dev`, `pack` and `migrate`. The pure `@artemis/plugin-contract` package owns v2
+metadata and JSON Schema; `@artemis/plugin-sdk` wraps runtime protocol 1.
+Existing v1 plugins remain supported. Installation, enablement and authorization
+remain separate; interactive plugins cannot add MCP or Hooks to escape isolation.
+See the [developer guide](docs/guides/plugin-development.md) and
+[examples](examples/plugins/).
 
 ### Platform support
 
-| Target                | Implementation                                                    | Distribution                                     |
-| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
-| **Windows 11 x64**     | Desktop-user PTY; AppContainer MCP/extensions; native ZIP packaging | Unsigned ZIP through public Release; manual updates |
-| **macOS 14+ arm64**    | Seatbelt, hardened runtime and DMG/ZIP                             | Releases signed with Apple Developer ID          |
-| **macOS 14+ x64**      | Separate DMG/ZIP builds                                            | Local builds; native release validation required |
-| Windows ARM64 / Linux | Not currently supported                                           | —                                                |
+| Target | Distribution |
+| --- | --- |
+| Windows x64 | Current-user NSIS installer and manual ZIP |
+| macOS arm64 | Developer ID signed, notarized DMG and ZIP |
+| Windows ARM64, macOS Intel, Linux | Not supported |
 
 <details>
 <summary><strong>Installing packaged builds</strong></summary>

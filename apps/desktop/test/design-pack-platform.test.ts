@@ -41,10 +41,11 @@ function withPlatform<T>(platform: string, arch: string, run: () => T): T {
   }
 }
 
-describe("design-pack first-version platform scope (darwin-arm64)", () => {
-  it("builds and publishes darwin-arm64 only", () => {
+describe("design-pack first-version platform scope (darwin-arm64 and win32-x64)", () => {
+  it("builds and publishes only supported desktop targets", () => {
     expect(DESIGN_PACK_PLATFORMS).toEqual([
       { platform: "darwin", arch: "arm64" },
+      { platform: "win32", arch: "x64" },
     ]);
   });
 
@@ -71,7 +72,7 @@ describe("design-pack first-version platform scope (darwin-arm64)", () => {
       },
       platforms: DESIGN_PACK_PLATFORMS,
     });
-    expect(unsigned).toHaveLength(1);
+    expect(unsigned).toHaveLength(2);
     expect(unsigned[0]?.platform).toBe("darwin");
     expect(unsigned[0]?.arch).toBe("arm64");
     expect(unsigned[0]?.archive.url).toContain(
@@ -79,26 +80,19 @@ describe("design-pack first-version platform scope (darwin-arm64)", () => {
     );
   });
 
-  it("every published platform passes the runtime's default probe", () => {
-    // Mirrors the S2 suite's host-dependent seatbelt assertion: on this
-    // darwin-arm64 host the real probe runs (sandbox-exec succeeds). The
-    // loop fails if a platform is ever added to the publish list before
-    // defaultProbe will actually start a runtime there — the exact
-    // publish-vs-runnable drift this review flagged.
-    for (const target of DESIGN_PACK_PLATFORMS) {
-      withPlatform(target.platform, target.arch, () => {
-        expect(defaultProbe().ok).toBe(true);
-      });
-    }
+  it("Windows refuses startup without the packaged helper", () => {
+    const probe = withPlatform("win32", "x64", () => defaultProbe());
+    expect(probe).toEqual({
+      ok: false,
+      reason: "Windows AppContainer helper is unavailable",
+    });
   });
 
-  it("runtime refuses win32-x64 with an explicit not-yet-supported reason", () => {
-    const probe = withPlatform("win32", "x64", () => defaultProbe());
-    expect(probe.ok).toBe(false);
-    if (!probe.ok)
-      expect(probe.reason).toMatch(
-        /not yet supported on win32-x64.*darwin-arm64/u,
-      );
+  it("Windows recognizes an available helper before the real handshake", () => {
+    const probe = withPlatform("win32", "x64", () =>
+      defaultProbe(import.meta.filename),
+    );
+    expect(probe).toEqual({ ok: true, implementation: "windows-appcontainer" });
   });
 
   it("runtime refuses darwin-x64 — no signed Intel manifest exists", () => {

@@ -11,6 +11,8 @@ import type {
 
 export interface WindowsAppContainerOptions {
   helperPath: string;
+  /** Deny child creation for single-process plugin runtimes only. */
+  denyChildProcesses?: boolean;
   hostAccessPath?: string;
   hostTempPath?: string;
   identity?: string;
@@ -92,6 +94,7 @@ export function buildWindowsAppContainerLaunch(
       readOnlyPaths,
       "-SandboxSpecificationBase64",
       sandboxSpecification,
+      ...(options.denyChildProcesses ? ["-DenyChildProcesses"] : []),
       "-NetworkPolicy",
       policy.network,
     ],

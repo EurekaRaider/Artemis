@@ -1,7 +1,6 @@
 name: CI
-
-on:
-  workflow_call:
+"on":
+  workflow_call: null
   workflow_dispatch:
     inputs:
       hooks_only:
@@ -9,60 +8,57 @@ on:
         type: boolean
         default: false
   push:
-    branches: [main]
-  pull_request:
-
+    branches:
+      - main
+  pull_request: null
 permissions:
   contents: read
-
 jobs:
   verify:
     name: Test, typecheck, build and format (${{ matrix.platform }})
-    if: github.event.repository.private && !inputs.hooks_only && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: ${{ !inputs.hooks_only }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-arm64
-            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+            runner: macos-15
           - platform: windows-x64
-            runner: [self-hosted, Windows, X64]
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
-
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
         run: node scripts/normalize-windows-checkout.mjs
-
       - name: Install dependencies
         run: npm ci
-
+      - name: Exercise independent update recovery failures
+        if: matrix.platform == 'windows-x64'
+        shell: powershell
+        run: ./scripts/test-windows-update-recovery.ps1
       - name: Run portable CI checks
         run: npm run verify:ci
         env:
           ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
           GITHUB_TOKEN: ${{ github.token }}
-
   slack-cli-native:
     name: Slack CLI native compatibility (${{ matrix.platform }})
-    if: github.event.repository.private && !inputs.hooks_only && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: ${{ !inputs.hooks_only }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-arm64
-            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+            runner: macos-15
           - platform: windows-x64
-            runner: [self-hosted, Windows, X64]
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     steps:
@@ -70,7 +66,6 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
-
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
         run: node scripts/normalize-windows-checkout.mjs
@@ -82,12 +77,17 @@ jobs:
       - name: Diagnose Windows CLI startup after failure
         if: failure() && matrix.platform == 'windows-x64'
         shell: pwsh
-        run: |
+        run: >
           $binary = 'artifacts/slack-cli/win32-x64/slack.exe'
+
           if (-not (Test-Path $binary)) { exit 0 }
+
           Get-AuthenticodeSignature $binary | Select-Object Status, StatusMessage | Format-List
+
           $stdout = Join-Path $env:RUNNER_TEMP 'slack-version-stdout.txt'
+
           $stderr = Join-Path $env:RUNNER_TEMP 'slack-version-stderr.txt'
+
           try {
             $probe = Start-Process -FilePath $binary -ArgumentList '--version' -PassThru -NoNewWindow -RedirectStandardOutput $stdout -RedirectStandardError $stderr
             Start-Sleep -Seconds 20
@@ -99,7 +99,9 @@ jobs:
           } catch {
             Write-Host "Windows CLI diagnostic: $($_.Exception.Message)"
           }
-          foreach ($log in @('Microsoft-Windows-CodeIntegrity/Operational', 'Microsoft-Windows-Windows Defender/Operational')) {
+
+          foreach ($log in @('Microsoft-Windows-CodeIntegrity/Operational', 'Microsoft-Windows-Windows
+          Defender/Operational')) {
             try {
               Get-WinEvent -FilterHashtable @{ LogName = $log; StartTime = (Get-Date).AddMinutes(-10) } -MaxEvents 10 -ErrorAction Stop |
                 Select-Object TimeCreated, Id, ProviderName, Message | Format-List
@@ -109,59 +111,50 @@ jobs:
           }
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
-    if: github.event.repository.private && !inputs.hooks_only && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: ${{ !inputs.hooks_only }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-arm64
-            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+            runner: macos-15
           - platform: windows-x64
-            runner: [self-hosted, Windows, X64]
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
-
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
-
       - name: Normalize reused Windows checkout to LF
         if: matrix.platform == 'windows-x64'
         run: node scripts/normalize-windows-checkout.mjs
-
       - name: Install dependencies
         run: npm ci
-
       - name: Verify exact-head visual convergence
         run: npm run verify:visual-convergence
         env:
           ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
           ARTEMIS_VISUAL_CONVERGENCE_OUTPUT: ${{ runner.temp }}/artemis-visual-convergence
           GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Verify offline license activation and expiry in Electron
-        run: npm run verify:license-native
-
   hooks-native:
     name: Hooks native acceptance (${{ matrix.platform }})
     env:
       GITHUB_TOKEN: ${{ github.token }}
-    if: github.event.repository.private && inputs.hooks_only
+    if: inputs.hooks_only
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-arm64
-            runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+            runner: macos-15
           - platform: windows-x64
-            runner: [self-hosted, Windows, X64]
+            runner: windows-2025
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
@@ -175,15 +168,17 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Native service, lifecycle and trust UI tests
-        run: npx vitest run apps/desktop/test/hooks-service.test.ts packages/agent-host/test/hooks-bridge.test.ts apps/desktop/test/hooks-settings.test.tsx
+        run: >-
+          npx vitest run apps/desktop/test/hooks-service.test.ts packages/agent-host/test/hooks-bridge.test.ts
+          apps/desktop/test/hooks-settings.test.tsx
         env:
-          NODE_OPTIONS: --no-experimental-webstorage
+          NODE_OPTIONS: "--no-experimental-webstorage"
       - name: Exercise desktop trust and real command execution
         run: node apps/desktop/scripts/verify-hooks-native.mjs
       - name: Package Windows engineering artifact
         if: matrix.platform == 'windows-x64'
         run: npm run package:win
-      - name: Verify Windows artifact, ACLs and packaged activation boundary
+      - name: Verify Windows artifact, ACLs and normal startup
         if: matrix.platform == 'windows-x64'
         run: npm run verify:win-native -w @artemis/desktop
       - name: Package macOS engineering artifacts
@@ -198,3 +193,33 @@ jobs:
           path: artifacts/hooks-native
           if-no-files-found: warn
           retention-days: 7
+  performance:
+    name: History performance (${{ matrix.platform }})
+    if: ${{ !inputs.hooks_only }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: macos-15
+          - platform: windows-x64
+            runner: windows-2025
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm run build:core
+      - run: node scripts/benchmark-history.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: performance-${{ matrix.platform }}
+          path: artifacts/performance
+          retention-days: 14
+          if-no-files-found: error

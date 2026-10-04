@@ -119,7 +119,7 @@ describe("MarkdownContent", () => {
         "workspace-light",
         "workspace-zh-CN",
         "resources",
-      ].map((name) => `![${name}](docs/assets/screenshots/${name}.png)`),
+      ].map((name) => `![${name}](docs/assets/images/${name}.png)`),
     ].join("\n");
     const html = renderToStaticMarkup(
       <MarkdownContent resolveImage={async () => undefined} text={readme} />,
@@ -139,16 +139,16 @@ describe("MarkdownContent", () => {
       'src="https://img.shields.io/badge/React-19-149ECA?logo=react&amp;logoColor=white"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/assets/screenshots/workspace-dark.png"',
+      'data-workspace-image="docs/assets/images/workspace-dark.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/assets/screenshots/workspace-light.png"',
+      'data-workspace-image="docs/assets/images/workspace-light.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/assets/screenshots/workspace-zh-CN.png"',
+      'data-workspace-image="docs/assets/images/workspace-zh-CN.png"',
     );
     expect(html).toContain(
-      'data-workspace-image="docs/assets/screenshots/resources.png"',
+      'data-workspace-image="docs/assets/images/resources.png"',
     );
     expect(html).toContain('<h2 id="product-preview">Product preview</h2>');
     expect(html).toContain('href="#product-preview"');

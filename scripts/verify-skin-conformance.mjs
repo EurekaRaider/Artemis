@@ -636,7 +636,8 @@ const expectedCssRules = new Map([
     {
       position: "absolute",
       "z-index": "20",
-      "inset-block-start": "calc(100% + var(--artemis-space-1))",
+      "inset-block-start":
+        "calc(var(--select-anchor-end, 100%) + var(--artemis-space-1))",
       "inset-inline-start": "0",
       "box-sizing": "border-box",
       "inline-size": "max-content",

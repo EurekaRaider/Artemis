@@ -597,15 +597,6 @@
     },
     {
       "atRules": [],
-      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-      "property": "inset-block-end",
-      "value": "calc( 100% + var(--artemis-space-2) + var(--artemis-border-width-default) )",
-      "important": false,
-      "owner": "Issue #170 composer mode menu placement",
-      "reason": "Place the mode menu above its bottom-anchored composer trigger with the same gap as project and branch menus, preventing bottom-window clipping."
-    },
-    {
-      "atRules": [],
       "selector": ".im-member-action[data-artemis-component=\"icon-button\"]",
       "property": "padding",
       "value": "4px",
@@ -639,6 +630,15 @@
       "important": false,
       "owner": "Desktop custom sub-agent editor dialog (D#152)",
       "reason": "Dialog selects show visible labels next to 12px-inset text fields; keep the option text inset aligned instead of hugging the control edge."
+    },
+    {
+      "atRules": [],
+      "selector": ".composer-context-picker [data-artemis-component=\"select\"] [data-part=\"menu\"]",
+      "property": "inset-block-end",
+      "value": "calc(100% + var(--artemis-space-1))",
+      "important": false,
+      "owner": "Desktop composer menu placement",
+      "reason": "Composer menus open upward above the trigger; the shared component defaults to downward placement."
     }
   ]
 }

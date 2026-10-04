@@ -23,12 +23,16 @@
 // generation/revision negotiation yet (those land with S2 trust wiring).
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { accessSync, constants, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-import { buildSeatbeltLaunch, type SandboxLaunch } from "@artemis/platform";
+import {
+  buildSeatbeltLaunch,
+  buildWindowsAppContainerLaunch,
+  type SandboxLaunch,
+} from "@artemis/platform";
 
 import {
   FrameDecoder,
@@ -45,6 +49,7 @@ const SEATBELT_EXECUTABLE = "/usr/bin/sandbox-exec";
 export interface RuntimeSpawnOptions {
   /** Absolute path to the runtime entry (.mjs). */
   entry: string;
+  windowsHelperPath?: string | undefined;
   pluginId: string;
   contentHash: string;
   /** Working directory for the runtime process (its private scratch). */
@@ -260,9 +265,47 @@ export class PluginRuntimeWorker {
    * Refusing beats shipping an unsandboxed path.
    */
   private buildSandboxedLaunch(): SandboxLaunch {
-    if (process.platform !== "darwin") {
+    if (process.platform === "win32" && process.arch === "x64") {
+      const helperPath = this.options.windowsHelperPath;
+      if (!helperPath)
+        throw new Error("Windows AppContainer helper is required.");
+      accessSync(helperPath, constants.R_OK);
+      const cwd = realpathSync(this.options.cwd);
+      const entry = realpathSync(this.options.entry);
+      const identity =
+        "Artemis.Design." +
+        createHash("sha256")
+          .update(
+            `${cwd}\0${this.options.pluginId}\0${this.options.contentHash}`,
+          )
+          .digest("hex")
+          .slice(0, 32);
+      return buildWindowsAppContainerLaunch(
+        {
+          executable: process.execPath,
+          args: [entry],
+          cwd,
+          env: {
+            SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
+            NODE_OPTIONS: "",
+            ELECTRON_RUN_AS_NODE: "1",
+            TEMP: cwd,
+            TMP: cwd,
+          },
+        },
+        {
+          workspacePath: cwd,
+          mode: "work",
+          network: "deny",
+          writablePaths: [cwd],
+          readOnlyPaths: [dirname(entry), dirname(process.execPath)],
+        },
+        { helperPath, identity, runtimePath: cwd, denyChildProcesses: true },
+      );
+    }
+    if (process.platform !== "darwin" || process.arch !== "arm64") {
       throw new Error(
-        `Design-plugin runtime requires the native OS sandbox; platform ${process.platform} has no wired sandbox implementation yet (Windows AppContainer pending). Refusing to start unsandboxed.`,
+        `Design-plugin runtime requires the native OS sandbox; platform ${process.platform} has no wired sandbox implementation yet . Refusing to start unsandboxed.`,
       );
     }
     const sandboxExecutable =

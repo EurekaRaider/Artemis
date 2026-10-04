@@ -1,6 +1,6 @@
 {
   "name": "@artemis/protocol",
-  "version": "1.6.19",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -20,6 +20,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "@artemis/plugin-contract": "1.7.0"
   }
 }

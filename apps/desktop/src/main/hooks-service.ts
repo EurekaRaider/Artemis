@@ -1,3 +1,4 @@
+import { normalizeResourceManifest } from "@artemis/plugin-contract";
 import { isExecutionMode } from "@artemis/protocol";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -204,9 +205,12 @@ export class HooksService {
       const start = sources.length;
       try {
         const root = await realpath(plugin.root);
-        const manifest = object(
-          (await optionalJson(join(root, "artemis.plugin.json"))) ?? {},
-        );
+        const rawManifest =
+          (await optionalJson(join(root, "artemis.plugin.json"))) ?? {};
+        const manifest =
+          object(rawManifest).schemaVersion === 2
+            ? normalizeResourceManifest(rawManifest)
+            : object(rawManifest);
         const declarations =
           manifest.hooks === undefined
             ? ["./hooks/hooks.json"]

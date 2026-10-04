@@ -1,11 +1,15 @@
 name: Release Windows Office runtime
-on:
+"on":
   workflow_dispatch:
     inputs:
       verify_only:
         description: Verify the already published immutable Windows runtime
         type: boolean
         default: false
+      version:
+        description: New immutable Office runtime version
+        type: string
+        required: true
 permissions:
   contents: read
   actions: read
@@ -14,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: ${{ !inputs.verify_only }}
+    if: github.ref == 'refs/heads/main' && !inputs.verify_only
     runs-on: windows-2025
     timeout-minutes: 40
     defaults:
@@ -27,23 +31,10 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26.9.0
-      - name: Require successful retained-candidate acceptance
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          test "$(gh run view 36323202452 --repo "$GITHUB_REPOSITORY" --json conclusion --jq .conclusion)" = success
-      - name: Prepare verified cache tools
-        shell: cmd
-        run: node scripts/office/prepare-windows-cache.mjs
-      - uses: actions/cache/restore@v6.1.0
+      - uses: actions/download-artifact@v6
         with:
-          path: |
-            artifacts/office/candidate/catalog.json
-            artifacts/office/candidate/report.json
-            artifacts/office/candidate/office-core-win32-x64.zip
-            artifacts/office/candidate-tools/verify-candidate.mjs
-          key: office-candidate-win-x64-f49232f414e5f653cfd6c1e2c4476c05cca409c6-36321959853-1
-          fail-on-cache-miss: true
+          name: office-candidate-windows
+          path: artifacts/office/candidate
       - run: npm ci
       - run: npm run build:core
       - name: Authenticate the manifest without signing or changing the Windows binaries
@@ -54,10 +45,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
         run: node scripts/office/publish-windows-release.mjs
+    needs: build
+    env:
+      OFFICE_RUNTIME_VERSION: ${{ inputs.version }}
+      OFFICE_CANDIDATE_COMMIT: ${{ github.sha }}
   verify-online-install:
     needs: publish
-    if: always() && (needs.publish.result == 'success' || inputs.verify_only)
-    runs-on: [self-hosted, Windows, X64]
+    if: github.ref == 'refs/heads/main' && always() && (needs.publish.result == 'success' || inputs.verify_only)
+    runs-on: windows-2025
     timeout-minutes: 180
     defaults:
       run:
@@ -74,7 +69,10 @@ jobs:
       - run: node scripts/office/fetch-corpus.mjs
       - name: Download the public catalog snapshot anonymously
         run: >-
-          node --input-type=module -e "import {writeFile} from 'node:fs/promises';const r=await fetch('https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v1.0.1/catalog.json');if(!r.ok)throw Error(r.status);await writeFile('artifacts/office/public-catalog.json',new Uint8Array(await r.arrayBuffer()));"
+          node --input-type=module -e "import {writeFile} from 'node:fs/promises';const r=await
+          fetch('https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v'+process.env.OFFICE_RUNTIME_VERSION+'/catalog.json');if(!r.ok)throw
+          Error(r.status);await writeFile('artifacts/office/public-catalog.json',new Uint8Array(await
+          r.arrayBuffer()));"
       - name: Verify production-host online install, native preview and final ACLs
         run: node artifacts/office/public-tools/verify-public-windows.mjs artifacts/office/public-catalog.json
       - name: Publish installation catalog after Windows acceptance
@@ -84,4 +82,13 @@ jobs:
         run: node scripts/office/publish-office-catalog.mjs artifacts/office/public-catalog.json
       - name: Retain verification report in logs
         if: always()
-        run: node -e "const fs=require('fs');const p='artifacts/office/public-windows/report.json';if(fs.existsSync(p))console.log(fs.readFileSync(p,'utf8'));"
+        run: >-
+          node -e "const fs=require('fs');const
+          p='artifacts/office/public-windows/report.json';if(fs.existsSync(p))console.log(fs.readFileSync(p,'utf8'));"
+    env:
+      OFFICE_RUNTIME_VERSION: ${{ inputs.version }}
+  build:
+    if: github.ref == 'refs/heads/main' && !inputs.verify_only
+    uses: ./.github/workflows/office-native-validation.yml
+    with:
+      platform: windows

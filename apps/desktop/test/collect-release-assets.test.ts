@@ -28,7 +28,11 @@ async function fixture() {
     await mkdir(dir);
     const windows = platform === "windows-x64";
     const names = windows
-      ? ["Artemis-Windows-x64-1.6.0.zip"]
+      ? [
+          "Artemis-Windows-x64-1.6.0.exe",
+          "Artemis-Windows-x64-1.6.0.zip",
+          "windows-x64-update.json",
+        ]
       : [
           "Artemis-macOS-arm64-1.6.0.dmg",
           "Artemis-macOS-arm64-1.6.0.zip",
@@ -53,7 +57,7 @@ async function fixture() {
       join(dir, "release-manifest.json"),
       JSON.stringify({
         version: "1.6.0",
-        distribution: windows ? "manual-windows-zip" : "automatic-update",
+        distribution: windows ? "nsis-and-manual-zip" : "automatic-update",
         artifacts,
       }),
     );
@@ -64,11 +68,11 @@ it("combines independently verified manifests without overwriting either platfor
   const root = await fixture();
   const output = join(root, "output");
   await collectReleaseAssets(root, output, "1.6.0");
-  expect((await readdir(output)).length).toBe(5);
+  expect((await readdir(output)).length).toBe(7);
   const manifest = JSON.parse(
     await readFile(join(output, "release-manifest.json"), "utf8"),
   );
-  expect(manifest.artifacts).toHaveLength(4);
+  expect(manifest.artifacts).toHaveLength(6);
   expect(JSON.stringify(manifest)).not.toContain(root);
 });
 it("publishes a complete macOS release without Windows artifacts when explicitly selected", async () => {

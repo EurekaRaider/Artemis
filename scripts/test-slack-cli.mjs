@@ -208,61 +208,15 @@ test("Windows curl rejects malformed statuses and oversized responses", async ()
     );
   }
 });
-test(
-  "Windows package reuse accepts workflow-only differences but rejects application changes",
-  { skip: process.platform === "win32" },
-  async () => {
-    const workflow = await readFile(
-      new URL("../.github/workflows/release.yml", import.meta.url),
-      "utf8",
-    );
-    const script = workflow
-      .match(
-        /- name: Verify completed Windows package before reusing it[\s\S]*?run: \|\n((?: {10}[^\n]*\n)+)/u,
-      )?.[1]
-      ?.replace(/^ {10}/gmu, "");
-    assert.ok(script);
-    for (const [changed, related, success] of [
-      [".github/workflows/release.yml", "1", true],
-      ["apps/desktop/src/main/main.ts", "1", false],
-      [".github/workflows/release.yml\npackage-lock.json", "1", false],
-      [".github/workflows/release.yml", "0", false],
-    ]) {
-      const checked = spawnSync(
-        "/bin/bash",
-        [
-          "-e",
-          "-o",
-          "pipefail",
-          "-c",
-          `
-      gh() { printf '%s Release 1\\n' "$TEST_SHA"; }
-      git() {
-        case "$1" in
-          merge-base) test "$TEST_RELATED" = 1 ;;
-          diff) printf '%s\\n' "$TEST_CHANGED" ;;
-          *) return 1 ;;
-        esac
-      }
-      ${script}
-    `,
-        ],
-        {
-          env: {
-            ...process.env,
-            WINDOWS_RUN_ID: "123",
-            RELEASE_SHA: "a".repeat(40),
-            TEST_SHA: "b".repeat(40),
-            TEST_RELATED: related,
-            TEST_CHANGED: changed,
-          },
-          encoding: "utf8",
-        },
-      );
-      assert.equal(checked.status === 0, success, changed);
-    }
-  },
-);
+test("Windows release requires fresh same-commit CI", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/release.yml", import.meta.url),
+    "utf8",
+  );
+  assert.ok(!workflow.includes("reuse_verified_windows_run_id"));
+  assert.ok(workflow.includes("ref: ${{ github.sha }}"));
+  assert.match(workflow, /package-windows:[\s\S]*?needs:[\s\S]*?- ci/);
+});
 test("a successful retry must still verify a fresh response", async () => {
   let calls = 0;
   assert.equal(

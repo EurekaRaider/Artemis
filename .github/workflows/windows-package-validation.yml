@@ -1,0 +1,36 @@
+name: Windows package acceptance
+"on":
+  workflow_dispatch: null
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-2025
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: node scripts/normalize-windows-checkout.mjs
+      - run: npm ci
+      - run: npm run package:win
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify packaged runtime and effective ACLs
+        run: npm run verify:win-native -w @artemis/desktop
+      - name: Verify installed Unicode path and Design sandbox
+        working-directory: apps/desktop
+        run: node scripts/verify-windows-installed.mjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: windows-x64-acceptance
+          path: |
+            apps/desktop/release/Artemis-Windows-x64-*.exe
+            apps/desktop/release/Artemis-Windows-x64-*.zip
+            artifacts/windows-native
+          if-no-files-found: error
+          retention-days: 7

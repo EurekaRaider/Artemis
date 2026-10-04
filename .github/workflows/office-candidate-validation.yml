@@ -1,100 +1,10 @@
-name: Office retained candidate validation
-
-on:
-  workflow_dispatch:
-    inputs:
-      candidate_key:
-        description: Cache key of the already built candidate
-        default: office-candidate-win-x64-f49232f414e5f653cfd6c1e2c4476c05cca409c6-36321959853-1
-        type: string
-      candidate_commit:
-        description: Expected candidate build commit
-        default: f49232f414e5f653cfd6c1e2c4476c05cca409c6
-        type: string
-      candidate_sha256:
-        description: Expected SHA-256 of the candidate ZIP
-        default: 198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47
-        type: string
-  push:
-    branches: [codex/office-workbench]
-    paths:
-      - .github/workflows/office-candidate-validation.yml
-      - scripts/office/verify-candidate.ts
-
+name: Office candidate validation
+"on":
+  workflow_dispatch: {}
 permissions:
   contents: read
-
-concurrency:
-  group: office-retained-candidate-${{ github.ref }}
-  cancel-in-progress: false
-
-env:
-  CANDIDATE_KEY: ${{ inputs.candidate_key || 'office-candidate-win-x64-f49232f414e5f653cfd6c1e2c4476c05cca409c6-36321959853-1' }}
-  CANDIDATE_COMMIT: ${{ inputs.candidate_commit || 'f49232f414e5f653cfd6c1e2c4476c05cca409c6' }}
-  CANDIDATE_SHA256: ${{ inputs.candidate_sha256 || '198dc7bb361ecfbca457070c20bc81ffe7ee3b7b1707c2350dfba97d7ca38f47' }}
-
 jobs:
-  accept:
-    name: Retained candidate (${{ matrix.environment }})
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: [hosted, client]
-    runs-on: ${{ matrix.environment == 'client' && fromJSON('["self-hosted", "Windows", "X64"]') || 'windows-2025' }}
-    timeout-minutes: 45
-    defaults:
-      run:
-        shell: cmd
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26.9.0
-      - name: Prepare matching verified cache tools
-        run: node scripts/office/prepare-windows-cache.mjs
-      - name: Restore the retained candidate
-        uses: actions/cache/restore@v6.1.0
-        with:
-          path: |
-            artifacts/office/candidate/catalog.json
-            artifacts/office/candidate/report.json
-            artifacts/office/candidate/office-core-win32-x64.zip
-            artifacts/office/candidate-tools/verify-candidate.mjs
-          key: ${{ env.CANDIDATE_KEY }}
-          fail-on-cache-miss: true
-      - name: Bind acceptance to the expected build and final ZIP bytes
-        run: >-
-          node --input-type=module -e "import {readFile,writeFile,mkdir} from 'node:fs/promises'; import {createReadStream} from 'node:fs'; import {createHash} from 'node:crypto'; const r=JSON.parse(await readFile('artifacts/office/candidate/report.json','utf8')); if(r.commit!==process.env.CANDIDATE_COMMIT || r.archive.sha256!==process.env.CANDIDATE_SHA256) throw Error('Unexpected candidate build'); const hash=createHash('sha256'); for await(const chunk of createReadStream('artifacts/office/candidate/office-core-win32-x64.zip')) hash.update(chunk); if(hash.digest('hex')!==process.env.CANDIDATE_SHA256) throw Error('Candidate ZIP digest mismatch'); await mkdir('artifacts/office/evidence',{recursive:true}); await writeFile('artifacts/office/evidence/identity.json',JSON.stringify({verifierCommit:process.env.GITHUB_SHA,candidateCommit:r.commit,candidateArchiveSha256:r.archive.sha256},null,2)); console.log('Verified retained candidate',r.commit,r.archive.sha256);"
-      - name: Prepare current acceptance diagnostics and renderer
-        run: |
-          call npm ci
-          if errorlevel 1 exit /b 1
-          call npm run build:core
-          if errorlevel 1 exit /b 1
-          call npm run build:ui-libraries
-          if errorlevel 1 exit /b 1
-          node scripts/office/build-candidate-verifier.mjs
-      - name: Verify Office policy, recovery, startup and installation
-        run: node node_modules/vitest/vitest.mjs run --no-file-parallelism apps/desktop/test/office-document-service.test.ts apps/desktop/test/office-session-service.test.ts apps/desktop/test/office-uno-engine.test.ts apps/desktop/test/capability-pack-service.test.ts packages/protocol/test/artifact.test.ts
-        env:
-          NODE_OPTIONS: --no-experimental-webstorage
-      - name: Fetch the fixed public corpus
-        run: node scripts/office/fetch-corpus.mjs
-      - name: Accept under a temporary ordinary user on the hosted runner
-        if: matrix.environment == 'hosted'
-        shell: pwsh
-        run: ./scripts/office/verify-windows-user.ps1 -Candidate artifacts/office/candidate -Verifier artifacts/office/candidate-tools/verify-candidate.mjs
-      - name: Accept on the actual Windows client and remove the temporary installation
-        if: matrix.environment == 'client'
-        run: node scripts/office/verify-windows-client.mjs
-      - name: Capture the hosted candidate's actual previews
-        if: matrix.environment == 'hosted'
-        run: node scripts/office/verify-preview.mjs artifacts/office/panels artifacts/office/ordinary-user/native
-      - name: Capture the Windows client's actual previews
-        if: matrix.environment == 'client'
-        run: node scripts/office/verify-preview.mjs artifacts/office/panels artifacts/office/client/native
-      - name: Retain bounded checksummed evidence in CI logs
-        if: always()
-        run: node scripts/office/emit-ci-evidence.mjs
+  validate:
+    uses: ./.github/workflows/office-native-validation.yml
+    with:
+      platform: windows

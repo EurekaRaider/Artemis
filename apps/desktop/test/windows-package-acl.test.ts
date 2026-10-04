@@ -37,15 +37,21 @@ const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
 };
 
 describe("Windows ZIP package and AppContainer ACL", () => {
-  it("uses a native x64 ZIP as the only Windows package target", () => {
+  it("uses only native x64 NSIS and ZIP targets", () => {
     expect(packageJson.build.win).toEqual({
       artifactName: "Artemis-Windows-${arch}-${version}.${ext}",
-      target: [{ target: "zip", arch: ["x64"] }],
+      target: [
+        { target: "nsis", arch: ["x64"] },
+        { target: "zip", arch: ["x64"] },
+      ],
       extraResources: [
         { from: "../../artifacts/slack-cli/win32-${arch}", to: "slack-cli" },
       ],
     });
-    expect(packageJson.build.nsis).toBeUndefined();
+    expect(packageJson.build.nsis).toMatchObject({
+      perMachine: false,
+      allowElevation: false,
+    });
     expect(packageJson.build.portable).toBeUndefined();
     expect(packageJson.build.toolsets).toBeUndefined();
     expect(packageJson.scripts?.["package:win"]).toBe(
@@ -82,7 +88,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
       "npm run verify:win-native",
     );
     expect(packageJson.scripts?.["release:win"]).toContain(
-      "node scripts/finalize-release.mjs --windows-zip",
+      "node scripts/finalize-release.mjs --windows",
     );
     expect(packageJson.scripts?.["release:win"]).not.toMatch(
       /validate-release-env|ARTEMIS_REQUIRE_SIGNATURE=1/,
@@ -90,8 +96,8 @@ describe("Windows ZIP package and AppContainer ACL", () => {
 
     expect(existsSync(nativeVerifierPath)).toBe(true);
     const finalizer = readFileSync(releaseFinalizerPath, "utf8");
-    expect(finalizer).toContain("distribution: windowsZipOnly");
-    expect(finalizer).toContain('"manual-windows-zip"');
+    expect(finalizer).toContain("distribution: windowsRelease");
+    expect(finalizer).toContain('"nsis-and-manual-zip"');
     expect(finalizer).toContain(
       "Artemis-Windows-x64-${packageJson.version}.zip",
     );

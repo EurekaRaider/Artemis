@@ -15,7 +15,7 @@ import type {
 
 const PAGE_TURNS = 30;
 // Bump when the projection shape or reducer semantics change.
-const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_VERSION = 3;
 interface Snapshot {
   version: number;
   state: ThreadViewState;
@@ -33,6 +33,17 @@ export class ThreadHistoryReader {
     this.cache.exec(
       "CREATE TABLE IF NOT EXISTS thread_history_snapshots (thread_id TEXT PRIMARY KEY, seq INTEGER NOT NULL, body TEXT NOT NULL)",
     );
+    this.cache.exec(
+      "CREATE TABLE IF NOT EXISTS thread_history_pages (thread_id TEXT NOT NULL, seq INTEGER NOT NULL, before_turn INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(thread_id, seq, before_turn))",
+    );
+    const cacheVersion = this.cache.prepare("PRAGMA user_version").get() as {
+      user_version: number;
+    };
+    if (cacheVersion.user_version !== SNAPSHOT_VERSION) {
+      this.cache.exec(
+        `DELETE FROM thread_history_pages; DELETE FROM thread_history_snapshots; PRAGMA user_version = ${SNAPSHOT_VERSION}`,
+      );
+    }
     // Clean up after a crash or a deletion while the history worker was stopped.
     for (const row of this.cache
       .prepare("SELECT thread_id FROM thread_history_snapshots")
@@ -66,6 +77,30 @@ export class ThreadHistoryReader {
         (!Number.isSafeInteger(cursor.beforeTurn) || cursor.beforeTurn < 0))
     )
       throw new Error("Invalid history cursor.");
+    const pageKey = cursor?.beforeTurn ?? -1;
+    const savedPage = this.cache
+      .prepare(
+        "SELECT body FROM thread_history_pages WHERE thread_id = ? AND seq = ? AND before_turn = ?",
+      )
+      .get(threadId, endSeq, pageKey) as { body: string } | undefined;
+    if (savedPage) {
+      try {
+        const page = JSON.parse(savedPage.body) as ThreadHistoryPage;
+        if (
+          page.version !== 1 ||
+          page.state.threadId !== threadId ||
+          page.state.mode !== thread.mode ||
+          page.state.lastSeq !== endSeq ||
+          !Array.isArray(page.state.turnOrder)
+        )
+          throw new Error("Stale history projection");
+        return page;
+      } catch {
+        this.cache
+          .prepare("DELETE FROM thread_history_pages WHERE thread_id = ?")
+          .run(threadId);
+      }
+    }
     let snapshot: Snapshot = {
       version: SNAPSHOT_VERSION,
       state: createThreadViewState(threadId, thread.mode),
@@ -82,6 +117,7 @@ export class ThreadHistoryReader {
         if (
           parsed.version === SNAPSHOT_VERSION &&
           parsed.state.threadId === threadId &&
+          parsed.state.mode === thread.mode &&
           parsed.state.lastSeq <= endSeq
         )
           snapshot = parsed;
@@ -120,22 +156,65 @@ export class ThreadHistoryReader {
       cursor?.beforeTurn ?? snapshot.state.turnOrder.length,
       snapshot.state.turnOrder.length,
     );
+    const positions = {
+      turns: new Map(snapshot.state.turnOrder.map((id, index) => [id, index])),
+      entries: new Map(snapshot.state.order.map((id, index) => [id, index])),
+    };
+    const page = this.page(snapshot, endSeq, end, !cursor, positions);
+    if (!cursor) {
+      // Materialize page-sized projections once, so cursor reads never parse
+      // the full snapshot. These tables are disposable, not user data.
+      this.cache.exec("BEGIN");
+      try {
+        this.cache
+          .prepare("DELETE FROM thread_history_pages WHERE thread_id = ?")
+          .run(threadId);
+        const insert = this.cache.prepare(
+          "INSERT INTO thread_history_pages VALUES (?, ?, ?, ?)",
+        );
+        insert.run(threadId, endSeq, -1, JSON.stringify(page));
+        for (let before = end - PAGE_TURNS; before > 0; before -= PAGE_TURNS) {
+          insert.run(
+            threadId,
+            endSeq,
+            before,
+            JSON.stringify(
+              this.page(snapshot, endSeq, before, false, positions),
+            ),
+          );
+        }
+        this.cache.exec("COMMIT");
+      } catch (error) {
+        this.cache.exec("ROLLBACK");
+        throw error;
+      }
+    }
+    return page;
+  }
+
+  private page(
+    snapshot: Snapshot,
+    endSeq: number,
+    end: number,
+    includeRuntime: boolean,
+    positions: { turns: Map<string, number>; entries: Map<string, number> },
+  ): ThreadHistoryPage {
     const start = Math.max(0, end - PAGE_TURNS);
-    const state = historyWindow(snapshot.state, start, end, !cursor);
-    const entries = new Set(state.order);
-    const turns = new Set(state.turnOrder);
+    const state = historyWindow(
+      snapshot.state,
+      start,
+      end,
+      includeRuntime,
+      positions.entries,
+    );
     return {
       version: 1,
       state,
       turnPositions: Object.fromEntries(
-        snapshot.state.turnOrder.flatMap((id, index) =>
-          turns.has(id) ? [[id, index]] : [],
-        ),
+        state.turnOrder.map((id) => [id, positions.turns.get(id)!]),
       ),
       entryPositions: Object.fromEntries(
-        snapshot.state.order.flatMap((id, index) =>
-          entries.has(id) ? [[id, index]] : [],
-        ),
+        state.order.map((id) => [id, positions.entries.get(id)!]),
       ),
       events: snapshot.events,
       ...(start > 0
@@ -145,6 +224,9 @@ export class ThreadHistoryReader {
   }
 
   discard(threadId: string): void {
+    this.cache
+      .prepare("DELETE FROM thread_history_pages WHERE thread_id = ?")
+      .run(threadId);
     this.cache
       .prepare("DELETE FROM thread_history_snapshots WHERE thread_id = ?")
       .run(threadId);
@@ -216,6 +298,7 @@ export function historyWindow(
   start: number,
   end: number,
   includeRuntime: boolean,
+  entryPositions?: Map<string, number>,
 ): ThreadViewState {
   const selected = new Set(state.turnOrder.slice(start, end));
   if (includeRuntime) {
@@ -232,19 +315,30 @@ export function historyWindow(
         selected.add(state.entryTurnIds[`input:${id}`] ?? "");
     }
   }
-  const turnOrder = state.turnOrder.filter((id) => selected.has(id));
+  const turnOrder = includeRuntime
+    ? state.turnOrder.filter((id) => selected.has(id))
+    : state.turnOrder.slice(start, end);
   const turns = Object.fromEntries(
     turnOrder.map((id) => [id, state.turns[id]!]),
   );
-  const order = state.order.filter(
-    (entry) =>
-      turns[state.entryTurnIds[entry] ?? ""] ||
-      (includeRuntime && !state.entryTurnIds[entry]),
-  );
-  const ids = new Set(order);
+  const order =
+    includeRuntime || !entryPositions
+      ? state.order.filter(
+          (entry) =>
+            turns[state.entryTurnIds[entry] ?? ""] ||
+            (includeRuntime && !state.entryTurnIds[entry]),
+        )
+      : turnOrder
+          .flatMap((id) => state.turns[id]?.order ?? [])
+          .sort((a, b) => entryPositions.get(a)! - entryPositions.get(b)!);
   const pick = <T>(values: Record<string, T>, kind: string) =>
     Object.fromEntries(
-      Object.entries(values).filter(([id]) => ids.has(`${kind}:${id}`)),
+      order
+        .filter((entry) => entry.startsWith(`${kind}:`))
+        .map((entry) => {
+          const id = entry.slice(kind.length + 1);
+          return [id, values[id]!];
+        }),
     );
   return {
     ...state,

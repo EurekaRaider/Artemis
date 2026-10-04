@@ -2,15 +2,17 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { signWindowsUpdateIndex } from "../../../scripts/windows-update-index.mjs";
+
 const argumentsList = process.argv.slice(2);
-if (argumentsList.some((argument) => argument !== "--windows-zip")) {
-  throw new Error("Usage: finalize-release.mjs [--windows-zip]");
+if (argumentsList.some((argument) => argument !== "--windows")) {
+  throw new Error("Usage: finalize-release.mjs [--windows]");
 }
-const windowsZipOnly = argumentsList.includes("--windows-zip");
+const windowsRelease = argumentsList.includes("--windows");
 const releaseDirectory = resolve("release");
 const packageJson = JSON.parse(await readFile(resolve("package.json"), "utf8"));
 let stagingPercentage;
-if (!windowsZipOnly) {
+if (!windowsRelease) {
   stagingPercentage = Number(process.env.ARTEMIS_STAGING_PERCENTAGE ?? "100");
   if (
     !Number.isFinite(stagingPercentage) ||
@@ -23,12 +25,23 @@ if (!windowsZipOnly) {
 
 const names = await readdir(releaseDirectory);
 let artifactNames;
-if (windowsZipOnly) {
-  const expectedName = `Artemis-Windows-x64-${packageJson.version}.zip`;
-  if (!names.includes(expectedName)) {
-    throw new Error(`Expected Windows ZIP is missing: ${expectedName}`);
-  }
-  artifactNames = [expectedName];
+if (windowsRelease) {
+  await signWindowsUpdateIndex(releaseDirectory, packageJson.version, {
+    privateKey: process.env.ARTEMIS_UPDATE_ED25519_PRIVATE_KEY,
+    keyId: process.env.ARTEMIS_UPDATE_KEY_ID ?? "release-2026-01",
+    sequence: Number(process.env.ARTEMIS_UPDATE_SEQUENCE),
+    keys: JSON.parse(
+      await readFile(
+        new URL("../resources/update-public-keys.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  });
+  artifactNames = [
+    `Artemis-Windows-x64-${packageJson.version}.exe`,
+    `Artemis-Windows-x64-${packageJson.version}.zip`,
+    "windows-x64-update.json",
+  ];
 } else {
   const updateMetadata = names.filter((name) =>
     /^(?:latest|alpha|beta)(?:-mac)?\.ya?ml$/u.test(name),
@@ -52,7 +65,7 @@ if (windowsZipOnly) {
   artifactNames = names.filter(
     (name) =>
       updateMetadata.includes(name) ||
-      ["arm64", "x64"].some((arch) =>
+      ["arm64"].some((arch) =>
         ["dmg", "zip", "dmg.blockmap", "zip.blockmap"].some(
           (extension) =>
             name ===
@@ -78,7 +91,7 @@ await writeFile(
     {
       generatedAt: new Date().toISOString(),
       version: packageJson.version,
-      distribution: windowsZipOnly ? "manual-windows-zip" : "automatic-update",
+      distribution: windowsRelease ? "nsis-and-manual-zip" : "automatic-update",
       ...(stagingPercentage === undefined ? {} : { stagingPercentage }),
       artifacts,
     },
@@ -89,7 +102,7 @@ await writeFile(
 );
 
 console.log(
-  windowsZipOnly
-    ? `Finalized ${artifacts.length} verified Windows ZIP artifact for manual distribution.`
+  windowsRelease
+    ? `Finalized ${artifacts.length} verified Windows installer, ZIP and signed index artifacts.`
     : `Finalized ${artifacts.length} signed release artifacts at ${stagingPercentage}% rollout.`,
 );

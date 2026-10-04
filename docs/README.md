@@ -18,19 +18,18 @@
 | [插件与 Git 商店](guides/plugin-marketplaces.md) · [English](guides/plugin-marketplaces-en.md) | 插件规范、签名、分发与更新 |
 | [视觉皮肤插件](guides/visual-skins.md) · [English](guides/visual-skins-en.md) | Skin v2、资源契约、开发工具与完整示例 |
 | [多语言维护](guides/localization.md) | 术语、RTL 与验证约定 |
-| [macOS 签名与公证](guides/macos-release.md) | 配置、构建、签名与公证 |
-| [macOS 手动发布](guides/macos-manual-release.md) | 最终包检查与公开发布 |
+| [插件开发](guides/plugin-development.md) | v2 契约、SDK、工具、示例与 v1 兼容 |
+| [双平台发布](guides/release.md) | 公共 CI、签名、更新与恢复验收 |
 
 ## 持续维护记录
 
 - [发布说明](records/release-notes.md)：当前版本的中英文说明，Release 工作流直接消费。
 - [CI 与验证维护](records/ci-reliability.md)：命令、工作流范围与证据要求。
-- [皮肤兼容台账](records/skin-compatibility-ledger.md)：Skin v1 契约与持续审查约定。
 - [README 视觉资产](records/readme-visuals.md)：截图规范、隐私检查和复现方式。
 
 ## 资产与配套工程
 
-- [视觉资产](assets/)与[截图清单](assets/screenshots/manifest.json)：图片、HTML/SVG 图源和截图。
+- [视觉资产](assets/)与[截图清单](assets/images/manifest.json)：图片、HTML/SVG 图源和截图。
 - [截图采集脚本](../scripts/capture-readme.mjs)：使用隔离演示数据采集生产界面。
 - [Hooks 示例](../examples/hooks/hooks.json)：配置、脚本及[示例插件](../examples/hooks/plugin/artemis.plugin.json)。
 - [UI 原型](../prototypes/README.md)：独立原型工程及校验工具。

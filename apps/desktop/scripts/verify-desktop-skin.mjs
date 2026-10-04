@@ -1,4 +1,3 @@
-import { prepareVisualLicenseFixture } from "./prepare-visual-license-fixture.mjs";
 import { terminalContrastSnapshot } from "./terminal-contrast.mjs";
 import { createHash } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
@@ -2467,7 +2466,6 @@ try {
   await rm(rendererDirectory, { recursive: true, force: true });
   await rename(smokeRendererDirectory, rendererDirectory);
 
-  await prepareVisualLicenseFixture();
   await buildSmokePreload();
   electronEvidence = await driveElectron();
 } catch (error) {

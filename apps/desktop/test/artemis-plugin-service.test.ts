@@ -89,7 +89,7 @@ it("rejects legacy-only packages and unknown native schema versions before insta
   await writePlugin(source);
   const path = join(source, "artemis.plugin.json");
   const manifest = JSON.parse(await readFile(path, "utf8"));
-  manifest.schemaVersion = 2;
+  manifest.schemaVersion = 99;
   await writeFile(path, JSON.stringify(manifest));
   await expect(
     service.install({ kind: "local", path: source }),

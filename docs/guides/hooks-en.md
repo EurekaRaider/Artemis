@@ -80,4 +80,4 @@ node apps/desktop/scripts/verify-hooks-native.mjs
 
 The service tests execute real platform-native processes, including timeout and cancellation. Run them on both macOS and Windows; a passing mock or protocol test does not prove native Windows behavior. Packaged-app verification must separately check Settings, the three shortcuts, content-change invalidation and native command execution from the installed application.
 
-The CI workflow accepts `hooks_only=true` for native acceptance on the self-hosted macOS and Windows runners. It uses an isolated development license fixture for the trust UI, then rebuilds clean engineering artifacts. Windows packaged checks validate the actual ZIP, ACLs and activation boundary. Hooks UI after activation in a production package still requires a valid license for that machine; the fixture never runs in packaged applications.
+The CI workflow accepts `hooks_only=true` for native acceptance on hosted macOS arm64 and Windows x64 runners. UI tests use isolated user data and ordinary activation-free startup. Packaged Windows checks verify the extracted artifact and effective ACLs; physical desktop acceptance is recorded separately.

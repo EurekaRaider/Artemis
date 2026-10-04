@@ -16,12 +16,9 @@
 // Review item 2 (P2): child creation is denied so helpers cannot detach
 // from host ownership. Close, hot reload and crashes reap the worker.
 //
-// Skip conditions: every case needs /usr/bin/sandbox-exec (macOS). On any
-// other platform the describes skip — the worker refuses to spawn there by
-// design, which is the behavior under review. The network case ③ needs
-// nothing beyond a loopback listener (always available); if a host blocks
-// loopback listeners the beforeAll setup fails loudly instead of silently
-// passing.
+// Runs on real macOS Seatbelt and Windows AppContainer; other platforms skip.
+// Packaged Windows verification runs this suite with the installed Electron
+// executable in Node mode and the final installed sandbox helper.
 
 import {
   mkdir,
@@ -41,8 +38,9 @@ import { PluginRuntimeWorker } from "../src/main/design-plugin-runtime-worker.js
 import { ThreadRuntimeManager } from "../src/main/design-plugin-thread-runtime.js";
 
 const darwin = process.platform === "darwin";
-// Skip (not fake-pass) the whole real-spawn suite off macOS.
-const describeDarwin = darwin ? describe : describe.skip;
+// Unsupported platforms skip explicitly.
+const describeDarwin =
+  darwin || process.platform === "win32" ? describe : describe.skip;
 
 const desktopRoot = fileURLToPath(new URL("..", import.meta.url));
 const packagedNotesEntry = join(
@@ -196,7 +194,12 @@ const liveWorkers = new Set<PluginRuntimeWorker>();
 function trackedWorker(
   options: ConstructorParameters<typeof PluginRuntimeWorker>[0],
 ) {
-  const worker = new PluginRuntimeWorker(options);
+  const worker = new PluginRuntimeWorker({
+    windowsHelperPath:
+      process.env.ARTEMIS_DESIGN_TEST_HELPER ??
+      join(desktopRoot, "resources", "windows-sandbox.ps1"),
+    ...options,
+  });
   liveWorkers.add(worker);
   return worker;
 }
@@ -383,6 +386,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
       contentHash: "sandbox-suite",
       cwd: await freshScratch("refusal"),
       sandboxExecutable: "/nonexistent/sandbox-exec-dp-test",
+      windowsHelperPath: "/nonexistent/windows-sandbox.ps1",
     });
     await expect(worker.start()).rejects.toThrow(/refusing|sandbox/i);
     // Refusal happened BEFORE any spawn: no child ever existed.
@@ -426,6 +430,9 @@ describeDarwin("design-plugin runtime process ownership (real spawn)", () => {
 
   it("normal close kills the runtime and hot reload replaces it", async () => {
     const manager = new ThreadRuntimeManager({
+      windowsHelperPath:
+        process.env.ARTEMIS_DESIGN_TEST_HELPER ??
+        join(desktopRoot, "resources", "windows-sandbox.ps1"),
       threadId: "t-sandbox-unload",
       scratchRoot: join(root, "mgr-scratch"),
       revisionsRoot: root,

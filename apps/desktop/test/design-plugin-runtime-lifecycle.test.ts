@@ -74,6 +74,23 @@ const bounded = <T>(promise: Promise<T>) =>
   ]);
 
 describe("runtime ownership across asynchronous lifecycle changes", () => {
+  it("bounds queued calls and rejects oversized arguments before spawning", async () => {
+    const host = await manager();
+    await expect(
+      host.invoke({ ...input, args: { text: "x".repeat(240 * 1024) } }),
+    ).rejects.toThrow("240 KiB");
+    expect(workers.instances).toHaveLength(0);
+    const pending = Array.from({ length: 32 }, () =>
+      host.invoke({ ...input, toolName: "hang" }).catch(() => "rejected"),
+    );
+    await expect(host.invoke(input)).rejects.toThrow("queue is full");
+    await vi.waitFor(() =>
+      expect(workers.instances[0]?.rejectInvoke).toBeTypeOf("function"),
+    );
+    host.closeThread();
+    expect(await bounded(Promise.all(pending))).toHaveLength(32);
+    expect(workers.instances.every((worker) => worker.disposed)).toBe(true);
+  });
   it("settles both the in-flight and queued requests on close", async () => {
     const host = await manager();
     const first = host

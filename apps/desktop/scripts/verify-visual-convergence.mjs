@@ -1,4 +1,3 @@
-import { prepareVisualLicenseFixture } from "./prepare-visual-license-fixture.mjs";
 import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -207,7 +206,6 @@ async function runWorkload(workload) {
   verifyCandidateUnchanged(workload.id);
 }
 
-const restoreLicenseBuild = await prepareVisualLicenseFixture();
 try {
   // Electron 43 installs its binary lazily on the first require(). Network
   // provisioning is setup work, not part of the screenshot workload budget.
@@ -256,5 +254,4 @@ try {
   await writeFile(reportPath, `${JSON.stringify(report, undefined, 2)}\n`);
   throw error;
 } finally {
-  await restoreLicenseBuild();
 }

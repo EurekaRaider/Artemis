@@ -130,4 +130,4 @@ init、build 和 convert-icons 要求输出不存在。编辑后用 build 生成
 
 `npm run verify:visual-skins` 构建独立工具、运行仓库外消费者测试，并在隔离用户数据中启动实际 Electron，两次进程分别验证安装、媒体、切换、更新和重启卸载。报告和截图放在忽略的 `artifacts/visual-skins/`。`npm run verify:desktop-skin` 仍是要求干净 checkout 的 v1 完整矩阵与最终产物检查，不应以 v2 集成测试代替。
 
-发布还需执行 typecheck、完整测试、生产构建、皮肤包与 conformance、UI 边界/收敛/性能及外部消费者门禁。macOS arm64/x64、Windows 最终安装包、签名、公证、更新回滚，以及三种真实分发路径的安装验收需要各平台独立证据。
+发布还需执行 typecheck、完整测试、生产构建、皮肤包与 conformance、UI 边界/收敛/性能及外部消费者门禁。macOS arm64、Windows 最终安装包、签名、公证、更新回滚，以及三种真实分发路径的安装验收需要各平台独立证据。

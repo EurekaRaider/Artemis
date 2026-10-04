@@ -18,6 +18,8 @@ param(
   [AllowEmptyString()]
   [string]$HostTempPath = '',
 
+  [switch]$DenyChildProcesses,
+
   [Parameter(Mandatory = $true)]
   [string]$Executable,
 
@@ -995,7 +997,8 @@ public static class ArtemisNativeSandbox
         string hostAccessPath,
         string executable,
         string[] arguments,
-        byte[] sandboxSpecification)
+        byte[] sandboxSpecification,
+        bool denyChildProcesses)
     {
         IntPtr module = IntPtr.Zero;
         IntPtr specification = IntPtr.Zero;
@@ -1080,6 +1083,11 @@ public static class ArtemisNativeSandbox
             var limits = new JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
             limits.BasicLimitInformation.LimitFlags =
                 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if (denyChildProcesses)
+            {
+                limits.BasicLimitInformation.LimitFlags |= 0x00000008; // ACTIVE_PROCESS
+                limits.BasicLimitInformation.ActiveProcessLimit = 1;
+            }
             var limitsSize = Marshal.SizeOf(typeof(
                 JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
             var limitsBuffer = Marshal.AllocHGlobal(limitsSize);
@@ -1160,7 +1168,8 @@ public static class ArtemisNativeSandbox
         string[] arguments,
         string[] writablePaths,
         string[] readOnlyPaths,
-        bool allowNetwork)
+        bool allowNetwork,
+        bool denyChildProcesses)
     {
         IntPtr appContainerSid = IntPtr.Zero;
         IntPtr traverseCapabilitySid = IntPtr.Zero;
@@ -1382,6 +1391,11 @@ public static class ArtemisNativeSandbox
                 new JOBOBJECT_EXTENDED_LIMIT_INFORMATION();
             limits.BasicLimitInformation.LimitFlags =
                 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            if (denyChildProcesses)
+            {
+                limits.BasicLimitInformation.LimitFlags |= 0x00000008; // ACTIVE_PROCESS
+                limits.BasicLimitInformation.ActiveProcessLimit = 1;
+            }
             var limitsSize = Marshal.SizeOf(typeof(
                 JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
             var limitsBuffer = Marshal.AllocHGlobal(limitsSize);
@@ -1601,7 +1615,8 @@ if (-not $useClassicAppContainer) {
       $hostAccess,
       $Executable,
       $commandArguments,
-      $sandboxSpecification
+      $sandboxSpecification,
+      [bool]$DenyChildProcesses
     )
   }
   catch {
@@ -1632,7 +1647,8 @@ if ($useClassicAppContainer) {
     $commandArguments,
     $writablePaths,
     $readOnlyPaths,
-    ($NetworkPolicy -eq 'allow')
+    ($NetworkPolicy -eq 'allow'),
+    [bool]$DenyChildProcesses
   )
 }
 Write-SandboxDiagnostic "sandbox child exited: $exitCode"

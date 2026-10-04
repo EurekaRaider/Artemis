@@ -26,15 +26,11 @@ const notarizeOnly =
   additionalArguments[0] === "--notarize-only";
 const signedMode = releaseMode || signOnly || notarizeOnly;
 const targetArchitectures =
-  targetArch === "all"
-    ? ["arm64", "x64"]
-    : targetArch === "arm64" || targetArch === "x64"
-      ? [targetArch]
-      : undefined;
+  targetArch === "all" || targetArch === "arm64" ? ["arm64"] : undefined;
 
 if (!targetArchitectures) {
   throw new Error(
-    `Unsupported macOS package architecture: ${targetArch}. Expected all, arm64 or x64.`,
+    `Unsupported macOS package architecture: ${targetArch}. Expected arm64 (all is an alias for arm64).`,
   );
 }
 if (additionalArguments.length > 0 && !signedMode) {

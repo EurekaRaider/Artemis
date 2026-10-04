@@ -65,7 +65,7 @@ describe("task notification shutdown", () => {
       const mcpClientManager = undefined, agentProcess = undefined, computerUseHost = undefined;
       const trustedExtensionManager = undefined, providerLoginService = undefined;
       const appearanceService = undefined;
-      const setLicenseShutdown = () => {};
+      const pluginDispatch = undefined, designPanelHost = undefined;
       const threadHistoryService = undefined, releaseUpdateManager = undefined;
       const sleepPrevention = { dispose: () => {} };
       const pendingUserInputs = { cancelWhere: () => [] };

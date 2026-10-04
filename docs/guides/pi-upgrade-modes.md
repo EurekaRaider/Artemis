@@ -53,4 +53,4 @@ Trusted executable extensions retain their project/content-hash trust and native
 
 ## Validation boundaries
 
-Automated coverage includes real Pi loops, real local HTTP socket reset/EOF, completed-tool retention, plan persistence/acceptance, stale revisions, duplicate clicks, migration, model routing and encrypted credential updates. Desktop interaction tests use an isolated user directory, a local model fixture and a test-only license adapter. Live provider OAuth, paid model operations, physical Wi-Fi loss, Windows packaging and macOS release signing/notarization require their own environment and are not implied by these checks.
+Automated coverage includes real Pi loops, real local HTTP socket reset/EOF, completed-tool retention, plan persistence/acceptance, stale revisions, duplicate clicks, migration, model routing and encrypted credential updates. Desktop interaction tests use an isolated user directory, a local model fixture and ordinary activation-free startup. Live provider OAuth, paid model operations, physical Wi-Fi loss, Windows packaging and macOS release signing/notarization require their own environment and are not implied by these checks.

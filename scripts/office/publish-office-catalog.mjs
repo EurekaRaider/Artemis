@@ -1,3 +1,4 @@
+import { proposeCatalog } from "../catalog-pull-request.mjs";
 import { readFile } from "node:fs/promises";
 const repo = "EurekaRaider/ArtemisRelease";
 const endpoint = `https://api.github.com/repos/${repo}/contents/office-runtime/catalog.json`;
@@ -43,14 +44,10 @@ for (const manifest of previous.manifests) {
 if (JSON.stringify(previous) === JSON.stringify(next)) {
   console.log("Published catalog already matches");
 } else {
-  await request("PUT", "application/vnd.github+json", {
-    message: "Publish verified Windows Office runtime 1.0.1 catalog",
-    sha: current.sha,
-    content: Buffer.from(content).toString("base64"),
-    branch: "main",
+  await proposeCatalog({
+    repository: repo,
+    path: "office-runtime/catalog.json",
+    content,
+    title: "Update verified Windows Office runtime catalog",
   });
-  const verified = await request("GET", "application/vnd.github.raw+json");
-  if (verified !== content.trim())
-    throw Error("Published catalog readback mismatch");
-  console.log("Published Windows online-install catalog; macOS entry retained");
 }

@@ -1,3 +1,4 @@
+import { observeHistoryTurn } from "./history-visibility.js";
 import {
   useEffect,
   useLayoutEffect,
@@ -71,44 +72,10 @@ export function HistoryTurn({
   useLayoutEffect(() => {
     checkInView();
   }, []);
-  // Programmatic scroll restoration (thread switch) happens after mount;
-  // re-check synchronously on scroll instead of waiting for the observer.
-  useEffect(() => {
-    const scroller = root.current?.closest(".timeline-scroll");
-    if (!scroller) return;
-    let scheduled: number | undefined;
-    const onScroll = () => {
-      if (scheduled !== undefined) return;
-      scheduled = requestAnimationFrame(() => {
-        scheduled = undefined;
-        checkInView();
-      });
-    };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      scroller.removeEventListener("scroll", onScroll);
-      if (scheduled !== undefined) cancelAnimationFrame(scheduled);
-    };
-  }, []);
   useEffect(() => {
     const element = root.current;
-    if (!element || typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry)
-          setVisible(
-            entry.isIntersecting ||
-              Boolean(element.querySelector("details[open]")) ||
-              element.contains(document.activeElement),
-          );
-      },
-      { root: element.closest(".timeline-scroll"), rootMargin: "1600px 0px" },
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
+    if (!element) return;
+    return observeHistoryTurn(element, setVisible);
   }, []);
   useLayoutEffect(() => {
     const element = root.current;

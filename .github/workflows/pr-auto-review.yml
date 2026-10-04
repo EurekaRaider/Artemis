@@ -1,4 +1,4 @@
-# PR 手动审核 — 在自托管 macOS runner 上执行
+# PR 手动审核 — 在 GitHub 托管 macOS runner 上执行
 # 用法：复制到目标仓库 .github/workflows/pr-auto-review.yml
 # 准备：目标仓库 Settings → Secrets and variables → Actions 添加 ZAI_API_KEY
 #       （z.ai 中国区 Coding Plan 改用 ZAI_CODING_CN_API_KEY，并同步改下方 env 变量名）
@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   review:
-    runs-on: [self-hosted, macOS, ARM64, artemis-macos-arm64]
+    runs-on: macos-15
     timeout-minutes: 15
     env:
       PI_MODEL: glm-5.3 # 可选：glm-5.2 / glm-5.2-highspeed / glm-5.3 / glm-4.7
@@ -33,10 +33,11 @@ jobs:
         id: pr
         run: echo "number=${{ github.event.pull_request.number || inputs.pr_number }}" >> "$GITHUB_OUTPUT"
 
-      # 显式取所选 PR 的 head，只用于只读审阅。
+      # 只检出受信任默认分支；PR 内容通过 diff 作为数据读取。
       - uses: actions/checkout@v4
         with:
-          ref: refs/pull/${{ steps.pr.outputs.number }}/head
+          ref: main
+          persist-credentials: false
           fetch-depth: 0
 
       - uses: actions/setup-node@v4
@@ -56,6 +57,8 @@ jobs:
             --provider zai \
             --model "$PI_MODEL" \
             --tools read,grep,find,ls \
+            --no-extensions \
+            --no-skills \
             --no-session \
             "你是资深代码审核员。本条消息包含一个 PR 的完整 diff，仓库已 checkout 在当前目录，可用 read/grep 查看上下文。用中文输出审核意见：1) 按【严重】【建议】【nit】分级列出问题，标注文件与行号；2) 覆盖 bug、安全、边界情况；3) 最后一行给出结论：approve 或 request-changes。只做只读分析，不要修改任何文件。" \
             > review.md

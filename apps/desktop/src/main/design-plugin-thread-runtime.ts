@@ -14,6 +14,7 @@
 // thread's private scratch directory.
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { accessSync, constants } from "node:fs";
 import { mkdir, stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
@@ -21,11 +22,16 @@ import { PluginRuntimeWorker } from "./design-plugin-runtime-worker.js";
 import { ensureThreadDataRoot } from "./design-plugin-thread-data.js";
 
 export type SandboxProbe =
-  | { ok: true; implementation: "macos-seatbelt" | "none-required" }
+  | {
+      ok: true;
+      implementation:
+        "macos-seatbelt" | "windows-appcontainer" | "none-required";
+    }
   | { ok: false; reason: string };
 
 export interface ThreadRuntimeOptions {
   threadId: string;
+  windowsHelperPath?: string | undefined;
   /** Per-thread private scratch; the runtime's cwd and only writable path. */
   scratchRoot: string;
   /** Parent of all revision roots (plugin-revisions). */
@@ -95,13 +101,15 @@ export function probeMacOsSeatbelt(): SandboxProbe {
 
 export class ThreadRuntimeManager {
   private readonly runtimes = new Map<string, LiveRuntime>();
+  private outstanding = 0;
   private readonly closedThreads = new Set<string>();
   private readonly options: ThreadRuntimeOptions;
   private readonly probe: () => SandboxProbe;
 
   constructor(options: ThreadRuntimeOptions) {
     this.options = options;
-    this.probe = options.sandboxProbe ?? defaultProbe;
+    this.probe =
+      options.sandboxProbe ?? (() => defaultProbe(options.windowsHelperPath));
   }
 
   /**
@@ -130,23 +138,34 @@ export class ThreadRuntimeManager {
         `Thread ${this.options.threadId} is closed; plugin runtime refuses new work.`,
       );
     }
-    const live = await this.ensureRuntime(input);
-    if (
-      this.closedThreads.has(this.options.threadId) ||
-      live.worker.isDisposed()
-    ) {
-      throw new Error("Thread runtime closed before dispatch.");
-    }
-    this.touch(live);
-    return new Promise<unknown>((resolve, reject) => {
-      live.queue.push({
-        toolName: input.toolName,
-        args: input.args,
-        resolve,
-        reject,
+    if (this.outstanding >= 32)
+      throw new Error(
+        "Plugin runtime queue is full; retry after pending calls finish",
+      );
+    if (Buffer.byteLength(JSON.stringify(input.args), "utf8") > 240 * 1024)
+      throw new Error("Plugin tool arguments exceed 240 KiB");
+    this.outstanding++;
+    try {
+      const live = await this.ensureRuntime(input);
+      if (
+        this.closedThreads.has(this.options.threadId) ||
+        live.worker.isDisposed()
+      ) {
+        throw new Error("Thread runtime closed before dispatch.");
+      }
+      this.touch(live);
+      return await new Promise<unknown>((resolve, reject) => {
+        live.queue.push({
+          toolName: input.toolName,
+          args: input.args,
+          resolve,
+          reject,
+        });
+        void this.drain(live);
       });
-      void this.drain(live);
-    });
+    } finally {
+      this.outstanding--;
+    }
   }
 
   private async ensureRuntime(input: {
@@ -216,6 +235,7 @@ export class ThreadRuntimeManager {
       pluginId: input.pluginId,
       contentHash: input.contentHash,
       cwd: scratch,
+      windowsHelperPath: this.options.windowsHelperPath,
     });
     const live: LiveRuntime = {
       worker,
@@ -335,17 +355,25 @@ export class ThreadRuntimeManager {
 
 // Exported for the platform-scope test: the publish list in
 // scripts/design-pack/build-design-pack.mjs must stay aligned with this gate.
-export function defaultProbe(): SandboxProbe {
-  // First-version platform scope (PR #245 review): darwin-arm64 only, the
-  // one platform with a signed design-pack manifest and a verified Seatbelt
-  // path. Everything else — including Intel macOS and Windows, whose
-  // AppContainer sandbox has not landed — refuses with an explicit
-  // "not yet supported" message rather than running unsandboxed.
+export function defaultProbe(windowsHelperPath?: string): SandboxProbe {
+  if (process.platform === "win32" && process.arch === "x64") {
+    try {
+      if (!windowsHelperPath) throw new Error("AppContainer helper missing");
+      accessSync(windowsHelperPath, constants.R_OK);
+      return { ok: true, implementation: "windows-appcontainer" };
+    } catch {
+      return {
+        ok: false,
+        reason: "Windows AppContainer helper is unavailable",
+      };
+    }
+  }
+  // Supported targets always require their native isolation implementation.
   if (process.platform === "darwin" && process.arch === "arm64")
     return probeMacOsSeatbelt();
   return {
     ok: false,
-    reason: `design plugins are not yet supported on ${process.platform}-${process.arch}; first version supports darwin-arm64 only`,
+    reason: `design plugins are not yet supported on ${process.platform}-${process.arch}; supported targets are darwin-arm64 and win32-x64`,
   };
 }
 

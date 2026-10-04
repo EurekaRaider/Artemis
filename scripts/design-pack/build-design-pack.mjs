@@ -40,14 +40,11 @@ const DEFAULT_SOURCE = join(
   "apps/desktop/resources/design-plugins/artemis-design",
 );
 
-// First-version platform scope (PR #245 review decision): darwin-arm64 only.
-// The runtime's sandbox probe (design-plugin-thread-runtime.ts defaultProbe)
-// has a verified Seatbelt path on Apple Silicon; no darwin-x64 manifest is
-// signed and the Windows AppContainer sandbox has not landed, so publishing
-// other targets would advertise installs that refuse to start. Expand this
-// list only together with the runtime probe change and an install→run
-// acceptance pass on the new platform.
-export const DESIGN_PACK_PLATFORMS = [{ platform: "darwin", arch: "arm64" }];
+// Published targets match the desktop native sandbox adapters.
+export const DESIGN_PACK_PLATFORMS = [
+  { platform: "darwin", arch: "arm64" },
+  { platform: "win32", arch: "x64" },
+];
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -139,7 +136,7 @@ async function main() {
       keySource = `dev-key-generated:${devKeyPath}`;
     }
   }
-  if (!keyId) keyId = keyArg ? "design-pack-release" : "design-pack-dev";
+  if (!keyId) keyId = "design-pack-release";
   // The catalog carries the public key; derive it from the private key so a
   // lost/absent public half never produces a broken catalog.
   const derivedPublic = createPublicKey(createPrivateKey(privateKeyPem))

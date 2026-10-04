@@ -4934,9 +4934,9 @@ button.environment-row:disabled {
 .composer-context-picker [data-artemis-component="select"] [data-part="menu"] {
   font-size: var(--composer-menu-label-size);
   line-height: 16px;
-  border-radius: 8px;
+  border-radius: var(--artemis-radius-control);
   inset-block-start: auto;
-  inset-block-end: calc(100% + 4px);
+  inset-block-end: calc(100% + var(--artemis-space-1));
   inset-inline-end: 0;
   inset-inline-start: auto;
   padding: var(--artemis-space-1);
@@ -4953,10 +4953,10 @@ button.environment-row:disabled {
   [data-artemis-component="select"]
   [data-part="option"] {
   grid-template-columns: 12px minmax(0, 1fr);
-  gap: 6px;
+  gap: calc(var(--artemis-space-1) * 1.5);
   min-block-size: 24px;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: calc(var(--artemis-space-1) / 2) calc(var(--artemis-space-1) * 1.5);
+  border-radius: calc(var(--artemis-radius-control) / 2);
   background: transparent;
 }
 

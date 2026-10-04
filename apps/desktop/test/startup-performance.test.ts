@@ -99,7 +99,7 @@ describe("desktop startup latency guardrails", () => {
     );
   });
 
-  it("pins dual-platform visual convergence to the source head on private runners", () => {
+  it("pins dual-platform visual convergence to the source head on public hosted runners", () => {
     const visualJob = ciWorkflowSource.slice(
       ciWorkflowSource.indexOf("visual-convergence-electron:"),
       ciWorkflowSource.indexOf("\n  hooks-native:"),
@@ -110,16 +110,14 @@ describe("desktop startup latency guardrails", () => {
     expect(visualJob).toContain(
       `ARTEMIS_EXPECTED_HEAD: \${{ ${exactSourceHead} }}`,
     );
-    expect(visualJob).toContain(
-      "runner: [self-hosted, macOS, ARM64, artemis-macos-arm64]",
-    );
-    expect(visualJob).toContain("github.event.repository.private");
+    expect(visualJob).toContain("runner: macos-15");
+    expect(visualJob).not.toContain("github.event.repository.private");
     expect(ciWorkflowSource).toContain("workflow_call:");
-    expect(visualJob).toContain("runner: [self-hosted, Windows, X64]");
+    expect(visualJob).toContain("runner: windows-2025");
     expect(visualJob).toContain("runs-on: ${{ matrix.runner }}");
     expect(ciWorkflowSource).toMatch(/^  push:/mu);
     expect(ciWorkflowSource).toMatch(/^  pull_request:/mu);
-    expect(ciWorkflowSource).toContain(
+    expect(ciWorkflowSource).not.toContain(
       "github.event.pull_request.head.repo.full_name == github.repository",
     );
     expect(visualJob).not.toContain("npm run package:win");
@@ -216,8 +214,11 @@ describe("desktop startup latency guardrails", () => {
     );
   });
 
-  it("ships Windows as an archive without installer wrappers", () => {
-    expect(packageJson.build.nsis).toBeUndefined();
+  it("ships Windows with a per-user installer and manual ZIP", () => {
+    expect(packageJson.build.nsis).toMatchObject({
+      perMachine: false,
+      allowElevation: false,
+    });
     expect(packageJson.build.portable).toBeUndefined();
   });
 

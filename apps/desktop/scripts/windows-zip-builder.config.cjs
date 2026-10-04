@@ -1,6 +1,6 @@
 const packageJson = require("../package.json");
 
-// Windows distribution is an unsigned, manually replaced ZIP. No updater feed.
+// Windows uses the signed platform index, independently of electron-updater feeds.
 module.exports = {
   ...packageJson.build,
   publish: null,

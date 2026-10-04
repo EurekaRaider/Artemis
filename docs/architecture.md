@@ -18,7 +18,7 @@ flowchart LR
   C --> B
   B --> W["Validated workspace tools"]
   B --> H["Approved desktop-user platform Shell"]
-  A --> X["Enabled desktop-user MCP"]
+  A --> X["Per-server MCP policy<br/>local sandbox / remote transport"]
   M --> T["Desktop-user PTY"]
   M --> E["Trusted executable extension"]
   E --> S["AppContainer / Seatbelt"]
@@ -45,10 +45,10 @@ deltas are delivered in coalesced IPC batches and omitted from persistence.
 
 `@artemis/protocol` owns all renderer-visible contracts:
 
-- `RunMode`: `execute | plan | review`
-- `WorkspaceTarget`: `local | managed-worktree | permanent-worktree`; managed
-  values remain for persisted-data and backend compatibility, while current
-  interactive tasks use `local`
+- `RunMode`: `work | plan | codemode`
+- `WorkspaceTarget`: local and managed worktree targets; tasks default to local,
+  with explicit user handoff to a managed worktree. Legacy permanent records
+  remain readable without restoring permanent-worktree creation controls
 - `AgentPayload`: user messages, streamed text/thinking, tool lifecycle,
   approvals, file changes, terminals, child agents, completion, and failures
 - `AgentEvent`: version, event ID, thread/turn IDs, sequence, timestamp, payload
@@ -131,11 +131,10 @@ current diff, resolves the submitted SHA-256 file/hunk ID to a canonical patch,
 and then applies only the action allowed by that scope. Revert creates a
 recovery copy before changing the workspace.
 
-Interactive tasks run only in each project's Local checkout. Managed and
-permanent worktree records and commands remain for legacy persisted-data and
-backend compatibility, but the current product UI does not create or expose
-those flows. Agent cwd, Review, and approval validation all resolve to the
-task's Local workspace.
+Interactive tasks default to the project's Local checkout. Users may explicitly
+hand off to a managed worktree. The service enforces a global limit of ten,
+including pending creations, and preserves snapshots before managed cleanup.
+Agent cwd, Review and approval checks resolve the task's current workspace.
 
 Executable Pi extensions stay disabled in the long-lived Agent Host through
 `DefaultResourceLoader({ noExtensions: true })`. Skills, prompt templates, and
@@ -156,8 +155,56 @@ Pi JSONL is the model-history source of truth. SQLite stores:
 - replayable normalized events.
 
 `PRAGMA journal_mode=WAL` is enabled. SQLite migrations are tracked with
-`user_version`; schema version 9 is the current baseline. Credentials are not
+`user_version` in the store migration code. Credentials are not
 stored in SQLite. API keys, OAuth records imported from Pi, and MCP bearer tokens
 are encrypted with Electron `safeStorage` (DPAPI on Windows and Keychain-backed
 storage on macOS); if OS encryption is unavailable, credential writes fail
 closed.
+
+## Plugin boundary
+
+`@artemis/plugin-contract` owns pure TypeScript/Zod definitions and emitted JSON
+Schema. It has no Electron, Pi or host filesystem dependency. v2 discriminates
+resource and interactive manifests; v1 adapters retain installed identities.
+`@artemis/plugin-sdk` wraps the existing runtime protocol, not a second engine.
+
+Resource manifests explicitly list Skills, MCP/Connectors, Hooks and Skins.
+Interactive manifests declare runtime, panel, tools and restricted capabilities;
+they cannot declare resource MCP/Hooks. Content hashes and frozen task bindings
+are checked both when tools are assembled and when they are called.
+Windows uses AppContainer and macOS uses Seatbelt for the interactive runtime,
+with task-private writable scratch, read-only runtime/plugin files and no network.
+Installation journals coordinate directory moves, MCP configuration and the
+primary plugin store, recovering interrupted writes before further installation.
+
+## Updates and lifecycle
+
+`bootstrap.ts` owns privileged scheme registration, the single-instance lock,
+Windows package ACL preparation and startup errors. There is no activation service.
+`ReleaseUpdateManager` selects the platform update implementation.
+`WindowsInstalledUpdater` handles signed-index discovery, download verification,
+rollback preparation and the external PowerShell helper. ZIP discovery uses the
+same Windows-specific index but remains a manual download.
+
+The helper is outside the installation tree and starts before the old application
+quits. Database backup uses SQLite's consistent backup API. A healthy startup
+requires migrations, renderer readiness, IPC and an agent-host response. Failed
+versions are quarantined; recovery does not restore project directories or replay
+task side effects. See [release contracts](guides/release.md).
+
+## History and renderer performance
+
+`ThreadHistoryReader` runs SQLite and replay in a worker. Disposable, versioned
+page projections let cursor requests parse only the requested page rather than
+an entire session snapshot. Cache data is rebuilt after schema changes or corruption.
+`stream-snapshot.ts` owns live event deduplication and thread metadata updates;
+batches group once by thread and duplicate-only batches retain object identity.
+`history-visibility.ts` shares scroll/IntersectionObserver scheduling per scroller.
+The derived-session cache is limited to eight sessions and an estimated 64 MiB.
+
+`node scripts/benchmark-history.mjs` compares the merged baseline with current
+source using the same synthetic 1,500-turn history. It records initial load,
+49 cursor pages and returned bytes under `artifacts/performance/`; local numbers
+are not Windows or public-runner acceptance. Main and renderer still contain
+composition and feature coordination; module boundaries must be preserved as
+further services move out of these entry points.

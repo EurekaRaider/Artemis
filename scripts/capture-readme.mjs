@@ -23,7 +23,7 @@ const require = createRequire(join(root, "package.json"));
 const temp = await mkdtemp(join(tmpdir(), "artemis-readme-"));
 const data = join(temp, "user-data"),
   project = join(temp, "field-notes");
-const out = process.argv[2] || join(root, "docs/assets/screenshots");
+const out = process.argv[2] || join(root, "docs/assets/images");
 await Promise.all([
   mkdir(data),
   mkdir(project),
@@ -275,32 +275,22 @@ async function dock(label) {
       .getAttribute("aria-expanded")) !== "true"
   )
     await page.locator(".right-sidebar-toggle").click();
+  const menuOpened = app.waitForEvent("window");
   await page.locator(".workspace-tab-add").click();
-  await page
-    .locator(".workspace-tab-menu")
-    .getByRole("button", { name: label, exact: true })
-    .click();
+  const menu = await menuOpened;
+  await menu.getByRole("menuitem", { name: label, exact: true }).click();
 }
 async function openDemoGroup() {
-  await page
-    .locator(".sidebar-footer")
-    .getByRole("button", { name: "Settings", exact: true })
-    .click();
-  await page.locator("#settings-tab-im-button").click();
-  await page
-    .locator(".im-channel-list")
-    .getByRole("button", {
-      name: /Group-chat project grants/,
-    })
-    .click();
-  await page.locator('#im-spaces [aria-haspopup="listbox"]').click();
-  await page.getByRole("option", { name: /Research team/ }).click();
-  await page
-    .locator("#im-spaces")
-    .getByRole("button", { name: "Open group conversation", exact: true })
-    .click();
+  // Select a pre-seeded synthetic conversation through the existing host event.
+  // The permission dialog no longer owns conversation navigation.
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((window) => window.webContents.getURL().startsWith("file:"))
+      .webContents.send("artemis:automation-thread-open", "demo-group");
+  });
   await page.waitForSelector(".composer");
 }
+
 try {
   await page.waitForFunction(() => !!window.artemis);
   // Substitute only the presentation identity in this isolated capture process.
@@ -484,6 +474,7 @@ try {
       },
     };
     const status = {
+      authorizationVersion: 1,
       state: "connected",
       scopedShellSupported: true,
       scopedFileCreationSupported: true,
@@ -596,12 +587,15 @@ try {
       name: /Group-chat project grants/,
     })
     .click();
-  await page.locator("#im-spaces").waitFor();
-  const groupSelect = page.locator('#im-spaces [aria-haspopup="listbox"]');
-  await groupSelect.click();
-  await page.getByRole("option", { name: /Research team/ }).click();
-  await page.locator("#im-spaces").scrollIntoViewIfNeeded();
+  await page.locator(".im-group-dialog").waitFor();
+  await page
+    .locator(".im-group-list-item")
+    .filter({ hasText: "Research team" })
+    .click();
+  await page.locator(".im-group-bot-authorization").waitFor();
   await capture("im-spaces");
+  await page.keyboard.press("Escape");
+  await page.locator(".im-group-dialog").waitFor({ state: "detached" });
   await page.locator(".settings-header").getByRole("button").click();
   for (const [view, name] of [
     ["resources", "resources"],

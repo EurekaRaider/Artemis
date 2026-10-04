@@ -32,20 +32,29 @@ import {writeFileSync} from 'node:fs';
 let stored=${JSON.stringify(before)};
 const requests=[];
 globalThis.fetch=async (url, options)=>{
-  assert.equal(url,'https://api.github.com/repos/EurekaRaider/ArtemisRelease/contents/office-runtime/catalog.json');
   assert.equal(options.headers.Authorization,'Bearer fixture-token');
-  requests.push(options.method);
+  const method=options.method ?? 'GET';
+  const endpoint=new URL(url).pathname.split('/ArtemisRelease/')[1];
+  requests.push(method);
   writeFileSync(${JSON.stringify(requests)},JSON.stringify(requests));
-  if(options.method==='PUT'){
+  if(endpoint.startsWith('git/matching-refs/')) return Response.json([]);
+  if(endpoint==='git/ref/heads/main') return Response.json({object:{sha:'main-sha'}});
+  if(endpoint==='git/refs') {
+    assert.equal(method,'POST');
+    assert.ok(JSON.parse(options.body).ref.startsWith('refs/heads/codex/catalog-'));
+    return Response.json({});
+  }
+  if(endpoint==='pulls') return Response.json(method==='POST' ? {html_url:'https://github.com/EurekaRaider/ArtemisRelease/pull/123'} : []);
+  assert.equal(endpoint,'contents/office-runtime/catalog.json');
+  if(method==='PUT'){
     const body=JSON.parse(options.body);
     assert.equal(body.sha,'current-sha');
-    assert.equal(body.branch,'main');
+    assert.ok(body.branch.startsWith('codex/catalog-'));
     stored=JSON.parse(Buffer.from(body.content,'base64').toString());
-    return new Response('{}');
+    return Response.json({});
   }
-  if(options.headers.Accept==='application/vnd.github.raw+json')
-    return new Response(JSON.stringify(${mismatch} && requests.includes('PUT') ? {} : stored));
-  return new Response(JSON.stringify({sha:'current-sha'}));
+  if(options.headers.Accept==='application/vnd.github.raw+json') return Response.json(stored);
+  return Response.json({sha:'current-sha',content:Buffer.from(JSON.stringify(${mismatch} && requests.includes('PUT') ? {} : stored)).toString('base64')});
 };`,
   );
   try {
@@ -75,11 +84,22 @@ globalThis.fetch=async (url, options)=>{
 }
 
 describe("Office catalog publisher", () => {
-  it("publishes through HTTPS with optimistic concurrency and verifies readback", () => {
+  it("proposes a branch PR with optimistic concurrency and verifies readback", () => {
     const result = publish(previous, next);
     expect(result.error).toBe("");
-    expect(result.requests).toEqual(["GET", "GET", "PUT", "GET"]);
-    expect(result.output).toContain("macOS entry retained");
+    expect(result.requests).toEqual([
+      "GET",
+      "GET",
+      "GET",
+      "GET",
+      "POST",
+      "GET",
+      "PUT",
+      "GET",
+      "GET",
+      "POST",
+    ]);
+    expect(result.output).toContain("Catalog review:");
     expect(publish(next, next).requests).toEqual(["GET", "GET"]);
   });
 
