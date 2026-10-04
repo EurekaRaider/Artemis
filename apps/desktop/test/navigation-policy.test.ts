@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { transformSync } from "esbuild";
+import { I18N_RESOURCES } from "../src/shared/i18n-resources.js";
+import { mainText } from "../src/main/i18n.js";
 
 import {
   externalHttpUrl,
@@ -65,6 +68,74 @@ describe("renderer navigation policy", () => {
     expect(mainSource).toContain('mainText(locale, "openLink")');
     expect(mainSource).toContain('mainText(locale, "copyLink")');
   });
+
+  it.each([true, false])(
+    "offers native image copying only for loaded images (loaded=%s)",
+    (loaded) => {
+      const start = mainSource.indexOf('window.webContents.on("context-menu"');
+      const end = mainSource.indexOf(
+        'window.webContents.on("will-frame-navigate"',
+        start,
+      );
+      const source = transformSync(mainSource.slice(start, end), {
+        loader: "ts",
+      }).code;
+      const copyImageAt = vi.fn();
+      const popup = vi.fn();
+      const buildFromTemplate = vi.fn((_items: unknown) => ({ popup }));
+      let listener!: (event: unknown, params: unknown) => void;
+      const window = {
+        webContents: {
+          on: (_: string, callback: typeof listener) => {
+            listener = callback;
+          },
+          copyImageAt,
+        },
+      };
+      new Function(
+        "window",
+        "Menu",
+        "externalHttpUrl",
+        "currentLocale",
+        "I18N_RESOURCES",
+        "mainText",
+        "shell",
+        "clipboard",
+        source,
+      )(
+        window,
+        { buildFromTemplate },
+        externalHttpUrl,
+        () => "zh-CN",
+        I18N_RESOURCES,
+        mainText,
+        {},
+        {},
+      );
+      const event = { preventDefault: vi.fn() };
+      listener(event, {
+        mediaType: "image",
+        hasImageContents: loaded,
+        selectionText: "",
+        linkURL: "",
+        x: 75,
+        y: 90,
+      });
+      if (!loaded) {
+        expect(buildFromTemplate).not.toHaveBeenCalled();
+        return;
+      }
+      expect(event.preventDefault).toHaveBeenCalledOnce();
+      const items = buildFromTemplate.mock.calls[0]?.[0] as unknown as Array<{
+        label: string;
+        click(): void;
+      }>;
+      expect(items[0]?.label).toBe("复制图片");
+      items[0]?.click();
+      expect(copyImageAt).toHaveBeenCalledWith(75, 90);
+      expect(popup).toHaveBeenCalledWith({ window });
+    },
+  );
 });
 
 it("allows only the built-in PDF viewer's own child stream", async () => {

@@ -203,6 +203,7 @@ const en = {
     selectLocalPlugin: "Select a plugin folder containing artemis.plugin.json",
     selectPiExtension: "Select and trust a Pi extension",
     forkSuffix: " (fork)",
+    copyImage: "Copy Image",
   },
 } as const;
 
@@ -411,6 +412,7 @@ const zhCN: NamespaceCatalog = {
     selectLocalPlugin: "选择包含 artemis.plugin.json 的插件文件夹",
     selectPiExtension: "选择并信任 Pi 扩展",
     forkSuffix: "（分叉）",
+    copyImage: "复制图片",
   },
 };
 
@@ -616,6 +618,7 @@ const zhTW: NamespaceCatalog = {
     selectLocalPlugin: "選擇包含 artemis.plugin.json 的外掛程式資料夾",
     selectPiExtension: "選擇並信任 Pi 擴充功能",
     forkSuffix: "（分叉）",
+    copyImage: "複製圖片",
   },
 };
 
@@ -817,6 +820,7 @@ const translations = {
       "artemis.plugin.json を含むプラグインフォルダーを選択",
       "Pi 拡張機能を選択して信頼",
       "（フォーク）",
+      "画像をコピー",
     ],
   },
   ko: {
@@ -1016,6 +1020,7 @@ const translations = {
       "artemis.plugin.json이 포함된 플러그인 폴더 선택",
       "Pi 확장 선택 및 신뢰",
       "(포크)",
+      "이미지 복사",
     ],
   },
   es: {
@@ -1215,6 +1220,7 @@ const translations = {
       "Seleccionar una carpeta de plugin que contenga artemis.plugin.json",
       "Seleccionar y confiar en una extensión de Pi",
       " (bifurcación)",
+      "Copiar imagen",
     ],
   },
   fr: {
@@ -1414,6 +1420,7 @@ const translations = {
       "Sélectionner un dossier de plugin contenant artemis.plugin.json",
       "Sélectionner et approuver une extension Pi",
       " (bifurcation)",
+      "Copier l’image",
     ],
   },
   de: {
@@ -1613,6 +1620,7 @@ const translations = {
       "Plugin-Ordner mit artemis.plugin.json auswählen",
       "Pi-Erweiterung auswählen und als vertrauenswürdig einstufen",
       " (Fork)",
+      "Bild kopieren",
     ],
   },
   "pt-BR": {
@@ -1812,6 +1820,7 @@ const translations = {
       "Selecionar uma pasta de plugin com artemis.plugin.json",
       "Selecionar e confiar em uma extensão Pi",
       " (bifurcação)",
+      "Copiar imagem",
     ],
   },
   it: {
@@ -2011,6 +2020,7 @@ const translations = {
       "Seleziona una cartella di plugin contenente artemis.plugin.json",
       "Seleziona e considera attendibile un’estensione Pi",
       " (fork)",
+      "Copia immagine",
     ],
   },
   ru: {
@@ -2210,6 +2220,7 @@ const translations = {
       "Выбрать папку плагина с artemis.plugin.json",
       "Выбрать расширение Pi и сделать его доверенным",
       " (ответвление)",
+      "Копировать изображение",
     ],
   },
   ar: {
@@ -2409,6 +2420,7 @@ const translations = {
       "تحديد مجلد إضافة يحتوي على artemis.plugin.json",
       "تحديد امتداد Pi والوثوق به",
       " (فرع)",
+      "نسخ الصورة",
     ],
   },
   hi: {
@@ -2608,6 +2620,7 @@ const translations = {
       "artemis.plugin.json वाला प्लगइन फ़ोल्डर चुनें",
       "Pi एक्सटेंशन चुनें और उस पर विश्वास करें",
       " (फ़ोर्क)",
+      "चित्र कॉपी करें",
     ],
   },
   id: {
@@ -2807,6 +2820,7 @@ const translations = {
       "Pilih folder plugin yang berisi artemis.plugin.json",
       "Pilih dan percayai ekstensi Pi",
       " (fork)",
+      "Salin gambar",
     ],
   },
 } as const;

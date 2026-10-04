@@ -18630,12 +18630,20 @@ function createMainWindow(): BrowserWindow {
   window.webContents.on("context-menu", (event, params) => {
     const linkUrl = externalHttpUrl(params.linkURL);
     const hasSelection = params.selectionText.length > 0;
-    if (!linkUrl && !hasSelection) return;
+    const hasImage = params.mediaType === "image" && params.hasImageContents;
+    if (!linkUrl && !hasSelection && !hasImage) return;
     event.preventDefault();
     const locale = currentLocale();
     const items: MenuItemConstructorOptions[] = [];
     if (hasSelection) {
       items.push({ role: "copy", label: I18N_RESOURCES[locale].common.copy });
+    }
+    if (hasImage) {
+      if (items.length > 0) items.push({ type: "separator" });
+      items.push({
+        label: mainText(locale, "copyImage"),
+        click: () => window.webContents.copyImageAt(params.x, params.y),
+      });
     }
     if (linkUrl) {
       if (items.length > 0) items.push({ type: "separator" });

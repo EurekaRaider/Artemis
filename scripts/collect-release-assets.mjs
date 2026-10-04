@@ -10,9 +10,17 @@ import {
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export async function collectReleaseAssets(input, output, version) {
+export async function collectReleaseAssets(
+  input,
+  output,
+  version,
+  macosOnly = false,
+) {
   const collected = [];
-  for (const platform of ["macos-arm64", "windows-x64"]) {
+  const platforms = macosOnly
+    ? ["macos-arm64"]
+    : ["macos-arm64", "windows-x64"];
+  for (const platform of platforms) {
     const directory = join(input, `release-${platform}`);
     const manifest = JSON.parse(
       await readFile(join(directory, "release-manifest.json"), "utf8"),
@@ -100,7 +108,7 @@ export async function collectReleaseAssets(input, output, version) {
         throw new Error("Update metadata checksum mismatch");
     }
   }
-  // Validate both sets before copying anything; never let manifests overwrite each other.
+  // Validate every selected set before copying anything; never overwrite manifests.
   await mkdir(output, { recursive: true });
   if ((await readdir(output)).length)
     throw new Error("Release output must be empty");
@@ -127,11 +135,19 @@ if (
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
   const version = JSON.parse(await readFile("package.json", "utf8")).version;
-  if (!process.argv[2] || !process.argv[3])
-    throw new Error("Usage: collect-release-assets.mjs input output");
+  if (
+    !process.argv[2] ||
+    !process.argv[3] ||
+    process.argv.length > 5 ||
+    (process.argv[4] !== undefined && process.argv[4] !== "--macos-only")
+  )
+    throw new Error(
+      "Usage: collect-release-assets.mjs input output [--macos-only]",
+    );
   await collectReleaseAssets(
     resolve(process.argv[2]),
     resolve(process.argv[3]),
     version,
+    process.argv[4] === "--macos-only",
   );
 }

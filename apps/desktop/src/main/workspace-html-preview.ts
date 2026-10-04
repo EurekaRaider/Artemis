@@ -11,6 +11,7 @@ import {
 } from "node:path";
 import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
 import { resolveWorkspaceFileLink } from "./workspace-file-link.js";
+import { workspaceHtmlSizeScript } from "./workspace-html-size.js";
 
 interface HtmlLease {
   threadId: string;
@@ -171,8 +172,16 @@ export class WorkspaceHtmlPreview {
         throw new Error("Preview closed.");
       const origin = `${WORKSPACE_HTML_SCHEME}://${url.hostname}`;
       const policy = `default-src 'none'; script-src 'unsafe-inline' ${origin}; style-src 'unsafe-inline' ${origin}; img-src data: blob: ${origin}; font-src data: ${origin}; connect-src 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'; form-action 'none'; base-uri 'none'; sandbox allow-scripts`;
+      const content = bytes.subarray(0, bytesRead);
       return new Response(
-        request.method === "HEAD" ? null : bytes.subarray(0, bytesRead),
+        request.method === "HEAD"
+          ? null
+          : document
+            ? Buffer.concat([
+                content,
+                Buffer.from(workspaceHtmlSizeScript(lease.url)),
+              ])
+            : content,
         {
           headers: {
             "Content-Type": mimeType,

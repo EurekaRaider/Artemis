@@ -2414,13 +2414,30 @@ button.environment-row:disabled {
   width: 54px;
 }
 
+.conversation-empty-state > [data-part="title"],
+.conversation-empty-state > [data-part="detail"] {
+  max-inline-size: 100%;
+}
+
 .conversation-empty-state h1 {
   color: var(--text);
+  font-family:
+    Georgia, "Songti SC", "Noto Serif CJK SC", "Noto Serif CJK TC", "SimSun",
+    serif;
   font-size: clamp(22px, 2.2vw, 30px);
   font-weight: 400;
   letter-spacing: -0.035em;
   line-height: 1.2;
   margin: 22px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.conversation-greeting-detail {
+  color: var(--muted);
+  font-size: clamp(13px, 1.3vw, 16px);
+  line-height: 1.6;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .conversation-project-name {

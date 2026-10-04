@@ -178,6 +178,13 @@ const glyphs = {
     />
   ),
   code: <path d="m12 11-3 3 3 3m8-6 3 3-3 3m-3-7-2 10" />,
+  webpage: (
+    <>
+      <rect x="6" y="7" width="20" height="16" rx="2" />
+      <path d="M6 12h20m-17 4h5v4H9zm8 0h6m-6 4h6" />
+      <path d="M9 9.5h.01m3-.01h.01m3-.01h.01" strokeWidth="1.8" />
+    </>
+  ),
   terminal: (
     <>
       <rect
@@ -331,7 +338,7 @@ export function AttachmentFileIcon({
       RS: "rust",
       JAVA: "java",
       CSS: "braces",
-      HTML: "code",
+      HTML: "webpage",
       DOCK: "docker",
     } as Partial<Record<string, keyof typeof glyphs>>
   )[type.label];

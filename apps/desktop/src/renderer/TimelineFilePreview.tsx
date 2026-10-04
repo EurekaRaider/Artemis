@@ -1,9 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
+import {
+  WORKSPACE_HTML_MAX_HEIGHT,
+  WORKSPACE_HTML_SIZE_MESSAGE,
+} from "../shared/workspace-html-size.js";
 import { timelinePreviewCopy } from "./timeline-preview-copy.js";
 import { usePreviewVisible } from "./use-preview-visible.js";
-import { workspaceFileLinkIcon } from "./seti-file-icon.js";
+import {
+  AttachmentFileIcon,
+  attachmentFileType,
+} from "./AttachmentFileIcon.js";
 
 export function TimelineDocumentCard({
   path,
@@ -17,16 +24,17 @@ export function TimelineDocumentCard({
   onOpen?: ((href: string) => void) | undefined;
 }) {
   const t = timelinePreviewCopy(locale);
-  const icon = workspaceFileLinkIcon(path);
+  const icon = attachmentFileType(path);
   const name = path.replaceAll("\\", "/").split("/").at(-1) ?? path;
   return (
     <span className="timeline-document-card">
       <span
-        className="workspace-file-link-icon"
+        className="timeline-file-avatar resource-avatar"
         aria-hidden="true"
-        data-seti-color={icon.color}
-        dangerouslySetInnerHTML={{ __html: icon.svg }}
-      />
+        style={{ "--timeline-file-color": icon.color } as CSSProperties}
+      >
+        <AttachmentFileIcon name={path} size={36} />
+      </span>
       <span className="timeline-document-name">
         <strong>{name}</strong>
         <span>{path}</span>
@@ -55,6 +63,8 @@ export function TimelineHtmlPreview({
   const [url, setUrl] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const [height, setHeight] = useState<number>();
   const t = timelinePreviewCopy(locale);
   useEffect(() => {
     if (!visible) return;
@@ -64,6 +74,7 @@ export function TimelineHtmlPreview({
       void window.artemis.releaseWorkspaceHtml(threadId, value).catch(() => {});
     };
     setUrl(undefined);
+    setHeight(undefined);
     setFailed(false);
     void window.artemis
       .openWorkspaceHtml(threadId, path)
@@ -87,6 +98,29 @@ export function TimelineHtmlPreview({
       if (lease) release(lease);
     };
   }, [threadId, path, attempt, visible]);
+  useEffect(() => {
+    if (!url) return;
+    const resize = (event: MessageEvent) => {
+      const data = event.data;
+      if (
+        !frameRef.current ||
+        event.source !== frameRef.current.contentWindow ||
+        !data ||
+        data.type !== WORKSPACE_HTML_SIZE_MESSAGE ||
+        data.version !== 1 ||
+        data.url !== url ||
+        typeof data.height !== "number" ||
+        !Number.isFinite(data.height) ||
+        data.height <= 0
+      )
+        return;
+      setHeight(
+        Math.min(WORKSPACE_HTML_MAX_HEIGHT, Math.ceil(data.height)) + 2,
+      );
+    };
+    window.addEventListener("message", resize);
+    return () => window.removeEventListener("message", resize);
+  }, [url]);
   return (
     <span ref={ref} className="timeline-html-preview">
       <TimelineDocumentCard
@@ -97,8 +131,10 @@ export function TimelineHtmlPreview({
       />
       {url ? (
         <iframe
+          ref={frameRef}
           title={path}
           src={url}
+          style={height === undefined ? undefined : { height }}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
         />
@@ -109,9 +145,11 @@ export function TimelineHtmlPreview({
       )}
       <span className="timeline-preview-toolbar">
         <span>{t.htmlNote}</span>
-        <button type="button" onClick={() => setAttempt((v) => v + 1)}>
-          {failed ? t.retry : t.refresh}
-        </button>
+        {failed && (
+          <button type="button" onClick={() => setAttempt((v) => v + 1)}>
+            {t.retry}
+          </button>
+        )}
       </span>
     </span>
   );

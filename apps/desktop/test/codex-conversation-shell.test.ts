@@ -202,6 +202,11 @@ describe("Codex conversation shell contract", () => {
     expect(conversation).toContain("emptyConversationLabel");
     expect(conversation).toContain("emptyConversationPrefix");
     expect(conversation).toContain("emptyConversationSuffix");
+    expect(conversation).toContain(
+      "<h1>{emptyConversationGreeting.title}</h1>",
+    );
+    expect(conversation).toContain('className="conversation-greeting-detail"');
+    expect(conversation).toContain("emptyConversationGreeting.temporaryPrompt");
     expect(conversation).not.toContain("What should we build in");
     expect(conversation).toContain('className="conversation-empty-state"');
     expect(conversation.indexOf("activeEvents.length === 0")).toBeLessThan(

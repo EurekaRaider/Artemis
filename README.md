@@ -59,7 +59,7 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > [!NOTE]
-> Version **1.6.18** targets macOS arm64 (signed DMG/ZIP) and Windows x64 (unsigned ZIP).
+> Version **1.6.19** publishes macOS arm64 first (signed, notarized DMG/ZIP). Windows x64 awaits its runner and native CI.
 > CD publishes client packages to public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases); the license issuer remains private.
 > Repository access is required; public publication is a separate, manual decision.
 > See the [platform and installation notes](#platform-support).
@@ -366,7 +366,7 @@ boundary and performance contracts. For native visual verification, run
 `npm run verify:screenshot-matrix`.
 
 CI runs on pushes to `main`, same-repository pull requests and manual dispatches.
-The **Release** workflow also requires CI on macOS arm64 and Windows x64, covering
+The **Release** workflow requires CI for every selected platform, covering
 formatting, tests, types, builds, the production dependency audit and native checks. Local
 source checks do not establish native release acceptance on another platform.
 Windows AppContainer integration, native visual behavior, Slack CLI compatibility,
@@ -388,19 +388,24 @@ Build with development dependencies installed (`npm ci --include=dev`). macOS
 packaging requires a Mac with Xcode 26+ selected. Building a Windows archive on
 macOS is a cross-build, not proof of Windows runtime compatibility.
 
-The `1.6.18` local packaging configuration produces:
+The `1.6.19` local packaging configuration produces:
 
 | Target                    | Artifacts                                                       |
 | ------------------------- | --------------------------------------------------------------- |
-| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.18.zip`            |
-| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.18.dmg` and `.zip` |
-| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.18.dmg` and `.zip`   |
+| Windows x64               | `apps/desktop/release/Artemis-Windows-x64-1.6.19.zip`            |
+| macOS Apple Silicon arm64 | `apps/desktop/release/Artemis-macOS-arm64-1.6.19.dmg` and `.zip` |
+| macOS Intel x64           | `apps/desktop/release/Artemis-macOS-x64-1.6.19.dmg` and `.zip`   |
 
-Releases are started manually through **Release**, using tag `v1.6.18`, and
+Releases are started manually through **Release**, using tag `v1.6.19`, and
 published to the public [ArtemisRelease Releases](https://github.com/EurekaRaider/ArtemisRelease/releases)
-after both platforms pass verification. CD includes macOS arm64 DMG/ZIP and
-update metadata, plus an unsigned Windows x64 ZIP. Intel macOS remains a local
-packaging target.
+after the selected platforms pass verification. By default, CD includes macOS
+arm64 DMG/ZIP and update metadata, plus an unsigned Windows x64 ZIP. For a
+macOS-only release, select `macos_only` and supply `release_sha` and `ci_run_id`;
+all three macOS CI jobs (tests/types/build/format, Slack CLI native compatibility
+and visual convergence) must have succeeded. Only named release assembly and
+documentation changes may follow that verified commit. Version `1.6.19` uses
+this macOS-only path while the Windows runner is unavailable. Intel macOS
+remains a local packaging target.
 
 macOS signing and notarization run in separate jobs. Signing retries at most
 three times; notarization waits and stapling each allow three attempts. The

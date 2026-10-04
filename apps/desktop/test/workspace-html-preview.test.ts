@@ -64,7 +64,12 @@ it("serves interactive HTML with an opaque sandbox and no network or application
   expect(policy).toContain("connect-src 'none'");
   expect(policy).toContain("form-action 'none'");
   expect(policy).toContain("frame-src 'none'");
-  expect(await response.text()).toContain("onclick");
+  const document = await response.text();
+  expect(document).toContain("onclick");
+  expect(document).toContain("ResizeObserver");
+  expect(document).toContain("MutationObserver");
+  expect(document).toContain("artemis:html-size");
+  expect(document).toContain("postMessage");
   const asset = await f.service.respond(new Request(new URL("app.js", url)));
   expect(await asset.text()).toBe("window.ready=true");
   expect(f.service.allowsNavigation(url)).toBe(true);

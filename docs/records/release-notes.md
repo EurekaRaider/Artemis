@@ -1,21 +1,21 @@
-# Artemis v1.6.18
+# Artemis v1.6.19
 
 ## 中文
 
-- **视觉皮肤**：在设置中预览、应用皮肤或恢复默认，应用后的选择在重启时恢复。Skin v2 支持明暗壁纸、静音视频背景、字体、语义图标与宿主动效预设，并提供高对比度和减少动态效果支持。
-- **资源生命周期**：皮肤从已安装插件提供；插件变更时释放旧资源。窗口隐藏、最小化、系统休眠或锁屏时暂停背景视频。
-- **Artemis 原生插件格式**：插件使用 `artemis.plugin.json`，市场使用 `.artemis/marketplace.json`，均声明 `schemaVersion: 1`。已有插件数据在保留备份后迁移；开发指南、内置插件和 Hooks 示例同步到新格式。
-- **Pi 引擎**：升级 Pi SDK 至 **1.0.0**，继续由 Artemis 管理工具暴露、执行权限与唯一 Agent 循环。
-- **文档与开发工具**：正式指南和图片归入 `docs/guides`、`docs/assets`，示例、原型与方案分别归入根级目录；新增皮肤验证、打包、预览工具和完整示例。
+- **会话欢迎页**：按本地时间显示早晨、下午、晚上或深夜问候，结合用户名称和项目上下文，支持全部 14 种界面语言。
+- **消息操作**：修复消息下方操作按钮的显示与点击区域，复制按钮使用支持鼠标和键盘的统一提示。图片右键菜单新增“复制图片”。
+- **文件卡片**：时间线文件卡片使用彩色文件图标，HTML 文件采用网页图标。
+- **HTML 预览**：隔离的交互式 HTML 预览随内容调整高度，保留流式回复中的页面状态，避免视口高度反馈循环，并在失败时提供重试。
+- **Slack CLI**：将内置 CLI 更新至官方稳定版 **4.9.0**，同步三平台下载与二进制摘要。
 
-发布目标为 macOS arm64（签名、公证 DMG/ZIP）与 Windows x64（未签名 ZIP），沿用已发布 Office Runtime。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
+本次先发布 macOS arm64（签名、公证 DMG/ZIP），沿用已发布 Office Runtime。Windows x64 等待自托管 Windows runner 恢复并通过原生 CI 后再发布。Intel macOS 保留本地打包支持，不在本次 CD 发布范围内。
 
 ## English
 
-- **Visual skins**: preview, apply or restore the default skin in Settings, with applied selections restored after restart. Skin v2 supports light/dark wallpapers, muted video backgrounds, fonts, semantic icons and host motion presets, plus high-contrast and reduced-motion support.
-- **Resource lifecycle**: installed plugins provide skins, and plugin changes release previous resources. Background video pauses while the window is hidden or minimized, or the system sleeps or locks.
-- **Native Artemis plugin format**: plugins use `artemis.plugin.json`, marketplaces use `.artemis/marketplace.json`, and both declare `schemaVersion: 1`. Existing plugin data migrates with a retained backup. Developer guides, bundled plugins and Hooks examples use the new format.
-- **Pi engine**: upgrade the Pi SDK to **1.0.0**, with Artemis retaining control of tool exposure, execution permissions and the single agent loop.
-- **Documentation and developer tools**: consolidate guides and images under `docs/guides` and `docs/assets`, and move examples, prototypes and plans to dedicated root directories. Add skin validation, packaging and preview tools with complete examples.
+- **Conversation welcome**: show morning, afternoon, evening or late-night greetings based on local time, with the user name and project context in all 14 interface languages.
+- **Message actions**: fix the visibility and click area of actions below messages, and use the shared copy tooltip with mouse and keyboard support. Add Copy Image to the native image context menu.
+- **File cards**: use colored file artwork in timeline cards and a webpage icon for HTML files.
+- **HTML previews**: resize isolated interactive HTML previews to their content, retain page state during streamed replies, prevent viewport-height feedback loops and offer retry after failures.
+- **Slack CLI**: update the bundled CLI to official stable **4.9.0**, with refreshed download and executable digests for all three supported platforms.
 
-Release targets are macOS arm64 (signed, notarized DMG/ZIP) and Windows x64 (unsigned ZIP), reusing published Office runtimes. Intel macOS remains a local packaging target and is not included in this CD release.
+This release publishes macOS arm64 first (signed, notarized DMG/ZIP), reusing published Office runtimes. Windows x64 publication awaits restoration of the self-hosted Windows runner and successful native CI. Intel macOS remains a local packaging target and is not included in this CD release.

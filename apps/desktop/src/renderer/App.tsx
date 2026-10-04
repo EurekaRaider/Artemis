@@ -322,6 +322,7 @@ import {
   type ThreadDropEdge,
 } from "./thread-list-order.js";
 import { userInitials } from "./user-profile.js";
+import { conversationWelcome } from "./conversation-welcome.js";
 import {
   agentTeamWorkspaceTab,
   childAgentWorkspaceTab,
@@ -3640,11 +3641,16 @@ export function App() {
     }
   }, [activeThreadId, imThreadStatus, snapshot?.threads]);
 
+  const emptyConversationGreeting = conversationWelcome(
+    locale,
+    clockMs,
+    username,
+  );
   const [emptyConversationPrefix, emptyConversationSuffix = ""] =
-    t.emptyConversationPrompt.split("{{workspace}}");
+    emptyConversationGreeting.projectPrompt.split("{{workspace}}");
   const emptyConversationLabel = activeProject
     ? `${emptyConversationPrefix}${activeProject.name}${emptyConversationSuffix}`
-    : t.temporaryConversationPrompt;
+    : emptyConversationGreeting.temporaryPrompt;
   const activeTurnFailure = activeThreadId
     ? turnFailureNotices[activeThreadId]
     : undefined;
@@ -7540,21 +7546,22 @@ export function App() {
                     <ConversationEmptyState
                       className="conversation-empty-state"
                       icon={<ArtemisMark />}
-                      label={emptyConversationLabel}
-                      title={
-                        <h1 aria-label={emptyConversationLabel}>
+                      label={`${emptyConversationGreeting.title}. ${emptyConversationLabel}`}
+                      title={<h1>{emptyConversationGreeting.title}</h1>}
+                      detail={
+                        <p className="conversation-greeting-detail">
                           {activeProject ? (
                             <>
                               {emptyConversationPrefix}
-                              <span className="conversation-project-name">
+                              <bdi className="conversation-project-name">
                                 {activeProject.name}
-                              </span>
+                              </bdi>
                               {emptyConversationSuffix}
                             </>
                           ) : (
-                            t.temporaryConversationPrompt
+                            emptyConversationGreeting.temporaryPrompt
                           )}
-                        </h1>
+                        </p>
                       }
                     />
                   ) : (
@@ -11281,15 +11288,16 @@ export function Timeline({
           <ConversationMessage
             actions={
               <>
-                <button
-                  aria-label={t.copyMessage}
-                  className="message-action"
-                  onClick={() => void onCopyText(visibleText || message.text)}
-                  title={t.copyMessage}
-                  type="button"
-                >
-                  <CopyIcon />
-                </button>
+                <Tooltip label={t.copyMessage}>
+                  <button
+                    aria-label={t.copyMessage}
+                    className="message-action"
+                    onClick={() => void onCopyText(visibleText || message.text)}
+                    type="button"
+                  >
+                    <CopyIcon />
+                  </button>
+                </Tooltip>
                 {editable && (
                   <button
                     aria-label={t.editAndResend}
@@ -11376,15 +11384,16 @@ export function Timeline({
       return (
         <ConversationMessage
           actions={
-            <button
-              aria-label={t.copyMessage}
-              className="message-action"
-              onClick={() => void onCopyText(part.text)}
-              title={t.copyMessage}
-              type="button"
-            >
-              <CopyIcon />
-            </button>
+            <Tooltip label={t.copyMessage}>
+              <button
+                aria-label={t.copyMessage}
+                className="message-action"
+                onClick={() => void onCopyText(part.text)}
+                type="button"
+              >
+                <CopyIcon />
+              </button>
+            </Tooltip>
           }
           className="assistant-message"
           key={entry}

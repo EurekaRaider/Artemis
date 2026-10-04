@@ -2350,8 +2350,11 @@ const MIG2_EXPECTED_CSS_RULES = [
     'normal|[data-artemis-component="conversation-message"]',
     {
       position: "relative",
+      contain: "layout style",
+      "content-visibility": "visible",
       "min-inline-size": "0",
-      "margin-block-end": "calc(var(--artemis-space-5) + 2px)",
+      "margin-block-end":
+        "calc(var(--artemis-size-control-compact) + var(--artemis-space-2))",
       color: "var(--artemis-color-text-primary)",
     },
   ],
@@ -2428,9 +2431,8 @@ const MIG2_EXPECTED_CSS_RULES = [
       "block-size": "calc(var(--artemis-size-control-compact) - 2px)",
       padding: "0",
       color: "var(--artemis-color-text-tertiary)",
-      background: "var(--artemis-color-surface-base)",
-      border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-subtle)",
+      background: "transparent",
+      border: "var(--artemis-border-width-default) solid transparent",
       "border-radius": "var(--artemis-radius-control)",
       cursor: "pointer",
     },
@@ -2440,6 +2442,7 @@ const MIG2_EXPECTED_CSS_RULES = [
     {
       color: "var(--artemis-color-text-primary)",
       background: "var(--artemis-color-interaction-hover)",
+      "border-color": "var(--artemis-color-border-subtle)",
     },
   ],
   [
@@ -2676,12 +2679,6 @@ for (const [key, declarations] of MIG2_EXPECTED_CSS_RULES) {
   expectedCssRules.set(key, declarations);
 }
 expectedCssRules.set(
-  'compact-width|[data-artemis-component="conversation-message"]',
-  {
-    "margin-block-end": "var(--artemis-space-1)",
-  },
-);
-expectedCssRules.set(
   'compact-width|[data-artemis-component="queued-message-group"]',
   {
     "max-block-size": "min(17.5rem, 18vh)",
@@ -2905,7 +2902,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
     const media = normalizeWhitespace(node.params);
-    if (media === "(max-width: 1100px)" && node.nodes.length === 6) {
+    if (media === "(max-width: 1100px)" && node.nodes.length === 5) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;
     }
