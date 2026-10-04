@@ -18319,6 +18319,32 @@ function createMainWindow(): BrowserWindow {
       ) {
         window.webContents.focus();
       }
+      const selectSmokeFilesTab = async () => {
+        if (
+          !smokeMode ||
+          !requestedSmokeView?.startsWith("markdown-editor-") ||
+          requestedSmokeView === "markdown-editor-navigation-preview"
+        )
+          return;
+        const deadline = Date.now() + 30_000;
+        while (Date.now() < deadline) {
+          const menu = window
+            .getChildWindows()
+            .find((child) => !child.isDestroyed() && child.isVisible());
+          if (menu && !menu.webContents.isLoadingMainFrame()) {
+            const selected = await menu.webContents.executeJavaScript(`(() => {
+              const entry = document.querySelector('button[data-kind="file"]');
+              if (!entry) return false;
+              entry.click();
+              return true;
+            })()`);
+            if (selected) return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        throw new Error("Native Files tab entry did not render.");
+      };
+      const nativeFilesSelection = selectSmokeFilesTab();
       const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
         ? window.webContents.executeJavaScript(
             "document.querySelector('.thread-select')?.click()",
@@ -19301,16 +19327,8 @@ function createMainWindow(): BrowserWindow {
                   document.querySelector('.right-sidebar-toggle')?.click();
                   await waitFor('.workspace-tab-add');
                   document.querySelector('.workspace-tab-add')?.click();
-                  await waitFor('.workspace-tab-menu');
-                  const filesTabButton = [
-                    ...document.querySelectorAll('.workspace-tab-menu button'),
-                  ].find((button) =>
-                    (button.textContent ?? '').trim().startsWith('Files'),
-                  );
-                  if (!filesTabButton) {
-                    throw new Error('Files tab entry did not render.');
-                  }
-                  filesTabButton.click();
+                  // The host driver selects Files in the real native child
+                  // window; the menu is no longer in this renderer's DOM.
                   await waitFor(
                     '[data-artemis-component="workspace-file-tree"]',
                   );
@@ -20610,7 +20628,7 @@ function createMainWindow(): BrowserWindow {
         : process.env.ARTEMIS_SMOKE_USER_INPUT || requestedSmokeView
           ? 1_500
           : 500;
-      void prepareSmokeView
+      void Promise.all([prepareSmokeView, nativeFilesSelection])
         .then(() => new Promise((resolve) => setTimeout(resolve, settleDelay)))
         .then(async () => {
           // PR9B card-heatmap smoke: view routing has settled, so the Token
