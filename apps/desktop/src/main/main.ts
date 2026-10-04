@@ -19350,15 +19350,11 @@ function createMainWindow(): BrowserWindow {
                     '[data-artemis-component="workspace-file-tree"]',
                   );
                   const treeRowFor = (fileName) =>
-                    [
-                      ...document.querySelectorAll(
-                        '[data-artemis-component="workspace-file-tree-row"]',
-                      ),
-                    ].find(
-                      (button) => button.getAttribute('title') === fileName,
+                    waitFor(
+                      '[data-artemis-component="workspace-file-tree-row"][title="' + fileName + '"]',
                     );
                   if (view === 'markdown-editor-binary') {
-                    const binaryRow = treeRowFor('cover.png');
+                    const binaryRow = await treeRowFor('cover.png');
                     if (!binaryRow) {
                       throw new Error('Seeded binary file did not render.');
                     }
@@ -19369,7 +19365,7 @@ function createMainWindow(): BrowserWindow {
                     return;
                   }
                   if (view === 'markdown-editor-large-file') {
-                    const largeRow = treeRowFor('LARGE.ts');
+                    const largeRow = await treeRowFor('LARGE.ts');
                     if (!largeRow) {
                       throw new Error('Seeded large source file did not render.');
                     }
@@ -19382,7 +19378,7 @@ function createMainWindow(): BrowserWindow {
                     );
                     return;
                   }
-                  const markdownRow = treeRowFor('NOTES.md');
+                  const markdownRow = await treeRowFor('NOTES.md');
                   if (!markdownRow) {
                     throw new Error('Seeded markdown file did not render.');
                   }
