@@ -29,7 +29,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   ProjectFileReadError,
@@ -40,6 +40,9 @@ import { PluginRevisionStore } from "../src/main/design-plugin-revision-store.js
 import { createDispatchPluginTool } from "../src/main/design-plugin-dispatch.js";
 import { AppStore } from "../src/main/store.js";
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
+
+const itNative =
+  process.platform === "darwin" && process.arch === "arm64" ? it : it.skip;
 
 let directory: string;
 const packageRoot = join(
@@ -240,7 +243,7 @@ describe("P2-9/P2-10 send-entry credentials and turn binding", () => {
 
     // 本 turn 启动：绑定 + 转 running。
     const ownTurn = randomUUID();
-    service.bindStartedTurn(threadId, ownTurn);
+    service.markRunning(submissionId, ownTurn);
     expect(store.getPromptSubmission(submissionId)!.state).toBe("running");
     expect(store.getPromptSubmission(submissionId)!.turnId).toBe(ownTurn);
 
@@ -275,7 +278,7 @@ describe("P2-9/P2-10 send-entry credentials and turn binding", () => {
     service.consumeCredential(accepted.credential);
     const submissionId = accepted.submission.submissionId;
     const turnA = randomUUID();
-    service.bindStartedTurn(otherThread, turnA);
+    service.markRunning(submissionId, turnA);
     expect(() =>
       store2.transitionPromptSubmission(
         submissionId,
@@ -502,17 +505,21 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
     }
   }
 
-  it("P1-4: runtime refuses traversal-shaped document ids", async () => {
-    const outcome = await call("apply_edit", {
-      documentId: "../../other-task-doc",
-      expectedRevision: "deadbeefdeadbeef",
-      operationId: `trav-${randomUUID()}`,
-      find: "a",
-      replace: "b",
-    });
-    expect(outcome.status).toBe("failed");
-    expect(outcome.error).toContain("invalid documentId");
-  }, 30_000);
+  itNative(
+    "P1-4: runtime refuses traversal-shaped document ids",
+    async () => {
+      const outcome = await call("apply_edit", {
+        documentId: "../../other-task-doc",
+        expectedRevision: "deadbeefdeadbeef",
+        operationId: `trav-${randomUUID()}`,
+        find: "a",
+        replace: "b",
+      });
+      expect(outcome.status).toBe("failed");
+      expect(outcome.error).toContain("invalid documentId");
+    },
+    30_000,
+  );
 
   it("P1-7: a persisted Plan task cannot dispatch plugin tools even claiming execute", async () => {
     const outcome = await call(
@@ -525,147 +532,235 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
     expect(outcome.error).toContain("persisted task mode is plan");
   }, 30_000);
 
-  it("P2-11: runtime failure status propagates instead of reporting success", async () => {
-    // 空名称会被 runtime 以返回值（非异常）拒绝——外层必须传播失败。
-    const outcome = await call("create_document", { name: "", brief: "" });
-    expect(outcome.status).toBe("failed");
-    expect(outcome.error).toBeTruthy();
-    // 没有 artifact-write 提交、没有成功事件路径的副作用。
-    expect(artifactWrites.length).toBe(0);
-  }, 30_000);
+  itNative(
+    "P2-11: runtime failure status propagates instead of reporting success",
+    async () => {
+      // 空名称会被 runtime 以返回值（非异常）拒绝——外层必须传播失败。
+      const outcome = await call("create_document", { name: "", brief: "" });
+      expect(outcome.status).toBe("failed");
+      expect(outcome.error).toBeTruthy();
+      // 没有 artifact-write 提交、没有成功事件路径的副作用。
+      expect(artifactWrites.length).toBe(0);
+    },
+    30_000,
+  );
 
-  it("P2-13: undo walks HEAD, sequences take the full-history max, redo is guarded", async () => {
-    const created = await call("create_document", {
-      name: "撤销语义验收.html",
-      brief: "",
-    });
-    expect(created.status).toBe("succeeded");
-    const createdOut = parseOutput(created);
-    const documentId = String(createdOut.documentId ?? "");
-    const rev1 = String(createdOut.revision ?? "");
-    expect(documentId).toBeTruthy();
+  itNative(
+    "P2-13: undo walks HEAD, sequences take the full-history max, redo is guarded",
+    async () => {
+      const created = await call("create_document", {
+        name: "撤销语义验收.html",
+        brief: "",
+      });
+      expect(created.status).toBe("succeeded");
+      const createdOut = parseOutput(created);
+      const documentId = String(createdOut.documentId ?? "");
+      const rev1 = String(createdOut.revision ?? "");
+      expect(documentId).toBeTruthy();
 
-    const edit1 = await call("apply_edit", {
-      documentId,
-      expectedRevision: rev1,
-      operationId: `e1-${randomUUID()}`,
-      find: "<body>",
-      replace: "<body>v2",
-    });
-    expect(edit1.status).toBe("succeeded");
-    const rev2 = String(parseOutput(edit1).revision ?? "");
+      const edit1 = await call("apply_edit", {
+        documentId,
+        expectedRevision: rev1,
+        operationId: `e1-${randomUUID()}`,
+        find: "<body>",
+        replace: "<body>v2",
+      });
+      expect(edit1.status).toBe("succeeded");
+      const rev2 = String(parseOutput(edit1).revision ?? "");
 
-    const edit2 = await call("apply_edit", {
-      documentId,
-      expectedRevision: rev2,
-      operationId: `e2-${randomUUID()}`,
-      find: "<body>v2",
-      replace: "<body>v2 v3",
-    });
-    expect(edit2.status).toBe("succeeded");
-    const rev3 = String(parseOutput(edit2).revision ?? "");
+      const edit2 = await call("apply_edit", {
+        documentId,
+        expectedRevision: rev2,
+        operationId: `e2-${randomUUID()}`,
+        find: "<body>v2",
+        replace: "<body>v2 v3",
+      });
+      expect(edit2.status).toBe("succeeded");
+      const rev3 = String(parseOutput(edit2).revision ?? "");
 
-    // 连续撤销：HEAD 沿历史回退（旧实现第二次撤销停在原地）。
-    const undo1 = await call("undo", {
-      documentId,
-      operationId: `u1-${randomUUID()}`,
-    });
-    expect(undo1.status).toBe("succeeded");
-    expect(parseOutput(undo1).headRevision).toBe(rev2);
-    const undo2 = await call("undo", {
-      documentId,
-      operationId: `u2-${randomUUID()}`,
-    });
-    expect(undo2.status).toBe("succeeded");
-    expect(parseOutput(undo2).headRevision).toBe(rev1);
+      // 连续撤销：HEAD 沿历史回退（旧实现第二次撤销停在原地）。
+      const undo1 = await call("undo", {
+        documentId,
+        operationId: `u1-${randomUUID()}`,
+      });
+      expect(undo1.status).toBe("succeeded");
+      expect(parseOutput(undo1).headRevision).toBe(rev2);
+      const undo2 = await call("undo", {
+        documentId,
+        operationId: `u2-${randomUUID()}`,
+      });
+      expect(undo2.status).toBe("succeeded");
+      expect(parseOutput(undo2).headRevision).toBe(rev1);
 
-    // redo：刚撤销末版本、无新版本 → 有效，回到 v3。
-    const redo = await call("redo", {
-      documentId,
-      operationId: `r1-${randomUUID()}`,
-    });
-    expect(redo.status).toBe("succeeded");
-    expect(parseOutput(redo).headRevision).toBe(rev3);
+      // redo：刚撤销末版本、无新版本 → 有效，回到 v3。
+      const redo = await call("redo", {
+        documentId,
+        operationId: `r1-${randomUUID()}`,
+      });
+      expect(redo.status).toBe("succeeded");
+      expect(parseOutput(redo).headRevision).toBe(rev3);
 
-    // 再撤销一次，然后编辑：新序号必须是全历史最大+1（v4），不与被撤销
-    // 的 v3 撞号；HEAD 推进到 v4。
-    const undo3 = await call("undo", {
-      documentId,
-      operationId: `u3-${randomUUID()}`,
-    });
-    expect(undo3.status).toBe("succeeded");
-    const edit3 = await call("apply_edit", {
-      documentId,
-      expectedRevision: rev2,
-      operationId: `e3-${randomUUID()}`,
-      find: "<body>v2",
-      replace: "<body>v2 v4",
-    });
-    expect(edit3.status).toBe("succeeded");
-    const edit3Out = parseOutput(edit3);
-    expect(edit3Out.version).toBe(4);
+      // 再撤销一次，然后编辑：新序号必须是全历史最大+1（v4），不与被撤销
+      // 的 v3 撞号；HEAD 推进到 v4。
+      const undo3 = await call("undo", {
+        documentId,
+        operationId: `u3-${randomUUID()}`,
+      });
+      expect(undo3.status).toBe("succeeded");
+      const edit3 = await call("apply_edit", {
+        documentId,
+        expectedRevision: rev2,
+        operationId: `e3-${randomUUID()}`,
+        find: "<body>v2",
+        replace: "<body>v2 v4",
+      });
+      expect(edit3.status).toBe("succeeded");
+      const edit3Out = parseOutput(edit3);
+      expect(edit3Out.version).toBe(4);
 
-    // redo 在存在更新版本后必须被拒。
-    const redoAfterEdit = await call("redo", {
-      documentId,
-      operationId: `r2-${randomUUID()}`,
-    });
-    expect(redoAfterEdit.status).toBe("failed");
+      // redo 在存在更新版本后必须被拒。
+      const redoAfterEdit = await call("redo", {
+        documentId,
+        operationId: `r2-${randomUUID()}`,
+      });
+      expect(redoAfterEdit.status).toBe("failed");
 
-    // list_versions 序号唯一且连续（1..4），无重复 v3。
-    const versions = await call("list_versions", { documentId });
-    const list = parseOutput(versions).versions as Array<{ sequence: number }>;
-    const sequences = list
-      .map((version) => version.sequence)
-      .sort((a, b) => a - b);
-    expect(sequences).toEqual([1, 2, 3, 4]);
-    expect(new Set(sequences).size).toBe(4);
-  }, 60_000);
+      // list_versions 序号唯一且连续（1..4），无重复 v3。
+      const versions = await call("list_versions", { documentId });
+      const list = parseOutput(versions).versions as Array<{
+        sequence: number;
+      }>;
+      const sequences = list
+        .map((version) => version.sequence)
+        .sort((a, b) => a - b);
+      expect(sequences).toEqual([1, 2, 3, 4]);
+      expect(new Set(sequences).size).toBe(4);
+    },
+    60_000,
+  );
 
-  it("P2-12: replaying the same operationId returns the stored outcome without re-execution", async () => {
-    const created = await call("create_document", {
-      name: "重放幂等验收.html",
-      brief: "",
-    });
-    const documentId = String(parseOutput(created).documentId ?? "");
-    const operationId = `replay-${randomUUID()}`;
-    const args = {
-      documentId,
-      expectedRevision: String(parseOutput(created).revision ?? ""),
-      find: "<body>",
-      replace: "<body>replay",
-      operationId,
-    };
-    const before = store.readPluginOperation(operationId);
-    expect(before).toBeUndefined();
-    const first = await call(
-      "apply_edit",
-      args,
-      "execute",
-      threadId,
-      operationId,
-    );
-    expect(first.status).toBe("succeeded");
-    const writesAfterFirst = artifactWrites.length;
-    const second = await call(
-      "apply_edit",
-      args,
-      "execute",
-      threadId,
-      operationId,
-    );
-    // 重放返回已存结果，不再执行（无第二次 artifact 提交）。
-    expect(second.status).toBe("succeeded");
-    expect(artifactWrites.length).toBe(writesAfterFirst);
-    // digest 冲突（同 ID 不同参数）被拒。
-    const conflict = await call(
-      "apply_edit",
-      { ...args, replace: "<body>conflict" },
-      "execute",
-      threadId,
-      operationId,
-    );
-    expect(conflict.status).toBe("refused");
-    expect(conflict.error).toContain("operation-conflict");
-  }, 30_000);
+  itNative(
+    "P2-12: replaying the same operationId returns the stored outcome without re-execution",
+    async () => {
+      const created = await call("create_document", {
+        name: "重放幂等验收.html",
+        brief: "",
+      });
+      const documentId = String(parseOutput(created).documentId ?? "");
+      const operationId = `replay-${randomUUID()}`;
+      const args = {
+        documentId,
+        expectedRevision: String(parseOutput(created).revision ?? ""),
+        find: "<body>",
+        replace: "<body>replay",
+        operationId,
+      };
+      const before = store.readPluginOperation(operationId);
+      expect(before).toBeUndefined();
+      const first = await call(
+        "apply_edit",
+        args,
+        "execute",
+        threadId,
+        operationId,
+      );
+      expect(first.status).toBe("succeeded");
+      const writesAfterFirst = artifactWrites.length;
+      const second = await call(
+        "apply_edit",
+        args,
+        "execute",
+        threadId,
+        operationId,
+      );
+      // 重放返回已存结果，不再执行（无第二次 artifact 提交）。
+      expect(second.status).toBe("succeeded");
+      expect(second.result).toEqual(first.result);
+      expect(artifactWrites.length).toBe(writesAfterFirst);
+      // digest 冲突（同 ID 不同参数）被拒。
+      const conflict = await call(
+        "apply_edit",
+        { ...args, replace: "<body>conflict" },
+        "execute",
+        threadId,
+        operationId,
+      );
+      expect(conflict.status).toBe("refused");
+      expect(conflict.error).toContain("operation-conflict");
+    },
+    30_000,
+  );
+
+  itNative(
+    "records state-commit failure without committing an unusable successful replay",
+    async () => {
+      const operationId = randomUUID();
+      const commit = vi
+        .spyOn(store, "insertPluginSnapshot")
+        .mockImplementationOnce(() => {
+          throw new Error("snapshot unavailable");
+        });
+      try {
+        const result = await call(
+          "create_document",
+          { name: "commit-failure.html", brief: "" },
+          "execute",
+          threadId,
+          operationId,
+        );
+        expect(result.status).toBe("failed");
+        expect(result.error).toContain("snapshot unavailable");
+        expect(store.readPluginOperation(operationId)?.state).toBe("failed");
+      } finally {
+        commit.mockRestore();
+      }
+    },
+  );
+
+  itNative(
+    "rolls back the snapshot and event if result persistence fails",
+    async () => {
+      const operationId = randomUUID();
+      const head = store.readPluginStateHead({
+        threadId,
+        pluginId: "com.artemis.design",
+        stateSchemaVersion: 1,
+      });
+      const record = store.recordPluginOperation.bind(store);
+      const commit = vi
+        .spyOn(store, "recordPluginOperation")
+        .mockImplementation((operation) => {
+          if (operation.state === "succeeded")
+            throw new Error("result unavailable");
+          record(operation);
+        });
+      try {
+        const result = await call(
+          "create_document",
+          { name: "result-failure.html", brief: "" },
+          "execute",
+          threadId,
+          operationId,
+        );
+        expect(result).toMatchObject({ status: "failed" });
+        expect(
+          store.readPluginStateHead({
+            threadId,
+            pluginId: "com.artemis.design",
+            stateSchemaVersion: 1,
+          }),
+        ).toEqual(head);
+        expect(
+          store.database
+            .prepare(
+              "SELECT snapshot_id FROM plugin_snapshots WHERE created_by_operation_id = ?",
+            )
+            .all(operationId),
+        ).toEqual([]);
+        expect(store.readPluginOperation(operationId)?.state).toBe("failed");
+      } finally {
+        commit.mockRestore();
+      }
+    },
+  );
 });

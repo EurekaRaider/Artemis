@@ -55,6 +55,70 @@ afterAll(async () => {
 });
 
 describe("S3 panel send entry", () => {
+  it("binds only the selected candidate and validates task and revision before consuming", () => {
+    const service = new PanelSendEntryService(store);
+    const accept = (text: string) =>
+      service.acceptCandidate({
+        threadId,
+        candidateText: text,
+        bindingRevision: "rev-test",
+      });
+    const draft = accept("unsent draft");
+    const selected = accept("selected candidate");
+    const turnId = randomUUID();
+    expect(() =>
+      service.consumeForTurn(
+        selected.credential,
+        randomUUID(),
+        "rev-test",
+        turnId,
+      ),
+    ).toThrow(/task or binding/);
+    expect(() =>
+      service.consumeForTurn(
+        selected.credential,
+        threadId,
+        "new-revision",
+        turnId,
+      ),
+    ).toThrow(/task or binding/);
+    expect(
+      store.getPromptSubmission(selected.submission.submissionId)?.state,
+    ).toBe("accepted");
+    service.consumeForTurn(selected.credential, threadId, "rev-test", turnId);
+    service.reconcileTurnOutcome(threadId, "completed", turnId);
+    expect(
+      store.getPromptSubmission(selected.submission.submissionId),
+    ).toMatchObject({ state: "completed", turnId });
+    expect(
+      store.getPromptSubmission(draft.submission.submissionId),
+    ).toMatchObject({ state: "accepted" });
+    expect(() =>
+      service.consumeForTurn(
+        selected.credential,
+        threadId,
+        "rev-test",
+        randomUUID(),
+      ),
+    ).toThrow();
+  });
+
+  it("does not report interrupted queued candidates as completed by a later turn", () => {
+    const service = new PanelSendEntryService(store);
+    const accepted = service.acceptCandidate({
+      threadId,
+      candidateText: "follow-up",
+      bindingRevision: "rev-test",
+    });
+    const turnId = randomUUID();
+    service.consumeForTurn(accepted.credential, threadId, "rev-test", turnId);
+    service.recoverInterruptedSubmissions(threadId, turnId);
+    service.reconcileTurnOutcome(threadId, "completed", turnId);
+    service.reconcileTurnOutcome(threadId, "completed", randomUUID());
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("unknown");
+  });
   it("accepts a candidate and mints a credential bound to the ledger row", () => {
     const service = new PanelSendEntryService(store);
     const accepted = service.acceptCandidate({
@@ -131,7 +195,7 @@ describe("S3 panel send entry", () => {
     expect(untouched.state).toBe("accepted");
     // 消费后 running → completed；重复 completed 幂等
     service.consumeCredential(accepted.credential);
-    service.markRunning(id, undefined);
+    service.markRunning(id, randomUUID());
     const done = service.markOutcome(id, "completed");
     expect(done.state).toBe("completed");
     const again = service.markOutcome(id, "completed");
@@ -160,6 +224,22 @@ describe("S3 panel send entry", () => {
 });
 
 describe("S3 send-entry closure (discard / reconcile / recover)", () => {
+  it("records a cancelled turn as cancelled", () => {
+    const service = new PanelSendEntryService(store);
+    const accepted = service.acceptCandidate({
+      threadId,
+      candidateText: "cancel me",
+      bindingRevision: "rev-test",
+    });
+    const turnId = randomUUID();
+    service.consumeForTurn(accepted.credential, threadId, "rev-test", turnId);
+    service.reconcileTurnOutcome(threadId, "cancelled", turnId);
+    service.reconcileTurnOutcome(threadId, "cancelled", turnId);
+    service.reconcileTurnOutcome(threadId, "completed", turnId);
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("cancelled");
+  });
   it("discard transitions accepted → cancelled and voids the credential", () => {
     const service = new PanelSendEntryService(store);
     const accepted = service.acceptCandidate({
@@ -192,7 +272,7 @@ describe("S3 send-entry closure (discard / reconcile / recover)", () => {
     ).toBe("dispatching");
     // turn 启动绑定后结算：dispatching → completed（turn.completed 模拟）
     const turnId = randomUUID();
-    service.bindStartedTurn(threadId, turnId);
+    service.markRunning(accepted.submission.submissionId, turnId);
     service.reconcileTurnOutcome(threadId, "completed", turnId);
     expect(
       store.getPromptSubmission(accepted.submission.submissionId)?.state,
@@ -218,7 +298,7 @@ describe("S3 send-entry closure (discard / reconcile / recover)", () => {
       bindingRevision: "rev-test",
     });
     service.consumeCredential(b.credential);
-    service.markRunning(b.submission.submissionId, undefined);
+    service.markRunning(b.submission.submissionId, randomUUID());
     // 重启恢复（新实例模拟）
     const restarted = new PanelSendEntryService(store);
     const recovered = restarted.recoverInterruptedSubmissions(threadId);

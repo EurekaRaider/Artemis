@@ -1,13 +1,19 @@
 // 真实渲染验证：Electron 无头加载设计面板，注入测试文档，
 // 截图文件视图/预览视图/注释模式，并在页面里执行真实交互读回状态。
 import { app, BrowserWindow } from "electron";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", "..", "tmp", "design-panel-verify");
 mkdirSync(outDir, { recursive: true });
+
+const profile = mkdtempSync(join(tmpdir(), "artemis-design-panel-verify-"));
+app.setPath("userData", join(profile, "profile"));
+app.on("will-quit", () => rmSync(profile, { recursive: true, force: true }));
 
 const panelUrl =
   "file://" +
@@ -44,31 +50,33 @@ body{font-family:system-ui;margin:0;color:#27272a}
 <div class="actions"><button class="btn ghost">取消</button><button class="btn primary">保存设置</button></div>
 </div></body></html>`;
 
-app.whenReady().then(async () => {
-  const win = new BrowserWindow({
-    width: 1180,
-    height: 860,
-    show: false,
-    webPreferences: { offscreen: true },
-  });
-
-  const results = [];
-  const shot = (name) =>
-    new Promise((resolve) => {
-      // offscreen 渲染需要一帧
-      setTimeout(async () => {
-        const image = await win.webContents.capturePage();
-        writeFileSync(join(outDir, name), image.toPNG());
-        console.log("shot:", name);
-        resolve();
-      }, 350);
+app
+  .whenReady()
+  .then(async () => {
+    const win = new BrowserWindow({
+      width: 1180,
+      height: 860,
+      show: false,
+      webPreferences: { offscreen: true },
     });
 
-  await win.loadURL(panelUrl);
-  await shot("01-files-view.png");
+    const results = [];
+    const shot = (name) =>
+      new Promise((resolve) => {
+        // offscreen 渲染需要一帧
+        setTimeout(async () => {
+          const image = await win.webContents.capturePage();
+          writeFileSync(join(outDir, name), image.toPNG());
+          console.log("shot:", name);
+          resolve();
+        }, 350);
+      });
 
-  // 注入快照 + 文档（模拟宿主 port 下行）
-  await win.webContents.executeJavaScript(`
+    await win.loadURL(panelUrl);
+    await shot("01-files-view.png");
+
+    // 注入快照 + 文档（模拟宿主 port 下行）
+    await win.webContents.executeJavaScript(`
     (function(){
       window.__sent = [];
       const fakePort = {
@@ -86,72 +94,86 @@ app.whenReady().then(async () => {
       ], projectName: "2B_Hifi" } });
     })();
   `);
-  await shot("02-files-populated.png");
+    await shot("02-files-populated.png");
 
-  // 打开第一个文档
-  await win.webContents.executeJavaScript(
-    `document.querySelectorAll(".design-file-card")[0].click()`,
-  );
-  await win.webContents.executeJavaScript(
-    `window.__fromHost({ type: "document-html", html: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
-  );
-  await shot("03-preview-parsed.png");
+    // 打开第一个文档
+    await win.webContents.executeJavaScript(
+      `document.querySelectorAll(".design-file-card")[0].click()`,
+    );
+    await win.webContents.executeJavaScript(
+      `window.__fromHost({ type: "document-html", html: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
+    );
+    await shot("03-preview-parsed.png");
 
-  // 设备切手机
-  await win.webContents.executeJavaScript(`
+    // 设备切手机
+    await win.webContents.executeJavaScript(`
     document.querySelector('[data-dz-device="mobile"]').click();
   `);
-  await shot("04-preview-mobile.png");
-  await win.webContents.executeJavaScript(
-    `document.querySelector('[data-dz-device="desktop"]').click();`,
-  );
+    await shot("04-preview-mobile.png");
+    await win.webContents.executeJavaScript(
+      `document.querySelector('[data-dz-device="desktop"]').click();`,
+    );
 
-  // 代码视图
-  await win.webContents.executeJavaScript(
-    `document.getElementById("dzModeSource").click()`,
-  );
-  await shot("05-source-view.png");
-  await win.webContents.executeJavaScript(
-    `document.getElementById("dzModePreview").click()`,
-  );
+    // 代码视图
+    await win.webContents.executeJavaScript(
+      `document.getElementById("dzModeSource").click()`,
+    );
+    await shot("05-source-view.png");
+    await win.webContents.executeJavaScript(
+      `document.getElementById("dzModePreview").click()`,
+    );
 
-  // 注释模式：点 hero h1
-  await win.webContents.executeJavaScript(`
+    // 注释模式：点 hero h1
+    await win.webContents.executeJavaScript(`
     document.getElementById("dzCommentBtn").click();
-    const h1 = document.querySelector("#dzMockDesktop .hero h1");
-    h1.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   `);
-  await shot("06-annotation-composer.png");
+    const documentFrame = win.webContents.mainFrame.frames.find(
+      (frame) => frame.url === "about:srcdoc",
+    );
+    assert.ok(documentFrame, "Generated document has its own frame");
+    // Mode changes cross a postMessage boundary into the sandboxed frame.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await documentFrame.executeJavaScript(
+      `document.querySelector('.hero h1').click()`,
+    );
+    await shot("06-annotation-composer.png");
+    assert.equal(
+      await win.webContents.executeJavaScript(
+        `document.getElementById("dzNoteComposer").hidden`,
+      ),
+      false,
+      "Annotation bridge opens the composer",
+    );
 
-  // 保存注释 → pin
-  await win.webContents.executeJavaScript(`
+    // 保存注释 → pin
+    await win.webContents.executeJavaScript(`
     const input = document.getElementById("dzNoteInput");
     input.value = "标题字号偏大";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     document.getElementById("dzNoteSave").click();
   `);
-  await shot("07-annotation-pin.png");
+    await shot("07-annotation-pin.png");
 
-  // 评论面板
-  await win.webContents.executeJavaScript(
-    `document.getElementById("dzCommentListBtn").click()`,
-  );
-  await shot("08-comment-panel.png");
-  await win.webContents.executeJavaScript(
-    `document.getElementById("dzCommentPanelClose").click()`,
-  );
+    // 评论面板
+    await win.webContents.executeJavaScript(
+      `document.getElementById("dzCommentListBtn").click()`,
+    );
+    await shot("08-comment-panel.png");
+    await win.webContents.executeJavaScript(
+      `document.getElementById("dzCommentPanelClose").click()`,
+    );
 
-  // 画板模式
-  await win.webContents.executeJavaScript(
-    `document.getElementById("dzDrawBtn").click()`,
-  );
-  await shot("09-draw-mode.png");
-  await win.webContents.executeJavaScript(
-    `document.getElementById("dzDrawBtn").click()`,
-  );
+    // 画板模式
+    await win.webContents.executeJavaScript(
+      `document.getElementById("dzDrawBtn").click()`,
+    );
+    await shot("09-draw-mode.png");
+    await win.webContents.executeJavaScript(
+      `document.getElementById("dzDrawBtn").click()`,
+    );
 
-  // 版本历史
-  await win.webContents.executeJavaScript(`
+    // 版本历史
+    await win.webContents.executeJavaScript(`
     document.getElementById("dzHistoryBtn").click();
     window.__fromHost({ type: "versions", versions: { status: "succeeded", output: JSON.stringify({
       versions: [
@@ -160,18 +182,17 @@ app.whenReady().then(async () => {
         { sequence: 1, revision: "aaaa1111aaaa1111" },
       ] }) } });
   `);
-  await shot("10-history.png");
+    await shot("10-history.png");
 
-  // 交互读回验证
-  const interaction = await win.webContents.executeJavaScript(`
+    // 交互读回验证
+    const interaction = await win.webContents.executeJavaScript(`
     (function(){
       const r = {};
       r.fileCards = document.querySelectorAll(".design-file-card").length;
       r.tabs = document.querySelectorAll(".design-ws-tab").length;
       r.cats = Array.from(document.querySelectorAll(".design-cat")).map(c => c.textContent.trim());
-      r.parsedButtons = document.querySelectorAll("#dzMockDesktop .btn").length;
-      r.parsedH1 = document.querySelector("#dzMockDesktop .hero h1")?.textContent;
-      r.scriptStripped = !document.querySelector("#dzMockDesktop script");
+      r.documentSandbox = document.getElementById("dzDocFrame").getAttribute("sandbox");
+      r.hostHasDocumentNodes = Boolean(document.querySelector("#dzMockDesktop .hero"));
       r.sourceLines = document.querySelectorAll("#dzSource .ln").length;
       r.pinCount = document.querySelectorAll("#dzPinLayer .dz-pin").length;
       r.commentCount = document.getElementById("dzCount").textContent;
@@ -183,12 +204,28 @@ app.whenReady().then(async () => {
       return r;
     })();
   `);
-  results.push(interaction);
-  console.log("interaction:", JSON.stringify(interaction, null, 2));
+    const documentContent = await documentFrame.executeJavaScript(
+      `({ buttons: document.querySelectorAll('.btn').length, title: document.querySelector('.hero h1')?.textContent, isolated: (() => { try { void parent.document.body; return false; } catch { return true; } })() })`,
+    );
+    assert.equal(documentContent.buttons, 2);
+    assert.equal(documentContent.title, "账户设置");
+    assert.equal(documentContent.isolated, true);
+    assert.equal(interaction.documentSandbox, "allow-scripts");
+    assert.equal(interaction.hostHasDocumentNodes, false);
+    assert.equal(interaction.pinCount, 1);
+    assert.equal(interaction.historyItems, 3);
+    Object.assign(interaction, { documentContent });
+    results.push(interaction);
+    console.log("interaction:", JSON.stringify(interaction, null, 2));
 
-  writeFileSync(
-    join(outDir, "interaction.json"),
-    JSON.stringify(interaction, null, 2),
-  );
-  app.quit();
-});
+    writeFileSync(
+      join(outDir, "interaction.json"),
+      JSON.stringify(interaction, null, 2),
+    );
+    win.destroy();
+    app.quit();
+  })
+  .catch((error) => {
+    console.error(error);
+    app.exit(1);
+  });

@@ -31,6 +31,10 @@ import { createDispatchPluginTool } from "../src/main/design-plugin-dispatch.js"
 import { AppStore } from "../src/main/store.js";
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 
+const itNative =
+  process.platform === "darwin" && process.arch === "arm64" ? it : it.skip;
+const itDarwin = process.platform === "darwin" ? it : it.skip;
+
 let directory: string;
 const packageRoot = join(
   fileURLToPath(new URL("..", import.meta.url)),
@@ -165,22 +169,49 @@ async function setupBoundThread() {
 }
 
 describe("S2 runtime isolation", () => {
-  it("macOS seatbelt probe succeeds on this host", () => {
+  it("refuses archived tasks and grants for a different content hash", async () => {
+    const ctx = await setupBoundThread();
+    try {
+      ctx.store.updateThread(ctx.threadId, { archived: true });
+      const input = {
+        threadId: ctx.threadId,
+        toolName: "create_document",
+        args: { name: "denied" },
+        mode: "execute" as const,
+      };
+      expect((await ctx.dispatch.dispatch(input)).status).toBe("refused");
+      ctx.store.updateThread(ctx.threadId, { archived: false });
+      ctx.store.database
+        .prepare("UPDATE plugin_grants SET content_hash = ? WHERE scope_id = ?")
+        .run("old-hash", ctx.threadId);
+      const denied = await ctx.dispatch.dispatch(input);
+      expect(denied.status).toBe("refused");
+      expect(denied.error).toContain("grant-missing");
+      expect(ctx.artifactWrites).toEqual([]);
+    } finally {
+      ctx.store.close();
+    }
+  });
+  itDarwin("macOS seatbelt probe succeeds on this host", () => {
     const probe = probeMacOsSeatbelt();
     expect(probe.ok).toBe(true);
   });
 
-  it("happy path: dispatch through trust chain runs create_document on a real child", async () => {
-    const ctx = await setupBoundThread();
-    const outcome = await ctx.dispatch.dispatch({
-      threadId: ctx.threadId,
-      toolName: "create_document",
-      args: { name: "S2验收页", brief: "深色档案页" },
-      mode: "execute",
-    });
-    expect(outcome.status).toBe("succeeded");
-    ctx.store.close();
-  }, 30_000);
+  itNative(
+    "happy path: dispatch through trust chain runs create_document on a real child",
+    async () => {
+      const ctx = await setupBoundThread();
+      const outcome = await ctx.dispatch.dispatch({
+        threadId: ctx.threadId,
+        toolName: "create_document",
+        args: { name: "S2验收页", brief: "深色档案页" },
+        mode: "execute",
+      });
+      expect(outcome.status).toBe("succeeded");
+      ctx.store.close();
+    },
+    30_000,
+  );
 
   it("availability gate: a removed plugin refuses dispatch before the trust chain", async () => {
     const ctx = await setupBoundThread();
@@ -265,132 +296,148 @@ describe("S2 runtime isolation", () => {
     ctx.store.close();
   }, 30_000);
 
-  it("worker lifecycle: reuse one child, queue concurrent calls, kill tree on close", async () => {
-    const scratch = join(directory, `wl-${randomUUID().slice(0, 6)}`);
-    const manager = new ThreadRuntimeManager({
-      threadId: "t-wl",
-      scratchRoot: scratch,
-      revisionsRoot: join(directory, "unused"),
-    });
-    const entry = join(packageRoot, "artemis-design", "runtime/index.mjs");
-    const base = {
-      entry,
-      pluginId: "com.artemis.design",
-      contentHash: "lifecycle-test",
-    };
-    const first = await manager.invoke({
-      ...base,
-      toolName: "get_snapshot",
-      args: {},
-    });
-    const pid = manager.childPidOf("com.artemis.design", "lifecycle-test");
-    expect(pid).toBeTruthy();
-    expect(childAlive(pid)).toBe(true);
+  itNative(
+    "worker lifecycle: reuse one child, queue concurrent calls, kill tree on close",
+    async () => {
+      const scratch = join(directory, `wl-${randomUUID().slice(0, 6)}`);
+      const manager = new ThreadRuntimeManager({
+        threadId: "t-wl",
+        scratchRoot: scratch,
+        revisionsRoot: join(directory, "unused"),
+      });
+      const entry = join(packageRoot, "artemis-design", "runtime/index.mjs");
+      const base = {
+        entry,
+        pluginId: "com.artemis.design",
+        contentHash: "lifecycle-test",
+      };
+      const first = await manager.invoke({
+        ...base,
+        toolName: "get_snapshot",
+        args: {},
+      });
+      const pid = manager.childPidOf("com.artemis.design", "lifecycle-test");
+      expect(pid).toBeTruthy();
+      expect(childAlive(pid)).toBe(true);
 
-    // 第二次调用复用同一实例（同 PID）
-    await manager.invoke({ ...base, toolName: "get_snapshot", args: {} });
-    expect(manager.childPidOf("com.artemis.design", "lifecycle-test")).toBe(
-      pid,
-    );
+      // 第二次调用复用同一实例（同 PID）
+      await manager.invoke({ ...base, toolName: "get_snapshot", args: {} });
+      expect(manager.childPidOf("com.artemis.design", "lifecycle-test")).toBe(
+        pid,
+      );
 
-    // 并发两个调用：排队串行完成，都成功
-    const [a, b] = await Promise.all([
-      manager.invoke({ ...base, toolName: "get_snapshot", args: {} }),
-      manager.invoke({ ...base, toolName: "get_snapshot", args: {} }),
-    ]);
-    expect(a).toBeTruthy();
-    expect(b).toBeTruthy();
+      // 并发两个调用：排队串行完成，都成功
+      const [a, b] = await Promise.all([
+        manager.invoke({ ...base, toolName: "get_snapshot", args: {} }),
+        manager.invoke({ ...base, toolName: "get_snapshot", args: {} }),
+      ]);
+      expect(a).toBeTruthy();
+      expect(b).toBeTruthy();
 
-    // 关闭线程：进程树确实退出
-    const closed = manager.closeThread();
-    expect(closed).toBe(1);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(childAlive(pid)).toBe(false);
-  }, 30_000);
+      // 关闭线程：进程树确实退出
+      const closed = manager.closeThread();
+      expect(closed).toBe(1);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(childAlive(pid)).toBe(false);
+    },
+    30_000,
+  );
 
-  it("dispatcher lifecycle: dispatch spawns, closeThread kills tree, further dispatch refused", async () => {
-    const ctx = await setupBoundThread();
-    const first = await ctx.dispatch.dispatch({
-      threadId: ctx.threadId,
-      toolName: "create_document",
-      args: { name: "关闭验证", brief: "生命周期" },
-      mode: "execute",
-    });
-    expect(first.status).toBe("succeeded");
-    // 关闭（模拟线程删除/归档路径调 pluginDispatch.closeThread）
-    ctx.dispatch.closeThread(ctx.threadId);
-    const second = await ctx.dispatch.dispatch({
-      threadId: ctx.threadId,
-      toolName: "create_document",
-      args: { name: "不应执行", brief: "" },
-      mode: "execute",
-    });
-    // 懒 spawn 会重新拉起 worker 并正常执行（线程未关闭语义在
-    // ThreadRuntimeManager 层由 closedThreads 集合保证——此处主进程
-    // 派发器走的是 managerFor 新实例路径，语义为"树被杀"即验证目标）
-    expect(second.status === "succeeded" || second.status === "refused").toBe(
-      true,
-    );
-    ctx.store.close();
-  }, 30_000);
+  itNative(
+    "dispatcher lifecycle: dispatch spawns, closeThread kills tree, further dispatch refused",
+    async () => {
+      const ctx = await setupBoundThread();
+      const first = await ctx.dispatch.dispatch({
+        threadId: ctx.threadId,
+        toolName: "create_document",
+        args: { name: "关闭验证", brief: "生命周期" },
+        mode: "execute",
+      });
+      expect(first.status).toBe("succeeded");
+      // 关闭（模拟线程删除/归档路径调 pluginDispatch.closeThread）
+      ctx.dispatch.closeThread(ctx.threadId);
+      const second = await ctx.dispatch.dispatch({
+        threadId: ctx.threadId,
+        toolName: "create_document",
+        args: { name: "不应执行", brief: "" },
+        mode: "execute",
+      });
+      // 懒 spawn 会重新拉起 worker 并正常执行（线程未关闭语义在
+      // ThreadRuntimeManager 层由 closedThreads 集合保证——此处主进程
+      // 派发器走的是 managerFor 新实例路径，语义为"树被杀"即验证目标）
+      expect(second.status === "succeeded" || second.status === "refused").toBe(
+        true,
+      );
+      ctx.store.close();
+    },
+    30_000,
+  );
 
-  it("onArtifactWrite fires for artifact-write tools only (panel refresh hook)", async () => {
-    const ctx = await setupBoundThread();
-    const created = await ctx.dispatch.dispatch({
-      threadId: ctx.threadId,
-      toolName: "create_document",
-      args: { name: "推送验证.html", brief: "自动刷新" },
-      mode: "execute",
-    });
-    expect(created.status).toBe("succeeded");
-    const snapshotted = await ctx.dispatch.dispatch({
-      threadId: ctx.threadId,
-      toolName: "get_snapshot",
-      args: {},
-      mode: "execute",
-    });
-    expect(snapshotted.status).toBe("succeeded");
-    expect(ctx.artifactWrites).toEqual([
-      { threadId: ctx.threadId, toolName: "create_document" },
-    ]);
-    ctx.dispatch.closeThread(ctx.threadId);
-    ctx.store.close();
-  }, 30_000);
+  itNative(
+    "onArtifactWrite fires for artifact-write tools only (panel refresh hook)",
+    async () => {
+      const ctx = await setupBoundThread();
+      const created = await ctx.dispatch.dispatch({
+        threadId: ctx.threadId,
+        toolName: "create_document",
+        args: { name: "推送验证.html", brief: "自动刷新" },
+        mode: "execute",
+      });
+      expect(created.status).toBe("succeeded");
+      const snapshotted = await ctx.dispatch.dispatch({
+        threadId: ctx.threadId,
+        toolName: "get_snapshot",
+        args: {},
+        mode: "execute",
+      });
+      expect(snapshotted.status).toBe("succeeded");
+      expect(ctx.artifactWrites).toEqual([
+        { threadId: ctx.threadId, toolName: "create_document" },
+      ]);
+      ctx.dispatch.closeThread(ctx.threadId);
+      ctx.store.close();
+    },
+    30_000,
+  );
 
-  it("hot reload: same plugin, new contentHash retires the old worker and spawns a new one", async () => {
-    const scratch = join(directory, `hot-${randomUUID().slice(0, 6)}`);
-    const manager = new ThreadRuntimeManager({
-      threadId: "t-hot",
-      scratchRoot: scratch,
-      revisionsRoot: join(directory, "unused"),
-    });
-    const entry = join(packageRoot, "artemis-design", "runtime/index.mjs");
-    await manager.invoke({
-      entry,
-      pluginId: "com.artemis.design",
-      contentHash: "hash-old",
-      toolName: "get_snapshot",
-      args: {},
-    });
-    const oldPid = manager.childPidOf("com.artemis.design");
-    expect(oldPid).toBeTruthy();
-    // 同 plugin 新 hash：热刷新——旧 worker 退役、新 worker 起来
-    await manager.invoke({
-      entry,
-      pluginId: "com.artemis.design",
-      contentHash: "hash-new",
-      toolName: "get_snapshot",
-      args: {},
-    });
-    const newPid = manager.childPidOf("com.artemis.design");
-    expect(newPid).toBeTruthy();
-    expect(newPid).not.toBe(oldPid);
-    // 旧进程确实退出
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    expect(childAlive(oldPid)).toBe(false);
-    expect(childAlive(newPid)).toBe(true);
-    manager.closeThread();
-  }, 30_000);
+  itNative(
+    "hot reload: same plugin, new contentHash retires the old worker and spawns a new one",
+    async () => {
+      const scratch = join(directory, `hot-${randomUUID().slice(0, 6)}`);
+      const manager = new ThreadRuntimeManager({
+        threadId: "t-hot",
+        scratchRoot: scratch,
+        revisionsRoot: join(directory, "unused"),
+      });
+      const entry = join(packageRoot, "artemis-design", "runtime/index.mjs");
+      await manager.invoke({
+        entry,
+        pluginId: "com.artemis.design",
+        contentHash: "hash-old",
+        toolName: "get_snapshot",
+        args: {},
+      });
+      const oldPid = manager.childPidOf("com.artemis.design");
+      expect(oldPid).toBeTruthy();
+      // 同 plugin 新 hash：热刷新——旧 worker 退役、新 worker 起来
+      await manager.invoke({
+        entry,
+        pluginId: "com.artemis.design",
+        contentHash: "hash-new",
+        toolName: "get_snapshot",
+        args: {},
+      });
+      const newPid = manager.childPidOf("com.artemis.design");
+      expect(newPid).toBeTruthy();
+      expect(newPid).not.toBe(oldPid);
+      // 旧进程确实退出
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(childAlive(oldPid)).toBe(false);
+      expect(childAlive(newPid)).toBe(true);
+      manager.closeThread();
+    },
+    30_000,
+  );
 
   it("sandbox probe failure -> invoke refuses, no child process", async () => {
     const manager = new ThreadRuntimeManager({

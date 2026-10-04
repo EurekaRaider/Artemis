@@ -13,13 +13,8 @@
 //   ⑥ a missing sandbox-exec wrapper REFUSES startup — no unsandboxed
 //      fallback, and no child process is created
 //
-// Review item 2 (P2) — closing the runtime must reclaim the whole process
-// tree, not just the direct child (verified with real long-lived
-// grandchildren spawned by the runtime itself):
-//   ① normal task close (dispose) kills the runtime and its grandchild
-//   ② plugin unload / hot reload retires the previous revision's tree
-//   ③ abnormal worker exit still reaps leftover grandchildren, and a later
-//     dispose() is a safe no-op
+// Review item 2 (P2): child creation is denied so helpers cannot detach
+// from host ownership. Close, hot reload and crashes reap the worker.
 //
 // Skip conditions: every case needs /usr/bin/sandbox-exec (macOS). On any
 // other platform the describes skip — the worker refuses to spawn there by
@@ -28,7 +23,6 @@
 // loopback listeners the beforeAll setup fails loudly instead of silently
 // passing.
 
-import { spawn } from "node:child_process";
 import {
   mkdir,
   mkdtemp,
@@ -134,8 +128,7 @@ process.stdin.on("data", (chunk) => {
 });
 `;
 
-// Tree runtime: spawns a REAL long-lived grandchild (marker string lets the
-// suite's safety net reap stragglers) and can crash itself on demand.
+// Lifecycle probe: attempts normal/detached child creation and can crash itself.
 const TREE_RUNTIME_SOURCE = `
 import { spawn } from "node:child_process";
 
@@ -147,12 +140,15 @@ function send(message) {
 }
 
 const tools = {
-  async spawn_child() {
+  async spawn_child(args) {
     const child = spawn(process.execPath, [
       "-e",
       "process.stdout.write('artemis-dp-treechild-alive'); setInterval(function () {}, 1000);",
-    ]);
-    return { status: "succeeded", output: String(child.pid) };
+    ], { detached: Boolean(args.detached), stdio: "ignore" });
+    return await new Promise(resolve => {
+      child.once("error", error => resolve({ status: "failed", error: String(error.code) }));
+      child.once("spawn", () => resolve({ status: "succeeded", output: String(child.pid) }));
+    });
   },
   async crash() {
     // Let the tool.result frame flush, then die abnormally.
@@ -196,6 +192,15 @@ let probeEntry: string;
 let treeEntry: string;
 let scratchCounter = 0;
 
+const liveWorkers = new Set<PluginRuntimeWorker>();
+function trackedWorker(
+  options: ConstructorParameters<typeof PluginRuntimeWorker>[0],
+) {
+  const worker = new PluginRuntimeWorker(options);
+  liveWorkers.add(worker);
+  return worker;
+}
+
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "dp-worker-sandbox-"));
   pluginDir = join(root, "plugin");
@@ -213,16 +218,9 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(async () => {
+  for (const worker of liveWorkers) worker.dispose();
   await rm(root, { recursive: true, force: true });
   await rm(outsideDir, { recursive: true, force: true });
-});
-
-// Safety net: nothing this suite spawned may outlive it.
-process.on("exit", () => {
-  if (!darwin) return;
-  spawn("pkill", ["-f", "artemis-dp-treechild-alive"]);
-  spawn("pkill", ["-f", "dp-sandbox-probe-runtime.mjs"]);
-  spawn("pkill", ["-f", "dp-sandbox-tree-runtime.mjs"]);
 });
 
 function alive(pid: number | undefined): boolean {
@@ -256,7 +254,7 @@ async function freshScratch(label: string): Promise<string> {
 }
 
 function probeWorker(cwd: string): PluginRuntimeWorker {
-  return new PluginRuntimeWorker({
+  return trackedWorker({
     entry: probeEntry,
     pluginId: "com.artemis.sandbox.probe",
     contentHash: "sandbox-suite",
@@ -357,7 +355,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
 
   it("⑤ keeps the real packaged plugin runtime working under the sandbox", async () => {
     const scratch = await freshScratch("packaged");
-    const worker = new PluginRuntimeWorker({
+    const worker = trackedWorker({
       entry: packagedNotesEntry,
       pluginId: "com.artemis.s0.test-notes",
       contentHash: "sandbox-suite-packaged",
@@ -379,7 +377,7 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
   }, 30_000);
 
   it("⑥ refuses to start when the seatbelt wrapper is missing (no fallback)", async () => {
-    const worker = new PluginRuntimeWorker({
+    const worker = trackedWorker({
       entry: probeEntry,
       pluginId: "com.artemis.sandbox.probe",
       contentHash: "sandbox-suite",
@@ -393,115 +391,86 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Review item 2 (P2): the whole tree dies, not just the direct child.
+// Process lifecycle: design runtimes cannot fork helpers that detach from
+// the host-owned process group. Their own process is reaped on every exit.
 // ---------------------------------------------------------------------------
 
-describeDarwin(
-  "design-plugin runtime process-tree reclamation (real spawn)",
-  () => {
-    it("① normal task close: dispose kills the runtime and its grandchild", async () => {
-      const worker = new PluginRuntimeWorker({
+describeDarwin("design-plugin runtime process ownership (real spawn)", () => {
+  it.each([false, true])(
+    "refuses child creation (detached=%s) and remains usable",
+    async (detached) => {
+      const worker = trackedWorker({
         entry: treeEntry,
         pluginId: "com.artemis.sandbox.tree",
-        contentHash: "tree-normal",
-        cwd: await freshScratch("tree-normal"),
+        contentHash: "tree-deny",
+        cwd: await freshScratch("tree-deny"),
       });
-      await worker.start();
-      const spawned = await worker.invoke("spawn_child", {});
-      expect(spawned.status).toBe("succeeded");
-      const grandchild = Number(spawned.output);
-      const runtimePid = worker.childPid();
-      expect(grandchild).toBeGreaterThan(0);
-      expect(alive(grandchild)).toBe(true);
-      expect(alive(runtimePid)).toBe(true);
-
-      worker.dispose();
-      expect(worker.isDisposed()).toBe(true);
-      // The grandchild is NOT the worker's direct child — only a process-group
-      // kill reaches it. Also verifies zombie reaping: alive() uses signal 0,
-      // which still succeeds for unreaped zombies.
-      expect(await until(5_000, () => !alive(runtimePid))).toBe(true);
-      expect(await until(5_000, () => !alive(grandchild))).toBe(true);
-    }, 30_000);
-
-    it("② plugin unload (hot reload) retires the previous revision's tree", async () => {
-      const manager = new ThreadRuntimeManager({
-        threadId: "t-sandbox-unload",
-        scratchRoot: join(root, "mgr-scratch"),
-        revisionsRoot: join(root, "unused-revisions"),
-      });
+      let escapedPid;
       try {
-        const base = (contentHash: string) => ({
-          entry: treeEntry,
-          pluginId: "com.artemis.sandbox.tree",
-          contentHash,
-          toolName: "spawn_child",
-          args: {},
-        });
-        const first = (await manager.invoke(base("hash-old"))) as {
-          status: string;
-          output?: string;
-        };
-        expect(first.status).toBe("succeeded");
-        const oldPid = manager.childPidOf(
-          "com.artemis.sandbox.tree",
-          "hash-old",
-        );
-        const oldGrandchild = Number(first.output);
-        expect(alive(oldPid)).toBe(true);
-        expect(alive(oldGrandchild)).toBe(true);
-
-        // Unload == hot reload to a new content hash: the old worker is
-        // retired before its replacement serves anything.
-        const second = (await manager.invoke(base("hash-new"))) as {
-          status: string;
-          output?: string;
-        };
-        expect(second.status).toBe("succeeded");
-        const newPid = manager.childPidOf(
-          "com.artemis.sandbox.tree",
-          "hash-new",
-        );
-        expect(newPid).toBeTruthy();
-        expect(newPid).not.toBe(oldPid);
-
-        expect(
-          await until(5_000, () => !alive(oldPid) && !alive(oldGrandchild)),
-        ).toBe(true);
-        expect(alive(newPid)).toBe(true);
+        await worker.start();
+        const spawned = await worker.invoke("spawn_child", { detached });
+        if (spawned.status === "succeeded") escapedPid = Number(spawned.output);
+        expect(spawned.status).toBe("failed");
+        expect(spawned.error).toMatch(/EPERM|EACCES/);
+        expect(worker.isDisposed()).toBe(false);
       } finally {
-        manager.closeThread();
+        worker.dispose();
+        if (escapedPid) {
+          try {
+            process.kill(escapedPid, "SIGKILL");
+          } catch {}
+        }
       }
-    }, 30_000);
+    },
+  );
 
-    it("③ abnormal worker exit: leftover grandchildren are reaped and dispose stays safe", async () => {
-      const worker = new PluginRuntimeWorker({
-        entry: treeEntry,
-        pluginId: "com.artemis.sandbox.tree",
-        contentHash: "tree-crash",
-        cwd: await freshScratch("tree-crash"),
-      });
+  it("normal close kills the runtime and hot reload replaces it", async () => {
+    const manager = new ThreadRuntimeManager({
+      threadId: "t-sandbox-unload",
+      scratchRoot: join(root, "mgr-scratch"),
+      revisionsRoot: root,
+      sandboxProbe: () => ({ ok: true, implementation: "macos-seatbelt" }),
+    });
+    const base = {
+      entry: treeEntry,
+      pluginId: "com.artemis.sandbox.tree",
+      toolName: "spawn_child",
+      args: {},
+    };
+    let newPid;
+    try {
+      await manager.invoke({ ...base, contentHash: "old" });
+      const oldPid = manager.childPidOf(base.pluginId, "old");
+      expect(alive(oldPid)).toBe(true);
+      await manager.invoke({ ...base, contentHash: "new" });
+      newPid = manager.childPidOf(base.pluginId, "new");
+      expect(newPid).not.toBe(oldPid);
+      expect(await until(5000, () => !alive(oldPid))).toBe(true);
+      expect(alive(newPid)).toBe(true);
+    } finally {
+      manager.closeThread();
+    }
+    expect(await until(5000, () => !alive(newPid))).toBe(true);
+  });
+
+  it("abnormal exit disposes the worker and refuses stale reuse", async () => {
+    const worker = trackedWorker({
+      entry: treeEntry,
+      pluginId: "com.artemis.sandbox.tree",
+      contentHash: "tree-crash",
+      cwd: await freshScratch("tree-crash"),
+    });
+    try {
       await worker.start();
-      const spawned = await worker.invoke("spawn_child", {});
-      expect(spawned.status).toBe("succeeded");
-      const grandchild = Number(spawned.output);
-      const runtimePid = worker.childPid();
-      expect(alive(grandchild)).toBe(true);
-
-      // The crash tool replies and then exits(87). The invoke may resolve or
-      // reject depending on frame flush timing; the cleanup guarantee is the
-      // same either way.
-      await worker.invoke("crash", {}).then(
-        () => undefined,
-        () => undefined,
-      );
-      expect(await until(5_000, () => !alive(runtimePid))).toBe(true);
-      // Exit-path cleanup: the grandchild must die with the group even though
-      // dispose() has not been called yet.
-      expect(await until(5_000, () => !alive(grandchild))).toBe(true);
-      // Post-crash dispose is a safe no-op (no stale-pid group kill, no throw).
-      expect(() => worker.dispose()).not.toThrow();
+      const pid = worker.childPid();
+      await worker.invoke("crash", {}).catch(() => undefined);
+      expect(await until(5000, () => !alive(pid))).toBe(true);
       expect(worker.isDisposed()).toBe(true);
-    }, 30_000);
-  },
-);
+      await expect(worker.invoke("spawn_child", {})).rejects.toThrow(
+        /disposed|not ready/,
+      );
+    } finally {
+      worker.dispose();
+    }
+  });
+});

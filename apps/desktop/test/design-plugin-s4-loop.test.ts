@@ -17,6 +17,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PluginRuntimeWorker } from "../src/main/design-plugin-runtime-worker.js";
 
+const describeDarwin = process.platform === "darwin" ? describe : describe.skip;
+
 let directory: string;
 let worker: PluginRuntimeWorker;
 const packageRoot = join(
@@ -34,7 +36,7 @@ beforeAll(async () => {
     contentHash: "s4-test",
     cwd: scratch,
   });
-  await worker.start();
+  if (process.platform === "darwin") await worker.start();
 });
 
 afterAll(async () => {
@@ -50,7 +52,7 @@ function output(result: {
   return JSON.parse(result.output ?? "{}");
 }
 
-describe("S4 design document loop", () => {
+describeDarwin("S4 design document loop", () => {
   let documentId = "";
   let headRevision = "";
 
@@ -166,7 +168,7 @@ describe("S4 design document loop", () => {
   });
 });
 
-describe("S4 undo/redo (auditable head moves)", () => {
+describeDarwin("S4 undo/redo (auditable head moves)", () => {
   let documentId = "";
   let v1Revision = "";
   let v2Revision = "";

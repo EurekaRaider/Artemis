@@ -23,6 +23,8 @@ import { PluginRuntimeWorker } from "../src/main/design-plugin-runtime-worker.js
 import { AppStore } from "../src/main/store.js";
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 
+const describeDarwin = process.platform === "darwin" ? describe : describe.skip;
+
 let directory: string;
 const packageRoot = join(
   fileURLToPath(new URL("..", import.meta.url)),
@@ -37,7 +39,7 @@ afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-describe("artemis-design S1 end-to-end", () => {
+describeDarwin("artemis-design S1 end-to-end", () => {
   it("installs, binds a thread, invokes the runtime, and survives restart", async () => {
     // 1. Catalog loads the first-party package without business branches.
     const catalog = new DesignPluginCatalog();
