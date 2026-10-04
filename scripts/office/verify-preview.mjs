@@ -148,6 +148,10 @@ app.whenReady().then(async()=>{
    await js('window.advance('+(index+3)+')');
    await wait('document.querySelector(".office-workbench")?.getAttribute("aria-label") === '+JSON.stringify(sample.path));
    if(sample.format==='excel') {
+     // Sheet view is persisted across documents. Explicitly select the grid
+     // before testing it, including after the previous sample chose print.
+     await wait('[...document.querySelectorAll(".office-view-modes button")].some(button=>button.textContent.includes("数据视图"))');
+     await js('[...document.querySelectorAll(".office-view-modes button")].find(button=>button.textContent.includes("数据视图")).click()');
      await wait('document.querySelector(".office-sheet-grid")');
      await js('[...document.querySelectorAll(".office-view-modes button")].find(button=>button.textContent.includes("打印预览")).click()');
    }
