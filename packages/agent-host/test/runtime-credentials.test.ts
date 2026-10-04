@@ -46,3 +46,14 @@ describe("RuntimeCredentialStore", () => {
     });
   });
 });
+
+it("does not publish refreshed credentials until host persistence succeeds", async () => {
+  const store = new RuntimeCredentialStore(async () => {
+    throw new Error("persistence failed");
+  });
+  store.replace({ p: { type: "api_key", key: "old" } });
+  await expect(
+    store.modify("p", async () => ({ type: "api_key", key: "new" })),
+  ).rejects.toThrow("persistence failed");
+  expect(await store.read("p")).toEqual({ type: "api_key", key: "old" });
+});

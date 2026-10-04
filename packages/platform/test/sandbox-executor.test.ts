@@ -36,7 +36,7 @@ describe("sandbox execution contracts", () => {
       normalizeSandboxPolicy({
         workspacePath: "C:\\stage",
         workspaceAccess: "read",
-        mode: "execute",
+        mode: "work",
         network: "deny",
         writablePaths: ["C:\\stage\\src"],
       }).writablePaths,
@@ -69,7 +69,7 @@ describe("sandbox execution contracts", () => {
   });
 
   it("removes every writable path from plan and review policies", () => {
-    for (const mode of ["plan", "review"] as const) {
+    for (const mode of ["plan"] as const) {
       expect(
         normalizeSandboxPolicy({
           workspacePath: "C:\\repo",
@@ -101,7 +101,7 @@ describe("sandbox execution contracts", () => {
       expect(
         normalizeSandboxPolicy({
           workspacePath,
-          mode: "execute",
+          mode: "work",
           network: "deny",
         }).writablePaths,
       ).toEqual([workspacePath]);
@@ -111,7 +111,7 @@ describe("sandbox execution contracts", () => {
   it("generates a default-deny Seatbelt profile", () => {
     const profile = buildSeatbeltProfile({
       workspacePath: "/Users/test/repo",
-      mode: "execute",
+      mode: "work",
       network: "deny",
     });
 
@@ -146,7 +146,7 @@ describe("sandbox execution contracts", () => {
   it("adds the macOS socket capabilities required by networked runtimes", () => {
     const profile = buildSeatbeltProfile({
       workspacePath: "/Users/test/repo",
-      mode: "execute",
+      mode: "work",
       network: "allow",
     });
 
@@ -166,7 +166,7 @@ describe("sandbox execution contracts", () => {
       },
       {
         workspacePath: "/Users/test/repo",
-        mode: "execute",
+        mode: "work",
         network: "deny",
       },
     );
@@ -189,7 +189,7 @@ describe("sandbox execution contracts", () => {
       },
       {
         workspacePath: "C:\\task",
-        mode: "execute",
+        mode: "work",
         network: "deny",
         writablePaths: ["C:\\runtime"],
       },
@@ -257,7 +257,7 @@ describe("sandbox execution contracts", () => {
         args: [],
         cwd: "D:\\repo",
       },
-      { workspacePath: "D:\\repo", mode: "review", network: "deny" },
+      { workspacePath: "D:\\repo", mode: "plan", network: "deny" },
       { helperPath: resolve("resources/windows-sandbox.ps1") },
     );
     const writable =

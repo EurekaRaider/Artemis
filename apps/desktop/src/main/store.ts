@@ -3,6 +3,13 @@ import { DatabaseSync } from "node:sqlite";
 
 import {
   PROTOCOL_VERSION,
+  collectPlans,
+  assertAcceptablePlan,
+  acceptedPlanPrompt,
+  proposedPlanSchema,
+  runModeSchema,
+  type PlanAcceptance,
+  type ProposedPlan,
   agentEventSchema,
   automationRunSchema,
   automationSchema,
@@ -47,6 +54,7 @@ import {
 
 import type { ReviewComment, ReviewCommentAnchor } from "../shared/api.js";
 import type { TurnCheckpoint } from "./turn-recovery.js";
+import { automationAuthorizationFingerprint } from "./automation-authorization.js";
 import { TaskNotificationStore } from "./task-notification-store.js";
 
 interface ProjectRow {
@@ -198,10 +206,14 @@ const DATABASE_VERSION = 12;
 // Latest schema version; exported so migration tests assert against the
 // constant instead of a hardcoded number that goes stale on the next bump.
 export const CUSTOM_AGENTS_DATABASE_VERSION = 13;
+export const CURRENT_DATABASE_VERSION = 14;
 // S1 design plugins: grants/state heads/snapshots/ledger tables plus thread
 // type-binding snapshot columns. Threads created for plugin project types
 // freeze their binding and restricted profile at creation time (§6.1).
-export const DESIGN_PLUGIN_DATABASE_VERSION = 15;
+// 合并 main 的三模式迁移（v14）时升到 16：三模式迁移必须先跑（它重写
+// threads.mode 的值域），插件表迁移在后；已在 15 的开发库靠旧值内容
+// 探测补跑三模式迁移，user_version 只升不降。
+export const DESIGN_PLUGIN_DATABASE_VERSION = 16;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -959,10 +971,40 @@ export class AppStore {
       this.advanceDatabaseVersion(CUSTOM_AGENTS_DATABASE_VERSION);
     }
 
+    // 三模式迁移（execute→work / review→plan / +codemode）必须先于设计
+    // 插件表迁移：它重写既有 threads 的 mode 值域。除了版本门，还要探测
+    // 残留旧值——设计插件分支先到过 v15 的开发库从未跑过三模式迁移。
+    const hasLegacyModes = Boolean(
+      this.database
+        .prepare(
+          "SELECT 1 FROM threads WHERE mode IN ('execute','review') LIMIT 1",
+        )
+        .get() ??
+      this.database
+        .prepare(
+          "SELECT 1 FROM automations WHERE mode IN ('execute','review') LIMIT 1",
+        )
+        .get(),
+    );
+    const beforeThreeModes = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (
+      beforeThreeModes.user_version < CURRENT_DATABASE_VERSION ||
+      hasLegacyModes
+    ) {
+      this.migrateThreeModes();
+      if (beforeThreeModes.user_version > CURRENT_DATABASE_VERSION) {
+        this.advanceDatabaseVersion(beforeThreeModes.user_version);
+      }
+    }
     // S1 design plugins: add the six plugin tables and thread binding columns.
     // CREATE IF NOT EXISTS keeps this safe for fresh databases, and the ALTER
     // paths only run when an older threads table lacks the new columns.
-    if (customAgentsVersion.user_version < DESIGN_PLUGIN_DATABASE_VERSION) {
+    const afterThreeModes = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (afterThreeModes.user_version < DESIGN_PLUGIN_DATABASE_VERSION) {
       this.migrateDesignPluginTables();
     }
     // Run after legacy mode migrations, which rebuild the automations table.
@@ -1053,6 +1095,7 @@ export class AppStore {
         WHERE json_extract(body, '$.payload.type') = 'turn.started'
           AND json_extract(body, '$.payload.mode') IN ('code', 'work');
 
+        UPDATE turn_checkpoints SET body = json_set(body, '$.checkpoint.mode', 'execute') WHERE json_extract(body, '$.checkpoint.mode') IN ('code', 'work');
         PRAGMA user_version = 8;
         COMMIT;
       `);
@@ -1102,6 +1145,114 @@ export class AppStore {
       );
     }
     this.advanceDatabaseVersion(DESIGN_PLUGIN_DATABASE_VERSION);
+  }
+
+  private migrateThreeModes(): void {
+    this.database.exec("PRAGMA foreign_keys = OFF");
+    try {
+      this.database.exec("BEGIN IMMEDIATE");
+      const rows = this.database
+        .prepare("SELECT * FROM automations")
+        .all() as unknown as AutomationRow[];
+      // Verify the original permission fingerprint before changing its canonical mode.
+      const grants = rows
+        .filter((row) => row.authorization_state === "authorized")
+        .map((row) => {
+          const canonical = automationFromRow(row);
+          const valid =
+            row.authorization_fingerprint ===
+            automationAuthorizationFingerprint({
+              ...canonical,
+              mode: row.mode,
+            });
+          return {
+            id: row.id,
+            fingerprint: valid
+              ? automationAuthorizationFingerprint(canonical)
+              : null,
+          };
+        });
+      const schema = (
+        this.database
+          .prepare(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='automations'",
+          )
+          .get() as { sql: string }
+      ).sql;
+      this.database.exec(
+        schema
+          .replace(
+            /CREATE TABLE (?:IF NOT EXISTS )?["`]?automations["`]?/i,
+            "CREATE TABLE automations_v14",
+          )
+          .replace("'execute', 'plan', 'review'", "'work', 'plan', 'codemode'"),
+      );
+      const columns = (
+        this.database.prepare("PRAGMA table_info(automations)").all() as Array<{
+          name: string;
+        }>
+      ).map((c) => c.name);
+      this.database
+        .exec(`INSERT INTO automations_v14 (${columns.join(",")}) SELECT ${columns.map((c) => (c === "mode" ? "CASE mode WHEN 'execute' THEN 'work' WHEN 'review' THEN 'plan' ELSE mode END" : c)).join(",")} FROM automations;
+        DROP TABLE automations;
+        ALTER TABLE automations_v14 RENAME TO automations;
+        CREATE INDEX ix_automations_due ON automations(enabled, deleted_at, next_run_at);
+        CREATE INDEX ix_automations_project ON automations(project_id, deleted_at, updated_at DESC);
+        UPDATE threads SET mode = CASE mode WHEN 'execute' THEN 'work' WHEN 'review' THEN 'plan' ELSE mode END;
+        UPDATE turn_checkpoints SET body = json_set(body, '$.checkpoint.mode', CASE json_extract(body, '$.checkpoint.mode') WHEN 'execute' THEN 'work' WHEN 'review' THEN 'plan' ELSE json_extract(body, '$.checkpoint.mode') END);`);
+      for (const grant of grants) {
+        if (grant.fingerprint)
+          this.database
+            .prepare(
+              "UPDATE automations SET authorization_fingerprint=? WHERE id=?",
+            )
+            .run(grant.fingerprint, grant.id);
+        else
+          this.database
+            .prepare(
+              "UPDATE automations SET enabled=0, authorization_state='required', authorization_fingerprint=NULL, authorized_at=NULL, next_run_at=NULL WHERE id=?",
+            )
+            .run(grant.id);
+      }
+      if (this.database.prepare("PRAGMA foreign_key_check").all().length)
+        throw new Error("Invalid mode migration references");
+      this.database.exec(
+        `PRAGMA user_version = ${CURRENT_DATABASE_VERSION}; COMMIT;`,
+      );
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    } finally {
+      this.database.exec("PRAGMA foreign_keys = ON");
+    }
+  }
+
+  plans(threadId: string) {
+    return collectPlans(this.getThreadEvents(threadId));
+  }
+
+  proposePlan(
+    threadId: string,
+    turnId: string,
+    content: Pick<ProposedPlan, "title" | "markdown" | "actionable">,
+  ): ProposedPlan {
+    const thread = this.getThread(threadId);
+    if (thread?.mode !== "plan" || thread.status !== "running")
+      throw new Error("PLAN_MODE_REQUIRED");
+    const previous = this.plans(threadId).at(-1);
+    if (previous?.sourceTurnId === turnId)
+      throw new Error("A final plan has already been submitted for this turn.");
+    const plan = proposedPlanSchema.parse({
+      ...content,
+      planId: randomUUID(),
+      revision: (previous?.revision ?? 0) + 1,
+      sourceTurnId: turnId,
+    });
+    this.appendEvent(randomUUID(), threadId, turnId, {
+      type: "plan.proposed",
+      ...plan,
+    });
+    return plan;
   }
 
   private advanceDatabaseVersion(databaseVersion: number): void {
@@ -3010,10 +3161,51 @@ export class AppStore {
       Pick<Thread, "title" | "mode" | "target" | "status" | "sessionFile">
     >,
     checkpoint?: TurnCheckpoint,
+    acceptance?: PlanAcceptance,
   ): { events: AgentEvent[]; thread: Thread } {
     this.database.exec("BEGIN IMMEDIATE");
     try {
-      const events = this.appendEventsCore(threadId, inputs);
+      const latest = this.plans(threadId).at(-1);
+      const prefixes: EventAppendInput[] = [];
+      if (acceptance) {
+        const acceptedPlan = assertAcceptablePlan(
+          this.plans(threadId),
+          acceptance,
+        );
+        const current = this.getThread(threadId);
+        if (
+          !checkpoint ||
+          checkpoint.source !== "user" ||
+          checkpoint.mode !== acceptance.mode ||
+          checkpoint.text !== acceptedPlanPrompt(acceptedPlan) ||
+          changes.mode !== acceptance.mode ||
+          current?.status === "running" ||
+          current?.status === "waiting-approval"
+        )
+          throw new Error("PLAN_ACCEPT_REQUIRES_IDLE_USER_TURN");
+        prefixes.push({
+          eventId: randomUUID(),
+          turnId: checkpoint.turnId,
+          payload: {
+            ...acceptance,
+            type: "plan.accepted",
+            executionTurnId: checkpoint.turnId,
+          },
+        });
+      } else if (checkpoint && latest?.status === "proposed") {
+        if (checkpoint.source !== "user" || checkpoint.mode !== "plan")
+          throw new Error("PLAN_REQUIRES_USER_CHOICE");
+        prefixes.push({
+          eventId: randomUUID(),
+          turnId: checkpoint.turnId,
+          payload: {
+            type: "plan.superseded",
+            planId: latest.planId,
+            revision: latest.revision,
+          },
+        });
+      }
+      const events = this.appendEventsCore(threadId, [...prefixes, ...inputs]);
       const thread = this.updateThread(threadId, changes);
       if (checkpoint) {
         if (checkpoint.threadId !== threadId)
@@ -3088,7 +3280,10 @@ export class AppStore {
     };
     if (record.version !== 1)
       throw new Error("Unsupported turn checkpoint version.");
-    return record.checkpoint;
+    return {
+      ...record.checkpoint,
+      mode: runModeSchema.parse(record.checkpoint.mode),
+    };
   }
 
   saveTurnCheckpoint(checkpoint: TurnCheckpoint): void {

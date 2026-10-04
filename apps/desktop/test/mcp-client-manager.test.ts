@@ -1399,7 +1399,7 @@ lines.on("line", (line) => {
 
     expect((await manager.connect(stdioConfig)).state).toBe("connected");
     await expect(
-      manager.call("codegraph", "status", {}, "D:\\Git\\PEAQ_PRB", "execute"),
+      manager.call("codegraph", "status", {}, "D:\\Git\\PEAQ_PRB", "work"),
     ).resolves.toEqual({
       content: [{ type: "text", text: resolve("D:\\Git\\PEAQ_PRB") }],
       isError: false,
@@ -1410,19 +1410,13 @@ lines.on("line", (line) => {
         textBytes: Buffer.byteLength(resolve("D:\\Git\\PEAQ_PRB"), "utf8"),
       },
     });
-    await manager.call(
-      "codegraph",
-      "status",
-      {},
-      "D:\\Git\\PEAQ_PRB",
-      "execute",
-    );
+    await manager.call("codegraph", "status", {}, "D:\\Git\\PEAQ_PRB", "work");
 
     expect(scopes).toEqual([
       undefined,
       {
         workspacePath: resolve("D:\\Git\\PEAQ_PRB"),
-        mode: "execute",
+        mode: "work",
       },
     ]);
     await manager.dispose();
@@ -1720,7 +1714,7 @@ lines.on("line", async (line) => {
               outsidePath: outsideWorkspacePath,
             },
             taskWorkspacePath,
-            "execute",
+            "work",
           ),
         );
         const taskProbeResult = JSON.parse(resultText(taskProbe)) as {

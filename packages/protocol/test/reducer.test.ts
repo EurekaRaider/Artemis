@@ -48,7 +48,7 @@ describe("reduceAgentEvent", () => {
 
   it("tracks content-free turn activity until visible work starts", () => {
     const thinking = reduceAgentEvents("thread-1", [
-      event("start", 1, { type: "turn.started", mode: "execute" }),
+      event("start", 1, { type: "turn.started", mode: "work" }),
       event("thinking", 2, { type: "turn.activity", phase: "thinking" }),
     ]);
 
@@ -74,7 +74,7 @@ describe("reduceAgentEvent", () => {
         messageId: "user-1",
         text: "Implement it.",
       }),
-      event("started", 1, { type: "turn.started", mode: "execute" }),
+      event("started", 1, { type: "turn.started", mode: "work" }),
       event("tool-text", 2, {
         type: "message.part.delta",
         partId: "tool-round:text",
@@ -128,7 +128,7 @@ describe("reduceAgentEvent", () => {
 
   it("replays reconnect progress and removes superseded partial output", () => {
     const state = reduceAgentEvents("thread-1", [
-      event("started", 1, { type: "turn.started", mode: "execute" }),
+      event("started", 1, { type: "turn.started", mode: "work" }),
       event("partial", 2, {
         type: "message.part.delta",
         partId: "attempt-1:text",
@@ -190,7 +190,7 @@ describe("reduceAgentEvent", () => {
 
   it("never adds reasoning markers to the timeline", () => {
     const reasoning = reduceAgentEvents("thread-1", [
-      event("start", 1, { type: "turn.started", mode: "execute" }),
+      event("start", 1, { type: "turn.started", mode: "work" }),
       event("thinking", 2, {
         type: "message.part.delta",
         partId: "assistant:thinking",
@@ -782,7 +782,7 @@ describe("reduceAgentEvent", () => {
         messageId: `user-${turn}`,
         text: "Question",
       });
-      add({ type: "turn.started", mode: "execute" });
+      add({ type: "turn.started", mode: "work" });
       for (let delta = 0; delta < 20; delta += 1) {
         add({
           type: "message.part.delta",

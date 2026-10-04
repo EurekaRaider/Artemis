@@ -33,6 +33,7 @@ interface PiMessageUpdate {
 }
 
 interface PiToolEvent {
+  parentToolCallId?: string;
   type: "tool_execution_start" | "tool_execution_update" | "tool_execution_end";
   toolCallId?: string;
   toolName?: string;
@@ -72,6 +73,35 @@ export type PiEventLike =
   | PiQueueUpdate;
 
 type AssistantPartType = "text" | "thinking";
+
+function resultImages(result: unknown): Array<{
+  data: string;
+  mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+}> {
+  if (
+    !result ||
+    typeof result !== "object" ||
+    !("content" in result) ||
+    !Array.isArray(result.content)
+  )
+    return [];
+  return result.content
+    .filter(
+      (
+        item,
+      ): item is {
+        data: string;
+        mimeType: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+      } =>
+        Boolean(
+          item &&
+          item.type === "image" &&
+          typeof item.data === "string" &&
+          /^(?:image\/(?:png|jpeg|webp|gif))$/.test(item.mimeType),
+        ),
+    )
+    .map(({ data, mimeType }) => ({ data, mimeType }));
+}
 
 function retryKind(
   message: string | undefined,
@@ -449,6 +479,9 @@ export class PiAdapter {
             type: "tool.started",
             toolCallId,
             toolName,
+            ...(event.parentToolCallId
+              ? { parentToolCallId: event.parentToolCallId }
+              : {}),
             ...(event.args === undefined ? {} : { input: event.args }),
           },
         ];
@@ -474,6 +507,14 @@ export class PiAdapter {
               ? (observedBashOutput(event.result) ?? "")
               : outputText(event.result),
             isError: event.isError ?? false,
+            ...(resultImages(event.result).length
+              ? { images: resultImages(event.result) }
+              : {}),
+            ...(event.result &&
+            typeof event.result === "object" &&
+            "structuredContent" in event.result
+              ? { structuredContent: event.result.structuredContent }
+              : {}),
           },
         ];
       }

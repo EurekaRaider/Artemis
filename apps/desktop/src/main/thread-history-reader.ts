@@ -15,7 +15,7 @@ import type {
 
 const PAGE_TURNS = 30;
 // Bump when the projection shape or reducer semantics change.
-const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 2;
 interface Snapshot {
   version: number;
   state: ThreadViewState;
@@ -162,7 +162,18 @@ function rememberPresentationEvent(
 ): void {
   const payload = event.payload;
   if (payload.type === "turn.started") {
-    const files = events.filter((item) => item.payload.type === "file.changed");
+    const files = events.filter(
+      (item) =>
+        item.payload.type === "file.changed" ||
+        item.payload.type.startsWith("plan.") ||
+        ((item.payload.type === "turn.completed" ||
+          item.payload.type === "turn.failed") &&
+          events.some(
+            (p) =>
+              p.payload.type === "plan.proposed" &&
+              p.payload.sourceTurnId === item.turnId,
+          )),
+    );
     events.splice(0, events.length, ...files, event);
   } else if (payload.type === "file.changed") {
     const kind = /\.html?$/iu.test(payload.path)
@@ -182,6 +193,7 @@ function rememberPresentationEvent(
     if (previous >= 0) events.splice(previous, 1);
     events.push(event);
   } else if (
+    payload.type.startsWith("plan.") ||
     payload.type === "turn.completed" ||
     payload.type === "turn.failed" ||
     (payload.type === "tool.started" && payload.toolName === "update_plan")

@@ -26,7 +26,7 @@ function fixture() {
     store.createThread({
       id,
       title: id,
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,

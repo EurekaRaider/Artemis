@@ -116,7 +116,7 @@ describe("DiagnosticBundleService", () => {
       providerId: "openai",
       modelId: "gpt-test",
       thinkingLevel: "low",
-      mode: "execute",
+      mode: "work",
       enabledMcpServers: 2,
       toolCount: 9,
       mcpToolCount: 7,

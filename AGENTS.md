@@ -17,9 +17,9 @@
 - Raw Pi events stop at `PiAdapter`; UI code consumes only
   `@artemis/protocol`.
 - Every persisted UI event uses a versioned envelope and an idempotent reducer.
-- Plan and Review writes are denied before an executor or filesystem call runs.
-  They do not receive Pi `bash`, MCP tools, or executable extensions.
-- Pi's built-in `bash` is available only in Execute and intentionally
+- Plan writes are denied before an executor or filesystem call runs.
+  It does not receive Pi `bash`, MCP tools, or executable extensions.
+- Pi's built-in `bash` is available only in Work and Codemode and intentionally
   runs with the current desktop user's full filesystem and network permissions.
   The user-opened integrated Terminal does the same and never auto-elevates.
 - Enabled local stdio MCP servers use AppContainer on Windows or Seatbelt on
@@ -28,12 +28,19 @@
   child receives only a minimal or explicitly forwarded environment. A
   per-server compatibility option may explicitly opt a trusted server into the
   current desktop user's permissions. Tool calls retain model auto-approval.
+  Work and Codemode may request host-approved, single-call sandbox escalation
+  with a justification and fresh risk assessment. Elevated MCP connections are
+  isolated and closed after the call; saved settings and the default environment
+  stay unchanged. Plan, remote permission profiles, trust checks, and account
+  authorization cannot be bypassed by escalation.
 - The **Full local access** setting affects executable Pi extensions only. It
   must not change Pi `bash`, Terminal, or per-server MCP permissions.
 - Executable Pi extensions remain disabled until explicit project and
   content-hash trust exists. They use the platform-native sandbox by default;
   the extension-only **Full local access** setting may opt them into the current
   desktop user's permissions.
+  A host-approved single-call escalation may also use desktop-user permissions
+  without changing that extension setting or its content-hash trust.
 - The Browser may access HTTP and HTTPS with JavaScript, cookies, and web
   storage, but must not expose Node integration, preload APIs, or local-file
   access.

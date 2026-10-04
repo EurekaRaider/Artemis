@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import type { BrokerExecutionRequest, Thread } from "@artemis/protocol";
 import type { McpServerConfig } from "../../shared/api.js";
 import { modelMayAutoApprove } from "../approval-mode.js";
@@ -22,10 +23,10 @@ export async function resolveComputerTaskApproval(
     current.config?.id !== current.serverId ||
     !current.config?.enabled ||
     request.actorAgentId ||
-    request.mode !== "execute" ||
+    !isExecutionMode(request.mode) ||
     current.thread?.id !== request.threadId ||
     current.thread.archived ||
-    current.thread.mode !== "execute" ||
+    !isExecutionMode(current.thread.mode) ||
     current.activeTurnId !== request.turnId ||
     !modelMayAutoApprove({
       kind: "mcp.call",

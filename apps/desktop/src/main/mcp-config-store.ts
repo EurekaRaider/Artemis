@@ -135,6 +135,14 @@ export function validateMcpServerConfig(
 ): McpServerConfig {
   const id = validateId(input.id);
   const resourceMetadata = validateResourceMetadata(input);
+  const exposures = new Set(["direct", "deferred", "codemode", "hidden"]);
+  if (
+    (input.exposure && !exposures.has(input.exposure)) ||
+    Object.entries(input.toolExposure ?? {}).some(
+      ([name, value]) => !name || !exposures.has(value),
+    )
+  )
+    throw new Error("Invalid MCP tool exposure.");
   const name = input.name.trim();
   if (!name || name.length > 100) {
     throw new Error("MCP server name is invalid");

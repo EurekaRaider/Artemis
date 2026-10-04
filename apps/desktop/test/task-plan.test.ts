@@ -43,7 +43,7 @@ describe("deriveTaskPlan", () => {
 
   it("uses the latest valid update from the active turn", () => {
     const events = [
-      event("1", "turn-1", { type: "turn.started", mode: "execute" }),
+      event("1", "turn-1", { type: "turn.started", mode: "work" }),
       event("2", "turn-1", {
         type: "tool.started",
         toolCallId: "plan-1",
@@ -76,7 +76,7 @@ describe("deriveTaskPlan", () => {
 
   it("does not show a plan from an earlier turn", () => {
     const events = [
-      event("1", "turn-1", { type: "turn.started", mode: "execute" }),
+      event("1", "turn-1", { type: "turn.started", mode: "work" }),
       event("2", "turn-1", {
         type: "tool.started",
         toolCallId: "plan-1",
@@ -85,7 +85,7 @@ describe("deriveTaskPlan", () => {
           steps: [{ step: "Old work", status: "in_progress" }],
         },
       }),
-      event("3", "turn-2", { type: "turn.started", mode: "review" }),
+      event("3", "turn-2", { type: "turn.started", mode: "plan" }),
     ];
 
     expect(deriveTaskPlan(events, true)).toBeUndefined();
@@ -93,7 +93,7 @@ describe("deriveTaskPlan", () => {
 
   it("hides a stale plan as soon as its turn is no longer active", () => {
     const events = [
-      event("1", "turn-1", { type: "turn.started", mode: "execute" }),
+      event("1", "turn-1", { type: "turn.started", mode: "work" }),
       event("2", "turn-1", {
         type: "tool.started",
         toolCallId: "plan-1",
@@ -112,7 +112,7 @@ describe("deriveTaskPlan", () => {
 
   it("marks the active step failed when the current turn fails", () => {
     const events = [
-      event("1", "turn-1", { type: "turn.started", mode: "execute" }),
+      event("1", "turn-1", { type: "turn.started", mode: "work" }),
       event("2", "turn-1", {
         type: "tool.started",
         toolCallId: "plan-1",
@@ -141,7 +141,7 @@ describe("deriveTaskPlan", () => {
 
   it("hides the active plan when its turn is cancelled", () => {
     const activePlan = [
-      event("1", "turn-1", { type: "turn.started", mode: "execute" }),
+      event("1", "turn-1", { type: "turn.started", mode: "work" }),
       event("2", "turn-1", {
         type: "tool.started",
         toolCallId: "plan-1",

@@ -14,6 +14,7 @@
 // so §13.1 has an auditable trail.
 
 import { randomUUID } from "node:crypto";
+import { isExecutionMode, type RunMode } from "@artemis/protocol";
 import { join } from "node:path";
 
 import { PluginRevisionStore } from "./design-plugin-revision-store.js";
@@ -49,7 +50,7 @@ export interface DispatchPluginToolInput {
   toolName: string;
   args: Record<string, unknown>;
   /** Current run mode of the session issuing the call. */
-  mode: "plan" | "execute" | "review";
+  mode: RunMode;
   /** Deduplication identity for idempotent operation recording. */
   operationId?: string;
 }
@@ -173,7 +174,7 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     const store = host.store;
     let thread = store.getThread(input.threadId) as
       | {
-          mode?: "execute" | "plan" | "review";
+          mode?: RunMode;
           typeBinding?: {
             installationId: string;
             pluginId: string;
@@ -279,11 +280,11 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       return refuse(store, input, "grant-revoked", "all grants are revoked");
     }
 
-    // Profile/mode gate: plugin runtimes only run in execute mode. Both the
-    // caller-supplied mode AND the persisted task mode are checked (PR#245
-    // P1-7): a "mode: execute" claim from a Plan/Review task must not reach
-    // a filesystem-writing runtime.
-    if (input.mode !== "execute") {
+    // Profile/mode gate: plugin runtimes only run in execution modes
+    // (work/codemode, PR#245 P1-7). Both the caller-supplied mode AND the
+    // persisted task mode are checked: an execution-mode claim from a Plan
+    // task must not reach a filesystem-writing runtime.
+    if (!isExecutionMode(input.mode)) {
       return refuse(
         store,
         input,
@@ -291,12 +292,12 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         `mode ${input.mode} may not run plugin tools`,
       );
     }
-    if (thread.mode !== "execute") {
+    if (!isExecutionMode(thread.mode)) {
       return refuse(
         store,
         input,
         "mode-denied",
-        `persisted task mode is ${thread.mode ?? "unknown"}; plugin tools require execute`,
+        `persisted task mode is ${thread.mode ?? "unknown"}; plugin tools require an execution mode`,
       );
     }
 

@@ -94,7 +94,7 @@ async function setupBoundThread() {
   store.createThread({
     id: threadId,
     title: "s2",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -177,7 +177,7 @@ describe("S2 runtime isolation", () => {
         threadId: ctx.threadId,
         toolName: "create_document",
         args: { name: "denied" },
-        mode: "execute" as const,
+        mode: "work" as const,
       };
       expect((await ctx.dispatch.dispatch(input)).status).toBe("refused");
       ctx.store.updateThread(ctx.threadId, { archived: false });
@@ -205,7 +205,7 @@ describe("S2 runtime isolation", () => {
         threadId: ctx.threadId,
         toolName: "create_document",
         args: { name: "S2验收页", brief: "深色档案页" },
-        mode: "execute",
+        mode: "work",
       });
       expect(outcome.status).toBe("succeeded");
       ctx.store.close();
@@ -222,7 +222,7 @@ describe("S2 runtime isolation", () => {
       threadId: ctx.threadId,
       toolName: "create_document",
       args: { name: "应被拒绝", brief: "" },
-      mode: "execute",
+      mode: "work",
     });
     expect(outcome.status).toBe("refused");
     expect(outcome.error).toContain("plugin-unavailable");
@@ -242,7 +242,7 @@ describe("S2 runtime isolation", () => {
       threadId: ctx.threadId,
       toolName: "create_document",
       args: {},
-      mode: "execute",
+      mode: "work",
     });
     expect(outcome.status).toBe("refused");
     expect(outcome.error).toContain("content-hash-mismatch");
@@ -263,7 +263,7 @@ describe("S2 runtime isolation", () => {
       threadId: ctx.threadId,
       toolName: "create_document",
       args: {},
-      mode: "execute",
+      mode: "work",
     });
     expect(outcome.status).toBe("refused");
     expect(outcome.error).toContain("grant-revoked");
@@ -289,7 +289,7 @@ describe("S2 runtime isolation", () => {
       threadId: ctx.threadId,
       toolName: "exfiltrate_everything",
       args: {},
-      mode: "execute",
+      mode: "work",
     });
     expect(outcome.status).toBe("refused");
     expect(outcome.error).toContain("tool-not-declared");
@@ -351,7 +351,7 @@ describe("S2 runtime isolation", () => {
         threadId: ctx.threadId,
         toolName: "create_document",
         args: { name: "关闭验证", brief: "生命周期" },
-        mode: "execute",
+        mode: "work",
       });
       expect(first.status).toBe("succeeded");
       // 关闭（模拟线程删除/归档路径调 pluginDispatch.closeThread）
@@ -360,7 +360,7 @@ describe("S2 runtime isolation", () => {
         threadId: ctx.threadId,
         toolName: "create_document",
         args: { name: "不应执行", brief: "" },
-        mode: "execute",
+        mode: "work",
       });
       // 懒 spawn 会重新拉起 worker 并正常执行（线程未关闭语义在
       // ThreadRuntimeManager 层由 closedThreads 集合保证——此处主进程
@@ -381,14 +381,14 @@ describe("S2 runtime isolation", () => {
         threadId: ctx.threadId,
         toolName: "create_document",
         args: { name: "推送验证.html", brief: "自动刷新" },
-        mode: "execute",
+        mode: "work",
       });
       expect(created.status).toBe("succeeded");
       const snapshotted = await ctx.dispatch.dispatch({
         threadId: ctx.threadId,
         toolName: "get_snapshot",
         args: {},
-        mode: "execute",
+        mode: "work",
       });
       expect(snapshotted.status).toBe("succeeded");
       expect(ctx.artifactWrites).toEqual([

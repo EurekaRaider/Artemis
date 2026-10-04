@@ -79,7 +79,7 @@ describeDarwin("artemis-design S1 end-to-end", () => {
     store.createThread({
       id: threadId,
       title: "设计任务",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,

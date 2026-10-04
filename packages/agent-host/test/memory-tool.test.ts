@@ -22,7 +22,7 @@ interface InspectableTool {
 
 interface InspectableThread {
   currentTurnId: string | undefined;
-  currentMode: "execute" | "plan" | "review" | undefined;
+  currentMode: "work" | "plan" | "review" | undefined;
   executeTools: InspectableTool[];
   delegatedTools: InspectableTool[];
 }
@@ -82,7 +82,7 @@ describe("save_memory tool", () => {
       },
     });
     thread.currentTurnId = "turn-project-memory";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     const tool = thread.executeTools.find(
       (candidate) => candidate.name === "save_memory",
     );
@@ -123,7 +123,7 @@ describe("save_memory tool", () => {
       },
     });
     thread.currentTurnId = "turn-global-memory";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     const tool = thread.executeTools.find(
       (candidate) => candidate.name === "save_memory",
     );
@@ -156,7 +156,7 @@ describe("save_memory tool", () => {
       },
     });
     thread.currentTurnId = "turn-rejected-memory";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     const tool = thread.executeTools.find(
       (candidate) => candidate.name === "save_memory",
     );

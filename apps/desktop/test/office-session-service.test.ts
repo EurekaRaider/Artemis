@@ -86,7 +86,7 @@ async function fixture() {
   const context: OfficeSessionContext = {
     workspacePath: root,
     threadId: "task",
-    mode: "execute",
+    mode: "work",
   };
   const base = {
     protocolVersion: 2 as const,
@@ -202,7 +202,7 @@ describe("native Office session host", () => {
     ).toBe(0);
   });
 
-  it.each(["plan", "review"] as const)(
+  it.each(["plan"] as const)(
     "rejects manual %s edits before accessing a session",
     async (mode) => {
       const f = await fixture();
@@ -241,7 +241,7 @@ describe("native Office session host", () => {
     );
   });
 
-  it.each(["plan", "review"] as const)(
+  it.each(["plan"] as const)(
     "rejects UI opening in %s before filesystem access",
     async (mode) => {
       const factory = vi.fn();
@@ -263,7 +263,7 @@ describe("native Office session host", () => {
     },
   );
 
-  it.each(["plan", "review"] as const)(
+  it.each(["plan"] as const)(
     "rejects %s before constructing an engine or touching storage",
     async (mode) => {
       const factory = vi.fn();

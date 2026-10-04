@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { createHash, randomUUID } from "node:crypto";
 import {
   COMPUTER_USE_VERSION,
@@ -159,8 +160,10 @@ export class ComputerUseService {
     this.options.publish(this.status());
   }
   private assertExecute(context: ComputerContext) {
-    if (context.mode !== "execute")
-      throw new Error("Computer Use is available only in Execute mode.");
+    if (!isExecutionMode(context.mode))
+      throw new Error(
+        "Computer Use is available only in Work or Codemode mode.",
+      );
   }
   private lease(id: string, context: ComputerContext): Lease {
     this.assertExecute(context);

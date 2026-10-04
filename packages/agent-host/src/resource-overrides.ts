@@ -31,7 +31,7 @@ const PLAN_UPDATE_PROMPT = `## Plan updates
 For tasks with multiple meaningful steps, call update_plan before starting work and whenever a step status changes. Keep at most one step in_progress, and mark every step completed when the task finishes. Do not create a plan for a trivial single-step request. Follow this rule only when update_plan is available.`;
 
 const MEMORY_SAVE_PROMPT = `## Experiential memory
-After a workflow succeeds and is verified, decide whether its durable experience is likely to prevent repeated work. If so, and only when save_memory is available in Execute mode, call save_memory and choose its scope yourself: use project memory for repository-specific paths, commands, architecture, conventions, or decisions; use global memory only for workflows that apply unchanged across unrelated repositories. If uncertain, choose project memory. Do not save routine steps, transient results, guesses, or credentials.`;
+After a workflow succeeds and is verified, decide whether its durable experience is likely to prevent repeated work. If so, and only when save_memory is available in Work or Codemode mode, call save_memory and choose its scope yourself: use project memory for repository-specific paths, commands, architecture, conventions, or decisions; use global memory only for workflows that apply unchanged across unrelated repositories. If uncertain, choose project memory. Do not save routine steps, transient results, guesses, or credentials.`;
 
 function parentCoordinationPrompt(ultraMode: boolean): string {
   return `## Agent-team coordination

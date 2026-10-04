@@ -35,8 +35,8 @@
     "@ai-sdk/openai": "3.0.84",
     "@artemis/platform": "1.6.19",
     "@artemis/protocol": "1.6.19",
-    "@earendil-works/pi-ai": "1.0.0",
-    "@earendil-works/pi-coding-agent": "1.0.0",
+    "@earendil-works/pi-ai": "1.0.2",
+    "@earendil-works/pi-coding-agent": "1.0.2",
     "@sinclair/typebox": "0.34.52",
     "ai": "6.0.168",
     "undici": "7.29.1"

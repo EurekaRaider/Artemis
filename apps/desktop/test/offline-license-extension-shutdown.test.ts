@@ -27,7 +27,7 @@ it("kills an in-flight managed extension and rejects execution after license shu
       "wait",
       {},
       directory,
-      "execute",
+      "work",
       true,
     );
     const rejected = expect(pending).rejects.toThrow();
@@ -45,7 +45,7 @@ it("kills an in-flight managed extension and rejects execution after license shu
     await rejected;
     expect(() => process.kill(pid, 0)).toThrow();
     await expect(
-      manager.call(config.id, "wait", {}, directory, "execute", true),
+      manager.call(config.id, "wait", {}, directory, "work", true),
     ).rejects.toThrow("stopped");
   } finally {
     manager?.dispose();

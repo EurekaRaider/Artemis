@@ -142,7 +142,7 @@ export function createDesignHandoffHandler(
         id: handoffId,
         ...(source.projectId ? { projectId: source.projectId } : {}),
         title: `[设计交接] ${documentName}（${headEntry}）`,
-        mode: "execute",
+        mode: "work",
         target: source.target,
         status: "idle",
         pinned: false,

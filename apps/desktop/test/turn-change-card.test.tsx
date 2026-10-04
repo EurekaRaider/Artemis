@@ -10,7 +10,7 @@ vi.mock("../src/renderer/desktop-skin-bootstrap.js", () => ({}));
 
 const turn: TurnViewState = {
   id: "turn-1",
-  mode: "execute",
+  mode: "work",
   status: "completed",
   order: [],
   changeSet: {

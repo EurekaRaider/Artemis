@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { APP_LOCALES } from "@artemis/protocol";
 
+import { uiText } from "../src/shared/ui-text.js";
+import { UI_COPY } from "../src/shared/ui-copy.js";
 import { mainText } from "../src/main/i18n.js";
 import { I18N_RESOURCES, localizedCopy } from "../src/shared/i18n-resources.js";
 
@@ -9,6 +11,19 @@ import { TASK_NOTIFICATION_RESOURCES } from "../src/shared/task-notification-res
 import { taskNotificationCopy } from "../src/shared/task-notification-copy.js";
 
 describe("i18n resources", () => {
+  it("shares localized mode names across the app and composer in every language", () => {
+    for (const locale of APP_LOCALES) {
+      for (const mode of ["plan", "work", "codemode"] as const) {
+        const label = uiText(locale, `App_copy.${mode}`);
+        expect(UI_COPY.App_copy[locale][mode]).toBe(label);
+        expect(UI_COPY.ComposerContextBar_labels[locale][mode]).toBe(label);
+        if (locale !== "en") {
+          expect(label).not.toBe(uiText("en", `App_copy.${mode}`));
+        }
+      }
+    }
+  });
+
   it("keeps the goal and notification packs complete without English fallback", () => {
     for (const catalog of [GOAL_RESOURCES, TASK_NOTIFICATION_RESOURCES]) {
       for (const locale of APP_LOCALES) {
@@ -179,8 +194,6 @@ describe("i18n resources", () => {
       ["app", "compactCommandDetail"],
       ["app", "initCommandDetail"],
       ["app", "planCommandDetail"],
-      ["app", "executeCommandDetail"],
-      ["app", "reviewCommandDetail"],
       ["settings", "languageDetail"],
       ["automations", "subtitle"],
       ["resources", "marketDescription"],
@@ -217,10 +230,6 @@ describe("i18n resources", () => {
       initCommandDetail: "Create an AGENTS.md file with project instructions",
       planCommand: "/plan",
       planCommandDetail: "Switch to Plan mode",
-      executeCommand: "/execute",
-      executeCommandDetail: "Switch to Execute mode",
-      reviewCommand: "/review",
-      reviewCommandDetail: "Switch to Review mode",
     };
 
     for (const locale of APP_LOCALES) {
@@ -229,8 +238,12 @@ describe("i18n resources", () => {
       expect(copy.compactCommand).toBe("/compact");
       expect(copy.initCommand).toBe("/init");
       expect(copy.planCommand).toBe("/plan");
-      expect(copy.executeCommand).toBe("/execute");
-      expect(copy.reviewCommand).toBe("/review");
+      expect(I18N_RESOURCES[locale].app).not.toHaveProperty(
+        "executeCommandDetail",
+      );
+      expect(I18N_RESOURCES[locale].app).not.toHaveProperty(
+        "reviewCommandDetail",
+      );
       if (locale !== "en") {
         expect(copy.goalCommandDetail).not.toBe(fallback.goalCommandDetail);
         expect(copy.compactCommandDetail).not.toBe(
@@ -238,10 +251,9 @@ describe("i18n resources", () => {
         );
         expect(copy.initCommandDetail).not.toBe(fallback.initCommandDetail);
         expect(copy.planCommandDetail).not.toBe(fallback.planCommandDetail);
-        expect(copy.executeCommandDetail).not.toBe(
-          fallback.executeCommandDetail,
-        );
-        expect(copy.reviewCommandDetail).not.toBe(fallback.reviewCommandDetail);
+        for (const key of ["Plan.workDetail", "Plan.codemodeDetail"]) {
+          expect(uiText(locale, key)).not.toBe(uiText("en", key));
+        }
       }
     }
   });

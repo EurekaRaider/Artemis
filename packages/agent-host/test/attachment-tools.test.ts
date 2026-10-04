@@ -30,7 +30,7 @@ describe("attachment tools policy", () => {
             string,
             {
               currentTurnId: string;
-              currentMode: "plan" | "review" | "execute";
+              currentMode: "plan" | "review" | "work";
               delegatedTools: Array<{
                 name: string;
                 execute: (id: string, p: object) => Promise<unknown>;
@@ -52,7 +52,7 @@ describe("attachment tools policy", () => {
         expect.arrayContaining(["bash", "write"]),
       );
       thread.currentTurnId = "turn";
-      for (const mode of ["plan", "review", "execute"] as const) {
+      for (const mode of ["plan", "review", "work"] as const) {
         thread.currentMode = mode;
         await thread.delegatedTools
           .find((t) => t.name === "attachment_list")!

@@ -1011,7 +1011,11 @@ export function Select<Value extends string>({
       const element = menu.current;
       const anchor = trigger.current;
       if (!element || !anchor) return;
-      element.style.insetBlockStart = `calc(${anchor.offsetTop + anchor.offsetHeight}px + var(--artemis-space-1))`;
+      // Let surface styles choose the opening direction without competing insets.
+      element.style.setProperty(
+        "--select-anchor-end",
+        `${anchor.offsetTop + anchor.offsetHeight}px`,
+      );
       const scale = anchor.offsetWidth
         ? anchor.getBoundingClientRect().width / anchor.offsetWidth
         : 1;

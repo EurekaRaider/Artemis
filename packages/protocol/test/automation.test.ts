@@ -13,7 +13,7 @@ const automation = automationSchema.parse({
   projectId: "project-1",
   name: "Daily review",
   prompt: "Review the current workspace.",
-  mode: "review",
+  mode: "plan",
   target: "local",
   schedule: {
     kind: "weekly",

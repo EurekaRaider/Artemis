@@ -40,7 +40,7 @@ const ALL_CAPABILITIES: CapabilityClass[] = [
   "business-read",
 ];
 
-function fullContext(mode: "execute" | "plan" | "review"): CapabilityContext {
+function fullContext(mode: "work" | "plan" | "review"): CapabilityContext {
   return {
     runMode: mode,
     childBaseline: new Set(ALL_CAPABILITIES),
@@ -104,7 +104,7 @@ describe("custom agent scope resolution", () => {
 
 describe("run mode capability baselines", () => {
   it("plan and review never allow shell, mcp, extensions, writes, or spawning", () => {
-    for (const mode of ["plan", "review"] as const) {
+    for (const mode of ["plan"] as const) {
       const caps = runModeCapabilities(mode);
       expect(caps.has("shell")).toBe(false);
       expect(caps.has("mcp")).toBe(false);
@@ -118,7 +118,7 @@ describe("run mode capability baselines", () => {
 
 describe("effective capability intersection", () => {
   it("never widens beyond any layer, even when the definition inherits", () => {
-    const context = fullContext("execute");
+    const context = fullContext("work");
     context.parentDelegatable = new Set<CapabilityClass>([
       "business-read",
       "shell",
@@ -135,7 +135,7 @@ describe("effective capability intersection", () => {
 
   it("empty allowlist means no business tools and never falls back to inherit", () => {
     const effective = computeEffectiveCapabilities(
-      fullContext("execute"),
+      fullContext("work"),
       { kind: "allowlist", tools: [] },
       resolveNothing,
     );
@@ -148,7 +148,7 @@ describe("effective capability intersection", () => {
         ? new Set<CapabilityClass>(["mcp", "business-read"])
         : new Set<CapabilityClass>();
     const effective = computeEffectiveCapabilities(
-      fullContext("execute"),
+      fullContext("work"),
       {
         kind: "allowlist",
         tools: [{ kind: "mcp", serverId: "db", toolName: "query_db" }],
@@ -172,7 +172,7 @@ describe("effective capability intersection", () => {
   });
 
   it("revoked live grants shrink the result at execution time", () => {
-    const context = fullContext("execute");
+    const context = fullContext("work");
     context.liveGrants = new Set<CapabilityClass>(["business-read"]);
     const effective = computeEffectiveCapabilities(
       context,
@@ -184,7 +184,7 @@ describe("effective capability intersection", () => {
 
   it("custom definitions never receive spawn-agent, regardless of inputs", () => {
     const effective = computeEffectiveCapabilities(
-      fullContext("execute"),
+      fullContext("work"),
       { kind: "inherit" },
       resolveNothing,
     );

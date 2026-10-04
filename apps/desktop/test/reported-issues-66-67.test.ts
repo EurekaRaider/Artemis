@@ -11,10 +11,10 @@ const app = readFileSync(join(root, "src/renderer/App.tsx"), "utf8");
 const styles = readFileSync(join(root, "src/renderer/styles.css"), "utf8");
 
 describe("reported issues 66 and 67", () => {
-  it("brokers explicit local paths only through an active Execute turn", () => {
+  it("brokers explicit local paths only through an active Work or Codemode turn", () => {
     expect(main).toContain('case "local.file.read"');
     expect(main).toContain('case "local.file.write"');
-    expect(main).toContain('request.mode !== "execute"');
+    expect(main).toContain("!isExecutionMode(request.mode)");
     expect(main).toContain(
       "activeTurns.get(request.threadId) !== request.turnId",
     );

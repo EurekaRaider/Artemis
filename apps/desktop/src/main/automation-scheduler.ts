@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -130,7 +131,7 @@ export class AutomationScheduler {
     ) {
       skipReason = "The local project already has an active task.";
     } else if (
-      automation.mode === "execute" &&
+      isExecutionMode(automation.mode) &&
       automation.authorizationState !== "authorized"
     ) {
       skipReason = "Automation authorization is required.";

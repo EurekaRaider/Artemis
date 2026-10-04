@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { dirname, relative, resolve } from "node:path";
@@ -21,6 +22,9 @@ const RESULT_PREFIX = "ARTEMIS_EXTENSION_RESULT:";
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
 
 interface DiscoveredTool {
+  outputSchema?: Record<string, unknown>;
+  namespace?: ExtensionRuntimeTool["namespace"];
+  annotations?: ExtensionRuntimeTool["annotations"];
   name: string;
   label: string;
   description: string;
@@ -40,6 +44,8 @@ interface DiscoveryResult {
 interface ExecutionResult {
   content: unknown[];
   details?: unknown;
+  structuredContent?: unknown;
+  isError?: boolean;
 }
 
 export interface TrustedExtensionStatus {
@@ -100,6 +106,7 @@ function pathIsInside(root: string, candidate: string): boolean {
 function formatResult(result: ExecutionResult): {
   output: string;
   isError: boolean;
+  structuredContent?: unknown;
 } {
   const output = result.content
     .map((item) => {
@@ -119,7 +126,13 @@ function formatResult(result: ExecutionResult): {
   if (Buffer.byteLength(output, "utf8") > MAX_OUTPUT_BYTES) {
     throw new Error("Extension tool output exceeds 2 MiB");
   }
-  return { output, isError: false };
+  return {
+    output,
+    isError: result.isError ?? false,
+    ...(result.structuredContent === undefined
+      ? {}
+      : { structuredContent: result.structuredContent }),
+  };
 }
 
 export class TrustedExtensionManager {
@@ -180,7 +193,7 @@ export class TrustedExtensionManager {
             workspacePath: cwd,
           },
           config,
-          "review",
+          "plan",
           localFullAccess,
         )) as DiscoveryResult;
         const tools = discovery.tools.map((tool) => ({
@@ -191,6 +204,9 @@ export class TrustedExtensionManager {
           label: tool.label,
           description: tool.description,
           inputSchema: tool.inputSchema,
+          ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
+          ...(tool.namespace ? { namespace: tool.namespace } : {}),
+          ...(tool.annotations ? { annotations: tool.annotations } : {}),
         }));
         this.statuses.set(config.id, {
           config: structuredClone(config),
@@ -227,12 +243,14 @@ export class TrustedExtensionManager {
     workspacePath: string,
     mode: RunMode,
     localFullAccess = false,
-  ): Promise<{ output: string; isError: boolean }> {
+  ): Promise<{
+    output: string;
+    isError: boolean;
+    structuredContent?: unknown;
+  }> {
     if (this.disposed) throw new Error("Trusted extensions are stopped");
-    if (mode !== "execute") {
-      throw new Error(
-        "Trusted extensions cannot execute in Plan or Review mode",
-      );
+    if (!isExecutionMode(mode)) {
+      throw new Error("Trusted extensions cannot execute in Plan mode");
     }
     const status = this.statuses.get(extensionId);
     if (!status || status.state !== "ready") {
@@ -289,7 +307,7 @@ export class TrustedExtensionManager {
     const policy: SandboxPolicy = {
       workspacePath: request.workspacePath,
       mode,
-      network: config.allowNetwork && mode === "execute" ? "allow" : "deny",
+      network: config.allowNetwork && isExecutionMode(mode) ? "allow" : "deny",
       readOnlyPaths: [
         ...macosAppRuntimeReadOnlyPaths(this.platform, process.execPath),
         readableRoot(this.workerPath),

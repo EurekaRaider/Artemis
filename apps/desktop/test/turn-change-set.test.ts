@@ -56,7 +56,7 @@ async function fixture(): Promise<{
     id: "thread-1",
     projectId: "project-1",
     title: "Fixture task",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,

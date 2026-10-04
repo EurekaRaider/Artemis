@@ -502,7 +502,9 @@ it("requires fresh confirmation after editing policy or scope on the combined pa
   await user.click(consent);
   expect(submit).toBeEnabled();
   await user.click(screen.getByRole("button", { name: /^模式/ }));
-  await user.click(screen.getByRole("option", { name: "Execute · 允许修改" }));
+  // main 的三模式迁移把选项标签改为 App_copy.work（工作模式）——
+  // Pi 提交漏改了这个测试（其 CI 被 skip）。
+  await user.click(screen.getByRole("option", { name: "工作模式" }));
   expect(consent).not.toBeChecked();
   expect(submit).toBeDisabled();
   await user.click(consent);

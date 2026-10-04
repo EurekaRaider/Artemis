@@ -1,3 +1,4 @@
+import type { SavedPlan } from "./plans.js";
 import type {
   AgentEvent,
   AgentTeamMessagePayload,
@@ -29,6 +30,9 @@ export interface MessagePartState {
 }
 
 export interface ToolState {
+  parentToolCallId?: string;
+  structuredContent?: unknown;
+  images?: Array<{ data: string; mimeType: string }>;
   id: string;
   name: string;
   input?: unknown;
@@ -127,6 +131,7 @@ export interface TurnViewState {
 }
 
 export interface ThreadViewState {
+  plans?: SavedPlan[];
   artifacts?: Record<string, ArtifactViewState>;
   notification?: TaskNotificationState;
   threadId: string;
@@ -167,10 +172,11 @@ export interface ThreadViewState {
 
 export function createThreadViewState(
   threadId: string,
-  mode: RunMode = "execute",
+  mode: RunMode = "work",
 ): ThreadViewState {
   return {
     threadId,
+    plans: [],
     status: "idle",
     mode,
     order: [],
@@ -225,6 +231,7 @@ function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
     turns: { ...state.turns },
     entryTurnIds: { ...state.entryTurnIds },
     userMessages: { ...state.userMessages },
+    plans: (state.plans ?? []).map((plan) => ({ ...plan })),
     messageParts: { ...state.messageParts },
     tools: { ...state.tools },
     approvals: { ...state.approvals },
@@ -569,6 +576,32 @@ function applyAgentPayload(
 ): void {
   const payload = event.payload;
   switch (payload.type) {
+    case "plan.proposed": {
+      state.plans ??= [];
+      if (
+        !state.plans.some(
+          (p) => p.planId === payload.planId && p.revision === payload.revision,
+        )
+      )
+        state.plans.push({ ...payload, status: "proposed", ready: false });
+      appendOnce(state.order, orderedItems, `plan:${payload.planId}`);
+      return;
+    }
+    case "plan.accepted":
+    case "plan.superseded": {
+      const plan = state.plans?.find(
+        (p) => p.planId === payload.planId && p.revision === payload.revision,
+      );
+      if (plan) {
+        plan.status =
+          payload.type === "plan.accepted" ? "accepted" : "superseded";
+        if (payload.type === "plan.accepted") {
+          plan.executionTurnId = payload.executionTurnId;
+          plan.executionMode = payload.mode;
+        }
+      }
+      return;
+    }
     case "user.message": {
       if (isLegacyInternalAgentMessage(payload.text)) return;
       state.userMessages[payload.messageId] = {
@@ -632,6 +665,9 @@ function applyAgentPayload(
       state.tools[tool.toolCallId] = {
         id: tool.toolCallId,
         name: tool.toolName,
+        ...(tool.parentToolCallId
+          ? { parentToolCallId: tool.parentToolCallId }
+          : {}),
         ...(tool.input === undefined ? {} : { input: tool.input }),
         output: "",
         status: "running",
@@ -657,6 +693,10 @@ function applyAgentPayload(
       if (tool) {
         state.tools[payload.toolCallId] = {
           ...tool,
+          ...(payload.structuredContent === undefined
+            ? {}
+            : { structuredContent: payload.structuredContent }),
+          ...(payload.images ? { images: payload.images } : {}),
           output: payload.output ?? tool.output,
           status: payload.isError ? "failed" : "completed",
           lastActivityAt: event.timestamp,
@@ -969,12 +1009,17 @@ function applyAgentPayload(
     case "terminal.output":
       return;
     case "turn.completed": {
+      for (const plan of state.plans ?? [])
+        if (plan.sourceTurnId === event.turnId)
+          plan.ready = payload.reason === "completed";
       clearThinkingParts(state, orderedItems, index);
       state.status = "idle";
       delete state.activity;
       return;
     }
     case "turn.failed": {
+      for (const plan of state.plans ?? [])
+        if (plan.sourceTurnId === event.turnId) plan.ready = false;
       clearThinkingParts(state, orderedItems, index);
       state.status = "failed";
       delete state.activity;
@@ -1156,7 +1201,7 @@ export function reduceAgentEventBatch(
 export function reduceAgentEvents(
   threadId: string,
   events: AgentEvent[],
-  mode: RunMode = "execute",
+  mode: RunMode = "work",
 ): ThreadViewState {
   const state = createThreadViewState(threadId, mode);
   const orderedItems = new Set<string>();

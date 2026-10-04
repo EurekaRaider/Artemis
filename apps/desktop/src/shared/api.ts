@@ -1,3 +1,8 @@
+import type { McpExposureSettings } from "@artemis/protocol";
+import type {
+  ProviderLoginOption,
+  ProviderLoginState,
+} from "./provider-login.js";
 import type {
   AppearanceState,
   SkinSelection,
@@ -519,7 +524,7 @@ export interface TrustedExtensionStatus {
   error?: string;
 }
 
-export interface McpResourceMetadata {
+export interface McpResourceMetadata extends McpExposureSettings {
   resourceKind?: "mcp" | "connector";
   connectorId?: string;
   connector?: ConnectorDefinition;
@@ -1007,6 +1012,14 @@ export interface ArtemisApi {
     destination: "local" | "managed-worktree",
   ): Promise<HandoffWorkspaceResult>;
   startTurn(input: StartTurnInput): Promise<StartTurnResult>;
+  acceptPlan(
+    input: import("@artemis/protocol").PlanAcceptance & { threadId: string },
+  ): Promise<StartTurnResult>;
+  revisePlan(input: {
+    threadId: string;
+    text: string;
+    attachments?: PromptAttachment[];
+  }): Promise<StartTurnResult>;
   reportTurnRendered(turnId: string, renderedAt: number): void;
   steerTurn(input: QueueTurnInput): Promise<void>;
   followUpTurn(input: QueueTurnInput): Promise<void>;
@@ -1292,6 +1305,18 @@ export interface ArtemisApi {
   ): Promise<SettingsSnapshot>;
   deleteProviderConnection(providerId: string): Promise<SettingsSnapshot>;
   deleteCredential(providerId: string): Promise<SettingsSnapshot>;
+  providerLoginOptions(): Promise<ProviderLoginOption[]>;
+  providerLoginStart(
+    providerId: string,
+    type: "api_key" | "oauth",
+  ): Promise<ProviderLoginState>;
+  providerLoginStatus(id: string): Promise<ProviderLoginState>;
+  providerLoginAnswer(
+    id: string,
+    promptId: string,
+    value: string,
+  ): Promise<ProviderLoginState>;
+  providerLoginCancel(id: string): Promise<void>;
   importPiCredentials(): Promise<
     { imported: number; settings: SettingsSnapshot } | undefined
   >;
@@ -1500,6 +1525,8 @@ export const IPC = {
   worktreeRestoreSnapshot: "artemis:worktree-restore-snapshot",
   worktreeHandoff: "artemis:worktree-handoff",
   turnStart: "artemis:turn-start",
+  planAccept: "artemis:plan-accept",
+  planRevise: "artemis:plan-revise",
   turnRendered: "artemis:turn-rendered",
   turnSteer: "artemis:turn-steer",
   turnFollowUp: "artemis:turn-follow-up",
@@ -1612,6 +1639,11 @@ export const IPC = {
   settingsProviderSave: "artemis:settings-provider-save",
   settingsProviderDelete: "artemis:settings-provider-delete",
   settingsCredentialDelete: "artemis:settings-credential-delete",
+  providerLoginOptions: "artemis:provider-login-options",
+  providerLoginStart: "artemis:provider-login-start",
+  providerLoginStatus: "artemis:provider-login-status",
+  providerLoginAnswer: "artemis:provider-login-answer",
+  providerLoginCancel: "artemis:provider-login-cancel",
   settingsPiImport: "artemis:settings-pi-import",
   settingsGlobalAgentsSave: "artemis:settings-global-agents-save",
   settingsImportScan: "artemis:settings-import-scan",

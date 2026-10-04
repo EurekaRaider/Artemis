@@ -17,7 +17,7 @@ interface InspectableTool {
 
 interface InspectableThread {
   currentTurnId?: string;
-  currentMode?: "execute" | "plan" | "review";
+  currentMode?: "work" | "plan" | "review";
   executeTools: InspectableTool[];
   delegatedTools: InspectableTool[];
 }
@@ -65,7 +65,7 @@ describe("local file tools", () => {
     );
 
     thread!.currentTurnId = "local-file-turn";
-    thread!.currentMode = "execute";
+    thread!.currentMode = "work";
     const modelApproval = {
       risk: "high",
       explicit_user_request: true,
@@ -97,7 +97,7 @@ describe("local file tools", () => {
     expect(requests).toMatchObject([
       {
         kind: "local.file.read",
-        mode: "execute",
+        mode: "work",
         modelApproval: {
           risk: "high",
           explicitUserRequest: true,
@@ -105,7 +105,7 @@ describe("local file tools", () => {
       },
       {
         kind: "local.file.write",
-        mode: "execute",
+        mode: "work",
         content: "changed",
         modelApproval: {
           risk: "high",

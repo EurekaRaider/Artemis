@@ -237,7 +237,7 @@ it.each(["feishu", "slack"] as const)(
     ).toMatchObject({ retired: "dissolved", confirmed: false });
     expect(f.threads).toContain(thread);
     expect(() =>
-      f.service.desktopGroupContext(thread.id, "continue", "execute"),
+      f.service.desktopGroupContext(thread.id, "continue", "work"),
     ).toThrow(/对话不可用/);
     await expect(f.authorize()).rejects.toThrow();
     await f.service.close();
@@ -258,7 +258,7 @@ it.each(["feishu", "slack"] as const)(
         ?.retired,
     ).toBe("dissolved");
     expect(() =>
-      restarted.desktopGroupContext(thread.id, "continue", "execute"),
+      restarted.desktopGroupContext(thread.id, "continue", "work"),
     ).toThrow(/对话不可用/);
   },
 );
@@ -540,7 +540,7 @@ it("reuses the group's session across members and creates one only for explicit 
 });
 it("continues a native bot assignment in its original session and treats slash text as task content", async () => {
   const f = await fixture();
-  f.grant.mode = "execute";
+  f.grant.mode = "work";
   await f.authorize();
   const owner = f.gateway.router.groupConversationContext(
     f.service.status().settings.deviceId,
@@ -578,7 +578,7 @@ it("continues a native bot assignment in its original session and treats slash t
           text: "Send it back",
         },
       },
-      "execute",
+      "work",
       "reverse-delegation",
     ),
   ).rejects.toThrow(/received assignment/);
@@ -674,12 +674,12 @@ it("allows remote operations after cumulative usage exceeds legacy token budgets
       },
       "plan",
     ),
-  ).toThrow(/Plan and Review/);
+  ).toThrow(/Plan/);
   await f.service.save({ ...f.service.status().settings, enabled: false });
   expect(() => f.service.authorizeThread(threadId, "plan")).toThrow();
 });
 
-it("queries Slack bots in Plan and Review without dispatching or requiring bot authorization", async () => {
+it("queries Slack bots in Plan without dispatching or requiring bot authorization", async () => {
   const f = await fixture("slack");
   await f.authorize();
   const task = f.service.status().remoteTasks![0]!;
@@ -699,7 +699,7 @@ it("queries Slack bots in Plan and Review without dispatching or requiring bot a
   });
   await f.service.manage({ action: "refresh" });
   const outgoing = f.gateway.store.pending("outgoing");
-  for (const mode of ["plan", "review"] as const) {
+  for (const mode of ["plan"] as const) {
     const result = await f.service.operate(
       task.threadId,
       { action: "participants" },
@@ -751,7 +751,7 @@ it("queries Slack bots in Plan and Review without dispatching or requiring bot a
 
 async function delegatedFixture(channel: "slack" | "feishu" = "slack") {
   const f = await fixture(channel);
-  f.grant.mode = "execute";
+  f.grant.mode = "work";
   await f.authorize();
   const groupId = f.service.status().remoteTasks![0]!.group!.spaceId;
   const group = f.gateway.store.get<
@@ -801,7 +801,7 @@ it.each(["slack", "feishu", "lark"] as const)(
   "%s creates the receiver conversation on an explicit fresh dispatch after an unaccepted older assignment on the same desktop",
   async (platform) => {
     const f = await fixture(platform === "slack" ? "slack" : "feishu");
-    f.grant.mode = "execute";
+    f.grant.mode = "work";
     const receiverEvent = {
       ...f.event,
       messageId: randomUUID(),
@@ -880,7 +880,7 @@ it.each(["slack", "feishu", "lark"] as const)(
     const [old] = (await f.service.operate(
       coordinator,
       { action: "collaborate", command },
-      "execute",
+      "work",
       randomUUID(),
     )) as Array<{ id: string; envelope: { id: string } }>;
     // The provider accepted the old message, but the receiver never accepted it.
@@ -902,7 +902,7 @@ it.each(["slack", "feishu", "lark"] as const)(
         action: "collaborate",
         command: { ...command, newTask: true },
       },
-      "execute",
+      "work",
       randomUUID(),
     )) as Array<{ id: string }>;
     expect(tasks[0]!.id).not.toBe(old!.id);
@@ -1007,7 +1007,7 @@ it("parks delegated work, preserves intervening conversation, and resumes once a
         text: "Review results",
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   );
   expect(result).toMatchObject({ state: "waiting" });
@@ -1058,7 +1058,7 @@ it.each(["archived", "deleted", "revoked", "review", "busy", "queued"])(
           text: "Review results",
         },
       },
-      "execute",
+      "work",
       randomUUID(),
     );
     f.gateway.store.put(
@@ -1106,7 +1106,7 @@ it("cancels local continuation even if the remote cancellation cannot be deliver
         text: "Review",
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   )) as { waitId: string };
   await f.service
@@ -1141,7 +1141,7 @@ it("returns already available results synchronously without scheduling a second 
         text: "Review",
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   );
   expect(result).toMatchObject({
@@ -1168,7 +1168,7 @@ it("recovers a persisted wait and result after the IM service restarts", async (
         text: "Review after restart",
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   );
   f.gateway.store.put("native-tasks", JSON.stringify([f.groupId, f.task.id]), {
@@ -1222,7 +1222,7 @@ it("returns a result during the bounded short wait and replays the same tool rec
     const result = await f.service.operate(
       f.threadId,
       { action: "collaborate", command },
-      "execute",
+      "work",
       callId,
     );
     expect(result).toMatchObject({
@@ -1233,7 +1233,7 @@ it("returns a result during the bounded short wait and replays the same tool rec
       await f.service.operate(
         f.threadId,
         { action: "collaborate", command },
-        "execute",
+        "work",
         callId,
       ),
     ).toEqual(result);
@@ -1255,7 +1255,7 @@ it("keeps task ownership checks after an intervening message changes the invocat
   const status = await f.service.operate(
     f.threadId,
     { action: "collaborate", command: { action: "status", text: "" } },
-    "execute",
+    "work",
     randomUUID(),
   );
   expect(status).toMatchObject([{ id: f.task.id, invocationId: f.request.id }]);
@@ -1271,7 +1271,7 @@ it("keeps task ownership checks after an intervening message changes the invocat
         action: "collaborate",
         command: { action: "cancel", taskId: "foreign", text: "" },
       },
-      "execute",
+      "work",
       randomUUID(),
     ),
   ).rejects.toThrow(/owned/);
@@ -1288,7 +1288,7 @@ it("keeps task ownership checks after an intervening message changes the invocat
         action: "collaborate",
         command: { action: "cancel", taskId: f.task.id, text: "" },
       },
-      "execute",
+      "work",
       randomUUID(),
     ),
   ).resolves.toMatchObject({ id: f.task.id, state: "completed" });
@@ -1313,7 +1313,7 @@ it.each(["desktop", "chat", "tool"] as const)(
           text: "Review",
         },
       },
-      "execute",
+      "work",
       randomUUID(),
     )) as { waitId: string };
     f.thread.status = "idle";
@@ -1336,7 +1336,7 @@ it.each(["desktop", "chat", "tool"] as const)(
             action: "collaborate",
             command: { action: "cancel", taskId: f.task.id, text: "" },
           },
-          "execute",
+          "work",
           randomUUID(),
         )
         .catch(() => {});
@@ -1388,7 +1388,7 @@ it("preserves cancellation when a continuation dispatch completes concurrently",
         text: "Review",
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   )) as { waitId: string };
   const stopped = vi.fn(async () => {});
@@ -1472,7 +1472,7 @@ async function automaticallyDelegatedFixture(
   const result = (await f.service.operate(
     f.threadId,
     { action: "collaborate", command },
-    "execute",
+    "work",
     callId,
     originTurnId,
   )) as Array<typeof f.task>;
@@ -1493,7 +1493,7 @@ it.each(["slack", "feishu", "lark"] as const)(
       f.service.operate(
         f.threadId,
         { action: "collaborate", command: { action: "status", text: "" } },
-        "execute",
+        "work",
         randomUUID(),
         randomUUID(),
       );
@@ -1537,7 +1537,7 @@ it.each(["slack", "feishu", "lark"] as const)(
             text: "Say hello and reply to the earlier question",
           },
         },
-        "execute",
+        "work",
         randomUUID(),
         randomUUID(),
       ),
@@ -1554,7 +1554,7 @@ it.each(["slack", "feishu", "lark"] as const)(
             waitSeconds: 0,
           },
         },
-        "execute",
+        "work",
         randomUUID(),
         randomUUID(),
       ),
@@ -1578,7 +1578,7 @@ it("registers waiting immediately on successful dispatch without a wait tool and
   await f.service.operate(
     f.threadId,
     { action: "collaborate", command: f.command },
-    "execute",
+    "work",
     f.callId,
   );
   expect(f.waits()).toHaveLength(1);
@@ -1593,7 +1593,7 @@ it("registers waiting immediately on successful dispatch without a wait tool and
         waitSeconds: 0,
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   );
   expect(waited).toMatchObject({ waitId: id });
@@ -1617,7 +1617,7 @@ it("consumes only results actually returned by status and preserves the remainin
   await f.service.operate(
     f.threadId,
     { action: "collaborate", command: { action: "status", text: "" } },
-    "execute",
+    "work",
     randomUUID(),
   );
   expect(f.waits()).toHaveLength(1);
@@ -1648,7 +1648,7 @@ it("does not resurrect automatic waits on dispatch replay after cancellation", a
   await f.service.operate(
     f.threadId,
     { action: "collaborate", command: f.command },
-    "execute",
+    "work",
     f.callId,
   );
   expect(f.waits()).toHaveLength(0);
@@ -1704,7 +1704,7 @@ it("merges explicit batch waiting without retaining duplicate automatic continua
         waitSeconds: 0,
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   );
   expect(f.waits()).toHaveLength(1);
@@ -1724,7 +1724,7 @@ it("does not show a wait when dispatch is rejected", async () => {
           text: "Analyze",
         },
       },
-      "execute",
+      "work",
       randomUUID(),
     ),
   ).rejects.toThrow();
@@ -1739,7 +1739,7 @@ it("parks pending polling and cancels its original turn, blocking new dispatch f
   const status = await f.service.operate(
     f.threadId,
     { action: "collaborate", command: { action: "status", text: "" } },
-    "execute",
+    "work",
     randomUUID(),
     origin,
   );
@@ -1756,7 +1756,7 @@ it("parks pending polling and cancels its original turn, blocking new dispatch f
     f.service.operate(
       f.threadId,
       { action: "collaborate", command: f.command },
-      "execute",
+      "work",
       randomUUID(),
       origin,
     ),
@@ -1765,7 +1765,7 @@ it("parks pending polling and cancels its original turn, blocking new dispatch f
   await f.service.operate(
     f.threadId,
     { action: "collaborate", command: f.command },
-    "execute",
+    "work",
     randomUUID(),
     randomUUID(),
   );
@@ -1801,7 +1801,7 @@ it("cancels an in-flight dispatch that returns after its originating turn was ca
   const pending = f.service.operate(
     f.threadId,
     { action: "collaborate", command: f.command },
-    "execute",
+    "work",
     randomUUID(),
     origin,
   );
@@ -1850,7 +1850,7 @@ it("recovers the origin of an older wait from a real tool receipt when cancellin
     f.service.operate(
       f.threadId,
       { action: "collaborate", command: f.command },
-      "execute",
+      "work",
       randomUUID(),
       origin,
     ),
@@ -1884,7 +1884,7 @@ it.each(["cancelled", "failed", "rejected"] as const)(
       f.service.operate(
         f.threadId,
         { action: "collaborate", command: f.command },
-        "execute",
+        "work",
         randomUUID(),
         randomUUID(),
       ),
@@ -1957,7 +1957,7 @@ it.each(["wait", "status"] as const)(
               }
             : { action, text: "" },
       },
-      "execute",
+      "work",
       randomUUID(),
       turnId,
     );
@@ -2171,7 +2171,7 @@ it("queries unknown and recovered task heartbeats without rearming an interrupte
     const status = await f.service.operate(
       f.threadId,
       { action: "collaborate", command: { action: "status", text: "" } },
-      "execute",
+      "work",
       randomUUID(),
       randomUUID(),
     );
@@ -2219,7 +2219,7 @@ it.each(["slack", "feishu"] as const)(
           text: "Finish the user's task",
         },
       },
-      "execute",
+      "work",
       randomUUID(),
     );
     const nativeTaskId = randomUUID();
@@ -2310,7 +2310,7 @@ it("cancels a reverse assignment without cancelling the suspended user workflow"
         text: "Continue user work",
       },
     },
-    "execute",
+    "work",
     randomUUID(),
   );
   f.thread.status = "idle";
@@ -2349,7 +2349,7 @@ it("cancels a reverse assignment without cancelling the suspended user workflow"
 
 it("shares human and native group messages unless a native new conversation is explicit", async () => {
   const f = await fixture("feishu");
-  f.grant.mode = "execute";
+  f.grant.mode = "work";
   await f.authorize();
   const owner = f.gateway.router.groupConversationContext(
     f.service.status().settings.deviceId,
@@ -2442,7 +2442,7 @@ it("lets a receiving worker wait for a prerequisite and resume its own assignmen
           text: "Apply constraints to my own project",
         },
       },
-      "execute",
+      "work",
       randomUUID(),
     ),
   ).resolves.toMatchObject({ state: "waiting" });
@@ -2557,7 +2557,7 @@ it.runIf(process.platform === "darwin")(
       f.service.operate(
         f.threadId,
         { action: "read", path: "." },
-        "execute",
+        "work",
         randomUUID(),
         "denied-turn",
       ),
@@ -2568,7 +2568,7 @@ it.runIf(process.platform === "darwin")(
       f.service.operate(
         f.threadId,
         { action: "read", path: "first/private.txt" },
-        "execute",
+        "work",
         randomUUID(),
         "denied-turn",
       ),
@@ -2584,7 +2584,7 @@ it.runIf(process.platform === "darwin")(
           action: "read",
           path: "allowed.txt",
         },
-        "execute",
+        "work",
         randomUUID(),
         "denied-turn",
       ),
@@ -2599,7 +2599,7 @@ it.runIf(process.platform === "darwin")(
       f.service.operate(
         f.threadId,
         { action: "read", path: "." },
-        "execute",
+        "work",
         randomUUID(),
         "new-turn",
       );
@@ -2687,7 +2687,7 @@ it("reports system denials without blocking unrelated operations in the same tur
     f.service.authorizeOperation(
       f.threadId,
       { action: "read", path: "." },
-      "execute",
+      "work",
       "old-turn",
     ),
   ).not.toThrow();
@@ -2696,7 +2696,7 @@ it("reports system denials without blocking unrelated operations in the same tur
     f.service.authorizeOperation(
       f.threadId,
       { action: "read", path: "." },
-      "execute",
+      "work",
       "new-turn",
     ),
   ).not.toThrow();
@@ -2708,14 +2708,14 @@ it("keeps member discovery and coordination available while a local writer is bu
     ...f.thread,
     id: "local-writer",
     status: "running",
-    mode: "execute",
+    mode: "work",
   });
-  expect(() => f.service.authorizeThread(f.threadId, "execute")).not.toThrow();
+  expect(() => f.service.authorizeThread(f.threadId, "work")).not.toThrow();
   await expect(
     f.service.operate(
       f.threadId,
       { action: "participants" },
-      "execute",
+      "work",
       randomUUID(),
     ),
   ).resolves.toHaveProperty("members");
@@ -2723,7 +2723,7 @@ it("keeps member discovery and coordination available while a local writer is bu
     f.service.operate(
       f.threadId,
       { action: "collaborate", command: { action: "status", text: "" } },
-      "execute",
+      "work",
       randomUUID(),
     ),
   ).resolves.toBeDefined();
@@ -2759,12 +2759,12 @@ it("changes only the edited audience revision and keeps another audience active"
     })),
   });
   expect(f.service.profile(f.threadId)!.security!.revision).toBe(before);
-  expect(() => f.service.authorizeThread(f.threadId, "execute")).not.toThrow();
+  expect(() => f.service.authorizeThread(f.threadId, "work")).not.toThrow();
 });
 
 it("defaults to configured reads in an enabled group while write confirmation is pending", async () => {
   const f = await fixture();
-  f.grant.mode = "execute";
+  f.grant.mode = "work";
   await f.authorize();
   const settings = f.service.status().settings;
   await f.service.save({
@@ -2795,30 +2795,25 @@ it("defaults to configured reads in an enabled group while write confirmation is
   expect(f.starts).toHaveLength(1);
   const id = f.starts[0]!;
   await expect(
-    f.service.operate(
-      id,
-      { action: "read", path: "." },
-      "execute",
-      randomUUID(),
-    ),
+    f.service.operate(id, { action: "read", path: "." }, "work", randomUUID()),
   ).resolves.toEqual({ entries: [{ path: "docs", directory: true }] });
   for (const path of ["private.txt", "docs/public/.env"]) {
     expect(() =>
-      f.service.authorizeOperation(id, { action: "read", path }, "execute"),
+      f.service.authorizeOperation(id, { action: "read", path }, "work"),
     ).toThrow();
   }
   expect(() =>
     f.service.authorizeOperation(
       id,
       { action: "write", path: "docs/public/new.txt", content: "no" },
-      "execute",
+      "work",
     ),
   ).toThrow();
   expect(() =>
     f.service.authorizeOperation(
       id,
       { action: "shell", command: "ls", timeoutSeconds: 1 },
-      "execute",
+      "work",
     ),
   ).toThrow();
   const turnId = randomUUID();
@@ -2937,7 +2932,7 @@ it.runIf(process.platform === "darwin")(
       .operate(
         f.threadId,
         { action: "write", path: "queued.txt", content: "OK" },
-        "execute",
+        "work",
         randomUUID(),
       )
       .then((result) => {
@@ -2950,7 +2945,7 @@ it.runIf(process.platform === "darwin")(
       f.service.operate(
         f.threadId,
         { action: "participants" },
-        "execute",
+        "work",
         randomUUID(),
       ),
     ).resolves.toHaveProperty("members");
@@ -2960,7 +2955,7 @@ it.runIf(process.platform === "darwin")(
     const cancelled = f.service.operate(
       f.threadId,
       { action: "write", path: "cancelled.txt", content: "NO" },
-      "execute",
+      "work",
       randomUUID(),
     );
     const rejected = expect(cancelled).rejects.toThrow();
@@ -3717,7 +3712,7 @@ it.each(["feishu", "slack"] as const)(
   "explains %s manual cooperation without changing Slack's error",
   async (channel) => {
     const f = await fixture(channel);
-    f.grant.mode = "execute";
+    f.grant.mode = "work";
     await f.authorize();
     const task = f.service.status().remoteTasks![0]!;
     const request = f.gateway.router.groupConversationContext(
@@ -3737,7 +3732,7 @@ it.each(["feishu", "slack"] as const)(
             text: "Check project",
           },
         },
-        "execute",
+        "work",
         randomUUID(),
       ),
     ).rejects.toThrow(
@@ -3810,7 +3805,7 @@ it("runs confirmed full-local operations through the group broker and revokes th
   const command = authorizationCommand(f);
   Object.assign(command.scope, { localAccess: "full" });
   Object.assign(command, { fullAccessConfirmed: true });
-  command.policy!.mode = "execute";
+  command.policy!.mode = "work";
   command.confirmationFingerprint = imAuthorizationFingerprint(command);
   const result = (await f.service.manage({
     action: "authorize-group",
@@ -3828,7 +3823,7 @@ it("runs confirmed full-local operations through the group broker and revokes th
     f.service.authorizeOperation(
       threadId,
       { action: "shell", command: "echo ok", timeoutSeconds: 5 },
-      "execute",
+      "work",
     ).approval,
   ).toBe("automatic");
   expect(f.service.status().settings.grants[0]!.approval).toBe("ask");
@@ -3850,7 +3845,7 @@ it("runs confirmed full-local operations through the group broker and revokes th
     await f.service.operate(
       threadId,
       { action: "read", path: outside },
-      "execute",
+      "work",
       "full-read",
     ),
   ).toMatchObject({ output: "outside content" });
@@ -3858,7 +3853,7 @@ it("runs confirmed full-local operations through the group broker and revokes th
     await f.service.operate(
       threadId,
       { action: "write", path: outside, content: "updated" },
-      "execute",
+      "work",
       "full-write",
     ),
   ).toMatchObject({ exitCode: 0 });
@@ -3873,7 +3868,7 @@ it("runs confirmed full-local operations through the group broker and revokes th
             : "printf full-local-ok",
         timeoutSeconds: 5,
       },
-      "execute",
+      "work",
       "full-shell",
     ),
   ).toMatchObject({
@@ -3916,7 +3911,7 @@ it("runs confirmed full-local operations through the group broker and revokes th
     f.service.authorizeOperation(
       threadId,
       { action: "read", path: outside },
-      "execute",
+      "work",
     ),
   ).toThrow();
   expect(f.service.profile(threadId)?.shell).toBe(false);

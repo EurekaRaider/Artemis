@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { type UiTranslate } from "../shared/ui-text.js";
 import { useState } from "react";
 import { CaretRightIcon } from "@phosphor-icons/react";
@@ -227,12 +228,12 @@ export function ImDataPermissions({
                     label={`${t("ImDataPermissions.message5")} ${entry.path}`}
                     labelVisibility="hidden"
                     checked={
-                      grant.mode === "execute" &&
+                      isExecutionMode(grant.mode) &&
                       imScopeCanWrite(scope, entry.path)
                     }
                     disabled={
                       disabled ||
-                      grant.mode !== "execute" ||
+                      !isExecutionMode(grant.mode) ||
                       (scope.readMode === "selected" &&
                         !scope.readPaths.length) ||
                       (scope.writeMode === "project" && path !== "") ||
@@ -329,9 +330,9 @@ export function ImDataPermissions({
         <Select
           label={t("GroupAuthorization.writeScope")}
           labelVisibility="visible"
-          disabled={disabled || pending || grant.mode !== "execute"}
+          disabled={disabled || pending || !isExecutionMode(grant.mode)}
           value={
-            grant.mode !== "execute"
+            !isExecutionMode(grant.mode)
               ? "none"
               : scope.writeMode === "project" && wholeProject
                 ? "project"
@@ -382,7 +383,7 @@ export function ImDataPermissions({
           )}
           <dt>{t("GroupAuthorization.writeScope")}</dt>
           <dd>
-            {grant.mode !== "execute"
+            {!isExecutionMode(grant.mode)
               ? t("GroupAuthorization.denied")
               : scope.writeMode === "project"
                 ? wholeProject
@@ -419,7 +420,7 @@ export function ImDataPermissions({
           </Button>
           <Button
             size="compact"
-            disabled={pending || disabled || grant.mode !== "execute"}
+            disabled={pending || disabled || !isExecutionMode(grant.mode)}
             onClick={() => void selectAll(true)}
           >
             {t("ImDataPermissions.setReadWrite")}
@@ -466,7 +467,7 @@ export function ImDataPermissions({
               : scope.readPaths.join(" · ")}
             <br />
             {t("GroupAuthorization.writeScope")}:{" "}
-            {grant.mode === "execute"
+            {isExecutionMode(grant.mode)
               ? scope.writePaths.join(" · ") ||
                 (scope.writeMode === "project"
                   ? wholeProject

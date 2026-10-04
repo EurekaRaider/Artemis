@@ -292,7 +292,7 @@ export class PluginRuntimeWorker {
       },
       {
         workspacePath: cwd,
-        mode: "execute",
+        mode: "work",
         network: "deny",
         readOnlyPaths: darwinRuntimeReadRoots(this.options.entry),
       },

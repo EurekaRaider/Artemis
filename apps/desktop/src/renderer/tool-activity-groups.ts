@@ -6,6 +6,7 @@ const HIDDEN_TIMELINE_TOOLS = new Set([
   "request_user_input",
   "spawn_agent",
   "update_plan",
+  "submit_plan",
 ]);
 
 export interface TimelineItemEntry {

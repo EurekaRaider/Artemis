@@ -17,6 +17,54 @@ const project = {
   updatedAt: "2026-01-01",
 };
 afterEach(cleanup);
+it.each([
+  {
+    locale: "zh-CN",
+    label: "任务模式",
+    options: ["计划模式", "工作模式", "代码模式"],
+  },
+  {
+    locale: "zh-TW",
+    label: "任務模式",
+    options: ["計畫模式", "工作模式", "程式碼模式"],
+  },
+  {
+    locale: "en",
+    label: "Task mode",
+    options: ["Plan mode", "Work mode", "Code mode"],
+  },
+] as const)(
+  "localizes and selects every mode in $locale",
+  async ({ locale, label, options }) => {
+    stubWindowArtemis({ onProjectGitChanged: () => () => {} });
+    const onModeChange = vi.fn();
+    render(
+      <ComposerContextBar
+        branchActionsDisabled={false}
+        locale={locale}
+        mode="work"
+        modeActionsDisabled={false}
+        onClearProject={vi.fn()}
+        onError={vi.fn()}
+        onModeChange={onModeChange}
+        onOpenProject={async () => {}}
+        onSelectProject={vi.fn()}
+        projects={[]}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: `${label} ${options[1]}` }),
+    );
+    expect(
+      screen
+        .getAllByRole("option")
+        .map((option) => option.textContent?.replace("✓", "")),
+    ).toEqual(options);
+    fireEvent.click(screen.getByRole("option", { name: options[2] }));
+    expect(onModeChange).toHaveBeenCalledExactlyOnceWith("codemode");
+  },
+);
+
 it("reads and refreshes the active task checkout instead of the project checkout", async () => {
   let changed!: (context: { projectId: string; threadId?: string }) => void;
   const read = vi
@@ -35,7 +83,7 @@ it("reads and refreshes the active task checkout instead of the project checkout
       threadId="task"
       branchActionsDisabled={false}
       locale="zh-CN"
-      mode="execute"
+      mode="work"
       modeActionsDisabled={false}
       onClearProject={vi.fn()}
       onError={vi.fn()}
@@ -65,7 +113,7 @@ it("closes the project picker when conversation context becomes locked", async (
     activeProject: project,
     branchActionsDisabled: false,
     locale: "en" as const,
-    mode: "execute" as const,
+    mode: "work" as const,
     modeActionsDisabled: false,
     onClearProject: vi.fn(),
     onError: vi.fn(),

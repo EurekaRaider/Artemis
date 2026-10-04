@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 import { validateToolArguments, type ToolCall } from "@earendil-works/pi-ai";
 import type {
@@ -37,7 +38,7 @@ export function createHooksBridge(options: HookBridgeOptions) {
     event: HookEvent,
     fields: Partial<HookInvocation> = {},
   ): Promise<HookResult> => {
-    if (!options.enabled() || options.mode() !== "execute") return {};
+    if (!options.enabled() || !isExecutionMode(options.mode())) return {};
     const turnId = options.turnId();
     const invocation: HookInvocation = {
       version: 1,
@@ -71,7 +72,8 @@ export function createHooksBridge(options: HookBridgeOptions) {
   };
   const factory: ExtensionFactory = (pi) => {
     pi.on("before_agent_start", async () => {
-      if (!options.enabled() || options.mode() !== "execute" || started) return;
+      if (!options.enabled() || !isExecutionMode(options.mode()) || started)
+        return;
       started = true;
       const result = await run(
         options.actorId ? "SubagentStart" : "SessionStart",
@@ -228,7 +230,7 @@ export function createHooksBridge(options: HookBridgeOptions) {
         decision?.action === "end" ||
         signal?.aborted ||
         !options.canContinue() ||
-        options.mode() !== "execute" ||
+        !isExecutionMode(options.mode()) ||
         context.message.stopReason !== "stop" ||
         context.toolResults.length ||
         session.pendingMessageCount

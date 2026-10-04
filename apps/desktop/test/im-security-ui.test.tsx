@@ -32,7 +32,7 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
     const [grant, setGrant] = useState(
       executionGrantSchema.parse({
         projectId: "p",
-        mode: "execute",
+        mode: "work",
         expiresAt: Date.now() + 60000,
       }),
     );
@@ -101,7 +101,7 @@ it("requires explicit whole-project write consent including future files for onl
     const [grant, setGrant] = useState(
       executionGrantSchema.parse({
         projectId: "p",
-        mode: "execute",
+        mode: "work",
         expiresAt: Date.now() + 60000,
       }),
     );
@@ -350,7 +350,7 @@ it("confirms only the selected audience without confirming or blocking on unrela
   });
 });
 
-it.each(["execute", "plan", "review"] as const)(
+it.each(["work", "plan", "codemode"] as const)(
   "distinguishes read scope, effective write scope and preset actions in %s",
   async (mode) => {
     function Editor() {
@@ -382,7 +382,7 @@ it.each(["execute", "plan", "review"] as const)(
     const allowWrites = screen.getByRole("button", {
       name: "设为整个项目可读写",
     });
-    if (mode !== "execute") {
+    if (mode === "plan") {
       expect(allowWrites).toBeDisabled();
       return;
     }
@@ -406,7 +406,7 @@ it("edits inline ranges without keeping whole-project writes after narrowing rea
     const [grant, setGrant] = useState(
       executionGrantSchema.parse({
         projectId: "p",
-        mode: "execute",
+        mode: "work",
         expiresAt: Date.now() + 60000,
       }),
     );

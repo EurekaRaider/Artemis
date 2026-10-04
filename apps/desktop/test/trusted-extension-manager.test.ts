@@ -71,20 +71,20 @@ describe("TrustedExtensionManager", () => {
         toolName: string,
         argumentsValue: Record<string, unknown>,
         workspacePath: string,
-        mode: "execute",
+        mode: "work",
         localFullAccess: boolean,
       ) => Promise<unknown>
-    )(config.id, "greet", {}, directory, "execute", false);
+    )(config.id, "greet", {}, directory, "work", false);
     await (
       manager.call as (
         extensionId: string,
         toolName: string,
         argumentsValue: Record<string, unknown>,
         workspacePath: string,
-        mode: "execute",
+        mode: "work",
         localFullAccess: boolean,
       ) => Promise<unknown>
-    )(config.id, "greet", {}, directory, "execute", true);
+    )(config.id, "greet", {}, directory, "work", true);
 
     expect(accessValues).toEqual([false, false, true]);
   });
@@ -126,7 +126,7 @@ describe("TrustedExtensionManager", () => {
       tools: [{ toolName: "greet" }],
     });
     expect(
-      await manager.call(config.id, "greet", {}, directory, "execute"),
+      await manager.call(config.id, "greet", {}, directory, "work"),
     ).toEqual({ output: "hello", isError: false });
     await expect(
       manager.call(config.id, "greet", {}, directory, "plan"),

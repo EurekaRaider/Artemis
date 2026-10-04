@@ -253,7 +253,7 @@ describe("S4 handoff idempotency (store-level)", () => {
     store.createThread({
       id: threadId,
       title: "handoff源",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,

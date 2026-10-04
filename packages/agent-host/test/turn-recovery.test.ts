@@ -151,7 +151,7 @@ describe("process restart continuation", () => {
       "task",
       "original-turn",
       "Finish the change",
-      "execute",
+      "work",
       undefined,
       undefined,
       undefined,
@@ -204,7 +204,7 @@ describe("process restart continuation", () => {
     host.dispose();
   });
 
-  it.each(["execute", "plan", "review"] as const)(
+  it.each(["work", "plan", "codemode"] as const)(
     "continues the original turn through Pi in %s mode without replaying the user prompt",
     async (mode) => {
       const { host, session, broker, payloads } = await fixture();
@@ -217,7 +217,7 @@ describe("process restart continuation", () => {
           expect(JSON.stringify(message.content)).toContain(
             "Continue the existing task",
           );
-          if (mode !== "execute") {
+          if (mode === "plan") {
             expect(
               session.agent.state.tools.map((tool) => tool.name),
             ).not.toContain("write");

@@ -22,7 +22,7 @@ it("concurrent and later handoffs create one coding task and preserve the frozen
   store.createThread({
     id: threadId,
     title: "design",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,

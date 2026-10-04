@@ -47,7 +47,7 @@ function provider(
 }
 
 describe("agent runtime configuration", () => {
-  it.each(["execute", "plan", "review"] as const)(
+  it.each(["work", "plan", "codemode"] as const)(
     "keeps Pi built-in orchestration disabled in %s mode",
     async (mode) => {
       const workspacePath = await mkdtemp(join(tmpdir(), "artemis-pi-tools-"));
@@ -74,11 +74,13 @@ describe("agent runtime configuration", () => {
           .spyOn(session, "prompt")
           .mockImplementation(async () => {
             const allTools = session.getAllTools().map((tool) => tool.name);
-            expect(allTools).not.toContain("codemode");
+            expect(allTools).toContain("codemode");
             expect(allTools).not.toContain("tool_search");
             const active = session.agent.state.tools.map((tool) => tool.name);
             expect(active).toContain("read");
-            if (mode !== "execute") {
+            expect(active.includes("codemode")).toBe(mode === "codemode");
+            expect(active.includes("submit_plan")).toBe(mode === "plan");
+            if (mode === "plan") {
               for (const name of [
                 "bash",
                 "shell",
@@ -136,7 +138,7 @@ describe("agent runtime configuration", () => {
           finish = resolve;
         }),
     );
-    const running = host.prompt("thread", "first", "Work", "execute");
+    const running = host.prompt("thread", "first", "Work", "work");
     await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce());
     const tool = {
       serverId: "new",
@@ -232,7 +234,7 @@ describe("agent runtime configuration", () => {
         prompt.mockImplementationOnce(
           () => new Promise<void>((resolve) => (finishTurn = resolve)),
         );
-        running = host.prompt("running-thread", "first", "Work", "execute");
+        running = host.prompt("running-thread", "first", "Work", "work");
         await vi.waitFor(() => expect(prompt).toHaveBeenCalledOnce());
       } else {
         hosted.compacting = true;
@@ -282,7 +284,7 @@ describe("agent runtime configuration", () => {
             "running-thread",
             "cancelled-refresh",
             "Continue",
-            "execute",
+            "work",
           );
           await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
           expect(hosted.currentTurnId).toBe("cancelled-refresh");
@@ -299,7 +301,7 @@ describe("agent runtime configuration", () => {
             await host.configure(configuration);
           });
         }
-        await host.prompt("running-thread", "next", "Continue", "execute");
+        await host.prompt("running-thread", "next", "Continue", "work");
         expect(reload).toHaveBeenCalledOnce();
         expect(
           hosted.resourceLoader.getSkills().skills.map((skill) => skill.name),
@@ -308,7 +310,7 @@ describe("agent runtime configuration", () => {
         expect(hosted.session.model?.id).toBe("qwen-coder");
         if (refreshAction === "install-again") {
           expect(hosted.session.systemPrompt).not.toContain("second-skill");
-          await host.prompt("running-thread", "third", "Continue", "execute");
+          await host.prompt("running-thread", "third", "Continue", "work");
           expect(hosted.session.systemPrompt).toContain("second-skill");
         }
       } finally {
@@ -631,7 +633,7 @@ describe("agent runtime configuration", () => {
         string,
         {
           currentTurnId?: string;
-          currentMode?: "execute";
+          currentMode?: "work";
           executeTools: Array<{
             name: string;
             execute(
@@ -647,7 +649,7 @@ describe("agent runtime configuration", () => {
     };
     const thread = internals.threads.get("ultra-fallback-thread")!;
     thread.currentTurnId = "turn-ultra-child";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     internals.concurrency = {
       run: <T>(_kind: "parent" | "child", task: () => Promise<T>) => task(),
     };

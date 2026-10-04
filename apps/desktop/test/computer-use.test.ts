@@ -43,7 +43,7 @@ function fixture() {
   const context = {
     threadId: "thread",
     turnId: "turn",
-    mode: "execute" as const,
+    mode: "work" as const,
   };
   return {
     driver,
@@ -61,16 +61,16 @@ function fixture() {
 }
 
 describe("Computer Use execution boundaries", () => {
-  it("rejects Plan and Review before any driver or authorization call", async () => {
+  it("rejects Plan before any driver or authorization call", async () => {
     const f = fixture();
-    for (const mode of ["plan", "review"] as const)
+    for (const mode of ["plan"] as const)
       await expect(
         f.service.call(
           "computer_open",
           { target: "browser" },
           { ...f.context, mode },
         ),
-      ).rejects.toThrow(/Execute/);
+      ).rejects.toThrow(/Work or Codemode/);
     expect(f.authorize).not.toHaveBeenCalled();
   });
   it("does not observe a denied app", async () => {

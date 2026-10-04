@@ -30,7 +30,7 @@ beforeAll(async () => {
   store.createThread({
     id: threadId,
     title: "s3",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,

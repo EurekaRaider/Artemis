@@ -60,7 +60,7 @@ interface InspectableChild {
 
 interface InspectableThread {
   currentTurnId?: string;
-  currentMode?: "execute" | "plan" | "review";
+  currentMode?: "work" | "plan" | "review";
   selection?: {
     providerId: string;
     modelId: string;
@@ -132,7 +132,7 @@ async function setup(definitions: CustomAgentDefinition[]) {
   internals.configuration.customAgents = definitions;
   const thread = internals.threads.get("thread-1")!;
   thread.currentTurnId = "turn-1";
-  thread.currentMode = "execute";
+  thread.currentMode = "work";
   thread.selection = {
     providerId: "kimi-coding",
     modelId: "k3",
@@ -465,7 +465,7 @@ describe("custom agent turn catalog injection", () => {
       "thread-1",
       "turn-1",
       "Please review the change.",
-      "execute",
+      "work",
       undefined,
       undefined,
       undefined,

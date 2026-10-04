@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   imConversationKey,
@@ -375,9 +376,9 @@ export function GroupCollaborationPanel({
           value={active.mode}
           disabled={locked}
           options={[
-            { value: "plan", label: t("ImSettingsPanel.message132") },
-            { value: "review", label: t("ImSettingsPanel.message134") },
-            { value: "execute", label: t("ImSettingsPanel.message136") },
+            { value: "plan", label: t("App_copy.plan") },
+            { value: "work", label: t("App_copy.work") },
+            { value: "codemode", label: t("App_copy.codemode") },
           ]}
           onValueChange={(value) => edit({ mode: value as typeof active.mode })}
         />
@@ -394,7 +395,7 @@ export function GroupCollaborationPanel({
             edit({ approval: value as typeof active.approval })
           }
         />
-        {active.mode === "execute" && !fullLocal && (
+        {isExecutionMode(active.mode) && !fullLocal && (
           <>
             <Checkbox
               label={t("ImSettingsPanel.message147")}
@@ -435,14 +436,7 @@ export function GroupCollaborationPanel({
     return (
       value && (
         <p title={compact ? expiration(value.expiresAt) : undefined}>
-          {t(
-            value.mode === "plan"
-              ? "ImSettingsPanel.message132"
-              : value.mode === "review"
-                ? "ImSettingsPanel.message134"
-                : "ImSettingsPanel.message136",
-          )}{" "}
-          ·{" "}
+          {t(`App_copy.${value.mode}`)} ·{" "}
           {t(
             value.approval === "ask"
               ? "ImSettingsPanel.message144"
@@ -629,7 +623,7 @@ export function GroupCollaborationPanel({
             ? "connecting"
             : !grant || !scope || grant.expiresAt <= Date.now()
               ? "review"
-              : grant.mode !== "execute"
+              : !isExecutionMode(grant.mode)
                 ? "readOnly"
                 : !imScopeConfirmation(grant.security, scope)
                   ? "writePending"
@@ -690,7 +684,7 @@ export function GroupCollaborationPanel({
               </dd>
               <dt>{t("GroupAuthorization.writeScope")}</dt>
               <dd>
-                {grant?.mode !== "execute"
+                {!isExecutionMode(grant?.mode)
                   ? t("GroupAuthorization.denied")
                   : scope.localAccess === "full"
                     ? t("GroupAuthorization.fullLocal")
@@ -1268,7 +1262,7 @@ export function GroupCollaborationPanel({
                             </dd>
                             <dt>{t("GroupAuthorization.writeScope")}</dt>
                             <dd>
-                              {active.mode !== "execute"
+                              {!isExecutionMode(active.mode)
                                 ? t("GroupAuthorization.denied")
                                 : fullLocal
                                   ? t("GroupAuthorization.fullLocal")

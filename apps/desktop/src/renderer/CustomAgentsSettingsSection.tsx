@@ -241,7 +241,7 @@ export function CustomAgentsSettingsSection({
     void window.artemis
       .customAgentsPreviewCapabilities(
         { toolPolicy: formToInput(form).toolPolicy },
-        "execute",
+        "work",
       )
       .then((preview) => {
         if (!cancelled) setCapabilityPreview(preview.capabilities);
@@ -1028,7 +1028,11 @@ export function CustomAgentsSettingsSection({
                 )}
                 {capabilityPreview && (
                   <p className="settings-hint custom-agent-capability-preview">
-                    {t.capabilityPreview.replace("{mode}", "execute")}:{" "}
+                    {t.capabilityPreview.replace(
+                      "{mode}",
+                      UI_COPY.App_copy[locale].work,
+                    )}
+                    :{" "}
                     {capabilityPreview.length > 0
                       ? capabilityPreview.join(", ")
                       : "—"}

@@ -48,7 +48,7 @@ async function fixture(result: HookResult = {}, remote = false) {
       threads: Map<
         string,
         {
-          currentMode: "plan" | "review" | "execute";
+          currentMode: "plan" | "review" | "work";
           currentTurnId: string | undefined;
           session: AgentSession;
         }
@@ -56,7 +56,7 @@ async function fixture(result: HookResult = {}, remote = false) {
     }
   ).threads.get("test")!;
   thread.currentTurnId = "turn";
-  thread.currentMode = "execute";
+  thread.currentMode = "work";
   cleanups.push(async () => {
     host.dispose();
     await rm(root, { recursive: true, force: true });
@@ -84,7 +84,7 @@ it("loads the built-in hook bridge while disabling user extension discovery", as
     invocation: { hook_event_name: "PreToolUse", tool_use_id: "call" },
   });
 });
-it.each(["plan", "review"] as const)(
+it.each(["plan"] as const)(
   "does not dispatch hook commands in %s",
   async (mode) => {
     const f = await fixture();
@@ -201,7 +201,7 @@ it("ends a hook-blocked prompt with a visible failure instead of a phantom activ
     blocked: true,
     reason: "Hooks require a local Execute task",
   });
-  await f.host.prompt("test", "blocked-turn", "hello", "execute");
+  await f.host.prompt("test", "blocked-turn", "hello", "work");
   expect(f.payloads).toContainEqual({
     type: "turn.failed",
     code: "HOOK_PROMPT_BLOCKED",
@@ -211,7 +211,7 @@ it("ends a hook-blocked prompt with a visible failure instead of a phantom activ
 });
 
 it.each(
-  (["execute", "plan", "review"] as const).flatMap((mode) =>
+  (["work", "plan", "codemode"] as const).flatMap((mode) =>
     [false, true].map((remote) => ({ mode, remote })),
   ),
 )(
@@ -300,7 +300,7 @@ it.each(
     expect(f.payloads.filter((p) => p.type === "turn.failed")).toEqual([]);
     expect(f.thread.currentTurnId).toBeUndefined();
     expect(stream).toHaveBeenCalledTimes(3);
-    if (mode === "execute") expect(f.calls.length).toBeGreaterThan(0);
+    if (mode !== "plan") expect(f.calls.length).toBeGreaterThan(0);
     else expect(f.calls).toEqual([]);
   },
 );

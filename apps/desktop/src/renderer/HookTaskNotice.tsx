@@ -1,3 +1,4 @@
+import { isExecutionMode } from "@artemis/protocol";
 import { useEffect, useState } from "react";
 import type { AppLocale, HookCatalog } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
@@ -47,7 +48,7 @@ export function HookTaskNotice({
     ).length ?? 0;
   const latest = threadId ? catalog?.records.at(-1) : undefined;
   if (
-    mode !== "execute" ||
+    !isExecutionMode(mode) ||
     (!pending && latest?.status !== "failed" && latest?.status !== "running")
   )
     return null;

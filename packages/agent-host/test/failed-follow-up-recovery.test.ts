@@ -101,7 +101,7 @@ describe("failed follow-up recovery", () => {
       "thread-failure",
       "turn-1",
       "Run the original task.",
-      "execute",
+      "work",
     );
 
     expect(promptCount).toBe(1);

@@ -30,7 +30,7 @@ function fixture(turns = 65) {
   store.createThread({
     id: "thread",
     title: "Synthetic history",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -47,7 +47,7 @@ function fixture(turns = 65) {
       messageId: `u${turn}`,
       text: `Question ${turn}`,
     });
-    add(`t${turn}`, { type: "turn.started", mode: "execute" });
+    add(`t${turn}`, { type: "turn.started", mode: "work" });
     for (let delta = 0; delta < 3; delta++)
       add(`t${turn}`, {
         type: "message.part.delta",
@@ -157,7 +157,7 @@ describe("paged history projections", () => {
 
   it("preserves context, pending approvals and queue while older pages load and live events arrive", () => {
     const { store, reader, add } = fixture();
-    add("t65", { type: "turn.started", mode: "execute" });
+    add("t65", { type: "turn.started", mode: "work" });
     add("t65", {
       type: "context.usage",
       tokens: 61000,
@@ -235,7 +235,7 @@ describe("paged history projections", () => {
   it("updates a persisted projection from only the new suffix and rebuilds incompatible caches", () => {
     const { reader, add, path, store } = fixture(2);
     reader.read("thread");
-    add("t2", { type: "turn.started", mode: "execute" });
+    add("t2", { type: "turn.started", mode: "work" });
     add("t2", {
       type: "message.part.delta",
       partId: "p2",

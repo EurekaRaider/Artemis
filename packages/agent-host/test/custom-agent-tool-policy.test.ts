@@ -70,7 +70,7 @@ async function setup(toolPolicy: CustomAgentDefinition["toolPolicy"]) {
   });
   const thread = internals.threads.get("thread-1");
   thread.currentTurnId = "turn-1";
-  thread.currentMode = "execute";
+  thread.currentMode = "work";
   thread.selection = {
     providerId: "kimi-coding",
     modelId: "k3",
@@ -146,15 +146,11 @@ it("freezes tool references so edits cannot expand an accepted instance", async 
     internals.customAgentToolAllowed(
       "web_search",
       child.customAgentSnapshot,
-      "execute",
+      "work",
     ),
   ).toBe(false);
   expect(
-    internals.customAgentToolAllowed(
-      "read",
-      child.customAgentSnapshot,
-      "execute",
-    ),
+    internals.customAgentToolAllowed("read", child.customAgentSnapshot, "work"),
   ).toBe(true);
 });
 
@@ -163,11 +159,7 @@ it("project scope revocation blocks tools on an accepted instance", async () => 
   internals.configuration.customAgents = [{ ...definition, scope: "selected" }];
   internals.configuration.customAgentProjectIds = { "def-1": [] };
   expect(
-    internals.customAgentToolAllowed(
-      "read",
-      child.customAgentSnapshot,
-      "execute",
-    ),
+    internals.customAgentToolAllowed("read", child.customAgentSnapshot, "work"),
   ).toBe(false);
 });
 
@@ -199,13 +191,13 @@ it("MCP grants use frozen stable identities and reject removed connections", asy
     { ...definition, toolPolicy: { kind: "inherit" } },
   ];
   expect(
-    internals.customAgentToolAllowed("mcp_allowed", snapshot, "execute"),
+    internals.customAgentToolAllowed("mcp_allowed", snapshot, "work"),
   ).toBe(true);
-  expect(
-    internals.customAgentToolAllowed("mcp_other", snapshot, "execute"),
-  ).toBe(false);
+  expect(internals.customAgentToolAllowed("mcp_other", snapshot, "work")).toBe(
+    false,
+  );
   internals.configuration.mcpTools = [];
   expect(
-    internals.customAgentToolAllowed("mcp_allowed", snapshot, "execute"),
+    internals.customAgentToolAllowed("mcp_allowed", snapshot, "work"),
   ).toBe(false);
 });

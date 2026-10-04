@@ -4,6 +4,7 @@ import type {
   ApprovalState,
   ThreadViewState,
   UserInputResolution,
+  SavedPlan,
 } from "@artemis/protocol";
 import { ComposerSurface } from "@artemis/ui/surfaces";
 import { UI_COPY } from "../shared/ui-copy.js";
@@ -16,8 +17,10 @@ import {
   MultiQuestionUserInputCard,
 } from "./MultiQuestionUserInputCard.js";
 import { UserInputCard } from "./UserInputCard.js";
+import { PlanDecisionCard } from "./PlanDecisionCard.js";
 
 type ComposerDecision =
+  | { entry: string; kind: "plan"; plan: SavedPlan }
   | {
       entry: string;
       kind: "input";
@@ -30,7 +33,7 @@ type ComposerDecision =
       actorName: string | undefined;
     };
 
-/** Share one composer slot across queued approvals and questions. */
+/** Share one composer slot across approvals, questions and completed plans. */
 export function firstPendingComposerDecision(
   state: ThreadViewState | undefined,
 ): ComposerDecision | undefined {
@@ -55,6 +58,14 @@ export function firstPendingComposerDecision(
       }
     }
   }
+  const plan = state.plans?.at(-1);
+  if (state.status === "idle" && plan?.status === "proposed" && plan.ready) {
+    return {
+      entry: `plan:${plan.planId}:${plan.revision}`,
+      kind: "plan",
+      plan,
+    };
+  }
   return undefined;
 }
 
@@ -66,12 +77,17 @@ export function DecisionComposer({
   locale,
   onResolveApproval,
   onResolveUserInput,
+  onAcceptPlan,
+  onRevisePlan,
   ...props
 }: ComponentProps<typeof ComposerSurface> & {
   decision: ComposerDecision | undefined;
   locale: AppLocale;
   onResolveApproval: ResolveApprovalDecision;
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
+  onAcceptPlan?:
+    ((plan: SavedPlan, mode: "work" | "codemode") => Promise<void>) | undefined;
+  onRevisePlan?: ((text: string) => Promise<void>) | undefined;
 }) {
   return (
     <ComposerSurface
@@ -86,7 +102,14 @@ export function DecisionComposer({
       {decision ? (
         <>
           <div className="composer-decision" key={decision.entry}>
-            {decision.kind === "approval" ? (
+            {decision.kind === "plan" ? (
+              <PlanDecisionCard
+                plan={decision.plan}
+                locale={locale}
+                onAccept={onAcceptPlan}
+                onRevise={onRevisePlan}
+              />
+            ) : decision.kind === "approval" ? (
               <ApprovalDecisionCard
                 approval={decision.approval}
                 locale={locale}

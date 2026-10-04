@@ -25,6 +25,8 @@ import {
   migrateLegacyDesignPluginRevisions,
 } from "./design-plugin-thread-data.js";
 import { PanelSendEntryService } from "./design-plugin-send-entry.js";
+import { ProviderLoginService } from "./provider-login-service.js";
+import { isExecutionMode } from "@artemis/protocol";
 import { AppearanceService } from "./appearance-service.js";
 import { HooksService, type HookContext } from "./hooks-service.js";
 import { migratePluginUserData } from "./plugin-data-migration.js";
@@ -129,6 +131,7 @@ import {
   type WebContents,
 } from "electron";
 import electronUpdater from "electron-updater";
+import { sandboxEscalationError } from "./sandbox-escalation.js";
 import { appendPromptFiles } from "@artemis/agent-host/turn-prompt";
 import {
   evaluateModePolicy,
@@ -197,6 +200,9 @@ import {
   runModeSchema,
   shellRuntimeConfigurationSchema,
   threadCommandSchema,
+  assertAcceptablePlan,
+  acceptedPlanPrompt,
+  type PlanAcceptance,
   userInputResolutionSchema,
   worktreeCommandSchema,
 } from "@artemis/protocol";
@@ -265,7 +271,7 @@ function getOfficeWorkbench() {
     hostVersion: app.getVersion(),
     canAutoSave: (threadId) => {
       const thread = store?.getThread(threadId);
-      return !!thread && !thread.archived && thread.mode === "execute";
+      return !!thread && !thread.archived && isExecutionMode(thread.mode);
     },
     dependents: async (version) =>
       ((await artemisPluginService?.listInstalled()) ?? [])
@@ -544,6 +550,7 @@ let agentProcess: AgentProcess | undefined;
 let terminalService: TerminalService | undefined;
 let packagedNodePtyRuntime: PreparedNodePtyRuntime | undefined;
 let packagedNodePtyRuntimeReady: Promise<void> | undefined;
+let providerLoginService: ProviderLoginService | undefined;
 let settingsStore: EncryptedSettingsStore | undefined;
 let globalInstructionsStore: GlobalInstructionsStore | undefined;
 let configurationImportService: ConfigurationImportService | undefined;
@@ -1434,7 +1441,7 @@ async function resolveModelSelection(
 function agentProcessHandlers(): AgentProcessHandlers {
   return {
     onEvent(threadId, turnId, payload) {
-      if (shuttingDown) return;
+      if (shuttingDown || payload.type.startsWith("plan.")) return;
       emitPayload(threadId, turnId, payload);
     },
     onEvents(events) {
@@ -1452,6 +1459,15 @@ function agentProcessHandlers(): AgentProcessHandlers {
       if (store?.getThread(threadId)) {
         store.updateThread(threadId, { sessionFile });
       }
+    },
+    async onCredentialChanged(message) {
+      if (!settingsStore || shuttingDown)
+        throw new Error("Settings are unavailable");
+      await settingsStore.saveRefreshedCredential(
+        message.providerId,
+        message.previous,
+        message.credential,
+      );
     },
     onBrokerRequest: handleBrokerRequest,
     onStderr(data) {
@@ -1494,12 +1510,12 @@ async function hookContext(query: HookQuery): Promise<HookContext> {
       remote: Boolean(imService?.hasBinding(thread.id)),
       isCurrent: () => {
         if (
-          store?.getThread(thread.id)?.mode !== "execute" ||
+          !isExecutionMode(store?.getThread(thread.id)?.mode) ||
           cancellingTurns.has(thread.id)
         )
           return false;
         try {
-          imService?.authorizeThread(thread.id, "execute");
+          imService?.authorizeThread(thread.id, "work");
           return true;
         } catch {
           return false;
@@ -1563,11 +1579,11 @@ async function contextForHook(
 async function hookPermission(
   request: BrokerExecutionRequest,
 ): Promise<"allow" | "deny" | undefined> {
-  if (request.mode !== "execute") return;
+  if (!isExecutionMode(request.mode)) return;
   try {
     const context = await hookContext({ threadId: request.threadId });
     if (
-      context.mode !== "execute" ||
+      !isExecutionMode(context.mode) ||
       activeTurns.get(request.threadId) !== request.turnId ||
       cancellingTurns.has(request.threadId)
     )
@@ -1586,7 +1602,7 @@ async function hookPermission(
       session_id: request.threadId,
       turn_id: request.turnId,
       cwd: context.workspacePath,
-      permission_mode: "execute",
+      permission_mode: "work",
       tool_name: toolName,
       tool_input:
         "arguments" in request
@@ -2874,8 +2890,8 @@ function applyPayloadSideEffects(
   if (!store) throw new Error("Application store is not ready.");
   switch (payload.type) {
     case "turn.started":
-      if (payload.mode !== "execute")
-        computerUseHost?.clearTask(threadId, "Task left Execute mode");
+      if (!isExecutionMode(payload.mode))
+        computerUseHost?.clearTask(threadId, "Task left Work or Codemode mode");
       if (!threadAlreadyUpdated) {
         store.updateThread(threadId, {
           mode: payload.mode,
@@ -3066,7 +3082,8 @@ function scheduleGoalContinuation(
     if (
       !thread ||
       thread.archived ||
-      thread.mode !== "execute" ||
+      store.plans(threadId).at(-1)?.status === "proposed" ||
+      !isExecutionMode(thread.mode) ||
       thread.goal?.goalId !== goalId ||
       thread.goal.status !== "active" ||
       imService?.hasDelegationWait(threadId) ||
@@ -3089,7 +3106,7 @@ function scheduleGoalContinuation(
     void startTaskTurn(
       {
         threadId,
-        mode: "execute",
+        mode: thread.mode,
         text: "Continue working toward the active Goal. Inspect current evidence and state, make the next meaningful progress, and call update_goal only when completion or the repeated-blocker rule is actually satisfied.",
       },
       { source: "goal-continuation", expectedGoalId: goalId },
@@ -3276,20 +3293,22 @@ function emitPayload(
 
 function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   if (!store || events.length === 0) return [];
-  const preparedEvents = events.map((event) => ({
-    ...event,
-    payload: enrichCustomAgentRoutePayload(
-      event.threadId,
-      withPersistedTurnDuration(
-        event.turnId,
-        prepareRecoverableQueuePayload(
-          event.threadId,
-          event.payload,
+  const preparedEvents = events
+    .filter((event) => !event.payload.type.startsWith("plan."))
+    .map((event) => ({
+      ...event,
+      payload: enrichCustomAgentRoutePayload(
+        event.threadId,
+        withPersistedTurnDuration(
           event.turnId,
+          prepareRecoverableQueuePayload(
+            event.threadId,
+            event.payload,
+            event.turnId,
+          ),
         ),
       ),
-    ),
-  }));
+    }));
   const { durable: durableEvents, liveActivities } =
     partitionAgentHostEvents(preparedEvents);
   if (liveActivities.length > 0) {
@@ -3483,6 +3502,7 @@ async function emitInitialTurn(
   attachments: PromptAttachment[],
   visibleUserMessage = true,
   checkpoint?: TurnCheckpoint,
+  acceptance?: PlanAcceptance,
 ): Promise<AgentEvent[]> {
   if (!store) throw new Error("Application store is not ready.");
   const attachmentPayloads = attachments.map((attachment) => ({
@@ -3540,6 +3560,7 @@ async function emitInitialTurn(
       })),
       { mode, status: "running" },
       checkpoint,
+      acceptance,
     );
   } catch (error) {
     await Promise.allSettled(
@@ -4040,7 +4061,7 @@ async function handleShellBrokerRequest(
   request: Extract<BrokerExecutionRequest, { kind: "shell.execute" }>,
 ): Promise<void> {
   if (!agentProcess || !store) return;
-  if (request.mode !== "execute") {
+  if (!isExecutionMode(request.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -4058,7 +4079,7 @@ async function handleShellBrokerRequest(
     rejectBrokerRequest(
       workerRequestId,
       request,
-      "Shell execution requires the active Execute turn.",
+      "Shell execution requires the active Work or Codemode turn.",
     );
     return;
   }
@@ -4252,7 +4273,7 @@ async function handleLocalFileBrokerRequest(
   request: LocalFileBrokerRequest,
 ): Promise<void> {
   if (!agentProcess || !store) return;
-  if (request.mode !== "execute") {
+  if (!isExecutionMode(request.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -4270,7 +4291,7 @@ async function handleLocalFileBrokerRequest(
     rejectBrokerRequest(
       workerRequestId,
       request,
-      "Local file access requires the active Execute turn.",
+      "Local file access requires the active Work or Codemode turn.",
     );
     return;
   }
@@ -4554,8 +4575,8 @@ async function handleBrokerRequest(
     try {
       const context = await hookContext({ threadId: request.threadId });
       if (
-        context.mode !== "execute" ||
-        request.mode !== "execute" ||
+        !isExecutionMode(context.mode) ||
+        !isExecutionMode(request.mode) ||
         cancellingTurns.has(request.threadId)
       )
         throw new Error("Hooks require an active Execute task");
@@ -4587,7 +4608,7 @@ async function handleBrokerRequest(
         ...request.invocation,
         session_id: request.threadId,
         cwd: context.workspacePath,
-        permission_mode: "execute",
+        permission_mode: "work",
       });
       agentProcess.post({
         type: "broker.resolve",
@@ -4634,6 +4655,38 @@ async function handleBrokerRequest(
     }
   }
   switch (request.kind) {
+    case "plan.submit": {
+      try {
+        if (
+          request.mode !== "plan" ||
+          activeTurns.get(request.threadId) !== request.turnId ||
+          cancellingTurns.has(request.threadId)
+        )
+          throw new Error("Plan submission requires the current Plan turn.");
+        const plan = store.proposePlan(
+          request.threadId,
+          request.turnId,
+          request,
+        );
+        const event = store.getThreadEvents(request.threadId).at(-1)!;
+        mainWindow?.webContents.send(IPC.agentEvents, [event]);
+        agentProcess.post({
+          type: "broker.resolve",
+          requestId: workerRequestId,
+          resolution: {
+            approvalId: request.approvalId,
+            nonce: randomUUID(),
+            approved: true,
+            scope: "once",
+            source: "policy",
+          },
+          result: plan,
+        });
+      } catch (error) {
+        rejectBrokerRequest(workerRequestId, request, String(error));
+      }
+      return;
+    }
     case "attachment.read": {
       try {
         if (
@@ -5018,11 +5071,11 @@ async function handleGoalBrokerRequest(
     });
     return;
   }
-  if (request.mode !== "execute") {
+  if (!isExecutionMode(request.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
-      "Goal mutations require Execute mode.",
+      "Goal mutations require Work or Codemode mode.",
     );
     return;
   }
@@ -5101,13 +5154,13 @@ async function handleMemoryAppendBrokerRequest(
 ): Promise<void> {
   if (!agentProcess || !store) return;
   if (
-    request.mode !== "execute" ||
+    !isExecutionMode(request.mode) ||
     activeTurns.get(request.threadId) !== request.turnId
   ) {
     rejectBrokerRequest(
       workerRequestId,
       request,
-      "Reusable memory can be saved only by the active Execute turn.",
+      "Reusable memory can be saved only by the active Work or Codemode turn.",
     );
     return;
   }
@@ -5116,7 +5169,7 @@ async function handleMemoryAppendBrokerRequest(
     rejectBrokerRequest(workerRequestId, request, "Task project not found.");
     return;
   }
-  if (thread.mode !== "execute" || thread.mode !== request.mode) {
+  if (!isExecutionMode(thread.mode) || thread.mode !== request.mode) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -5197,7 +5250,7 @@ async function handleOfficeDocumentBrokerRequest(
   request: Extract<BrokerExecutionRequest, { kind: "office.document" }>,
 ): Promise<void> {
   if (!agentProcess || !store) return;
-  if (request.mode !== "execute") {
+  if (!isExecutionMode(request.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -5228,7 +5281,7 @@ async function handleOfficeDocumentBrokerRequest(
     rejectBrokerRequest(workerRequestId, request, "Task project not found.");
     return;
   }
-  if (thread.mode !== "execute") {
+  if (!isExecutionMode(thread.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -5459,7 +5512,7 @@ async function handleMcpBrokerRequest(
   request: Extract<BrokerExecutionRequest, { kind: "mcp.call" }>,
 ): Promise<void> {
   if (!agentProcess || !store || !mcpClientManager) return;
-  if (request.mode !== "execute") {
+  if (!isExecutionMode(request.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -5471,6 +5524,13 @@ async function handleMcpBrokerRequest(
   if (!thread) {
     rejectBrokerRequest(workerRequestId, request, "Task project not found.");
     return;
+  }
+  if (request.sandboxEscalation !== undefined) {
+    const error = currentSandboxEscalationError(request);
+    if (error) {
+      rejectBrokerRequest(workerRequestId, request, error);
+      return;
+    }
   }
   let context: Awaited<ReturnType<typeof resolveThreadWorkspace>>;
   try {
@@ -5521,12 +5581,24 @@ async function handleMcpBrokerRequest(
   const mcpConfig = (await mcpConfigStore?.list())?.find(
     (config) => config.id === request.serverId,
   );
+  if (
+    request.sandboxEscalation &&
+    (!mcpConfig?.enabled || mcpConfig.transport !== "stdio")
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Sandbox escalation requires an enabled local stdio MCP server.",
+    );
+    return;
+  }
   const connectorAccount = mcpConfig?.connector
     ? (await connectorService?.list())?.find((c) => c.id === mcpConfig.id)
         ?.account
     : undefined;
   const stdioFullAccess =
-    mcpConfig?.transport === "stdio" && Boolean(mcpConfig.fullAccess);
+    mcpConfig?.transport === "stdio" &&
+    (Boolean(mcpConfig.fullAccess) || Boolean(request.sandboxEscalation));
   const stdioAllowsNetwork =
     stdioFullAccess ||
     (mcpConfig?.transport === "stdio" && mcpConfig.allowNetwork);
@@ -5539,6 +5611,9 @@ async function handleMcpBrokerRequest(
   ).slice(0, 700);
   const approvalSummary = [
     `Call ${request.serverName}: ${request.toolName}`,
+    request.sandboxEscalation
+      ? `Run outside the local sandbox for this call only: ${request.sandboxEscalation.justification.trim()}`
+      : undefined,
     connectorAccount ? `Connected account: ${connectorAccount}` : undefined,
     request.destructive && argumentSummary
       ? `Target/change: ${argumentSummary}`
@@ -5553,11 +5628,13 @@ async function handleMcpBrokerRequest(
       : stdioAllowsNetwork
         ? [request.serverName]
         : [];
-  const automationResolution = createAutomationApproval(request, {
-    summary: approvalSummary,
-    network: networkTargets,
-    risk: request.destructive || stdioFullAccess ? "high" : "medium",
-  });
+  const automationResolution = request.sandboxEscalation
+    ? undefined
+    : createAutomationApproval(request, {
+        summary: approvalSummary,
+        network: networkTargets,
+        risk: request.destructive || stdioFullAccess ? "high" : "medium",
+      });
   if (automationResolution && !request.destructive && !stdioFullAccess) {
     await executeApprovedMcp(workerRequestId, request, automationResolution);
     return;
@@ -5599,10 +5676,9 @@ async function handleMcpBrokerRequest(
     modelApproval: request.modelApproval,
     ...(mcpConfig?.connector ? { connectorId: mcpConfig.connector.id } : {}),
   };
-  const computerTaskGrant = await currentComputerTaskApproval(
-    request,
-    mcpConfig,
-  );
+  const computerTaskGrant = request.sandboxEscalation
+    ? undefined
+    : await currentComputerTaskApproval(request, mcpConfig);
   if (computerTaskGrant) {
     await executeApprovedMcp(
       workerRequestId,
@@ -5619,7 +5695,10 @@ async function handleMcpBrokerRequest(
       fullAccessAvailable,
     )
   ) {
-    await executeApprovedMcp(workerRequestId, request, resolution("once"));
+    await executeApprovedMcp(workerRequestId, request, {
+      ...resolution("once"),
+      source: approvalPolicy === "agent" ? "model" : "policy",
+    });
     return;
   }
 
@@ -5628,7 +5707,7 @@ async function handleMcpBrokerRequest(
     rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
     return;
   }
-  if (hookDecision === "allow") {
+  if (hookDecision === "allow" && !request.sandboxEscalation) {
     await executeApprovedMcp(workerRequestId, request, {
       approvalId: request.approvalId,
       nonce: randomUUID(),
@@ -5678,7 +5757,7 @@ async function handleExtensionBrokerRequest(
   request: Extract<BrokerExecutionRequest, { kind: "extension.call" }>,
 ): Promise<void> {
   if (!agentProcess || !store || !trustedExtensionManager) return;
-  if (request.mode !== "execute") {
+  if (!isExecutionMode(request.mode)) {
     rejectBrokerRequest(
       workerRequestId,
       request,
@@ -5690,6 +5769,13 @@ async function handleExtensionBrokerRequest(
   if (!thread) {
     rejectBrokerRequest(workerRequestId, request, "Task project not found.");
     return;
+  }
+  if (request.sandboxEscalation !== undefined) {
+    const error = currentSandboxEscalationError(request);
+    if (error) {
+      rejectBrokerRequest(workerRequestId, request, error);
+      return;
+    }
   }
   const context = await resolveThreadWorkspace(thread);
   if (
@@ -5725,11 +5811,21 @@ async function handleExtensionBrokerRequest(
     "extension.call",
     `${request.extensionId}\0${request.toolName}`,
   );
-  const automationResolution = createAutomationApproval(request, {
-    summary: `Run ${request.extensionName}: ${request.toolName}`,
-    network: status.config.allowNetwork ? [request.extensionName] : [],
-    risk: status.config.allowNetwork ? "high" : "medium",
-  });
+  const approvalSummary = [
+    `Run trusted extension ${request.extensionName}: ${request.toolName}`,
+    request.sandboxEscalation
+      ? `Run outside the local sandbox for this call only: ${request.sandboxEscalation.justification.trim()}`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const automationResolution = request.sandboxEscalation
+    ? undefined
+    : createAutomationApproval(request, {
+        summary: `Run ${request.extensionName}: ${request.toolName}`,
+        network: status.config.allowNetwork ? [request.extensionName] : [],
+        risk: status.config.allowNetwork ? "high" : "medium",
+      });
   if (automationResolution) {
     await executeApprovedExtension(
       workerRequestId,
@@ -5741,7 +5837,7 @@ async function handleExtensionBrokerRequest(
   const approvalPolicy = await settingsStore?.approvalPolicy();
   const fullAccessAvailable = getPlatformContract().sandbox.available;
   const rememberedScope =
-    approvalPolicy === "custom"
+    !request.sandboxEscalation && approvalPolicy === "custom"
       ? store.findApprovalGrant({
           threadId: thread.id,
           projectId: approvalProjectId(thread),
@@ -5769,7 +5865,9 @@ async function handleExtensionBrokerRequest(
   }
   const approvalOperation = {
     kind: "extension.call" as const,
-    allowNetwork: status.config.allowNetwork,
+    allowNetwork:
+      status.config.allowNetwork || Boolean(request.sandboxEscalation),
+    fullAccess: Boolean(request.sandboxEscalation),
     modelApproval: request.modelApproval,
   };
   if (
@@ -5792,7 +5890,7 @@ async function handleExtensionBrokerRequest(
     rejectBrokerRequest(workerRequestId, request, "Denied by permission hook");
     return;
   }
-  if (hookDecision === "allow") {
+  if (hookDecision === "allow" && !request.sandboxEscalation) {
     await executeApprovedExtension(workerRequestId, request, {
       approvalId: request.approvalId,
       nonce: randomUUID(),
@@ -5804,7 +5902,7 @@ async function handleExtensionBrokerRequest(
   }
   const nonce = randomUUID();
   const allowedScopes =
-    approvalPolicy === "custom"
+    !request.sandboxEscalation && approvalPolicy === "custom"
       ? conversationApprovalScopes(thread, ["once", "session", "project"])
       : (["once"] as const);
   pendingApprovals.register({
@@ -5822,9 +5920,9 @@ async function handleExtensionBrokerRequest(
     type: "approval.requested",
     approvalId: request.approvalId,
     nonce,
-    summary: `Run trusted extension ${request.extensionName}: ${request.toolName}`,
+    summary: approvalSummary,
     paths: [request.workspacePath],
-    network: status.config.allowNetwork ? [request.extensionName] : [],
+    network: approvalOperation.allowNetwork ? [request.extensionName] : [],
     risk: effectiveApprovalRisk(approvalOperation),
     allowedScopes: [...allowedScopes],
     source: modelMayAutoApprove(approvalOperation) ? "policy" : "model",
@@ -5927,8 +6025,8 @@ async function executeApprovedOffice(
   try {
     const thread = store?.getThread(request.threadId);
     if (
-      request.mode !== "execute" ||
-      thread?.mode !== "execute" ||
+      !isExecutionMode(request.mode) ||
+      !isExecutionMode(thread?.mode) ||
       activeTurns.get(request.threadId) !== request.turnId ||
       cancellingTurns.has(request.threadId)
     )
@@ -5987,6 +6085,59 @@ async function executeApprovedOffice(
   }
 }
 
+function currentSandboxEscalationError(
+  request: Extract<
+    BrokerExecutionRequest,
+    { kind: "mcp.call" | "extension.call" }
+  >,
+): string | undefined {
+  const thread = store?.getThread(request.threadId);
+  const error = sandboxEscalationError(request, {
+    mode: thread?.mode,
+    turnId: activeTurns.get(request.threadId),
+    archived: thread?.archived,
+    cancelling: cancellingTurns.has(request.threadId),
+  });
+  if (error) return error;
+  if (imService?.hasBinding(request.threadId)) {
+    try {
+      imService.authorizeThread(request.threadId, request.mode);
+      if (imService.profile(request.threadId))
+        return "Sandbox escalation cannot expand a remote permission profile.";
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+  }
+  return undefined;
+}
+
+function recordSandboxEscalation(
+  request: Extract<
+    BrokerExecutionRequest,
+    { kind: "mcp.call" | "extension.call" }
+  >,
+  resolution: ApprovalResolution,
+): void {
+  if (
+    !request.sandboxEscalation ||
+    (resolution.source !== "model" && resolution.source !== "policy")
+  )
+    return;
+  emitPayload(request.threadId, request.turnId, {
+    type: "approval.requested",
+    approvalId: resolution.approvalId,
+    nonce: resolution.nonce,
+    summary: `Run ${request.toolName} outside the local sandbox for this call only: ${request.sandboxEscalation.justification.trim()}`,
+    paths: [request.workspacePath],
+    network: ["Desktop-user network access"],
+    risk: "high",
+    allowedScopes: ["once"],
+    source: resolution.source,
+    modelRecommendation: "approve",
+    modelReason: request.modelApproval.reason,
+  });
+}
+
 function currentComputerTaskApproval(
   request: Extract<BrokerExecutionRequest, { kind: "mcp.call" }>,
   config: McpServerConfig | undefined,
@@ -6010,6 +6161,18 @@ async function executeApprovedMcp(
 ): Promise<void> {
   if (!canRunLicensed()) return;
   if (!agentProcess || !mcpClientManager) return;
+  if (request.sandboxEscalation !== undefined) {
+    const error = currentSandboxEscalationError(request);
+    if (error || resolution.scope !== "once") {
+      rejectBrokerRequest(
+        workerRequestId,
+        request,
+        error ?? "Sandbox escalation requires a one-time approval.",
+      );
+      return;
+    }
+    recordSandboxEscalation(request, resolution);
+  }
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
     approvalId: resolution.approvalId,
@@ -6026,7 +6189,7 @@ async function executeApprovedMcp(
   });
   let releaseComputerGrant: (() => unknown) | undefined;
   try {
-    if (request.mode !== "execute") {
+    if (!isExecutionMode(request.mode)) {
       throw new Error(`${request.mode} mode rejects MCP calls.`);
     }
     const config = (await mcpConfigStore?.list())?.find(
@@ -6046,7 +6209,7 @@ async function executeApprovedMcp(
       if (
         !computerUseHost ||
         request.actorAgentId ||
-        thread?.mode !== "execute" ||
+        !isExecutionMode(thread?.mode) ||
         thread.archived ||
         activeTurns.get(request.threadId) !== request.turnId ||
         !trusted
@@ -6082,6 +6245,10 @@ async function executeApprovedMcp(
       releaseComputerGrant = grant.dispose;
     }
     controller.signal.throwIfAborted();
+    if (request.sandboxEscalation) {
+      const error = currentSandboxEscalationError(request);
+      if (error) throw new Error(error);
+    }
     const result = await mcpClientManager.call(
       request.serverId,
       request.toolName,
@@ -6090,6 +6257,7 @@ async function executeApprovedMcp(
       request.mode,
       privateMetadata,
       controller.signal,
+      ...(request.sandboxEscalation ? ([true] as const) : ([] as const)),
     );
     agentProcess.post({
       type: "broker.resolve",
@@ -6117,6 +6285,18 @@ async function executeApprovedExtension(
 ): Promise<void> {
   if (!canRunLicensed()) return;
   if (!agentProcess || !trustedExtensionManager) return;
+  if (request.sandboxEscalation !== undefined) {
+    const error = currentSandboxEscalationError(request);
+    if (error || resolution.scope !== "once") {
+      rejectBrokerRequest(
+        workerRequestId,
+        request,
+        error ?? "Sandbox escalation requires a one-time approval.",
+      );
+      return;
+    }
+    recordSandboxEscalation(request, resolution);
+  }
   emitPayload(request.threadId, request.turnId, {
     type: "approval.resolved",
     approvalId: resolution.approvalId,
@@ -6126,13 +6306,20 @@ async function executeApprovedExtension(
     ...(resolution.source ? { source: resolution.source } : {}),
   });
   try {
+    const localFullAccess =
+      Boolean(request.sandboxEscalation) ||
+      (await settingsStore?.localFullAccess());
+    if (request.sandboxEscalation) {
+      const error = currentSandboxEscalationError(request);
+      if (error) throw new Error(error);
+    }
     const result = await trustedExtensionManager.call(
       request.extensionId,
       request.toolName,
       request.arguments,
       request.workspacePath,
       request.mode,
-      await settingsStore?.localFullAccess(),
+      localFullAccess,
     );
     agentProcess.post({
       type: "broker.resolve",
@@ -6408,6 +6595,9 @@ async function createTaskThread(
   }
 }
 
+const startingTurns = new Set<string>();
+const acceptingPlans = new Map<string, Promise<StartTurnResult>>();
+
 async function startTaskTurn(
   input: StartTurnInput,
   options: Parameters<typeof startTaskTurnUnchecked>[1] = {},
@@ -6417,14 +6607,18 @@ async function startTaskTurn(
       "Worktree cleanup is in progress. Retry after it finishes.",
     );
   }
+  if (startingTurns.has(input.threadId))
+    throw new Error("Task is already starting a turn.");
   const release = imService?.reserveStart(
     input.threadId,
     input.mode,
     options.origin === "desktop" ? false : undefined,
   );
+  startingTurns.add(input.threadId);
   try {
     return await startTaskTurnUnchecked(input, options);
   } finally {
+    startingTurns.delete(input.threadId);
     release?.();
   }
 }
@@ -6439,6 +6633,7 @@ async function startTaskTurnUnchecked(
     expectedGoalId?: string;
     delegationContinuationId?: string;
     afterCompaction?: boolean;
+    acceptance?: PlanAcceptance;
   } = {},
 ): Promise<StartTurnResult> {
   assertLicense();
@@ -6463,6 +6658,20 @@ async function startTaskTurnUnchecked(
   if (thread.archived) {
     throw new Error("Archived tasks cannot start a turn.");
   }
+  const pendingPlan = store.plans(thread.id).at(-1);
+  if (options.acceptance) {
+    assertAcceptablePlan(store.plans(thread.id), options.acceptance);
+    if (options.origin !== "desktop" || source !== "user")
+      throw new Error("Plan acceptance requires a desktop user choice.");
+  } else if (pendingPlan?.status === "proposed") {
+    if (source !== "user" || options.origin !== "desktop")
+      throw new Error("PLAN_REQUIRES_USER_CHOICE");
+    input = { ...input, mode: "plan" };
+  }
+  if (input.mode === "codemode" && imService?.profile(thread.id))
+    throw new Error(
+      "CODEMODE_REMOTE_UNSUPPORTED: this remote profile cannot execute Codemode.",
+    );
   if (thread.status === "running" || thread.status === "waiting-approval") {
     throw new Error("Task already has an active turn.");
   }
@@ -6618,7 +6827,11 @@ async function startTaskTurnUnchecked(
     throw error;
   }
   await turnChangeSetCompletionTails.get(thread.id);
-  if (input.mode === "execute" && !context.temporary && turnChangeSetService) {
+  if (
+    isExecutionMode(input.mode) &&
+    !context.temporary &&
+    turnChangeSetService
+  ) {
     try {
       await turnChangeSetService.begin({
         threadId: thread.id,
@@ -6823,6 +7036,7 @@ async function startTaskTurnUnchecked(
       attachments,
       source === "user",
       checkpoint,
+      options.acceptance,
     );
     // Cancellation may arrive while the initial events are being persisted.
     // Recheck before dispatching any work to the agent process.
@@ -6856,7 +7070,7 @@ async function startTaskTurnUnchecked(
   if (goalCreationAuthorized) {
     goalCreationAuthorizations.add(turnId);
   }
-  if (thread.goal?.status === "active" && input.mode === "execute") {
+  if (thread.goal?.status === "active" && isExecutionMode(input.mode)) {
     goalTurnContexts.set(turnId, {
       threadId: thread.id,
       goalId: thread.goal.goalId,
@@ -7007,7 +7221,7 @@ async function resumeInterruptedTurns(): Promise<void> {
       }
       if (
         thread.goal?.status === "active" &&
-        checkpoint.mode === "execute" &&
+        isExecutionMode(checkpoint.mode) &&
         !goalTurnContexts.has(turnId)
       ) {
         goalTurnContexts.set(turnId, {
@@ -7373,7 +7587,7 @@ async function saveAutomation(input: SaveAutomationInput): Promise<Automation> {
   const authorizationRemainsValid =
     current?.authorizationState === "authorized" &&
     current.authorizationFingerprint === fingerprint;
-  const requiresAuthorization = mode === "execute";
+  const requiresAuthorization = isExecutionMode(mode);
   const enabled =
     input.enabled && (!requiresAuthorization || authorizationRemainsValid);
   const nextRunAt = scheduledNextRun({ schedule, enabled }, now);
@@ -7422,7 +7636,7 @@ async function setAutomationEnabled(
   }
   if (
     enabled &&
-    current.mode === "execute" &&
+    isExecutionMode(current.mode) &&
     (current.authorizationState !== "authorized" ||
       current.authorizationFingerprint !==
         automationAuthorizationFingerprint(current))
@@ -7457,7 +7671,7 @@ async function authorizeAutomation(
   if (!current || current.deletedAt) {
     throw new Error("Automation was not found.");
   }
-  if (current.mode !== "execute") {
+  if (!isExecutionMode(current.mode)) {
     return setAutomationEnabled(id, true);
   }
   const result = await dialog.showMessageBox(mainWindow, {
@@ -7707,7 +7921,7 @@ function registerIpc(): void {
       else if (action === "resume")
         computerUseHost?.service.resumeThread(threadId);
       else if (action === "revoke-task")
-        computerUseHost?.clearTask(threadId, "Task left Execute mode");
+        computerUseHost?.clearTask(threadId, "Task left Work or Codemode mode");
       else throw new Error("Invalid control action.");
     },
   );
@@ -8820,7 +9034,7 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.customAgentsPreviewCapabilities,
     (_event, raw: unknown, mode: RunMode): CustomAgentCapabilityPreview => {
-      if (mode !== "execute" && mode !== "plan" && mode !== "review") {
+      if (!isExecutionMode(mode) && mode !== "plan") {
         throw new Error("CUSTOM_AGENT_INVALID: unknown run mode");
       }
       const input = raw as { toolPolicy?: unknown } | null | undefined;
@@ -10408,7 +10622,7 @@ function registerIpc(): void {
       threadId,
       toolName: "get_snapshot",
       args: {},
-      mode: "execute",
+      mode: "work",
     });
     let documents: unknown[] = [];
     if (outcome.status === "succeeded" && outcome.result) {
@@ -10819,7 +11033,7 @@ function registerIpc(): void {
         threadId: input.threadId,
         toolName: "get_snapshot",
         args: {},
-        mode: "execute",
+        mode: "work",
       });
       let documents: unknown[] = [];
       if (outcome.status === "succeeded" && outcome.result) {
@@ -10853,10 +11067,10 @@ function registerIpc(): void {
       // P1-7：恢复 = 把历史版本写成新版本，是文件写入。必须在任何目录
       // 创建、文件写入或 runtime 调用之前按「持久化的任务模式」门禁——
       // Plan/Review 一律拒绝（面板按钮禁用只是辅助，不能作为边界）。
-      if (thread.mode !== "execute") {
+      if (!isExecutionMode(thread.mode)) {
         return {
           ok: false,
-          error: `当前任务处于 ${thread.mode === "plan" ? "Plan" : "Review"} 模式，恢复版本需要写入文件，已被拒绝。`,
+          error: "当前任务处于 Plan 模式，恢复版本需要写入文件，已被拒绝。",
         };
       }
       const documentId = requireDesignDocumentId(input.documentId);
@@ -10887,7 +11101,7 @@ function registerIpc(): void {
           ...(input.revision ? { revision: input.revision } : {}),
           operationId,
         },
-        mode: "execute",
+        mode: "work",
       });
       if (outcome.status !== "succeeded") {
         return {
@@ -10999,10 +11213,10 @@ function registerIpc(): void {
       if (!thread?.typeBinding)
         throw new Error("Thread has no plugin binding.");
       // 删除是破坏性写入：仅 Execute 任务允许（P1-7 同款门禁）。
-      if (thread.mode !== "execute") {
+      if (!isExecutionMode(thread.mode)) {
         return {
           ok: false,
-          error: `当前任务处于 ${thread.mode === "plan" ? "Plan" : "Review"} 模式，删除文档需要写入，已被拒绝。`,
+          error: "当前任务处于 Plan 模式，删除文档需要写入，已被拒绝。",
         };
       }
       const documentId = requireDesignDocumentId(input.documentId);
@@ -11031,7 +11245,7 @@ function registerIpc(): void {
         threadId: input.threadId,
         toolName: "list_versions",
         args: { documentId },
-        mode: "execute",
+        mode: "work",
       });
       if (outcome.status !== "succeeded") {
         throw new Error(outcome.error ?? "list_versions failed.");
@@ -11115,7 +11329,7 @@ function registerIpc(): void {
       const thread = store?.getThread(threadId);
       if (!thread || thread.archived) throw new Error("Active task not found");
       // Opening starts an engine and writes a working copy, even for preview.
-      if (thread.mode !== "execute")
+      if (!isExecutionMode(thread.mode))
         throw new Error(`${thread.mode} mode rejects Office sessions`);
       const context = await resolveThreadWorkspace(thread);
       const workbench = await getOfficeWorkbench();
@@ -11149,7 +11363,7 @@ function registerIpc(): void {
     ) => {
       const thread = store?.getThread(threadId);
       if (!thread || thread.archived) throw new Error("Active task not found");
-      if (thread.mode !== "execute")
+      if (!isExecutionMode(thread.mode))
         throw new Error(`${thread.mode} mode rejects Office sessions`);
       const context = await resolveThreadWorkspace(thread);
       const workbench = await getOfficeWorkbench();
@@ -11174,7 +11388,7 @@ function registerIpc(): void {
     ) => {
       const thread = store?.getThread(threadId);
       if (!thread || thread.archived) throw new Error("Active task not found");
-      if (thread.mode !== "execute")
+      if (!isExecutionMode(thread.mode))
         throw new Error(`${thread.mode} mode rejects CSV edits`);
       if (
         typeof path !== "string" ||
@@ -11185,7 +11399,7 @@ function registerIpc(): void {
         throw new Error("Invalid CSV save request");
       const context = await resolveThreadWorkspace(thread);
       const current = store?.getThread(threadId);
-      if (!current || current.archived || current.mode !== "execute")
+      if (!current || current.archived || !isExecutionMode(current.mode))
         throw new Error("CSV editing is no longer allowed");
       return writeWorkspaceFile(
         context.workspacePath,
@@ -13046,6 +13260,87 @@ function registerIpc(): void {
     },
   );
 
+  const userLogin = (event: Electron.IpcMainInvokeEvent) => {
+    if (event.sender !== mainWindow?.webContents || !providerLoginService)
+      throw new Error("Provider login is only available to the desktop user.");
+    return providerLoginService;
+  };
+  ipcMain.handle(IPC.providerLoginOptions, (event) =>
+    userLogin(event).providers(),
+  );
+  ipcMain.handle(
+    IPC.providerLoginStart,
+    (event, providerId: string, type: "api_key" | "oauth") =>
+      userLogin(event).start(providerId, type),
+  );
+  ipcMain.handle(IPC.providerLoginStatus, (event, id: string) =>
+    userLogin(event).status(id),
+  );
+  ipcMain.handle(
+    IPC.providerLoginAnswer,
+    (event, id: string, promptId: string, value: string) =>
+      userLogin(event).answer(id, promptId, value),
+  );
+  ipcMain.handle(IPC.providerLoginCancel, (event, id: string) =>
+    userLogin(event).cancel(id),
+  );
+
+  ipcMain.handle(IPC.planAccept, (event, input) => {
+    if (event.sender !== mainWindow?.webContents)
+      throw new Error("Only the desktop user can accept a plan.");
+    const command = parseThreadCommand<"plan.accept">({
+      ...input,
+      type: "plan.accept",
+    });
+    if (!store) throw new Error("Store is not ready");
+    const key = `${command.threadId}:${command.planId}:${command.revision}`;
+    const pending = acceptingPlans.get(key);
+    if (pending) return pending;
+    const plans = store.plans(command.threadId);
+    const accepted = plans.find(
+      (p) =>
+        p.planId === command.planId &&
+        p.revision === command.revision &&
+        p.status === "accepted",
+    );
+    if (accepted?.executionTurnId)
+      return {
+        turnId: accepted.executionTurnId,
+        thread: store.getThread(command.threadId)!,
+      };
+    const plan = assertAcceptablePlan(plans, command);
+    const result = startTaskTurn(
+      {
+        threadId: command.threadId,
+        mode: command.mode,
+        text: acceptedPlanPrompt(plan),
+      },
+      { origin: "desktop", acceptance: command },
+    );
+    acceptingPlans.set(key, result);
+    void result.finally(() => acceptingPlans.delete(key)).catch(() => {});
+    return result;
+  });
+  ipcMain.handle(IPC.planRevise, async (event, input) => {
+    if (event.sender !== mainWindow?.webContents)
+      throw new Error("Only the desktop user can revise a plan.");
+    const command = parseThreadCommand<"plan.revise">({
+      ...input,
+      type: "plan.revise",
+    });
+    if (activeTurns.has(command.threadId))
+      await cancelLocalTaskTurn(command.threadId);
+    return startTaskTurn(
+      {
+        threadId: command.threadId,
+        text: command.text,
+        mode: "plan",
+        ...(command.attachments ? { attachments: command.attachments } : {}),
+      },
+      { origin: "desktop" },
+    );
+  });
+
   ipcMain.handle(
     IPC.turnStart,
     (_event, input: StartTurnInput): Promise<StartTurnResult> =>
@@ -13587,7 +13882,7 @@ function seedSmokeUserInputFixture(): void {
     id: threadId,
     projectId,
     title: localized ? "确认实施计划" : "Confirm the plan",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "running",
     pinned: false,
@@ -13658,7 +13953,7 @@ async function seedSmokeUserInputTransportFixture(): Promise<void> {
     id: threadId,
     projectId,
     title: "Transport smoke",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "running",
     pinned: false,
@@ -13722,7 +14017,7 @@ function registerSmokeMultiQuestionUiPendingInput(input: {
           question,
           options,
         })),
-        mode: "execute",
+        mode: "work",
       },
       timeouts: new Map(),
     },
@@ -13777,7 +14072,7 @@ async function seedSmokeMultiQuestionUiFixture(): Promise<void> {
     id: threadId,
     projectId,
     title: "Multi-question UI smoke",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "running",
     pinned: false,
@@ -13817,7 +14112,7 @@ async function seedSmokeMultiQuestionUiFixture(): Promise<void> {
           recommended: false,
         },
       ],
-      mode: "execute",
+      mode: "work",
     });
     registerSmokeMultiQuestionUiPendingInput({
       requestId: "artemis-smoke-multi-ui",
@@ -14017,7 +14312,7 @@ function seedSmokeTokenUsageFixture(): void {
     id: threadId,
     projectId,
     title: "Prompt cache metrics",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -14084,7 +14379,7 @@ function seedSmokeGoalFixture(): void {
     id: threadId,
     projectId,
     title: "Codex Goal parity",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -14145,7 +14440,7 @@ function seedSmokeTurnChangesFixture(): void {
     title: localized
       ? "完成时间线与文件卡"
       : "Completed timeline and file card",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -14205,7 +14500,7 @@ function seedSmokeTurnChangesFixture(): void {
         ? "实现 Codex 式完成时间线与文件变更卡，并完成验证。"
         : "Implement the Codex-style completed timeline and file change card.",
     },
-    { type: "turn.started", mode: "execute" },
+    { type: "turn.started", mode: "work" },
     {
       type: "message.part.delta",
       partId: "turn-changes-progress:text",
@@ -14318,7 +14613,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
         : view === "conversation-timeline-failed"
           ? "Interrupted conversation"
           : "Conversation timeline migration",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status:
       view === "conversation-timeline-failed"
@@ -14343,7 +14638,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
       messageId: "fixture-message",
     });
     const payloads: AgentPayload[] = [
-      { type: "turn.started", mode: "execute" },
+      { type: "turn.started", mode: "work" },
       {
         type: "user.message",
         messageId: "im-history",
@@ -14375,7 +14670,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
         messageId: "artemis-smoke-conversation-failed-user",
         text: "Resume safely after the interrupted provider stream.",
       },
-      { type: "turn.started", mode: "execute" },
+      { type: "turn.started", mode: "work" },
       {
         type: "turn.activity",
         phase: "interrupted",
@@ -14421,7 +14716,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
       messageId: "artemis-smoke-conversation-completed-user",
       text: "Inspect the timeline contract and verify the public components.",
     },
-    { type: "turn.started", mode: "execute" },
+    { type: "turn.started", mode: "work" },
     {
       type: "message.part.delta",
       partId: "artemis-smoke-conversation-completed-thinking",
@@ -14509,7 +14804,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
     },
   ];
   const cancelledPayloads: AgentPayload[] = [
-    { type: "turn.started", mode: "execute" },
+    { type: "turn.started", mode: "work" },
     {
       type: "user.message",
       messageId: "artemis-smoke-conversation-cancelled-user",
@@ -14528,7 +14823,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
     },
   ];
   const activePayloads: AgentPayload[] = [
-    { type: "turn.started", mode: "execute" },
+    { type: "turn.started", mode: "work" },
     {
       type: "user.message",
       messageId: "artemis-smoke-conversation-active-user",
@@ -14633,7 +14928,7 @@ function seedSmokeMessageActionsFixture(): void {
     id: threadId,
     projectId,
     title: "中断消息操作",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -14645,7 +14940,7 @@ function seedSmokeMessageActionsFixture(): void {
     {
       eventId: "artemis-smoke-message-actions-started",
       turnId,
-      payload: { type: "turn.started", mode: "execute" },
+      payload: { type: "turn.started", mode: "work" },
     },
     {
       eventId: "artemis-smoke-message-actions-user",
@@ -14696,7 +14991,7 @@ function seedSmokeQueuedSteerFixture(): void {
     id: threadId,
     projectId,
     title: "Queued steer smoke",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "running",
     pinned: false,
@@ -14717,7 +15012,7 @@ function seedSmokeQueuedSteerFixture(): void {
     {
       eventId: "artemis-smoke-queued-steer-started",
       turnId,
-      payload: { type: "turn.started", mode: "execute" },
+      payload: { type: "turn.started", mode: "work" },
     },
     {
       eventId: "artemis-smoke-queued-steer-queue",
@@ -14758,7 +15053,7 @@ function seedSmokeMarkdownEditorFixture(): void {
     id: threadId,
     projectId,
     title: "Markdown editor smoke",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status: "idle",
     pinned: false,
@@ -14774,7 +15069,7 @@ function seedSmokeMarkdownEditorFixture(): void {
         messageId: "artemis-smoke-markdown-preview-user",
         text: "Inspect the synthetic NOTES.md fixture.",
       },
-      { type: "turn.started", mode: "execute" },
+      { type: "turn.started", mode: "work" },
       {
         type: "tool.started",
         toolCallId: "artemis-smoke-markdown-preview-tool",
@@ -15064,7 +15359,7 @@ async function seedSmokeSecondaryPagesFixture(): Promise<void> {
       projectId,
       title:
         "Synthetic archived task with a deliberately long title for responsive layout evidence",
-      mode: "review",
+      mode: "plan",
       target: "local",
       status: "idle",
       pinned: false,
@@ -15082,7 +15377,7 @@ async function seedSmokeSecondaryPagesFixture(): Promise<void> {
       name: "Synthetic automation with a deliberately long name for responsive layout evidence",
       prompt:
         "Synthetic smoke-only prompt used to verify that long automation content remains readable without changing scheduling behavior.",
-      mode: "review",
+      mode: "plan",
       target: "local",
       schedule: {
         kind: "weekly",
@@ -17105,7 +17400,7 @@ async function driveSmokeUserInputTransportEvidence(
       header: "Confirmation",
       question: "Implement this plan?",
       options: legacyOptions,
-      mode: "execute",
+      mode: "work",
     });
     const legacyRequested = requestedEvents("artemis-smoke-single");
     assert(
@@ -17145,7 +17440,7 @@ async function driveSmokeUserInputTransportEvidence(
       workspacePath,
       header: "Plan check",
       questions: multiQuestions,
-      mode: "execute",
+      mode: "work",
     });
     const multiRequested = requestedEvents("artemis-smoke-multi");
     assert(
@@ -17392,7 +17687,7 @@ async function driveSmokeUserInputTransportEvidence(
         workspacePath,
         header: "Plan check",
         questions: multiQuestions,
-        mode: "execute",
+        mode: "work",
       });
     } catch (error) {
       duplicateInjectionError = error instanceof Error ? error.message : "";
@@ -17583,7 +17878,7 @@ async function driveSmokeUserInputTransportEvidence(
           workspacePath,
           header: "Expiry",
           questions: expiredQuestions,
-          mode: "execute",
+          mode: "work",
         },
         timeouts: new Map(),
       },
@@ -17785,7 +18080,7 @@ async function driveSmokeUserInputTransportEvidence(
           workspacePath,
           header: "Reverse",
           questions: reverseQuestions,
-          mode: "execute",
+          mode: "work",
         },
         timeouts: new Map(),
       },
@@ -17913,7 +18208,7 @@ async function driveSmokeUserInputTransportEvidence(
       workspacePath,
       header: "Release",
       questions: cancelQuestions,
-      mode: "execute",
+      mode: "work",
     });
     const cancelTargetRendered = await waitForDomState(
       "cancel-target card pending",
@@ -18076,7 +18371,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
     id: threadId,
     projectId,
     title: "实现右上角任务环境面板",
-    mode: "execute",
+    mode: "work",
     target: "local",
     status:
       view === "environment-feedback-approval" ? "waiting-approval" : "idle",
@@ -18130,7 +18425,7 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
   const events: SmokeEnvironmentEvent[] = [
     {
       id: "environment-turn-started",
-      payload: { type: "turn.started", mode: "execute" },
+      payload: { type: "turn.started", mode: "work" },
     },
     {
       id: "environment-user-message",
@@ -23798,6 +24093,10 @@ app
       join(app.getPath("userData"), "settings.json"),
       safeStorage,
     );
+    providerLoginService = new ProviderLoginService(
+      settingsStore,
+      applyAgentRuntime,
+    );
     imService = new ImService(
       app.getPath("userData"),
       safeStorage,
@@ -24118,7 +24417,7 @@ app
           "mail_check_connection",
           {},
           config.workspacePath,
-          "execute",
+          "work",
           { [CONNECTOR_AUTH_META]: context },
         );
         if (result.isError)
@@ -24460,6 +24759,7 @@ app.on("window-all-closed", () => {
 let endingHookSessions = false;
 let hookSessionsEnded = false;
 app.on("before-quit", (event) => {
+  providerLoginService?.cancel();
   computerUseHost?.dispose();
   if (
     !hookSessionsEnded &&

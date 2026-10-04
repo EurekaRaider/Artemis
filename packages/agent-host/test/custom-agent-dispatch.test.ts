@@ -86,7 +86,7 @@ function frozenSnapshot(
 interface HostedStub {
   contextWindow?: number;
   currentTurnId: string;
-  currentMode: "execute" | "plan" | "review";
+  currentMode: "work" | "plan" | "review";
   selection?: {
     providerId: string;
     modelId: string;
@@ -165,7 +165,7 @@ describe("custom agent dispatch resolution", () => {
     const hosted: HostedStub = {
       contextWindow: 32000,
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       selection: {
         providerId: "kimi-coding",
         modelId: "k3",
@@ -195,7 +195,7 @@ describe("custom agent dispatch resolution", () => {
     const { internals } = makeHost([definition()]);
     const hosted: HostedStub = {
       currentTurnId: "turn",
-      currentMode: "execute",
+      currentMode: "work",
       contextWindow: 16000,
       selection: {
         providerId: "root-provider",
@@ -246,7 +246,7 @@ describe("custom agent dispatch resolution", () => {
     const hosted: HostedStub = {
       contextWindow: 16000,
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       selection: {
         providerId: "kimi-coding",
         modelId: "k3",
@@ -291,7 +291,7 @@ describe("custom agent dispatch resolution", () => {
     ]);
     const hosted: HostedStub = {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       selection: {
         providerId: "kimi-coding",
         modelId: "k3",
@@ -312,7 +312,7 @@ describe("custom agent dispatch resolution", () => {
     const { internals } = makeHost([definition()]);
     const hosted: HostedStub = {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       childAgents: new Map(),
     };
     expect(() =>
@@ -329,7 +329,7 @@ describe("custom agent dispatch resolution", () => {
     const { internals } = makeHost([definition({ enabled: false })]);
     const hosted: HostedStub = {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       selection: {
         providerId: "kimi-coding",
         modelId: "k3",
@@ -346,7 +346,7 @@ describe("custom agent dispatch resolution", () => {
     const { internals } = makeHost([definition()]);
     const hosted: HostedStub = {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       childAgents: new Map(),
     };
     expect(() =>
@@ -363,7 +363,7 @@ describe("custom agent dispatch resolution", () => {
     const { internals } = makeHost([definition()]);
     const hosted: HostedStub = {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       childAgents: new Map(),
     };
     expect(
@@ -398,7 +398,7 @@ describe("custom agent revocation", () => {
     const child = {
       agentId: "child-1",
       turnId: "turn-1",
-      mode: "execute",
+      mode: "work",
       parentAgentId: "root",
       depth: 1,
       label: "review",
@@ -459,7 +459,7 @@ describe("custom agent revocation", () => {
       controller,
       customAgentSnapshot: frozenSnapshot(),
       turnId: "turn-1",
-      mode: "execute",
+      mode: "work",
       parentAgentId: "root",
       depth: 1,
       label: "running",
@@ -493,7 +493,7 @@ describe("explicit user invocation acceptance", () => {
   ): HostedStub {
     const hosted: HostedStub = {
       currentTurnId: "turn-1",
-      currentMode: "execute",
+      currentMode: "work",
       currentMission: "review the diff",
       selection: {
         providerId: "kimi-coding",

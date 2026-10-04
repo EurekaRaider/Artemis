@@ -749,6 +749,37 @@ export class EncryptedSettingsStore {
     await this.save(settings);
   }
 
+  async saveRefreshedCredential(
+    providerId: string,
+    expected: RuntimeCredential | undefined,
+    next: RuntimeCredential,
+  ): Promise<void> {
+    const id = validateProviderId(providerId);
+    if (!this.encryptionAvailable)
+      throw new Error("OS credential encryption is unavailable");
+    const settings = await this.load();
+    const stored = settings.credentials[id];
+    const current = stored
+      ? parseRuntimeCredential(
+          JSON.parse(
+            this.safeStorage.decryptString(
+              Buffer.from(stored.encrypted, "base64"),
+            ),
+          ),
+        )
+      : undefined;
+    if (JSON.stringify(current) !== JSON.stringify(expected))
+      throw new Error("Credential changed during refresh");
+    const credential = parseRuntimeCredential(next);
+    settings.credentials[id] = {
+      type: credential.type,
+      encrypted: this.safeStorage
+        .encryptString(JSON.stringify(credential))
+        .toString("base64"),
+    };
+    await this.save(settings);
+  }
+
   async saveCredential(
     providerId: string,
     credentialInput: RuntimeCredential,

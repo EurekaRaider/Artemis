@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import {
   createAssistantMessageEventStream,
+  isRetryableAssistantError,
   type Api,
   type AssistantMessage,
   type AssistantMessageEvent,
@@ -309,7 +310,7 @@ describe("connection recovery", () => {
     });
   });
 
-  it("stops instead of replaying after visible output has begun", async () => {
+  it("hands partial responses to Pi's canonical retry and supersession instead of replaying tool effects", async () => {
     const failed = message("error", "socket connection was closed");
     const streamSimple = vi.fn().mockReturnValue(
       eventStream([
@@ -335,16 +336,57 @@ describe("connection recovery", () => {
     );
 
     expect(streamSimple).toHaveBeenCalledTimes(1);
-    expect(updates).toEqual([
-      expect.objectContaining({ phase: "interrupted" }),
-    ]);
+    expect(updates).toEqual([]);
     expect(events.at(-1)).toMatchObject({
       type: "error",
       error: {
-        errorMessage: expect.stringContaining("ARTEMIS_STREAM_INTERRUPTED"),
+        errorMessage: expect.stringContaining("Network error"),
       },
     });
+    const terminal = events.at(-1)!;
+    expect(
+      terminal.type === "error" && isRetryableAssistantError(terminal.error),
+    ).toBe(true);
   });
+
+  it.each(["empty-start", "eof"])(
+    "recovers from %s before content",
+    async (kind) => {
+      const failed = message("error", "fetch failed: ECONNRESET");
+      const recovered = message("stop");
+      const first =
+        kind === "eof"
+          ? {
+              async *[Symbol.asyncIterator]() {
+                yield {
+                  type: "start",
+                  partial: failed,
+                } as AssistantMessageEvent;
+              },
+            }
+          : eventStream([
+              { type: "start", partial: failed },
+              { type: "text_start", contentIndex: 0, partial: failed },
+              { type: "error", reason: "error", error: failed },
+            ]);
+      const streamSimple = vi
+        .fn()
+        .mockReturnValueOnce(first)
+        .mockReturnValueOnce(
+          eventStream([{ type: "done", reason: "stop", message: recovered }]),
+        );
+      const runtime = withConnectionRecovery(
+        { streamSimple } as unknown as ModelRuntime,
+        () => undefined,
+        { wait: async () => undefined },
+      );
+      const events = await collect(
+        runtime.streamSimple(model, { messages: [] }),
+      );
+      expect(streamSimple).toHaveBeenCalledTimes(2);
+      expect(events.at(-1)?.type).toBe("done");
+    },
+  );
 
   it("never classifies auth, quota, protocol, or rate limits as a connection", () => {
     expect(isConnectionFailure("401 authentication failed")).toBe(false);
@@ -456,7 +498,7 @@ describe("bounded idle stream recovery", () => {
     });
   });
 
-  it("does not retry after partial output", async () => {
+  it("hands a stalled partial response to Pi's bounded retry", async () => {
     vi.useFakeTimers();
     const partial = message("stop");
     const streamSimple = vi.fn(() =>
@@ -474,7 +516,7 @@ describe("bounded idle stream recovery", () => {
     expect((await collected).at(-1)).toMatchObject({
       type: "error",
       error: {
-        errorMessage: expect.stringContaining("ARTEMIS_STREAM_INTERRUPTED"),
+        errorMessage: expect.stringContaining("Network error"),
       },
     });
     expect(streamSimple).toHaveBeenCalledTimes(1);

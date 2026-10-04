@@ -10,8 +10,16 @@ import { artifactEventSchema } from "./artifact.js";
 // builds reject existing v4 logs.
 export const PROTOCOL_VERSION = 4 as const;
 
-export const runModeSchema = z.enum(["execute", "plan", "review"]);
+export const runModeSchema = z.preprocess(
+  (value) =>
+    value === "execute" ? "work" : value === "review" ? "plan" : value,
+  z.enum(["plan", "work", "codemode"]),
+);
 export type RunMode = z.infer<typeof runModeSchema>;
+
+export function isExecutionMode(mode: unknown): mode is "work" | "codemode" {
+  return mode === "work" || mode === "codemode";
+}
 
 export const approvalPolicySchema = z.enum([
   "ask",
@@ -90,7 +98,71 @@ const providerThinkingLevelSchema = z.enum([
   "max",
 ]);
 
-const providerModelSchema = z.object({
+export const modelAdvancedOptionsSchema = z
+  .object({
+    virtualRoutes: z
+      .array(
+        z.object({
+          providerId: z.string().min(1),
+          modelId: z.string().min(1),
+          thinkingLevel: z
+            .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
+            .optional(),
+        }),
+      )
+      .min(1)
+      .max(16)
+      .optional(),
+    samplingParams: z.record(z.string(), z.json()).optional(),
+    samplingParamsByThinkingLevel: z
+      .partialRecord(
+        z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+        z.record(z.string(), z.json()),
+      )
+      .optional(),
+    thinkingLevelMap: z
+      .partialRecord(
+        z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
+        z.string().nullable(),
+      )
+      .optional(),
+    promptCache: z
+      .object({
+        short: z.number().positive().optional(),
+        long: z.number().positive().optional(),
+      })
+      .optional(),
+    cacheWarming: z.enum(["off", "streaming", "idle"]).optional(),
+    compaction: z
+      .object({
+        enabled: z.boolean().optional(),
+        reserveTokens: z.number().int().positive().optional(),
+        keepRecentTokens: z.number().int().positive().optional(),
+      })
+      .optional(),
+    inputLimits: z
+      .object({
+        maxRequestBytes: z.number().int().positive().optional(),
+        images: z
+          .object({
+            maxPerMessage: z.number().int().positive().optional(),
+            maxPerRequest: z.number().int().positive().optional(),
+            resize: z
+              .object({
+                maxWidth: z.number().int().positive().optional(),
+                maxHeight: z.number().int().positive().optional(),
+                maxBytes: z.number().int().positive().optional(),
+                jpegQuality: z.number().min(1).max(100).optional(),
+              })
+              .optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .strict();
+
+const providerModelSchema = modelAdvancedOptionsSchema.extend({
   id: z
     .string()
     .trim()
@@ -378,6 +450,7 @@ export const messageDeltaPayloadSchema = z.object({
 
 export const toolStartedPayloadSchema = z.object({
   type: z.literal("tool.started"),
+  parentToolCallId: z.string().min(1).optional(),
   toolCallId: z.string().min(1),
   toolName: z.string().min(1),
   input: z.unknown().optional(),
@@ -392,6 +465,20 @@ export const toolUpdatedPayloadSchema = z.object({
 
 export const toolCompletedPayloadSchema = z.object({
   type: z.literal("tool.completed"),
+  structuredContent: z.unknown().optional(),
+  images: z
+    .array(
+      z.object({
+        data: z.string(),
+        mimeType: z.enum([
+          "image/png",
+          "image/jpeg",
+          "image/webp",
+          "image/gif",
+        ]),
+      }),
+    )
+    .optional(),
   toolCallId: z.string().min(1),
   output: z.string().optional(),
   isError: z.boolean(),
@@ -1045,7 +1132,33 @@ export const taskNotificationStateSchema = z.object({
 });
 export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
 
+export const proposedPlanSchema = z.object({
+  planId: z.string().min(1),
+  revision: z.number().int().positive(),
+  sourceTurnId: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
+  markdown: z.string().trim().min(1).max(100_000),
+  actionable: z.boolean(),
+});
+export type ProposedPlan = z.infer<typeof proposedPlanSchema>;
+export const planAcceptanceSchema = z.object({
+  planId: z.string().min(1),
+  revision: z.number().int().positive(),
+  mode: z.enum(["work", "codemode"]),
+});
+export type PlanAcceptance = z.infer<typeof planAcceptanceSchema>;
+
 export const agentPayloadSchema = z.discriminatedUnion("type", [
+  proposedPlanSchema.extend({ type: z.literal("plan.proposed") }),
+  planAcceptanceSchema.extend({
+    type: z.literal("plan.accepted"),
+    executionTurnId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("plan.superseded"),
+    planId: z.string().min(1),
+    revision: z.number().int().positive(),
+  }),
   z
     .object({ type: z.literal("artifact.event"), event: artifactEventSchema })
     .strict(),
@@ -1179,6 +1292,16 @@ export interface AppSnapshot {
 }
 
 export const threadCommandSchema = z.discriminatedUnion("type", [
+  planAcceptanceSchema.extend({
+    type: z.literal("plan.accept"),
+    threadId: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal("plan.revise"),
+    threadId: z.string().min(1),
+    text: z.string().trim().min(1).max(100_000),
+    attachments: z.array(promptAttachmentSchema).optional(),
+  }),
   z.object({
     type: z.literal("thread.create"),
     projectId: z.string().min(1).optional(),

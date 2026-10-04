@@ -167,7 +167,7 @@ describe("P2-9/P2-10 send-entry credentials and turn binding", () => {
     store.createThread({
       id: threadId,
       title: "send-entry",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -261,7 +261,7 @@ describe("P2-9/P2-10 send-entry credentials and turn binding", () => {
     store2.createThread({
       id: otherThread,
       title: "t",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -299,7 +299,7 @@ describe("P2-12 plugin operation ledger state machine", () => {
     store.createThread({
       id: threadId,
       title: "ledger",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -400,7 +400,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
     store.createThread({
       id: threadId,
       title: "exec",
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,
@@ -474,7 +474,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
   async function call(
     toolName: string,
     args: Record<string, unknown>,
-    mode: "execute" | "plan" = "execute",
+    mode: "work" | "plan" = "work",
     useThread: string = threadId,
     operationId?: string,
   ) {
@@ -525,7 +525,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
     const outcome = await call(
       "create_document",
       { name: "不应创建", brief: "" },
-      "execute",
+      "work",
       planThreadId,
     );
     expect(outcome.status).toBe("refused");
@@ -660,7 +660,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
       const first = await call(
         "apply_edit",
         args,
-        "execute",
+        "work",
         threadId,
         operationId,
       );
@@ -669,7 +669,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
       const second = await call(
         "apply_edit",
         args,
-        "execute",
+        "work",
         threadId,
         operationId,
       );
@@ -681,7 +681,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
       const conflict = await call(
         "apply_edit",
         { ...args, replace: "<body>conflict" },
-        "execute",
+        "work",
         threadId,
         operationId,
       );
@@ -704,7 +704,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
         const result = await call(
           "create_document",
           { name: "commit-failure.html", brief: "" },
-          "execute",
+          "work",
           threadId,
           operationId,
         );
@@ -738,7 +738,7 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
         const result = await call(
           "create_document",
           { name: "result-failure.html", brief: "" },
-          "execute",
+          "work",
           threadId,
           operationId,
         );

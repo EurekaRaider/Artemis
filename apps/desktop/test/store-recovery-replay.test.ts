@@ -63,7 +63,7 @@ describe("recoverInterruptedThreads multi-question settledness", () => {
       id: threadId,
       projectId: "project-1",
       title,
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "waiting-approval",
       pinned: false,

@@ -50,7 +50,7 @@ async function fixture() {
   const controller = new AbortController();
   const target = await driver.open(
     { target: "browser", url: "https://example.test/" },
-    { threadId: "task", turnId: "turn", mode: "execute" },
+    { threadId: "task", turnId: "turn", mode: "work" },
     controller.signal,
   );
   return { driver, page, image, target, controller, takeover };
@@ -61,7 +61,7 @@ it("pauses for active browser input but ignores a released browser during native
   const context = {
     threadId: "task",
     turnId: "turn",
-    mode: "execute" as const,
+    mode: "work" as const,
   };
   const service = new ComputerUseService({
     drivers: {

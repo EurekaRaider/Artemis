@@ -131,7 +131,7 @@ function renderSection(options: RenderOptions = {}) {
     customAgentsUpdate: vi.fn(async () => snapshot),
     customAgentsDelete: vi.fn(async () => snapshot),
     customAgentsPreviewCapabilities: vi.fn(async () => ({
-      mode: "execute",
+      mode: "work",
       capabilities: ["filesystem-read"],
     })),
     getSettings: vi.fn(async () => snapshot),
@@ -429,7 +429,7 @@ describe("CustomAgentsSettingsSection", () => {
     await waitFor(() =>
       expect(api.customAgentsPreviewCapabilities).toHaveBeenCalledWith(
         { toolPolicy: { kind: "inherit" } },
-        "execute",
+        "work",
       ),
     );
 

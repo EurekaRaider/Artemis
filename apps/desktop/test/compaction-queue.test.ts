@@ -13,8 +13,8 @@ const section = source.slice(
   source.indexOf("async function steerQueuedTurn("),
 );
 function fixture() {
-  const thread = { id: "a", mode: "execute", status: "idle" };
-  const other = { id: "b", mode: "execute", status: "running" };
+  const thread = { id: "a", mode: "work", status: "idle" };
+  const other = { id: "b", mode: "work", status: "running" };
   const compactingThreads = new Set(["a"]);
   const compactionFollowUps = new RecoverableTurnQueues();
   const recoverableTurnQueues = new RecoverableTurnQueues();
@@ -100,7 +100,7 @@ describe("manual compaction IPC queue", () => {
     f.compactingThreads.delete("a");
     await f.resumeCompactionFollowUps(f.thread);
     expect(f.startTaskTurn).toHaveBeenCalledWith(
-      { threadId: "a", mode: "execute", text: "private first" },
+      { threadId: "a", mode: "work", text: "private first" },
       { origin: "desktop", afterCompaction: true, displayText: "@Mino first" },
     );
     expect(f.agentProcess.request).toHaveBeenCalledWith(
@@ -147,7 +147,7 @@ describe("manual compaction IPC queue", () => {
       expect.objectContaining({
         text: "first",
         attachments: [image],
-        mode: "execute",
+        mode: "work",
       }),
       { origin: "desktop", afterCompaction: true, displayText: "first" },
     );

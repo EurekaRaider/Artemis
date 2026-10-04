@@ -45,7 +45,7 @@ async function createStore(
       id: thread.id,
       projectId: "project-1",
       title: thread.id,
-      mode: "execute",
+      mode: "work",
       target: "local",
       status: "idle",
       pinned: false,

@@ -4,7 +4,7 @@ import { appendPromptFiles, buildTurnPrompt } from "../src/turn-prompt.js";
 
 describe("buildTurnPrompt", () => {
   it("injects a persistent task goal without changing the user request", () => {
-    const prompt = buildTurnPrompt("execute", "Add archive search.", {
+    const prompt = buildTurnPrompt("work", "Add archive search.", {
       threadId: "thread-1",
       goalId: "goal-1",
       objective: "Ship a complete conversation lifecycle",
@@ -34,7 +34,7 @@ describe("buildTurnPrompt", () => {
   it("injects recalled memory as hidden context without changing the user request", () => {
     const userText = "Repair the Windows Ninja target rebuild.";
     const prompt = buildTurnPrompt(
-      "execute",
+      "work",
       userText,
       undefined,
       "## Target-only rebuild\nInspect exact Ninja process command lines first.",
@@ -57,7 +57,7 @@ describe("buildTurnPrompt", () => {
   });
 
   it("keeps repeated plan and memory rules out of the dynamic user turn", () => {
-    const prompt = buildTurnPrompt("execute", "Verify the release workflow.");
+    const prompt = buildTurnPrompt("work", "Verify the release workflow.");
 
     expect(prompt).not.toContain("call update_plan");
     expect(prompt).not.toContain("call save_memory");
@@ -66,7 +66,7 @@ describe("buildTurnPrompt", () => {
 
   it("places interrupted team context before the current request", () => {
     const prompt = buildTurnPrompt(
-      "execute",
+      "work",
       "Continue the interrupted work.",
       undefined,
       undefined,
@@ -84,7 +84,7 @@ describe("buildTurnPrompt", () => {
 
   it("keeps an explicit Skill command at the start so Pi expands it", () => {
     const prompt = buildTurnPrompt(
-      "execute",
+      "work",
       "/skill:document-authoring Create the release notes.",
     );
 
@@ -97,7 +97,7 @@ describe("buildTurnPrompt", () => {
 
   it("preserves every selected Skill command before the user request", () => {
     const prompt = buildTurnPrompt(
-      "execute",
+      "work",
       "/skill:document-authoring /skill:using-superpowers Create the release notes.",
     );
 
@@ -138,7 +138,7 @@ describe("buildTurnPrompt", () => {
   it("preserves the Skill command prefix when files are appended", () => {
     const prompt = appendPromptFiles(
       buildTurnPrompt(
-        "execute",
+        "work",
         "/skill:spreadsheet-analysis Inspect the attached workbook.",
       ),
       [

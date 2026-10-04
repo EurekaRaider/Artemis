@@ -67,7 +67,7 @@ describe("TrustedExtensionManager platform integration", () => {
           "greet",
           { name: "OK" },
           workspacePath,
-          "execute",
+          "work",
         ),
       ).toEqual({ output: "EXTENSION_HELLO:OK", isError: false });
       const probe = await manager.call(
@@ -75,7 +75,7 @@ describe("TrustedExtensionManager platform integration", () => {
         "security_probe",
         {},
         workspacePath,
-        "execute",
+        "work",
       );
       expect(JSON.parse(probe.output)).toEqual({
         insideWrite: true,
@@ -87,7 +87,7 @@ describe("TrustedExtensionManager platform integration", () => {
         "security_probe",
         {},
         workspacePath,
-        "execute",
+        "work",
         true,
       );
       expect(JSON.parse(fullAccessProbe.output)).toMatchObject({
@@ -156,7 +156,7 @@ describe("TrustedExtensionManager platform integration", () => {
             "greet",
             { name: "PACKAGED_MACOS" },
             workspacePath,
-            "execute",
+            "work",
           ),
         ).toEqual({
           output: "EXTENSION_HELLO:PACKAGED_MACOS",

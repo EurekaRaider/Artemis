@@ -137,7 +137,7 @@ describe("explicit task block queue", () => {
       };
       const thread = internal.threads.get("queue")!;
       thread.currentTurnId = "turn";
-      thread.currentMode = "execute";
+      thread.currentMode = "work";
       thread.turnCustomAgents = [definition];
       thread.session.sendCustomMessage = async () => undefined;
       internal.acceptExplicitCustomAgentTasks(

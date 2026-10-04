@@ -131,7 +131,7 @@ it.each(["status", "wait", "cancel", "read", "permission"] as const)(
             data: { state: "waiting", parkDelegation: true, tasks: [] },
           };
         });
-      await host.prompt("task", "origin", "Ask Solar then wait", "execute");
+      await host.prompt("task", "origin", "Ask Solar then wait", "work");
       expect(broker, JSON.stringify(payloads)).toHaveBeenCalledTimes(1);
       expect(stream).toHaveBeenCalledTimes(action === "read" ? 2 : 1);
       expect(payloads).toContainEqual(
@@ -150,7 +150,7 @@ it.each(["status", "wait", "cancel", "read", "permission"] as const)(
         "task",
         "continuation",
         "Solar has returned the result",
-        "execute",
+        "work",
       );
       expect(stream).toHaveBeenCalledTimes(action === "read" ? 3 : 2);
     } finally {

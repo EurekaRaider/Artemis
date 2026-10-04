@@ -48,7 +48,7 @@ describe("Office document tool format inference", () => {
       }
     ).threads.get("thread")!;
     thread.currentTurnId = "turn";
-    thread.currentMode = "execute";
+    thread.currentMode = "work";
     const tool = thread.executeTools.find(
       (entry) => entry.name === "office_document",
     )!;
@@ -66,7 +66,7 @@ describe("Office document tool format inference", () => {
     expect(request).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "office.document",
-        mode: "execute",
+        mode: "work",
         document: expect.objectContaining({
           operation: "open",
           path,

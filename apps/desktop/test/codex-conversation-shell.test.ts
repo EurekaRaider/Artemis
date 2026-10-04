@@ -283,9 +283,7 @@ describe("Codex conversation shell contract", () => {
     expect(sendPrompt).toContain("parseRunModeCommand(rawPrompt)");
     expect(multipleCommandGuard).toContain("t.multipleModeCommands");
     expect(multipleCommandGuard).toContain("return;");
-    expect(sendPrompt).toContain(
-      "if (!(await selectMode(submittedMode))) return;",
-    );
+    expect(sendPrompt).toContain("!(await selectMode(submittedMode))");
     const selectMode = sourceBetween(
       appSource,
       "const selectMode = useCallback",
@@ -303,15 +301,13 @@ describe("Codex conversation shell contract", () => {
       sendPrompt.indexOf("window.artemis.followUpTurn({"),
     );
     expect(uiText("en", "App_copy.multipleModeCommands")).toBe(
-      "Only one /plan, /execute, or /review command is allowed per message.",
+      "Only one /plan, /work, or /codemode command is allowed per message.",
     );
     expect(uiText("zh-CN", "App_copy.multipleModeCommands")).toBe(
-      "每条消息只能包含一个 /plan、/execute 或 /review 指令。",
+      "每条消息只能包含一个 /plan、/work 或 /codemode 指令。",
     );
-    expect(appSource).toContain("selectComposerCommand(`/${mode} `)");
-    expect(appSource).toMatch(
-      /selectComposerCommand\(\s*`\/\$\{suggestion\.kind\} `,?\s*\)/u,
-    );
+    expect(appSource).toContain("selectModeCommand(mode)");
+    expect(appSource).toMatch(/selectModeCommand\(suggestion\.kind\)/u);
   });
 
   it("cycles task modes with Shift+Tab only while the composer can switch modes", () => {

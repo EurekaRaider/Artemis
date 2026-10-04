@@ -306,21 +306,21 @@ function contrastRatio(first: string, second: string): number {
 }
 
 describe("renderer layout contract", () => {
-  it("offers Plan, Execute, and Review in that order", () => {
+  it("offers Plan, Work, and Codemode in that order", () => {
     const plan = composerContextSource.indexOf(
       '{ value: "plan", label: t.plan }',
     );
-    const execute = composerContextSource.indexOf(
-      '{ value: "execute", label: t.execute }',
+    const work = composerContextSource.indexOf(
+      '{ value: "work", label: t.work }',
     );
-    const review = composerContextSource.indexOf(
-      '{ value: "review", label: t.review }',
+    const codemode = composerContextSource.indexOf(
+      '{ value: "codemode", label: t.codemode }',
     );
     expect(plan).toBeGreaterThan(-1);
-    expect(execute).toBeGreaterThan(plan);
-    expect(review).toBeGreaterThan(execute);
+    expect(work).toBeGreaterThan(plan);
+    expect(codemode).toBeGreaterThan(work);
     expect(automationPageSource).toContain(
-      '["plan", "execute", "review"] as const',
+      '["plan", "work", "codemode"] as const',
     );
     expect(runtimeSource).toContain('name: "office_document"');
     expect(runtimeSource).toContain("hosted.executeTools");
@@ -939,7 +939,9 @@ describe("renderer layout contract", () => {
   it("keeps a turn stop control while the composer hosts a pending decision", () => {
     expect(appSource).toContain("window.artemis.cancelTurn(activeThreadId)");
     expect(appSource).toContain("onClick={() => void cancelActiveTurn()}");
-    expect(appSource).toContain("{pendingComposerDecision && (");
+    expect(appSource).toMatch(
+      /pendingComposerDecision &&\s+pendingComposerDecision.kind !== "plan" &&/u,
+    );
     expect(userInputSource).not.toContain("onCancel");
     expect(decisionSource).toContain('className="decision-reply"');
     expect(decisionSource).toContain("disabled={busy || !draft.trim()}");
@@ -2334,9 +2336,9 @@ describe("renderer layout contract", () => {
   });
 
   it("localizes every task mode in the Simplified Chinese menu", () => {
-    expect(uiText("zh-CN", "App_copy.execute")).toBe("执行");
-    expect(uiText("zh-CN", "App_copy.plan")).toBe("计划");
-    expect(uiText("zh-CN", "App_copy.review")).toBe("审查");
+    expect(uiText("zh-CN", "App_copy.plan")).toBe("计划模式");
+    expect(uiText("zh-CN", "App_copy.work")).toBe("工作模式");
+    expect(uiText("zh-CN", "App_copy.codemode")).toBe("代码模式");
   });
 
   it("uses a standalone structured MCP editor for installed stdio servers", () => {

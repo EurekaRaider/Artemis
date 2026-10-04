@@ -38,7 +38,7 @@ function threadFixture(overrides: Record<string, unknown> = {}) {
   return {
     id: randomUUID(),
     title: "设计任务",
-    mode: "execute" as const,
+    mode: "work" as const,
     target: "local" as const,
     status: "idle" as const,
     pinned: false,

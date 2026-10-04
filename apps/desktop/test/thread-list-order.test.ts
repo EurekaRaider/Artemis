@@ -22,7 +22,7 @@ function thread(
     id,
     projectId: "project-1",
     title: id,
-    mode: "execute",
+    mode: "work",
     target: "local",
     status,
     pinned: false,
