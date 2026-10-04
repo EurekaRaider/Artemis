@@ -62,7 +62,7 @@ const packagedNotesEntry = join(
 // Probe runtime: generic fs/net probes reporting permission outcomes as
 // tool results. No backslashes anywhere in this source on purpose.
 const PROBE_RUNTIME_SOURCE = `
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, readdir } from "node:fs/promises";
 import { connect } from "node:net";
 
 function send(message) {
@@ -81,6 +81,9 @@ const tools = {
       if (args.mode === "write") {
         await writeFile(path, "sandbox-out-of-bounds-write");
         return { status: "succeeded", output: "written" };
+      }
+      if (args.mode === "list") {
+        return { status: "succeeded", output: JSON.stringify(await readdir(path)) };
       }
       const data = await readFile(path, "utf8");
       return { status: "succeeded", output: data.slice(0, 128) };
@@ -342,6 +345,11 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     const worker = probeWorker(scratch);
     try {
       await worker.start();
+      const ancestor = await worker.invoke("fs_probe", {
+        path: root,
+        mode: "list",
+      });
+      expect(ancestor.status).toBe("failed");
       const written = await worker.invoke("fs_probe", {
         path: join(scratch, "inside.txt"),
         mode: "write",

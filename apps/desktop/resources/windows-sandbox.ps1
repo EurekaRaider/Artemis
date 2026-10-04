@@ -1533,42 +1533,38 @@ finally {
 }
 Write-SandboxDiagnostic 'native helper compiled'
 Write-SandboxDiagnostic "profile identity: $Identity"
-$workspaceRoot = [System.IO.Path]::GetPathRoot($workspace)
-$systemRoot = [System.IO.Path]::GetPathRoot(
-  [System.Environment]::SystemDirectory
-)
-$needsClassicAncestorAccess = -not $workspaceRoot.Equals(
-  $systemRoot,
-  [System.StringComparison]::OrdinalIgnoreCase
-)
 function Initialize-ClassicAppContainerAncestors {
-  if ($needsClassicAncestorAccess) {
-    $traverseSid = [System.Security.Principal.SecurityIdentifier]::new(
-      [ArtemisNativeSandbox]::CapabilitySid(
-        'artemisWorkspaceTraverse'
+  $traverseSid = [System.Security.Principal.SecurityIdentifier]::new(
+    [ArtemisNativeSandbox]::CapabilitySid(
+      'artemisWorkspaceTraverse'
+    )
+  )
+  $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
+  $ancestors = @(
+    $accessPaths |
+      ForEach-Object { Get-AncestorDirectories $_ } |
+      Sort-Object -Unique
+  )
+  $missingTraverse = @(
+    $ancestors | Where-Object {
+      -not (Test-AppContainerAncestorAccess $_ $traverseSid)
+    }
+  )
+  if ($missingTraverse.Count -gt 0) {
+    $setupPath = Join-Path $PSScriptRoot 'windows-sandbox-setup.ps1'
+    if (-not [System.IO.File]::Exists($setupPath)) {
+      throw "Windows sandbox setup helper does not exist: $setupPath"
+    }
+    $pathsBase64 = [System.Convert]::ToBase64String(
+      [System.Text.Encoding]::UTF8.GetBytes(
+        ($missingTraverse | ConvertTo-Json -Compress)
       )
     )
-    $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
-    $ancestors = @(
-      $accessPaths |
-        ForEach-Object { Get-AncestorDirectories $_ } |
-        Sort-Object -Unique
-    )
-    $missingTraverse = @(
-      $ancestors | Where-Object {
-        -not (Test-AppContainerAncestorAccess $_ $traverseSid)
-      }
-    )
-    if ($missingTraverse.Count -gt 0) {
-      $setupPath = Join-Path $PSScriptRoot 'windows-sandbox-setup.ps1'
-      if (-not [System.IO.File]::Exists($setupPath)) {
-        throw "Windows sandbox setup helper does not exist: $setupPath"
-      }
-      $pathsBase64 = [System.Convert]::ToBase64String(
-        [System.Text.Encoding]::UTF8.GetBytes(
-          ($missingTraverse | ConvertTo-Json -Compress)
-        )
-      )
+    if ([System.Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0) {
+      # Services cannot display UAC. Use their existing permissions and fail
+      # closed if the narrow ancestor metadata grant cannot be installed.
+      & $setupPath -PathsBase64 $pathsBase64
+    } else {
       $escapedSetupPath = $setupPath.Replace("'", "''")
       $setupCommand = "& '$escapedSetupPath' -PathsBase64 '$pathsBase64'"
       $encodedSetupCommand = [System.Convert]::ToBase64String(
@@ -1592,10 +1588,10 @@ function Initialize-ClassicAppContainerAncestors {
       if ($setupProcess.ExitCode -ne 0) {
         throw "Windows sandbox setup failed with exit code $($setupProcess.ExitCode)"
       }
-      foreach ($ancestor in $ancestors) {
-        if (-not (Test-AppContainerAncestorAccess $ancestor $traverseSid)) {
-          throw "Windows sandbox setup did not grant ancestor access: $ancestor"
-        }
+    }
+    foreach ($ancestor in $ancestors) {
+      if (-not (Test-AppContainerAncestorAccess $ancestor $traverseSid)) {
+        throw "Windows sandbox setup did not grant ancestor access: $ancestor"
       }
     }
   }
@@ -1632,11 +1628,7 @@ if (-not $useClassicAppContainer) {
   }
 }
 if ($useClassicAppContainer) {
-  # Services cannot display UAC. The classic launcher grants access only to
-  # the requested paths and fails closed if their existing ancestors block it.
-  if ([System.Diagnostics.Process]::GetCurrentProcess().SessionId -ne 0) {
-    Initialize-ClassicAppContainerAncestors
-  }
+  Initialize-ClassicAppContainerAncestors
   Write-SandboxDiagnostic 'falling back to classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
     $Identity,

@@ -129,7 +129,8 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
     const setup = readFileSync(sandboxSetupPath, "utf8");
 
-    expect(helper).toContain("$needsClassicAncestorAccess");
+    expect(helper).not.toContain("$needsClassicAncestorAccess");
+    expect(helper).toContain("& $setupPath -PathsBase64 $pathsBase64");
     expect(helper).toContain("Test-AppContainerAncestorAccess");
     expect(helper).toContain(
       "$accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)",
@@ -224,7 +225,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
     const helper = readFileSync(sandboxHelperPath, "utf8");
     const compilerEnvironment = helper.slice(
       helper.indexOf("$sandboxTempEnvironment = @{}"),
-      helper.indexOf("$workspaceRoot ="),
+      helper.indexOf("function Initialize-ClassicAppContainerAncestors"),
     );
 
     expect(helper).toContain("[string]$HostAccessPath = ''");
