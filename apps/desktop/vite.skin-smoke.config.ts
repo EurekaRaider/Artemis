@@ -29,7 +29,10 @@ function skinSmokeAliases(): Plugin {
     enforce: "pre",
     resolveId(source, importer) {
       const normalizedImporter = importer?.split("?", 1)[0];
-      if (source === "./App.js" && normalizedImporter?.endsWith("/main.tsx")) {
+      if (
+        source === "./app/App.js" &&
+        normalizedImporter?.endsWith("/main.tsx")
+      ) {
         return appWrapper;
       }
       if (
