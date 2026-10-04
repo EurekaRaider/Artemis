@@ -90,7 +90,11 @@ export async function verifySlackCliCompatibility(runtime) {
     );
     // runSlackCli bounds each invocation independently; the direct native
     // probes below also need time for a cold Windows PowerShell startup.
-    const command = { runtime, directory, signal: new AbortController().signal };
+    const command = {
+      runtime,
+      directory,
+      signal: new AbortController().signal,
+    };
     if (process.platform === "win32") {
       const probe = await exec(
         windowsPowerShell,
