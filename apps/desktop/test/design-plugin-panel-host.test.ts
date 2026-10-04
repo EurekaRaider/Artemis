@@ -46,12 +46,7 @@ vi.mock("electron", () => {
     constructor(_webPreferences: unknown) {
       tracked.views.push(this as unknown as TrackedView);
     }
-    setBounds(bounds: {
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-    }) {
+    setBounds(bounds: { x: number; y: number; width: number; height: number }) {
       this.bounds = { ...bounds };
     }
     getBounds() {

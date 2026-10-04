@@ -61,9 +61,11 @@ import {
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { SleepPrevention } from "./sleep-prevention.js";
 import { ImService } from "./im-service.js";
+import { readProjectFileForPreview } from "./design-plugin-project-files.js";
 import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
 import { imManagementSchema, reduceAgentEvents } from "@artemis/protocol";
+import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ensureProjectGitWatcher } from "./project-git-watcher.js";
@@ -71,11 +73,15 @@ import {
   TaskNotifications,
   registerTaskNotifications,
 } from "./task-notifications.js";
+import { constants as fsConstants } from "node:fs";
 import {
+  appendFile,
   copyFile,
   mkdir,
+  open,
   readdir,
   readFile,
+  realpath,
   rm,
   stat,
   writeFile,
@@ -516,8 +522,7 @@ let pluginDispatch: PluginDispatch | undefined;
  * mounts and tool dispatches refuse. Undefined (before install) = usable.
  */
 let designPluginAvailabilityGate:
-  | ((threadId?: string) => Promise<string | null>)
-  | undefined;
+  ((threadId?: string) => Promise<string | null>) | undefined;
 let panelSendEntry: PanelSendEntryService | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
@@ -2034,6 +2039,37 @@ async function resetAgentThreadsForToolChange(): Promise<void> {
   }
 }
 
+/**
+ * PR#245 P1-5：绑定设计插件后立刻收紧会话。若线程本进程内已按普通
+ * profile 打开会话，原子关闭并按（已持久化的）受限 profile 重开——
+ * 「打开面板即绑定」不能只改数据库不换会话。回合进行中无法安全关闭：
+ * 保留旧会话并记录（主进程执行边界重检已按当前持久化 profile 拒绝能力
+ * 型请求，窗口期不放大权限；下一次 openThread 的复用守卫会再重建）。
+ */
+async function tightenThreadToRestrictedProfile(
+  threadId: string,
+): Promise<void> {
+  if (!agentProcess || !openedThreads.has(threadId)) return;
+  const pending = openingThreads.get(threadId);
+  if (pending) await pending.catch(() => undefined);
+  try {
+    await agentProcess.request({
+      type: "thread.close",
+      requestId: randomUUID(),
+      threadId,
+    });
+    openedThreads.delete(threadId);
+    const thread = store?.getThread(threadId);
+    if (thread) await openAgentThread(thread);
+  } catch (error) {
+    console.warn(
+      `[design-panel] restricted-profile rebuild deferred for ${threadId.slice(0, 8)}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 type ModelSettingsSnapshot = Pick<
   SettingsSnapshot,
   | "models"
@@ -2824,12 +2860,16 @@ function applyPayloadSideEffects(
   threadId: string,
   payload: AgentPayload,
   threadAlreadyUpdated = false,
+  turnId?: string,
 ): void {
   if (!store) throw new Error("Application store is not ready.");
   switch (payload.type) {
     case "turn.started":
       if (payload.mode !== "execute")
         computerUseHost?.clearTask(threadId, "Task left Execute mode");
+      // P2-10：把该线程在途的 dispatching 提交绑定到刚启动的 turn
+      //（composer 单飞行：此刻仍 dispatching 的行就是触发本 turn 的提交）。
+      panelSendEntry?.bindStartedTurn(threadId, turnId);
       if (!threadAlreadyUpdated) {
         store.updateThread(threadId, {
           mode: payload.mode,
@@ -2872,7 +2912,8 @@ function applyPayloadSideEffects(
     }
     case "turn.completed":
       store.updateThread(threadId, { status: "idle" });
-      panelSendEntry?.reconcileTurnOutcome(threadId, "completed");
+      // P2-10：只结算绑定到该 turn 的提交；其他 turn 或未发送的草稿不动。
+      panelSendEntry?.reconcileTurnOutcome(threadId, "completed", turnId);
       {
         const completion = store.completeAutomationRunForThread(threadId);
         publishAutomationRun(completion?.run);
@@ -2931,7 +2972,7 @@ function applyPayloadSideEffects(
     }
     case "turn.failed":
       store.updateThread(threadId, { status: "failed" });
-      panelSendEntry?.reconcileTurnOutcome(threadId, "failed");
+      panelSendEntry?.reconcileTurnOutcome(threadId, "failed", turnId);
       publishAutomationRun(
         store.updateAutomationRunForThread(threadId, "failed", payload.message),
       );
@@ -3265,7 +3306,7 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   imService?.observe(persisted);
   mainWindow?.webContents.send(IPC.agentEvents, persisted);
   for (const event of durableEvents) {
-    applyPayloadSideEffects(threadId, event.payload);
+    applyPayloadSideEffects(threadId, event.payload, false, event.turnId);
     accountGoalPayload(event.turnId, event.payload);
     scheduleTurnChangeSetCompletion(threadId, event.turnId, event.payload);
   }
@@ -3499,7 +3540,12 @@ async function emitInitialTurn(
   }
   mainWindow?.webContents.send(IPC.agentEvents, result.events);
   for (const payload of payloads) {
-    applyPayloadSideEffects(threadId, payload, payload.type === "turn.started");
+    applyPayloadSideEffects(
+      threadId,
+      payload,
+      payload.type === "turn.started",
+      turnId,
+    );
   }
   return result.events;
 }
@@ -4464,6 +4510,34 @@ async function handleBrokerRequest(
 ): Promise<void> {
   if (!canRunLicensed() || !agentProcess || !store) {
     return;
+  }
+  // PR#245 P1-5/P1-6 宿主执行边界重检：绑定设计插件的任务按「当前持久
+  // 化的受限 profile」拒绝一切能力型 broker 请求。即使 agent-host 里还挂
+  // 着绑定前创建的普通会话（完整工具集），能力也不会在主进程侧兑现。
+  // 允许清单与 agent-host restricted-thread-gate 的类别映射互为镜像
+  // （plan/goal/memory/workspace-deps/user-input/attachment/plugin），
+  // 未知 kind 一律拒绝（allow-list 语义）。plugin.tool 另有独立的信任
+  // 链复核（dispatcher），不在此处放行细节。
+  if (
+    ![
+      "attachment.read",
+      "plugin.tool",
+      "goal.get",
+      "goal.create",
+      "goal.update",
+      "user.input",
+      "memory.append",
+    ].includes(request.kind)
+  ) {
+    const boundThread = store.getThread(request.threadId);
+    if (boundThread?.executionProfile === RESTRICTED_PROFILE_ID) {
+      rejectBrokerRequest(
+        workerRequestId,
+        request,
+        `Broker request "${request.kind}" is denied for plugin-restricted threads (${RESTRICTED_PROFILE_ID}).`,
+      );
+      return;
+    }
   }
   if (request.kind === "hook.run") {
     try {
@@ -10069,7 +10143,10 @@ function registerIpc(): void {
             "设计插件未安装：请在 插件市场 → 随应用提供的插件 中获取。",
           );
         const manifest = JSON.parse(
-          await readFile(join(synced.revisionRoot, "artemis.plugin.json"), "utf8"),
+          await readFile(
+            join(synced.revisionRoot, "artemis.plugin.json"),
+            "utf8",
+          ),
         ) as { id: string; version: string };
         const binding = {
           installationId: synced.installationId,
@@ -10093,6 +10170,9 @@ function registerIpc(): void {
           },
           grantRevision: binding.bindingRevision,
         });
+        // P1-5：绑定即收紧——普通会话立刻换受限会话（原子关闭+重开），
+        // 而不是等下一次 app 启动才生效。
+        await tightenThreadToRestrictedProfile(threadId);
         await designPanelHost.setThreadBinding({
           threadId,
           installationId: binding.installationId,
@@ -10100,7 +10180,11 @@ function registerIpc(): void {
           revisionRoot: synced.revisionRoot,
         });
       }
-      const handle = await designPanelHost.ensurePanel(window, threadId, panelId);
+      const handle = await designPanelHost.ensurePanel(
+        window,
+        threadId,
+        panelId,
+      );
       // S4: push an initial snapshot so the panel can render the file list
       // and load the head document without waiting for a renderer event.
       // （首推可能早于面板脚本/port 握手就绪而丢：3s 后无条件补推一次，
@@ -10135,12 +10219,7 @@ function registerIpc(): void {
   );
   ipcMain.handle(
     IPC.designPanelVisible,
-    async (
-      _event,
-      threadId: string,
-      panelId: string,
-      visible: boolean,
-    ) => {
+    async (_event, threadId: string, panelId: string, visible: boolean) => {
       designPanelHost?.setVisible(threadId, panelId, visible);
     },
   );
@@ -10185,159 +10264,42 @@ function registerIpc(): void {
       };
     },
   );
-  // S4 export (host-owned action, §10.3): the panel may only REQUEST an
-  // export over the port; the host resolves the artifact from the thread's
-  // plugin scratch and writes to a host-chosen directory. Path escapes
-  // and unknown documents are refused.
+  // （历史 S4 直连 IPC 的 export/handoff 处理器已删除：面板统一走 port
+  // request handlers（designPanelHost.setRequestHandlers），那里有完整的
+  // documentId 校验与安全读取；重复保留两条路径只会留下第二攻击面。）
   ipcMain.handle(
-    IPC.designPanelExport,
-    async (
-      _event,
-      input: { threadId: string; documentId: string; revision?: string },
-    ) => {
-      if (!store || !pluginDispatch) {
-        throw new Error("Design export is unavailable.");
-      }
-      const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding) {
-        throw new Error("Thread has no plugin binding.");
-      }
-      // Locate the requested version file inside the thread's scratch.
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      const documentDir = join(dataRoot, "documents", input.documentId);
-      const entries = await readdir(documentDir).catch(() => []);
-      const exportSequence = (entry: string): number =>
-        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
-      const candidates = input.revision
-        ? entries.filter((entry) => entry.endsWith(`-${input.revision}.html`))
-        : entries
-            .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-            .sort((a, b) => exportSequence(a) - exportSequence(b));
-      const source = candidates.at(-1);
-      if (!source) {
+    IPC.designPanelSendConsume,
+    async (_event, credential: string) => {
+      try {
+        return panelSendEntry?.consumeCredential(credential);
+      } catch (error) {
         throw new Error(
-          `No version file for document ${input.documentId}${input.revision ? ` revision ${input.revision}` : ""}.`,
+          `Send credential refused: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
         );
       }
-      // Destination: a fresh host-owned export directory per document.
-      const exportRoot = join(
-        app.getPath("userData"),
-        "design-exports",
-        input.documentId,
-      );
-      await mkdir(exportRoot, { recursive: true });
-      const destination = join(exportRoot, source);
-      await copyFile(join(documentDir, source), destination);
-      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
-      store.appendPluginEvent({
-        eventId: randomUUID(),
-        streamId: `thread/${input.threadId}/export`,
-        threadId: input.threadId,
-        schemaVersion: 1,
-        payload: {
-          kind: "document-exported",
-          documentId: input.documentId,
-          revision,
-          destination,
-        },
-      });
-      return { path: destination, revision };
     },
   );
-  // S4 coding handoff (§10.3): create a NORMAL coding task carrying the
-  // design as sourced material — the plugin text never becomes system
-  // instructions. Idempotent by handoffId: repeats return the original
-  // task, never a duplicate.
+  // P2-10：「加入输入框」走 staged 语义（accepted → cancelled），不再把
+  // 未发送的草稿推进 dispatching。
   ipcMain.handle(
-    IPC.designPanelHandoff,
-    async (
-      _event,
-      input: { threadId: string; documentId: string; handoffId: string },
-    ) => {
-      if (!store || !pluginDispatch) {
-        throw new Error("Design handoff is unavailable.");
-      }
-      const source = store.getThread(input.threadId);
-      if (!source?.typeBinding) {
-        throw new Error("Source thread has no plugin binding.");
-      }
-      // Idempotency: the same handoffId must never create twice.
-      const operationId = `handoff:${input.handoffId}`;
-      try {
-        store.recordPluginOperation({
-          operationId,
-          threadId: input.threadId,
-          pluginId: source.typeBinding.pluginId,
-          toolName: "handoff",
-          requestDigest: `${input.documentId}`,
-          state: "succeeded",
-          resultRef: input.handoffId,
-        });
-      } catch {
-        // Existing operation with a different digest is corruption; same
-        // digest means this handoff already ran — return created:false.
-        return { threadId: input.handoffId, created: false };
-      }
-      // Resolve the design name for the handoff summary.
-      const snapshotOutcome = await pluginDispatch.dispatch({
-        threadId: input.threadId,
-        toolName: "get_snapshot",
-        args: {},
-        mode: "execute",
-      });
-      let documentName = input.documentId;
-      if (snapshotOutcome.status === "succeeded" && snapshotOutcome.result) {
-        const parsed = JSON.parse(
-          (snapshotOutcome.result as { output?: string }).output ?? "{}",
-        ) as { documents?: Array<{ documentId: string; name: string }> };
-        documentName =
-          parsed.documents?.find((doc) => doc.documentId === input.documentId)
-            ?.name ?? documentName;
-      }
-      const now = new Date().toISOString();
-      const handoffThread: Parameters<typeof store.createThread>[0] = {
-        id: input.handoffId,
-        ...(source.projectId ? { projectId: source.projectId } : {}),
-        title: `[设计交接] ${documentName}（文档 ${input.documentId}）`,
-        mode: "execute",
-        target: source.target,
-        status: "idle",
-        pinned: false,
-        archived: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      store.createThread(handoffThread);
-      store.appendPluginEvent({
-        eventId: randomUUID(),
-        streamId: `thread/${input.threadId}/handoff`,
-        threadId: input.threadId,
-        schemaVersion: 1,
-        payload: {
-          kind: "handoff-created",
-          documentId: input.documentId,
-          handoffThreadId: input.handoffId,
-        },
-      });
-      return { threadId: input.handoffId, created: true };
-    },
-  );
-  ipcMain.handle(
-    IPC.designPanelCandidateDiscard,
+    IPC.designPanelSendStage,
     async (_event, credential: string) => {
-      panelSendEntry?.discardCandidate(credential);
+      try {
+        return panelSendEntry?.stageCredential(credential);
+      } catch (error) {
+        throw new Error(
+          `Send credential refused: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
     },
   );
   ipcMain.handle(
     IPC.designPanelSendOutcome,
-    async (
-      _event,
-      submissionId: string,
-      outcome: "completed" | "failed",
-    ) => {
+    async (_event, submissionId: string, outcome: "completed" | "failed") => {
       panelSendEntry?.markOutcome(submissionId, outcome);
     },
   );
@@ -10447,7 +10409,9 @@ function registerIpc(): void {
     );
     let ledger: Array<Record<string, string>> = [];
     try {
-      ledger = (await readFile(join(dataRoot, "design-documents.jsonl"), "utf8"))
+      ledger = (
+        await readFile(join(dataRoot, "design-documents.jsonl"), "utf8")
+      )
         .split("\n")
         .filter(Boolean)
         .map((line) => JSON.parse(line) as Record<string, string>);
@@ -10458,10 +10422,17 @@ function registerIpc(): void {
       string,
       { id: string; name: string; brief: string; updatedAt: string }
     >();
+    const deletedIds = new Set<string>();
     for (const record of ledger) {
       const id = record.id ?? "";
-      const entry =
-        byId.get(id) ?? { id, name: "", brief: "", updatedAt: "" };
+      // P2-16：删除墓碑——之后的条目不再聚合，文档从快照消失。
+      if ((record as { deleted?: boolean }).deleted) {
+        deletedIds.add(id);
+        byId.delete(id);
+        continue;
+      }
+      if (deletedIds.has(id)) continue;
+      const entry = byId.get(id) ?? { id, name: "", brief: "", updatedAt: "" };
       if (record.name) entry.name = record.name;
       if (record.brief && !entry.brief) entry.brief = record.brief;
       const ts =
@@ -10512,203 +10483,8 @@ function registerIpc(): void {
     return documents;
   }
 
-  /** 项目图片资产（dataURL 内联）的 MIME 表。 */
-  const DESIGN_IMAGE_MIME: Record<string, string> = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".avif": "image/avif",
-    ".ico": "image/x-icon",
-    ".bmp": "image/bmp",
-    ".svg": "image/svg+xml",
-  };
-
-  interface DesignInlineBudget {
-    spent: number;
-    cache: Map<string, string>;
-  }
-
-  /** 相对引用 → 工作区内绝对路径；协议/绝对/越界一律拒绝。 */
-  function resolveProjectRef(
-    workspaceRoot: string,
-    fromDir: string,
-    href: string,
-  ): string | undefined {
-    const clean = href.replace(/[?#].*$/, "").trim();
-    if (!clean || /^[a-z]+:/iu.test(clean) || clean.startsWith("/"))
-      return undefined;
-    const absolute = resolve(fromDir, clean);
-    if (
-      absolute !== workspaceRoot &&
-      !absolute.startsWith(workspaceRoot + sep)
-    )
-      return undefined;
-    return absolute;
-  }
-
-  /** 本地图片资产读成 dataURL（预算内）；失败返回 undefined 原样保留引用。 */
-  async function projectAssetDataUrl(
-    workspaceRoot: string,
-    fromDir: string,
-    href: string,
-    budget: DesignInlineBudget,
-  ): Promise<string | undefined> {
-    const absolute = resolveProjectRef(workspaceRoot, fromDir, href);
-    if (!absolute) return undefined;
-    const cached = budget.cache.get(absolute);
-    if (cached !== undefined) return cached || undefined;
-    const mime = DESIGN_IMAGE_MIME[extname(absolute).toLowerCase()];
-    if (!mime) return undefined;
-    const info = await stat(absolute).catch(() => undefined);
-    if (
-      !info?.isFile() ||
-      info.size > 2 * 1024 * 1024 ||
-      budget.spent + info.size > 6 * 1024 * 1024
-    )
-      return undefined;
-    budget.cache.set(absolute, "");
-    const bytes = await readFile(absolute).catch(() => undefined);
-    if (!bytes) return undefined;
-    budget.spent += bytes.length;
-    const dataUrl = `data:${mime};base64,${bytes.toString("base64")}`;
-    budget.cache.set(absolute, dataUrl);
-    return dataUrl;
-  }
-
-  /** CSS 文本：@import 链递归展开 + 本地图片 url() 转 dataURL。 */
-  async function inlineProjectCss(
-    css: string,
-    cssDir: string,
-    workspaceRoot: string,
-    budget: DesignInlineBudget,
-    depth: number,
-  ): Promise<string> {
-    let output = css;
-    const importPattern =
-      /@import\s+(?:url\(\s*)?["']?([^"')\s;]+)["']?\s*\)?\s*;/giu;
-    for (const match of [...output.matchAll(importPattern)]) {
-      const absolute = resolveProjectRef(
-        workspaceRoot,
-        cssDir,
-        match[1] ?? "",
-      );
-      if (!absolute) {
-        output = output.replace(match[0], "");
-        continue;
-      }
-      const cached = budget.cache.get(absolute);
-      if (cached !== undefined) {
-        output = output.replace(match[0], cached);
-        continue;
-      }
-      budget.cache.set(absolute, "");
-      const info = await stat(absolute).catch(() => undefined);
-      if (!info?.isFile() || info.size > 512 * 1024) {
-        output = output.replace(match[0], "");
-        continue;
-      }
-      let nested = (await readFile(absolute, "utf8")).toString();
-      if (depth + 1 <= 3)
-        nested = await inlineProjectCss(
-          nested,
-          dirname(absolute),
-          workspaceRoot,
-          budget,
-          depth + 1,
-        );
-      budget.spent += info.size;
-      const replacement = `/* ${basename(absolute)} */\n${nested}`;
-      budget.cache.set(absolute, replacement);
-      output = output.replace(match[0], replacement);
-    }
-    const urlPattern = /url\(\s*(["']?)([^"')]+)\1\s*\)/giu;
-    for (const match of [...output.matchAll(urlPattern)]) {
-      const ref = match[2];
-      if (!ref) continue;
-      const dataUrl = await projectAssetDataUrl(
-        workspaceRoot,
-        cssDir,
-        ref,
-        budget,
-      );
-      if (!dataUrl) continue;
-      output = output.replace(
-        match[0],
-        `url(${match[1]}${dataUrl}${match[1]})`,
-      );
-    }
-    return output;
-  }
-
-  /**
-   * 项目 HTML 的资源内联：本地 <link rel=stylesheet> 递归成 <style>（含
-   * @import 链与 CSS url()）、<img src> 本地图片转 dataURL——预览净化
-   * 管线会剥外部引用，不内联则样式/图片全丢。路径封死在工作区内；限深
-   * 3、单图片 ≤2MiB、总预算 6MiB、visited 防环；?v= 查询串剥除后解析。
-   */
-  async function inlineProjectHtmlAssets(
-    workspaceRoot: string,
-    htmlDir: string,
-    html: string,
-    budget: DesignInlineBudget,
-    depth: number,
-  ): Promise<string> {
-    if (depth > 3) return html;
-    let output = html;
-    const linkPattern = /<link\b[^>]*rel=["']stylesheet["'][^>]*>/giu;
-    for (const match of [...output.matchAll(linkPattern)]) {
-      const href = /href=["']([^"']+)["']/iu.exec(match[0])?.[1];
-      if (!href) continue;
-      const absolute = resolveProjectRef(workspaceRoot, htmlDir, href);
-      if (!absolute) continue;
-      const info = await stat(absolute).catch(() => undefined);
-      if (!info?.isFile() || info.size > 512 * 1024) continue;
-      let css = (await readFile(absolute, "utf8")).toString();
-      if (depth + 1 <= 3)
-        css = await inlineProjectCss(
-          css,
-          dirname(absolute),
-          workspaceRoot,
-          budget,
-          depth + 1,
-        );
-      output = output.replace(match[0], `<style>\n${css}\n</style>`);
-    }
-    const imgPattern = /(<img\b[^>]*\bsrc=["'])([^"']+)(["'])/giu;
-    for (const match of [...output.matchAll(imgPattern)]) {
-      const src = match[2];
-      if (!src) continue;
-      const dataUrl = await projectAssetDataUrl(
-        workspaceRoot,
-        htmlDir,
-        src,
-        budget,
-      );
-      if (!dataUrl) continue;
-      output = output.replace(match[0], `${match[1]}${dataUrl}${match[3]}`);
-    }
-    // 本地 <script src> 内联成行内脚本（预览走 srcdoc 沙箱 iframe，无 base
-    // URL 相对引用会失效；远程 CDN 脚本保留引用由网络加载）。module 语义
-    // 经 type 属性保留。
-    const scriptPattern = /<script\b([^>]*\bsrc=["'])([^"']+)(["'][^>]*)><\/script>/giu;
-    for (const match of [...output.matchAll(scriptPattern)]) {
-      const ref = match[2];
-      if (!ref || /^[a-z]+:/iu.test(ref) || ref.startsWith("//")) continue;
-      const absolute = resolveProjectRef(workspaceRoot, htmlDir, ref);
-      if (!absolute) continue;
-      const info = await stat(absolute).catch(() => undefined);
-      if (!info?.isFile() || info.size > 1024 * 1024) continue;
-      const code = (await readFile(absolute, "utf8")).toString();
-      const attrs = (match[1] ?? "").replace(/\bsrc=["'][^"']*["']/giu, "");
-      output = output.replace(
-        match[0],
-        `<script${attrs}>${code.replace(/<\/script>/giu, "<\\/script>")}<\/script>`,
-      );
-    }
-    return output;
-  }
+  // P1-3：项目文件读取管线已抽出为 design-plugin-project-files.ts
+  //（readProjectFileForPreview），见其内注释的安全模型。
 
   const DESIGN_SCAN_IGNORED_DIRS = new Set([
     "node_modules",
@@ -10777,47 +10553,144 @@ function registerIpc(): void {
   });
 
   // S4: panel-originated requests (export / versions) run as host actions.
+  // P1-4：documentId 由面板传入并直接拼进主进程文件路径。只放行运行时
+  // 生成的 id 形态（uuid：小写十六进制+连字符），杜绝 ../ 与分隔符穿越；
+  // 版本文件读取再经 realpath 归属校验（documents/<id>/ 目录内被预埋符号
+  // 链接同样拒绝）。
+  const DESIGN_DOCUMENT_ID_PATTERN = /^[0-9a-f][0-9a-f-]{7,63}$/;
+  function requireDesignDocumentId(raw: unknown): string {
+    const id = typeof raw === "string" ? raw.trim() : "";
+    if (!DESIGN_DOCUMENT_ID_PATTERN.test(id))
+      throw new Error("Invalid design document id.");
+    return id;
+  }
+
+  /** 文档版本文件的安全读取：真实路径必须落在其 documents/<id>/ 目录内。 */
+  async function readDesignDocumentVersionBytes(
+    documentDir: string,
+    entry: string,
+  ): Promise<Buffer> {
+    const dirReal = await realpath(documentDir).catch(() => undefined);
+    const real = await realpath(join(documentDir, entry)).catch(
+      () => undefined,
+    );
+    if (!dirReal || !real || !real.startsWith(dirReal + sep))
+      throw new Error("Document version path escapes its directory.");
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
+    try {
+      handle = await open(
+        real,
+        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+      ).catch(() => undefined);
+      if (!handle) throw new Error("Document version file is unreadable.");
+      const metadata = await handle.stat();
+      if (!metadata.isFile() || metadata.size > 8 * 1024 * 1024)
+        throw new Error("Document version file is unreadable.");
+      const bytes = Buffer.alloc(metadata.size + 1);
+      let bytesRead = 0;
+      while (bytesRead < bytes.length) {
+        const chunk = await handle.read(
+          bytes,
+          bytesRead,
+          bytes.length - bytesRead,
+          bytesRead,
+        );
+        if (!chunk.bytesRead) break;
+        bytesRead += chunk.bytesRead;
+      }
+      if (bytesRead > metadata.size)
+        throw new Error("Document version file changed while reading.");
+      if (
+        (await realpath(join(documentDir, entry)).catch(() => undefined)) !==
+        real
+      )
+        throw new Error("Document version file changed while reading.");
+      return bytes.subarray(0, bytesRead);
+    } finally {
+      await handle?.close().catch(() => undefined);
+    }
+  }
+
+  /**
+   * P2-13：统一 HEAD 语义。runtime 的撤销只回拨 HEAD 指针（append-only 版
+   * 本目录不动），数值序最后一个是「被撤销掉的未来」。预览/导出/截图/恢
+   * 复兜底一律按 HEAD 选版本，无指针时回退数值序最后（runtime headVersion
+   * 同构）。
+   */
+  async function resolveHeadVersionEntry(
+    documentDir: string,
+    entries: string[],
+  ): Promise<string | undefined> {
+    const sequence = (entry: string): number =>
+      Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
+    const versionFiles = entries
+      .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+      .sort((a, b) => sequence(a) - sequence(b));
+    if (versionFiles.length === 0) return undefined;
+    const marker = (
+      await readFile(join(documentDir, "HEAD"), "utf8").catch(() => null)
+    )?.trim();
+    if (!marker) return versionFiles.at(-1);
+    const [seq, rev] = marker.split("-");
+    return (
+      versionFiles.find((entry) => entry === `v${seq}-${rev}.html`) ??
+      versionFiles.at(-1)
+    );
+  }
+
+  /** 导出文件名：优先账本显示名（customer.html），回退版本文件名。 */
+  async function readDesignDocumentName(
+    dataRoot: string,
+    documentId: string,
+    fallback: string,
+  ): Promise<string> {
+    try {
+      const ledgerText = await readFile(
+        join(dataRoot, "design-documents.jsonl"),
+        "utf8",
+      );
+      let deleted = false;
+      for (const line of ledgerText.split("\n")) {
+        if (!line.trim()) continue;
+        const record = JSON.parse(line) as {
+          id?: string;
+          name?: string;
+          deleted?: boolean;
+        };
+        if (record.id !== documentId) continue;
+        if (record.deleted) {
+          deleted = true;
+          continue;
+        }
+        if (record.name && !deleted)
+          return sanitizeDesignExportName(record.name);
+      }
+    } catch {
+      /* 账本缺失时回退到版本文件名 */
+    }
+    return fallback;
+  }
+
+  /** 导出文件名净化：账本名可能带路径分隔符，压平成安全文件名。 */
+  function sanitizeDesignExportName(name: string): string {
+    const base = basename(name.replace(/\\/g, "/")).trim();
+    if (!base || base === "." || base === "..") return "design-document.html";
+    return /\.html?$/i.test(base) ? base : `${base}.html`;
+  }
+
   designPanelHost?.setRequestHandlers({
-    /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。 */
+    /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
+     * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
     readProjectFile: async (input) => {
       if (!store) throw new Error("Application store is not ready.");
       const thread = store.getThread(input.threadId);
       if (!thread) throw new Error("Active task not found.");
       const workspace = await resolveThreadWorkspace(thread);
       const requestedPath = String(input.path ?? "").trim();
-      if (
-        !requestedPath ||
-        requestedPath.includes("..") ||
-        requestedPath.startsWith("/")
-      )
-        throw new Error("Invalid project file path.");
-      if (
-        !/\.(html?|css|m?js|json|md|svg|txt|tsx?|jsx|vue)$/i.test(requestedPath)
-      )
-        throw new Error("此项目文件类型暂不支持预览。");
-      const absolute = join(workspace.workspacePath, requestedPath);
-      const workspaceRoot = resolve(workspace.workspacePath);
-      if (
-        resolve(absolute) !== workspaceRoot &&
-        !resolve(absolute).startsWith(workspaceRoot + sep)
-      )
-        throw new Error("Project file path escapes the workspace.");
-      const info = await stat(absolute);
-      if (!info.isFile()) throw new Error("Project file path is not a file.");
-      if (info.size > 2 * 1024 * 1024)
-        throw new Error("Project file exceeds 2 MiB.");
-      const content = (await readFile(absolute, "utf8")).toString();
-      // 项目 HTML 依赖工作区内的本地样式表与图片；预览净化管线会剥外部
-      // 引用，所以在宿主侧内联成自包含文档（限深限量）。
-      const inlined = /\.html?$/i.test(requestedPath)
-        ? await inlineProjectHtmlAssets(
-            workspaceRoot,
-            dirname(absolute),
-            content,
-            { spent: 0, cache: new Map() },
-            0,
-          )
-        : content;
+      const { content } = await readProjectFileForPreview({
+        workspacePath: workspace.workspacePath,
+        requestedPath,
+      });
       // 页面间导航与相对资源的解析基址：srcdoc 无 base URL（相对引用会落
       // 到面板自身目录 → 404 白屏）。宿主开一个 lease，把目录级 URL 交给
       // 面板注入 <base>——页面 location.href/<a href> 导航到租约内兄弟
@@ -10836,7 +10709,7 @@ function registerIpc(): void {
       }
       return {
         name: requestedPath,
-        content: inlined,
+        content,
         ...(baseUrl ? { baseUrl } : {}),
       };
     },
@@ -10851,31 +10724,42 @@ function registerIpc(): void {
     exportDocument: async (input) => {
       if (!store || !pluginDispatch) throw new Error("Export unavailable.");
       const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding) throw new Error("Thread has no plugin binding.");
+      if (!thread?.typeBinding)
+        throw new Error("Thread has no plugin binding.");
+      const documentId = requireDesignDocumentId(input.documentId);
       const dataRoot = await ensureThreadDataRoot(
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", input.documentId);
+      const documentDir = join(dataRoot, "documents", documentId);
       const entries = await readdir(documentDir).catch(() => []);
-      const exportSequence = (entry: string): number =>
-        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
-      const candidates = input.revision
-        ? entries.filter((entry) => entry.endsWith(`-${input.revision}.html`))
-        : entries
-            .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-            .sort((a, b) => exportSequence(a) - exportSequence(b));
-      const source = candidates.at(-1);
+      // 指定 revision 时精确匹配；默认导出 HEAD 当前版本（P2-13）。
+      const source = input.revision
+        ? entries.find((entry) => entry.endsWith(`-${input.revision}.html`))
+        : await resolveHeadVersionEntry(documentDir, entries);
       if (!source) throw new Error("No version file for the document.");
-      const exportRoot = join(
-        app.getPath("userData"),
-        "design-exports",
-        input.documentId,
-      );
-      await mkdir(exportRoot, { recursive: true });
-      const destination = join(exportRoot, source);
-      await copyFile(join(documentDir, source), destination);
+      const bytes = await readDesignDocumentVersionBytes(documentDir, source);
       const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
+      // P2-16：真实下载——保存对话框由用户选目的地，取消则如实返回
+      //（此前只写进宿主私有目录就弹「已下载」）。
+      const displayName = await readDesignDocumentName(
+        dataRoot,
+        documentId,
+        source,
+      );
+      const parent =
+        BrowserWindow.getFocusedWindow() ??
+        BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
+      const save = parent
+        ? await dialog.showSaveDialog(parent, {
+            defaultPath: displayName,
+            filters: [{ name: "HTML", extensions: ["html"] }],
+          })
+        : { canceled: true, filePath: "" as string | undefined };
+      if (save.canceled || !save.filePath) {
+        return { path: "", revision, canceled: true };
+      }
+      await writeFile(save.filePath, bytes);
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/export`,
@@ -10883,32 +10767,29 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-exported",
-          documentId: input.documentId,
+          documentId,
           revision,
-          destination,
+          destination: save.filePath,
         },
       });
-      return { path: destination, revision };
+      return { path: save.filePath, revision };
     },
     readDocument: async (input) => {
       if (!store) return undefined;
       const thread = store.getThread(input.threadId);
       if (!thread?.typeBinding) return undefined;
+      const documentId = requireDesignDocumentId(input.documentId);
       const dataRoot = await ensureThreadDataRoot(
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", input.documentId);
+      const documentDir = join(dataRoot, "documents", documentId);
       const entries = await readdir(documentDir).catch(() => []);
-      const readSequence = (entry: string): number =>
-        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
-      const source = entries
-        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-        .sort((a, b) => readSequence(a) - readSequence(b))
-        .at(-1);
+      // P2-13：按 HEAD 指针选版本（撤销后预览跟随回拨，不再显示被撤销内容）。
+      const source = await resolveHeadVersionEntry(documentDir, entries);
       if (!source) return undefined;
       // 显示名取账本的文档名（customer.html），而非版本文件名（v2-xxx.html）。
-      let displayName = input.documentId;
+      let displayName = documentId;
       try {
         const ledgerText = await readFile(
           join(dataRoot, "design-documents.jsonl"),
@@ -10920,7 +10801,7 @@ function registerIpc(): void {
             id?: string;
             name?: string;
           };
-          if (record.id === input.documentId && record.name) {
+          if (record.id === documentId && record.name) {
             displayName = record.name;
             break;
           }
@@ -10929,7 +10810,9 @@ function registerIpc(): void {
         /* 账本缺失时回退到 documentId */
       }
       return {
-        html: await readFile(join(documentDir, source), "utf8"),
+        html: (
+          await readDesignDocumentVersionBytes(documentDir, source)
+        ).toString("utf8"),
         name: displayName,
       };
     },
@@ -10962,10 +10845,11 @@ function registerIpc(): void {
       };
     },
     handoff: async (input) => {
+      const documentId = requireDesignDocumentId(input.documentId);
       // §10.3 幂等创建编码任务。handoffId 从 (threadId, documentId) 确定性
-      // 派生：同一文档重复点交接永远命中同一 operationId，去重才有效。
+      // 派生：同一文档重复点交接永远命中同一 operationId 与同一目标任务。
       const handoffId = createHash("sha256")
-        .update(`handoff:${input.threadId}:${input.documentId}`)
+        .update(`handoff:${input.threadId}:${documentId}`)
         .digest("hex")
         .slice(0, 32);
       const source = store?.getThread(input.threadId);
@@ -10973,65 +10857,131 @@ function registerIpc(): void {
         throw new Error("Source thread has no plugin binding.");
       }
       const operationId = `handoff:${handoffId}`;
+      // P2-15：重放判定前置——已存在的交接直接返回已有任务（并补齐缺失
+      // 的目标），不再依赖「插入失败」当去重信号（那会在 createThread 上
+      // 撞 UNIQUE 约束）。
+      const prior = store.readPluginOperation(operationId);
+      if (prior) {
+        if (prior.requestDigest !== documentId) {
+          throw new Error("Handoff id collision; refusing.");
+        }
+        if (!store.getThreadGoal(handoffId)) {
+          store.setThreadGoal(
+            handoffId,
+            `按冻结设计实现（材料见 ${join(app.getPath("userData"), "design-handoffs", handoffId)}）。`,
+            undefined,
+          );
+        }
+        return { threadId: handoffId, created: false };
+      }
+      // P2-15：冻结设计材料——选定文档的 HEAD 版本 HTML + 账本里的名称与
+      // 需求备注，作为编码任务的初始材料落盘（keyed by 确定性 handoffId，
+      // 重放覆盖写，不产生孤儿累积）。
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      const documentDir = join(dataRoot, "documents", documentId);
+      const headEntry = await resolveHeadVersionEntry(
+        documentDir,
+        await readdir(documentDir).catch(() => []),
+      );
+      if (!headEntry) throw new Error("No version file for the document.");
+      const headHtml = (
+        await readDesignDocumentVersionBytes(documentDir, headEntry)
+      ).toString("utf8");
+      let documentName = documentId;
+      let documentBrief = "";
       try {
-        store.recordPluginOperation({
+        const ledgerText = await readFile(
+          join(dataRoot, "design-documents.jsonl"),
+          "utf8",
+        );
+        for (const line of ledgerText.split("\n")) {
+          if (!line.trim()) continue;
+          const record = JSON.parse(line) as {
+            id?: string;
+            name?: string;
+            brief?: string;
+          };
+          if (record.id === documentId) {
+            if (record.name) documentName = record.name;
+            if (typeof record.brief === "string") documentBrief = record.brief;
+            break;
+          }
+        }
+      } catch {
+        /* 账本缺失时回退到 documentId，brief 留空 */
+      }
+      const handoffRoot = join(
+        app.getPath("userData"),
+        "design-handoffs",
+        handoffId,
+      );
+      await mkdir(handoffRoot, { recursive: true });
+      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(headEntry)?.[1] ?? "";
+      const designPath = join(handoffRoot, headEntry);
+      const materialPath = join(handoffRoot, "material.md");
+      await writeFile(designPath, headHtml);
+      await writeFile(
+        materialPath,
+        [
+          `# 设计交接材料`,
+          ``,
+          `- 文档：${documentName}（${documentId}）`,
+          `- 冻结版本：${headEntry}`,
+          `- 源设计任务：${input.threadId}`,
+          `- 设计稿：${designPath}`,
+          ``,
+          `## 需求备注`,
+          ``,
+          documentBrief || "（源任务未填写需求备注）",
+          ``,
+        ].join("\n"),
+      );
+      const now = new Date().toISOString();
+      const hostStore = store;
+      // P2-15：事务化创建——账本记录、建任务、事件要么一起落库，要么都不。
+      hostStore.commitPluginStateTransaction(() => {
+        hostStore.recordPluginOperation({
           operationId,
           threadId: input.threadId,
-          pluginId: source.typeBinding.pluginId,
+          pluginId: source.typeBinding!.pluginId,
           toolName: "handoff",
-          requestDigest: `${input.documentId}`,
+          requestDigest: documentId,
           state: "succeeded",
           resultRef: handoffId,
         });
-      } catch {
-        // 已存在同 operationId（同文档的重复交接）：不重复创建。
-        return { threadId: handoffId, created: false };
-      }
-      const snapshotOutcome = await pluginDispatch?.dispatch({
-        threadId: input.threadId,
-        toolName: "get_snapshot",
-        args: {},
-        mode: "execute",
+        hostStore.createThread({
+          id: handoffId,
+          ...(source.projectId ? { projectId: source.projectId } : {}),
+          title: `[设计交接] ${documentName}（${headEntry}）`,
+          mode: "execute",
+          target: source.target,
+          status: "idle",
+          pinned: false,
+          archived: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        hostStore.appendPluginEvent({
+          eventId: randomUUID(),
+          streamId: `thread/${input.threadId}/handoff`,
+          threadId: input.threadId,
+          schemaVersion: 1,
+          payload: {
+            kind: "handoff-created",
+            documentId,
+            handoffThreadId: handoffId,
+          },
+        });
       });
-      let documentName = input.documentId;
-      if (snapshotOutcome?.status === "succeeded" && snapshotOutcome.result) {
-        try {
-          const parsed = JSON.parse(
-            (snapshotOutcome.result as { output?: string }).output ?? "{}",
-          ) as { documents?: Array<{ documentId: string; name: string }> };
-          documentName =
-            parsed.documents?.find(
-              (doc) => doc.documentId === input.documentId,
-            )?.name ?? documentName;
-        } catch {
-          /* keep the id as the name */
-        }
-      }
-      const now = new Date().toISOString();
-      const handoffThread: Parameters<typeof store.createThread>[0] = {
-        id: handoffId,
-        ...(source.projectId ? { projectId: source.projectId } : {}),
-        title: `[设计交接] ${documentName}（文档 ${input.documentId}）`,
-        mode: "execute",
-        target: source.target,
-        status: "idle",
-        pinned: false,
-        archived: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      store.createThread(handoffThread);
-      store.appendPluginEvent({
-        eventId: randomUUID(),
-        streamId: `thread/${input.threadId}/handoff`,
-        threadId: input.threadId,
-        schemaVersion: 1,
-        payload: {
-          kind: "handoff-created",
-          documentId: input.documentId,
-          handoffThreadId: handoffId,
-        },
-      });
+      // 目标独立开事务（setThreadGoal 自带 BEGIN IMMEDIATE，不能嵌套）。
+      store.setThreadGoal(
+        handoffId,
+        `按冻结设计实现：${designPath}；需求与版本说明：${materialPath}。`,
+        undefined,
+      );
       return { threadId: handoffId, created: true };
     },
     restoreDocument: async (input) => {
@@ -11042,11 +10992,21 @@ function registerIpc(): void {
       if (!thread?.typeBinding) {
         return { ok: false, error: "Thread has no plugin binding." };
       }
+      // P1-7：恢复 = 把历史版本写成新版本，是文件写入。必须在任何目录
+      // 创建、文件写入或 runtime 调用之前按「持久化的任务模式」门禁——
+      // Plan/Review 一律拒绝（面板按钮禁用只是辅助，不能作为边界）。
+      if (thread.mode !== "execute") {
+        return {
+          ok: false,
+          error: `当前任务处于 ${thread.mode === "plan" ? "Plan" : "Review"} 模式，恢复版本需要写入文件，已被拒绝。`,
+        };
+      }
+      const documentId = requireDesignDocumentId(input.documentId);
       const dataRoot = await ensureThreadDataRoot(
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", input.documentId);
+      const documentDir = join(dataRoot, "documents", documentId);
       const versionSequence = (entry: string): number =>
         Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
       const entries = (await readdir(documentDir).catch(() => []))
@@ -11062,7 +11022,7 @@ function registerIpc(): void {
         threadId: input.threadId,
         toolName: "restore_version",
         args: {
-          documentId: input.documentId,
+          documentId,
           ...(input.revision ? { revision: input.revision } : {}),
           operationId,
         },
@@ -11087,16 +11047,18 @@ function registerIpc(): void {
         restoredFile = undefined;
       }
       if (!restoredFile) {
-        // 兜底：恢复后重读目录，新 head = 数值序最后一个（HEAD 已推进）。
-        restoredFile = (await readdir(documentDir).catch(() => []))
-          .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-          .sort((a, b) => versionSequence(a) - versionSequence(b))
-          .at(-1);
+        // 兜底：恢复后 HEAD 已推进，按 HEAD 选新当前版本（P2-13）。
+        restoredFile = await resolveHeadVersionEntry(
+          documentDir,
+          await readdir(documentDir).catch(() => []),
+        );
       }
       if (!restoredFile) {
         return { ok: false, error: "恢复目标不存在。" };
       }
-      const restoredHtml = await readFile(join(documentDir, restoredFile), "utf8");
+      const restoredHtml = (
+        await readDesignDocumentVersionBytes(documentDir, restoredFile)
+      ).toString("utf8");
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/restore`,
@@ -11104,7 +11066,7 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-restored",
-          documentId: input.documentId,
+          documentId,
           revision: /^v\d+-([0-9a-f]+)\.html$/.exec(restoredFile)?.[1] ?? "",
         },
       });
@@ -11118,26 +11080,35 @@ function registerIpc(): void {
       if (!thread?.typeBinding) {
         throw new Error("Thread has no plugin binding.");
       }
+      const documentId = requireDesignDocumentId(input.documentId);
       const dataRoot = await ensureThreadDataRoot(
         join(app.getPath("userData"), "plugin-scratch"),
         input.threadId,
       );
-      const documentDir = join(dataRoot, "documents", input.documentId);
-      const screenshotSequence = (entry: string): number =>
-        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
-      const entries = (await readdir(documentDir).catch(() => []))
-        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-        .sort((a, b) => screenshotSequence(a) - screenshotSequence(b));
-      const source = entries.at(-1);
+      const documentDir = join(dataRoot, "documents", documentId);
+      const source = await resolveHeadVersionEntry(
+        documentDir,
+        await readdir(documentDir).catch(() => []),
+      );
       if (!source) throw new Error("No version file for the document.");
+      // P2-16：真实像素捕获——面板预览区域截图为 PNG（此前只是复制 HTML
+      // 还生成 .html.html 文件，纯属误导）。
+      const image = await designPanelHost?.capturePanelArea(
+        input.threadId,
+        input.panelId,
+        input.rect,
+      );
+      if (!image || image.isEmpty()) {
+        throw new Error("No visible design panel to capture.");
+      }
       const screenshotRoot = join(
         app.getPath("userData"),
         "design-screenshots",
-        input.documentId,
+        documentId,
       );
       await mkdir(screenshotRoot, { recursive: true });
-      const destination = join(screenshotRoot, `${source}.html`);
-      await copyFile(join(documentDir, source), destination);
+      const destination = join(screenshotRoot, `${source}.png`);
+      await writeFile(destination, image.toPNG());
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/screenshot`,
@@ -11145,19 +11116,82 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-screenshot",
-          documentId: input.documentId,
+          documentId,
           revision: /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "",
           destination,
         },
       });
       return { path: destination };
     },
+    deleteDocument: async (input) => {
+      if (!store) throw new Error("Delete unavailable.");
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding)
+        throw new Error("Thread has no plugin binding.");
+      // 删除是破坏性写入：仅 Execute 任务允许（P1-7 同款门禁）。
+      if (thread.mode !== "execute") {
+        return {
+          ok: false,
+          error: `当前任务处于 ${thread.mode === "plan" ? "Plan" : "Review"} 模式，删除文档需要写入，已被拒绝。`,
+        };
+      }
+      const documentId = requireDesignDocumentId(input.documentId);
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      const documentsRoot = join(dataRoot, "documents");
+      const documentDir = join(documentsRoot, documentId);
+      // 归属校验：真实路径必须仍在该任务 documents 根下（防目录内预埋
+      // 符号链接把 rm 引到别处）。
+      const documentsRootReal = await realpath(documentsRoot).catch(
+        () => undefined,
+      );
+      const documentDirReal = await realpath(documentDir).catch(
+        () => undefined,
+      );
+      if (!documentDirReal || !documentsRootReal) {
+        return { ok: false, error: "文档不存在或已被删除。" };
+      }
+      if (
+        documentDirReal !== documentsRootReal &&
+        !documentDirReal.startsWith(documentsRootReal + sep)
+      ) {
+        return { ok: false, error: "文档目录越界，拒绝删除。" };
+      }
+      await rm(documentDirReal, { recursive: true, force: true });
+      // 账本墓碑：get_snapshot 据此不再列出该文档（重放/重启后仍消失）。
+      const ledgerPath = join(dataRoot, "design-documents.jsonl");
+      const tombstone = `${JSON.stringify({
+        id: documentId,
+        deleted: true,
+        deletedAt: new Date().toISOString(),
+      })}\n`;
+      await appendFile(ledgerPath, tombstone).catch(async () => {
+        await writeFile(ledgerPath, tombstone, { flag: "wx" }).catch(
+          () => undefined,
+        );
+      });
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/delete`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-deleted",
+          documentId,
+        },
+      });
+      pushDesignSnapshotDebounced(input.threadId, input.panelId ?? "workspace");
+      return { ok: true };
+    },
     listVersions: async (input) => {
       if (!pluginDispatch) throw new Error("Dispatch unavailable.");
+      const documentId = requireDesignDocumentId(input.documentId);
       const outcome = await pluginDispatch.dispatch({
         threadId: input.threadId,
         toolName: "list_versions",
-        args: { documentId: input.documentId },
+        args: { documentId },
         mode: "execute",
       });
       if (outcome.status !== "succeeded") {
@@ -11387,9 +11421,7 @@ function registerIpc(): void {
 
   // Design capability pack (todo ⑤): the settings toggle's backend. Mirrors
   // the office capability surface namespaced to packId "artemis-design".
-  let designPackRuntime:
-    | ReturnType<typeof createDesignPackRuntime>
-    | undefined;
+  let designPackRuntime: ReturnType<typeof createDesignPackRuntime> | undefined;
   const getDesignPackRuntime = () => {
     designPackRuntime ??= createDesignPackRuntime({
       userData: app.getPath("userData"),
@@ -11425,7 +11457,10 @@ function registerIpc(): void {
         // 统一迁到新修订（改绑定哈希/版本 + 补授权），面板与工具链随 pack
         // 更新即时跟进；修订库不可变，老修订内容原地保留。
         const manifest = JSON.parse(
-          await readFile(join(result.revisionRoot, "artemis.plugin.json"), "utf8"),
+          await readFile(
+            join(result.revisionRoot, "artemis.plugin.json"),
+            "utf8",
+          ),
         ) as { id: string; version: string };
         const binding = {
           installationId: result.installationId,
@@ -11589,9 +11624,9 @@ function registerIpc(): void {
       const explicit = input?.path;
       if (explicit) {
         try {
-          await (await getDesignPackRuntime()).packs.installOffline(
-            String(explicit),
-          );
+          await (
+            await getDesignPackRuntime()
+          ).packs.installOffline(String(explicit));
         } catch (error) {
           throw translateDesignPackError(error);
         }
@@ -11608,9 +11643,9 @@ function registerIpc(): void {
       });
       if (selected.canceled || !selected.filePaths[0]) return;
       try {
-        await (await getDesignPackRuntime()).packs.installOffline(
-          selected.filePaths[0],
-        );
+        await (
+          await getDesignPackRuntime()
+        ).packs.installOffline(selected.filePaths[0]);
       } catch (error) {
         throw translateDesignPackError(error);
       }
@@ -23793,83 +23828,87 @@ app
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
 
-  // S1 design-plugin panel host: sandboxed WebContentsView per (thread,
-  // panelId). Catalog points at the first-party package root for now; the
-  // installed-revision view replaces this when the trust chain lands.
-  designPanelHost = new DesignPanelHost();
-  designPanelHost.setCatalogRoot(
-    join(app.getAppPath(), "resources", "design-plugins"),
-  );
-  // 项目 HTML 预览（URL-load）：面板 session 不共享 defaultSession 的协议
-  // 处理器，由 panel host 逐 session 注册 artemis-preview。
-  designPanelHost.setPreviewResponder(
-    (request) => workspaceHtmlPreview.respond(request),
-  );
-  // 沙箱预览内的页面导航（桥拦不住的 location.href 类）兜底同步：租约
-  // 服务了目录内兄弟 HTML 时把工作区相对路径推给面板——面板用它同步
-  // 文件 tab，并在进入注释/标记拾取时按"当前页"重建带桥传输（OD 的
-  // 拾取模式换传输重建语义）。
-  workspaceHtmlPreview.onHtmlResourceServed = (leaseHostname, path, threadId) => {
-    designPanelHost?.pushProjectNavigated(threadId, "workspace", path);
-  };
-  // S3 host send entry: panel candidates enter the ledger here and are
-  // consumed exactly once via one-time credentials.
-  panelSendEntry = new PanelSendEntryService(store);
-  // Crash-window recovery (§9.3): rows stuck in dispatching/running from a
-  // previous run are outcome-unknown — marked, never blindly re-sent.
-  {
-    let recoveredSubmissions = 0;
-    for (const row of store.listThreads()) {
-      recoveredSubmissions += panelSendEntry.recoverInterruptedSubmissions(
-        row.id,
-      );
-    }
-    if (recoveredSubmissions > 0) {
-      diagnosticBundleService?.record({
-        source: "main",
-        severity: "warning",
-        message: `Marked ${recoveredSubmissions} plugin prompt submission(s) outcome-unknown after restart.`,
-      });
-    }
-  }
-  // S2 trusted dispatch: every plugin tool call from a restricted thread
-  // lands here; the trust chain (revision hash + grant + mode) is enforced
-  // in the main process before any runtime spawn.
-  pluginDispatch = createDispatchPluginTool({
-    store,
-    revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
-    scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
-    // 卸载设计插件后拒绝一切工具调用：修订残留不等于插件可用。
-    availabilityGate: async (input: { threadId: string }) =>
-      (await designPluginAvailabilityGate?.(input.threadId)) ?? null,
-    // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
-    // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
-    onArtifactWrite: ({ threadId }) => {
-      designArtifactWriteSink?.(threadId);
-    },
-    loadPublishedManifest: async (input) => {
-      const revisionRoot = join(
-        designPluginRevisionsRoot(app.getPath("userData")),
-        input.installationId,
-        input.contentHash,
-      );
-      const manifestPath = join(revisionRoot, "artemis.plugin.json");
-      try {
-        const bytes = await readFile(manifestPath, "utf8");
-        const manifest = JSON.parse(bytes) as {
-          tools: Array<{ name: string; effect: string }>;
-          runtime: { entry: string };
-        };
-        return {
-          tools: manifest.tools,
-          runtimeEntry: join(revisionRoot, manifest.runtime.entry),
-          revisionRoot,
-        };
-      } catch {
-        return undefined;
+    // S1 design-plugin panel host: sandboxed WebContentsView per (thread,
+    // panelId). Catalog points at the first-party package root for now; the
+    // installed-revision view replaces this when the trust chain lands.
+    designPanelHost = new DesignPanelHost();
+    designPanelHost.setCatalogRoot(
+      join(app.getAppPath(), "resources", "design-plugins"),
+    );
+    // 项目 HTML 预览（URL-load）：面板 session 不共享 defaultSession 的协议
+    // 处理器，由 panel host 逐 session 注册 artemis-preview。
+    designPanelHost.setPreviewResponder((request) =>
+      workspaceHtmlPreview.respond(request),
+    );
+    // 沙箱预览内的页面导航（桥拦不住的 location.href 类）兜底同步：租约
+    // 服务了目录内兄弟 HTML 时把工作区相对路径推给面板——面板用它同步
+    // 文件 tab，并在进入注释/标记拾取时按"当前页"重建带桥传输（OD 的
+    // 拾取模式换传输重建语义）。
+    workspaceHtmlPreview.onHtmlResourceServed = (
+      leaseHostname,
+      path,
+      threadId,
+    ) => {
+      designPanelHost?.pushProjectNavigated(threadId, "workspace", path);
+    };
+    // S3 host send entry: panel candidates enter the ledger here and are
+    // consumed exactly once via one-time credentials.
+    panelSendEntry = new PanelSendEntryService(store);
+    // Crash-window recovery (§9.3): rows stuck in dispatching/running from a
+    // previous run are outcome-unknown — marked, never blindly re-sent.
+    {
+      let recoveredSubmissions = 0;
+      for (const row of store.listThreads()) {
+        recoveredSubmissions += panelSendEntry.recoverInterruptedSubmissions(
+          row.id,
+        );
       }
-    },
-  });
+      if (recoveredSubmissions > 0) {
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "warning",
+          message: `Marked ${recoveredSubmissions} plugin prompt submission(s) outcome-unknown after restart.`,
+        });
+      }
+    }
+    // S2 trusted dispatch: every plugin tool call from a restricted thread
+    // lands here; the trust chain (revision hash + grant + mode) is enforced
+    // in the main process before any runtime spawn.
+    pluginDispatch = createDispatchPluginTool({
+      store,
+      revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+      scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
+      // 卸载设计插件后拒绝一切工具调用：修订残留不等于插件可用。
+      availabilityGate: async (input: { threadId: string }) =>
+        (await designPluginAvailabilityGate?.(input.threadId)) ?? null,
+      // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
+      // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
+      onArtifactWrite: ({ threadId }) => {
+        designArtifactWriteSink?.(threadId);
+      },
+      loadPublishedManifest: async (input) => {
+        const revisionRoot = join(
+          designPluginRevisionsRoot(app.getPath("userData")),
+          input.installationId,
+          input.contentHash,
+        );
+        const manifestPath = join(revisionRoot, "artemis.plugin.json");
+        try {
+          const bytes = await readFile(manifestPath, "utf8");
+          const manifest = JSON.parse(bytes) as {
+            tools: Array<{ name: string; effect: string }>;
+            runtime: { entry: string };
+          };
+          return {
+            tools: manifest.tools,
+            runtimeEntry: join(revisionRoot, manifest.runtime.entry),
+            revisionRoot,
+          };
+        } catch {
+          return undefined;
+        }
+      },
+    });
     markStartupStage("database-ready");
     threadHistoryService = new ThreadHistoryService(
       join(app.getPath("userData"), "artemis.sqlite"),

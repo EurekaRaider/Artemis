@@ -33,7 +33,10 @@ export interface DesignPackRuntime {
    * plugin. Idempotent: the store refuses hash collisions with other bytes
    * and accepts identical republishes.
    */
-  syncActiveRevision(): Promise<{ installationId: string; contentHash: string; revisionRoot: string } | undefined>;
+  syncActiveRevision(): Promise<
+    | { installationId: string; contentHash: string; revisionRoot: string }
+    | undefined
+  >;
 }
 
 export async function createDesignPackRuntime(options: {
@@ -93,9 +96,8 @@ export async function createDesignPackRuntime(options: {
     try {
       const store = new PluginRevisionStore(options.revisionsRoot);
       const sourceRoot = lease.root;
-      const contentHash = await PluginRevisionStore.computeContentHash(
-        sourceRoot,
-      );
+      const contentHash =
+        await PluginRevisionStore.computeContentHash(sourceRoot);
       const manifest = JSON.parse(
         await readFile(join(sourceRoot, "artemis.plugin.json"), "utf8"),
       ) as { id: string; version: string };
@@ -107,9 +109,7 @@ export async function createDesignPackRuntime(options: {
         contentHash,
         sourceRoot,
       });
-      console.log(
-        `[design-pack] sync: published → ${published.revisionRoot}`,
-      );
+      console.log(`[design-pack] sync: published → ${published.revisionRoot}`);
       return {
         installationId: manifest.id,
         contentHash: published.contentHash,

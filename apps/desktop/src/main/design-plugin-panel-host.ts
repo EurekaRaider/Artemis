@@ -11,7 +11,12 @@
 //   - host window destruction does NOT destroy child WebContentsView
 //     webContents; dispose() closes them explicitly while holding refs.
 
-import { BrowserWindow, MessageChannelMain, WebContentsView, session } from "electron";
+import {
+  BrowserWindow,
+  MessageChannelMain,
+  WebContentsView,
+  session,
+} from "electron";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pluginManifestSchema } from "@artemis/protocol";
@@ -96,9 +101,8 @@ export function sanitizeCandidateImages(input: unknown): string[] | undefined {
   const out: string[] = [];
   for (const raw of input.slice(0, 6)) {
     if (typeof raw !== "string") continue;
-    const match = /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(
-      raw,
-    );
+    const match =
+      /^data:image\/(png|jpeg|webp|gif);base64,([A-Za-z0-9+/=]+)$/.exec(raw);
     if (!match) continue;
     if (raw.length > 10 * 1024 * 1024) continue;
     out.push(raw);
@@ -106,8 +110,9 @@ export function sanitizeCandidateImages(input: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
-function sanitizeDocumentPayload(input: unknown):  | { documentId: string; documentName: string; html: string }
-  | undefined {
+function sanitizeDocumentPayload(
+  input: unknown,
+): { documentId: string; documentName: string; html: string } | undefined {
   if (typeof input !== "object" || input === null) return undefined;
   const item = input as Record<string, unknown>;
   if (
@@ -191,7 +196,7 @@ export interface PanelRequestHandlers {
     threadId: string;
     documentId: string;
     revision?: string;
-  }): Promise<{ path: string; revision: string }>;
+  }): Promise<{ path: string; revision: string; canceled?: boolean }>;
   listVersions(input: {
     threadId: string;
     documentId: string;
@@ -215,7 +220,16 @@ export interface PanelRequestHandlers {
   captureScreenshot(input: {
     threadId: string;
     documentId: string;
+    /** PR#245 P2-16：截图区域（预览舞台在面板内的 CSS 像素矩形）。 */
+    panelId?: string;
+    rect?: { x: number; y: number; width: number; height: number };
   }): Promise<{ path: string }>;
+  /** PR#245 P2-16：持久删除需要知道面板，删除后定向推快照刷新。 */
+  deleteDocument(input: {
+    threadId: string;
+    documentId: string;
+    panelId?: string;
+  }): Promise<{ ok: boolean; error?: string }>;
   listDocuments(input: {
     threadId: string;
   }): Promise<{ documents: unknown[]; projectName: string }>;
@@ -233,7 +247,10 @@ export interface PanelRequestHandlers {
 
 export class DesignPanelHost {
   private readonly panels = new Map<string, LivePanel>();
-  private readonly pendingEnsures = new Map<string, Promise<PluginPanelHandle>>();
+  private readonly pendingEnsures = new Map<
+    string,
+    Promise<PluginPanelHandle>
+  >();
   /** Keys released while their ensure was still creating the view. */
   private readonly releasedWhilePending = new Set<string>();
   private readonly pendingBounds = new Map<
@@ -256,12 +273,12 @@ export class DesignPanelHost {
   private requestHandlers: PanelRequestHandlers | undefined;
   /** 面板就绪拉取快照的回调（main 端接 pushDesignSnapshot）。 */
   private snapshotSink:
-    | ((event: { threadId: string; panelId: string }) => void)
-    | undefined;
+    ((event: { threadId: string; panelId: string }) => void) | undefined;
   /** artemis-preview responder for panel sessions: per-panel partitions do
    * NOT inherit defaultSession protocol handlers, so the workspace HTML
    * preview protocol must be registered on each panel session. */
-  private previewResponder: ((request: Request) => Promise<Response>) | undefined;
+  private previewResponder:
+    ((request: Request) => Promise<Response>) | undefined;
 
   /** Point the host at the installed design-plugin packages root. */
   setCatalogRoot(root: string): void {
@@ -320,9 +337,8 @@ export class DesignPanelHost {
     contentHash: string;
     revisionRoot: string;
   }): Promise<void> {
-    const { PluginRevisionStore } = await import(
-      "./design-plugin-revision-store.js"
-    );
+    const { PluginRevisionStore } =
+      await import("./design-plugin-revision-store.js");
     const actual = await PluginRevisionStore.computeContentHash(
       input.revisionRoot,
     );
@@ -480,6 +496,7 @@ export class DesignPanelHost {
             images?: unknown;
             annotations?: unknown;
             document?: unknown;
+            rect?: unknown;
           }
         | undefined;
       if (data?.type === "candidate-prompt" && typeof data.text === "string") {
@@ -511,7 +528,9 @@ export class DesignPanelHost {
       // 面板就绪后主动拉完整快照：首开时 host 的初始 push 可能早于 port
       // 握手完成而丢失（面板白屏无卡片），拉模式兜底推模式。
       if (data?.type === "snapshot-request") {
-        console.log(`[design-panel] snapshot-request from ${threadId}/${panelId}`);
+        console.log(
+          `[design-panel] snapshot-request from ${threadId}/${panelId}`,
+        );
         this.snapshotSink?.({ threadId, panelId });
         return;
       }
@@ -708,14 +727,57 @@ export class DesignPanelHost {
         return;
       }
       if (data?.type === "screenshot-request" && data.documentId) {
+        // P2-16：带上发起面板与预览区域，宿主做真实像素捕获。
+        const rawRect = data.rect as
+          | { x?: unknown; y?: unknown; width?: unknown; height?: unknown }
+          | undefined;
+        const rect =
+          rawRect &&
+          Number.isFinite(rawRect.x) &&
+          Number.isFinite(rawRect.y) &&
+          Number.isFinite(rawRect.width) &&
+          Number.isFinite(rawRect.height) &&
+          (rawRect.width as number) > 0 &&
+          (rawRect.height as number) > 0
+            ? {
+                x: rawRect.x as number,
+                y: rawRect.y as number,
+                width: rawRect.width as number,
+                height: rawRect.height as number,
+              }
+            : undefined;
         void this.requestHandlers
-          ?.captureScreenshot({ threadId, documentId: data.documentId })
+          ?.captureScreenshot({
+            threadId,
+            documentId: data.documentId,
+            panelId,
+            ...(rect ? { rect } : {}),
+          })
           .then((result) => {
             hostPort.postMessage({ type: "screenshot-result", ...result });
           })
           .catch((error: unknown) => {
             hostPort.postMessage({
               type: "screenshot-result",
+              error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "delete-document-request" && data.documentId) {
+        void this.requestHandlers
+          ?.deleteDocument({
+            threadId,
+            documentId: data.documentId,
+            panelId,
+          })
+          .then((result) => {
+            hostPort.postMessage({ type: "delete-document-result", ...result });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "delete-document-result",
+              ok: false,
               error: String(error),
             });
           });
@@ -799,6 +861,31 @@ export class DesignPanelHost {
     }
   }
 
+  /**
+   * PR#245 P2-16：真实像素捕获。取发起请求的面板（无 panelId 时取该线程
+   * 任意存活面板）的 webContents，截取预览舞台区域（CSS 像素矩形，面板
+   * zoom 为 1 时与 DIP 一致）；无区域则截整页。
+   */
+  async capturePanelArea(
+    threadId: string,
+    panelId: string | undefined,
+    rect?: { x: number; y: number; width: number; height: number },
+  ): Promise<Electron.NativeImage | undefined> {
+    let webContents: Electron.WebContents | undefined;
+    if (panelId) {
+      webContents = this.panels.get(this.key(threadId, panelId))?.webContents;
+    } else {
+      for (const [key, panel] of this.panels) {
+        if (key.startsWith(`${threadId}:`)) {
+          webContents = panel.webContents;
+          break;
+        }
+      }
+    }
+    if (!webContents || webContents.isDestroyed()) return undefined;
+    return webContents.capturePage(rect);
+  }
+
   /** Position a panel. Renderer reports the dock pane's content bounds. */
   setBounds(
     threadId: string,
@@ -814,7 +901,9 @@ export class DesignPanelHost {
       if (bounds.width > 0 && bounds.height > 0) {
         this.pendingBounds.set(this.key(threadId, panelId), bounds);
       } else {
-        console.warn(`[design-panel] ignored 0x0 bounds before ensure: ${panelId}`);
+        console.warn(
+          `[design-panel] ignored 0x0 bounds before ensure: ${panelId}`,
+        );
       }
       return;
     }

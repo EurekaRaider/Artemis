@@ -5,7 +5,14 @@
 // pin the migration that rescues data written by legacy hash-scoped builds.
 
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readdir, rm, utimes } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  writeFile,
+  readdir,
+  rm,
+  utimes,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "vitest";
@@ -39,7 +46,11 @@ test("legacy hash-scoped data migrates into data/ and the emptied legacy dir is 
     '{"id":"doc-1","name":"customer.html"}\n',
     "utf8",
   );
-  await writeFile(join(legacy, "documents", "doc-1", "v1-aaaa.html"), "<html>", "utf8");
+  await writeFile(
+    join(legacy, "documents", "doc-1", "v1-aaaa.html"),
+    "<html>",
+    "utf8",
+  );
 
   const root = await ensureThreadDataRoot(scratch, "thread-1");
   assert.equal(root, join(scratch, "thread-1", "data"));
@@ -55,8 +66,13 @@ test("legacy hash-scoped data migrates into data/ and the emptied legacy dir is 
 
 test("data/ already populated: migration is skipped, legacy dirs untouched", async () => {
   const scratch = await makeScratch();
-  await mkdir(join(threadDataRoot(scratch, "thread-1"), "documents"), { recursive: true });
-  await writeFile(join(threadDataRoot(scratch, "thread-1"), "design-documents.jsonl"), "x\n");
+  await mkdir(join(threadDataRoot(scratch, "thread-1"), "documents"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(threadDataRoot(scratch, "thread-1"), "design-documents.jsonl"),
+    "x\n",
+  );
   const legacy = join(scratch, "thread-1", HASH_A);
   await mkdir(legacy, { recursive: true });
   await writeFile(join(legacy, "design-documents.jsonl"), "old\n");

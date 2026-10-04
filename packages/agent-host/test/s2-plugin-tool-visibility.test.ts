@@ -26,7 +26,10 @@ export function pluginToolsVisibleForSession(input: {
 }
 
 describe("S2 plugin-tool visibility matrix (§7)", () => {
-  const binding = { pluginId: "com.artemis.design", contentHash: "a".repeat(64) };
+  const binding = {
+    pluginId: "com.artemis.design",
+    contentHash: "a".repeat(64),
+  };
 
   it("execute + restricted + bound -> visible", () => {
     expect(

@@ -259,14 +259,12 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.designPanelRelease, threadId, panelId),
   acceptDesignPanelCandidate: (threadId, candidateText) =>
     ipcRenderer.invoke(IPC.designPanelCandidateAccept, threadId, candidateText),
-  handoffDesignToProject: (input) =>
-    ipcRenderer.invoke(IPC.designPanelHandoff, input),
-  exportDesignDocument: (input) =>
-    ipcRenderer.invoke(IPC.designPanelExport, input),
   discardDesignPanelCandidate: (credential) =>
     ipcRenderer.invoke(IPC.designPanelCandidateDiscard, credential),
   consumeDesignPanelSend: (credential) =>
     ipcRenderer.invoke(IPC.designPanelSendConsume, credential),
+  stageDesignPanelSend: (credential) =>
+    ipcRenderer.invoke(IPC.designPanelSendStage, credential),
   reportDesignPanelSendOutcome: (submissionId, outcome) =>
     ipcRenderer.invoke(IPC.designPanelSendOutcome, submissionId, outcome),
   onDesignPanelCandidate: (listener) => {
@@ -340,8 +338,7 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.officeCapabilityDeactivate),
   uninstallOfficeCapability: (version) =>
     ipcRenderer.invoke(IPC.officeCapabilityUninstall, version),
-  designCapabilityStatus: () =>
-    ipcRenderer.invoke(IPC.designCapabilityStatus),
+  designCapabilityStatus: () => ipcRenderer.invoke(IPC.designCapabilityStatus),
   designCapabilityAvailability: () =>
     ipcRenderer.invoke(IPC.designCapabilityAvailability),
   onDesignCapabilityAvailability: (listener) => {

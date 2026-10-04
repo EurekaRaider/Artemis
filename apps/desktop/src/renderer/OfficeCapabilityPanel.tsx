@@ -1,5 +1,8 @@
 import type { AppLocale } from "@artemis/protocol";
-import { CapabilityPackPanel, type CapabilityPackCopy } from "./CapabilityPackPanel.js";
+import {
+  CapabilityPackPanel,
+  type CapabilityPackCopy,
+} from "./CapabilityPackPanel.js";
 import { officeCopy } from "./office-copy.js";
 
 export function OfficeCapabilityPanel({
@@ -55,7 +58,8 @@ export function OfficeCapabilityPanel({
         importOffline: () => window.artemis.importOfficeCapability(),
         cancel: () => window.artemis.cancelOfficeCapability(),
         activate: (version) => window.artemis.activateOfficeCapability(version),
-        uninstall: (version) => window.artemis.uninstallOfficeCapability(version),
+        uninstall: (version) =>
+          window.artemis.uninstallOfficeCapability(version),
       }}
       onClose={onClose}
       {...(onInstalledChange ? { onInstalledChange } : {})}

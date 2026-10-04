@@ -79,7 +79,10 @@ export function probeMacOsSeatbelt(): SandboxProbe {
     "/usr/bin/true",
   ]);
   if (check.error) {
-    return { ok: false, reason: `sandbox-exec probe failed: ${String(check.error)}` };
+    return {
+      ok: false,
+      reason: `sandbox-exec probe failed: ${String(check.error)}`,
+    };
   }
   if (check.status !== 0) {
     return {
@@ -227,7 +230,9 @@ export class ThreadRuntimeManager {
           const result = await live.worker.invoke(next.toolName, next.args);
           next.resolve(result);
         } catch (error) {
-          next.reject(error instanceof Error ? error : new Error(String(error)));
+          next.reject(
+            error instanceof Error ? error : new Error(String(error)),
+          );
         }
       }
     } finally {
@@ -285,9 +290,7 @@ export class ThreadRuntimeManager {
   }
 
   pendingCount(pluginId: string, contentHash: string): number {
-    return (
-      this.runtimes.get(this.key(pluginId))?.queue.length ?? 0
-    );
+    return this.runtimes.get(this.key(pluginId))?.queue.length ?? 0;
   }
 
   dispose(): void {
@@ -295,13 +298,19 @@ export class ThreadRuntimeManager {
   }
 }
 
-function defaultProbe(): SandboxProbe {
-  if (process.platform === "darwin") return probeMacOsSeatbelt();
-  // Non-mac platforms have no verified sandbox path in S2: refuse rather
-  // than run unsandboxed. Windows AppContainer lands with its own slice.
+// Exported for the platform-scope test: the publish list in
+// scripts/design-pack/build-design-pack.mjs must stay aligned with this gate.
+export function defaultProbe(): SandboxProbe {
+  // First-version platform scope (PR #245 review): darwin-arm64 only, the
+  // one platform with a signed design-pack manifest and a verified Seatbelt
+  // path. Everything else — including Intel macOS and Windows, whose
+  // AppContainer sandbox has not landed — refuses with an explicit
+  // "not yet supported" message rather than running unsandboxed.
+  if (process.platform === "darwin" && process.arch === "arm64")
+    return probeMacOsSeatbelt();
   return {
     ok: false,
-    reason: `no verified sandbox implementation for platform ${process.platform}`,
+    reason: `design plugins are not yet supported on ${process.platform}-${process.arch}; first version supports darwin-arm64 only`,
   };
 }
 

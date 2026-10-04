@@ -1636,7 +1636,9 @@ export function App() {
   const draftAttachments = useRef(new Map<string, PromptAttachment[]>());
   draftAttachments.current.set(activeComposerDraftKey, attachments);
   // 设计面板批注（消息体 hint 的 pending 集），随草稿隔离、发送时消费
-  const designAnnotationDrafts = useRef(new Map<string, DesignAnnotationDraft>());
+  const designAnnotationDrafts = useRef(
+    new Map<string, DesignAnnotationDraft>(),
+  );
   // OD activeProjectFileName 等价物：设计面板的活动文档 tab 锁定 composer，
   // 芯片提示 + 发送自动附页；null=网格视图（解绑）。
   const [designDocBinding, setDesignDocBinding] = useState<{
@@ -9747,49 +9749,62 @@ ${model.providerId} · ${model.modelId}`}
                           )}
                           {tab.kind === "design" && activeThreadId ? (
                             designPluginAvailable ? (
-                            <Suspense fallback={<span>…</span>}>
-                              <DesignPluginPanel
-                                key={`${activeThreadId}:${tab.id}`}
-                                threadId={activeThreadId}
-                                panelId="workspace"
-                                active={workspaceTabs.activeTabId === tab.id}
-                                onCandidate={(text, annotations, document, autoSend, images) => {
-                                  const trimmed = text.trim();
-                                  if (!trimmed || !activeThreadId) return;
-                                  void (async () => {
-                                    try {
-                                      // OD 对齐：入账（一次性凭据）后立即消费，
-                                      // 填入 composer。autoSend=false = 标记工具
-                                      // 条的「加入输入框」（只填不自动发送）；
-                                      // 默认自动触发发送（空闲直发、运行中
-                                      // followUpTurn 排队）。凭据即时作废，
-                                      // 不存在重放窗口。批注与页面不入账
-                                      // （ledger 审计文本）：页面作为附件，
-                                      // 批注在发送时拼进消息体（OD 式）。
-                                      const accepted =
-                                        await window.artemis.acceptDesignPanelCandidate(
-                                          activeThreadId,
-                                          trimmed,
-                                        );
-                                      await window.artemis.consumeDesignPanelSend(
-                                        accepted.credential,
-                                      );
-                                      if (document?.html.trim()) {
-                                        const merged =
-                                          addDesignDocumentAttachment(
-                                            draftAttachments.current.get(
-                                              activeComposerDraftKey,
-                                            ) ?? [],
-                                            document,
+                              <Suspense fallback={<span>…</span>}>
+                                <DesignPluginPanel
+                                  key={`${activeThreadId}:${tab.id}`}
+                                  threadId={activeThreadId}
+                                  panelId="workspace"
+                                  active={workspaceTabs.activeTabId === tab.id}
+                                  onCandidate={(
+                                    text,
+                                    annotations,
+                                    document,
+                                    autoSend,
+                                    images,
+                                  ) => {
+                                    const trimmed = text.trim();
+                                    if (!trimmed || !activeThreadId) return;
+                                    void (async () => {
+                                      try {
+                                        // OD 对齐：入账（一次性凭据）。autoSend
+                                        // =false = 标记工具条的「加入输入框」：
+                                        // staged 语义（提交取消、文本进可编辑
+                                        // composer，凭据即时作废）；默认自动触
+                                        // 发发送（空闲直发、运行中 followUpTurn
+                                        // 排队）——发送才消费凭据进
+                                        // dispatching，由 turn.started 绑定
+                                        // turn。批注与页面不入账（ledger 审计
+                                        // 文本）：页面作为附件，批注在发送时拼
+                                        // 进消息体（OD 式）。
+                                        const accepted =
+                                          await window.artemis.acceptDesignPanelCandidate(
+                                            activeThreadId,
+                                            trimmed,
                                           );
-                                        if (merged) setAttachments(merged);
-                                      }
-                                      // 面板附图（OD imageAttachments）：dataURL
-                                      // → 裸图片附件（PromptImage，与粘贴同形）
-                                      if (images && images.length > 0) {
-                                        const imageAttachments =
-                                          images.flatMap(
-                                            (dataUrl, index) => {
+                                        if (autoSend === false) {
+                                          await window.artemis.stageDesignPanelSend(
+                                            accepted.credential,
+                                          );
+                                        } else {
+                                          await window.artemis.consumeDesignPanelSend(
+                                            accepted.credential,
+                                          );
+                                        }
+                                        if (document?.html.trim()) {
+                                          const merged =
+                                            addDesignDocumentAttachment(
+                                              draftAttachments.current.get(
+                                                activeComposerDraftKey,
+                                              ) ?? [],
+                                              document,
+                                            );
+                                          if (merged) setAttachments(merged);
+                                        }
+                                        // 面板附图（OD imageAttachments）：dataURL
+                                        // → 裸图片附件（PromptImage，与粘贴同形）
+                                        if (images && images.length > 0) {
+                                          const imageAttachments =
+                                            images.flatMap((dataUrl, index) => {
                                               const match =
                                                 /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(
                                                   dataUrl,
@@ -9807,58 +9822,60 @@ ${model.providerId} · ${model.modelId}`}
                                                   data: match[2] ?? "",
                                                 },
                                               ];
-                                            },
+                                            });
+                                          const withImages =
+                                            appendPromptAttachments(
+                                              draftAttachments.current.get(
+                                                activeComposerDraftKey,
+                                              ) ?? [],
+                                              imageAttachments,
+                                            );
+                                          draftAttachments.current.set(
+                                            activeComposerDraftKey,
+                                            withImages.attachments,
                                           );
-                                        const withImages =
-                                          appendPromptAttachments(
-                                            draftAttachments.current.get(
-                                              activeComposerDraftKey,
-                                            ) ?? [],
-                                            imageAttachments,
+                                          setAttachments(
+                                            withImages.attachments,
                                           );
-                                        draftAttachments.current.set(
+                                        }
+                                        designAnnotationDrafts.current.set(
                                           activeComposerDraftKey,
-                                          withImages.attachments,
+                                          (() => {
+                                            const draft =
+                                              designAnnotationDrafts.current.get(
+                                                activeComposerDraftKey,
+                                              ) ?? new DesignAnnotationDraft();
+                                            draft.add(
+                                              annotations,
+                                              document ?? undefined,
+                                            );
+                                            return draft;
+                                          })(),
                                         );
-                                        setAttachments(withImages.attachments);
+                                        setPrompt(trimmed);
+                                        if (autoSend !== false) {
+                                          designPanelAutoSendText.current =
+                                            trimmed;
+                                        }
+                                        window.requestAnimationFrame(() =>
+                                          promptInput.current?.focus(),
+                                        );
+                                      } catch {
+                                        setToast({
+                                          error: true,
+                                          message: locale.startsWith("zh")
+                                            ? "候选入账失败"
+                                            : "Failed to accept the candidate",
+                                        });
                                       }
-                                      designAnnotationDrafts.current.set(
-                                        activeComposerDraftKey,
-                                        (() => {
-                                          const draft =
-                                            designAnnotationDrafts.current.get(
-                                              activeComposerDraftKey,
-                                            ) ?? new DesignAnnotationDraft();
-                                          draft.add(
-                                            annotations,
-                                            document ?? undefined,
-                                          );
-                                          return draft;
-                                        })(),
-                                      );
-                                      setPrompt(trimmed);
-                                      if (autoSend !== false) {
-                                        designPanelAutoSendText.current = trimmed;
-                                      }
-                                      window.requestAnimationFrame(() =>
-                                        promptInput.current?.focus(),
-                                      );
-                                    } catch {
-                                      setToast({
-                                        error: true,
-                                        message: locale.startsWith("zh")
-                                          ? "候选入账失败"
-                                          : "Failed to accept the candidate",
-                                      });
-                                    }
-                                  })();
-                                }}
-                                onBinding={(binding) => {
-                                  setDesignDocBinding(binding);
-                                }}
-                                failureMessage={t.designTab}
-                              />
-                            </Suspense>
+                                    })();
+                                  }}
+                                  onBinding={(binding) => {
+                                    setDesignDocBinding(binding);
+                                  }}
+                                  failureMessage={t.designTab}
+                                />
+                              </Suspense>
                             ) : (
                               <div
                                 className="design-plugin-panel-disabled"
@@ -9868,7 +9885,8 @@ ${model.providerId} · ${model.modelId}`}
                                   alignItems: "center",
                                   justifyContent: "center",
                                   padding: 24,
-                                  color: "var(--artemis-color-text-secondary, #9399b2)",
+                                  color:
+                                    "var(--artemis-color-text-secondary, #9399b2)",
                                 }}
                               >
                                 {locale.startsWith("zh")
@@ -11262,9 +11280,7 @@ export function Timeline({
       // 结构化批注块是发给模型的载荷；气泡只显示用户自己的话
       // （OD 把批注渲染成附件卡片，这里是显示侧等价物）。
       const visibleText = promptWithoutSelectedSkills(
-        stripDesignAnnotationBlock(
-          imUserMessageText(message.text, imGroup),
-        ),
+        stripDesignAnnotationBlock(imUserMessageText(message.text, imGroup)),
       );
       const editable =
         onEditUserMessage !== undefined &&

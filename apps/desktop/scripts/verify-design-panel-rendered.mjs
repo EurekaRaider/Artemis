@@ -11,7 +11,15 @@ mkdirSync(outDir, { recursive: true });
 
 const panelUrl =
   "file://" +
-  join(here, "..", "resources", "design-plugins", "artemis-design", "panel", "index.html");
+  join(
+    here,
+    "..",
+    "resources",
+    "design-plugins",
+    "artemis-design",
+    "panel",
+    "index.html",
+  );
 
 const TEST_DOC = `<!doctype html>
 <html><head><style>
@@ -81,7 +89,9 @@ app.whenReady().then(async () => {
   await shot("02-files-populated.png");
 
   // 打开第一个文档
-  await win.webContents.executeJavaScript(`document.querySelectorAll(".design-file-card")[0].click()`);
+  await win.webContents.executeJavaScript(
+    `document.querySelectorAll(".design-file-card")[0].click()`,
+  );
   await win.webContents.executeJavaScript(
     `window.__fromHost({ type: "document-html", html: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
   );
@@ -92,12 +102,18 @@ app.whenReady().then(async () => {
     document.querySelector('[data-dz-device="mobile"]').click();
   `);
   await shot("04-preview-mobile.png");
-  await win.webContents.executeJavaScript(`document.querySelector('[data-dz-device="desktop"]').click();`);
+  await win.webContents.executeJavaScript(
+    `document.querySelector('[data-dz-device="desktop"]').click();`,
+  );
 
   // 代码视图
-  await win.webContents.executeJavaScript(`document.getElementById("dzModeSource").click()`);
+  await win.webContents.executeJavaScript(
+    `document.getElementById("dzModeSource").click()`,
+  );
   await shot("05-source-view.png");
-  await win.webContents.executeJavaScript(`document.getElementById("dzModePreview").click()`);
+  await win.webContents.executeJavaScript(
+    `document.getElementById("dzModePreview").click()`,
+  );
 
   // 注释模式：点 hero h1
   await win.webContents.executeJavaScript(`
@@ -117,14 +133,22 @@ app.whenReady().then(async () => {
   await shot("07-annotation-pin.png");
 
   // 评论面板
-  await win.webContents.executeJavaScript(`document.getElementById("dzCommentListBtn").click()`);
+  await win.webContents.executeJavaScript(
+    `document.getElementById("dzCommentListBtn").click()`,
+  );
   await shot("08-comment-panel.png");
-  await win.webContents.executeJavaScript(`document.getElementById("dzCommentPanelClose").click()`);
+  await win.webContents.executeJavaScript(
+    `document.getElementById("dzCommentPanelClose").click()`,
+  );
 
   // 画板模式
-  await win.webContents.executeJavaScript(`document.getElementById("dzDrawBtn").click()`);
+  await win.webContents.executeJavaScript(
+    `document.getElementById("dzDrawBtn").click()`,
+  );
   await shot("09-draw-mode.png");
-  await win.webContents.executeJavaScript(`document.getElementById("dzDrawBtn").click()`);
+  await win.webContents.executeJavaScript(
+    `document.getElementById("dzDrawBtn").click()`,
+  );
 
   // 版本历史
   await win.webContents.executeJavaScript(`
@@ -162,6 +186,9 @@ app.whenReady().then(async () => {
   results.push(interaction);
   console.log("interaction:", JSON.stringify(interaction, null, 2));
 
-  writeFileSync(join(outDir, "interaction.json"), JSON.stringify(interaction, null, 2));
+  writeFileSync(
+    join(outDir, "interaction.json"),
+    JSON.stringify(interaction, null, 2),
+  );
   app.quit();
 });

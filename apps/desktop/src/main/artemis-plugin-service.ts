@@ -77,9 +77,7 @@ import { assertNativeManifestVersion } from "../shared/plugin-manifest.js";
  * artemis.plugin.json filename with a different contract — they are not
  * design plugins and must never hit the strict design schema.
  */
-function parseDesignPluginManifest(
-  value: unknown,
-): PluginManifest | undefined {
+function parseDesignPluginManifest(value: unknown): PluginManifest | undefined {
   if (!value || typeof value !== "object") return undefined;
   const engines = (value as { engines?: { artemisPluginApi?: unknown } })
     .engines;
@@ -3899,9 +3897,8 @@ export class ArtemisPluginService {
     // The revision content is the plugin directory the install parsed
     // (artemis.plugin.json + panel + runtime + schema).
     const sourceRoot = parsed.root;
-    const contentHash = await PluginRevisionStore.computeContentHash(
-      sourceRoot,
-    );
+    const contentHash =
+      await PluginRevisionStore.computeContentHash(sourceRoot);
     const published = await revisionStore.publish({
       installationId: manifest.id,
       contentHash,

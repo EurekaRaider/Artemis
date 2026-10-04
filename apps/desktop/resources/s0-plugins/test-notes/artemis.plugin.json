@@ -6,7 +6,10 @@
   "projectTypes": [
     {
       "id": "s0-notes",
-      "title": { "zh-CN": "S0 笔记（测试插件）", "en": "S0 Notes (test plugin)" },
+      "title": {
+        "zh-CN": "S0 笔记（测试插件）",
+        "en": "S0 Notes (test plugin)"
+      },
       "targets": ["project", "temporary"],
       "panelIds": ["notes"]
     }

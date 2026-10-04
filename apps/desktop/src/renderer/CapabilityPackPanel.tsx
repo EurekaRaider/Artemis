@@ -146,7 +146,9 @@ export function CapabilityPackPanel({
           <div className="office-version" key={version.version}>
             <div className="office-version-header">
               <div className="office-version-info">
-                <strong>{version.active ? copy.installed : copy.inactive}</strong>
+                <strong>
+                  {version.active ? copy.installed : copy.inactive}
+                </strong>
                 <span className="office-capability-hint">
                   {version.version} · {(version.bytes / 1024 / 1024).toFixed(1)}{" "}
                   MiB
@@ -157,7 +159,9 @@ export function CapabilityPackPanel({
                   <Button
                     variant="quiet"
                     disabled={operationBusy}
-                    onClick={() => void run(() => api.activate(version.version))}
+                    onClick={() =>
+                      void run(() => api.activate(version.version))
+                    }
                   >
                     {copy.rollback}
                   </Button>
@@ -197,7 +201,9 @@ export function CapabilityPackPanel({
               ) : !status?.canCheckUpdates ? (
                 <p>{copy.updatesUnavailable}</p>
               ) : status.updateCheck === "checked" ? (
-                <p>{status.availableVersion ? copy.upToDate : copy.noUpdates}</p>
+                <p>
+                  {status.availableVersion ? copy.upToDate : copy.noUpdates}
+                </p>
               ) : null}
             </div>
             <div className="office-actions">

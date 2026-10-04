@@ -3,9 +3,15 @@
 // 另一个假设：executeJavaScript 默认在 isolated world 执行！探针挂在了 isolated world，
 // 而 postMessage 的 message 事件发到 main world —— 两个 world 的 window 不是同一个。
 // 验证：main world 与 isolated world 各挂探针，看消息到哪个 world。
-import { app, BrowserWindow, WebContentsView, MessageChannelMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  WebContentsView,
+  MessageChannelMain,
+} from "electron";
 
-const PANEL = "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/bfa5491035e62b88ee92a36d9a655dbcb36557c0ae76eebedb2fe39cf3b0093d/panel/index.html";
+const PANEL =
+  "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/bfa5491035e62b88ee92a36d9a655dbcb36557c0ae76eebedb2fe39cf3b0093d/panel/index.html";
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 900, height: 700, show: true });
@@ -48,7 +54,9 @@ app.whenReady().then(async () => {
   h.postMessage({ type: "ping" });
   await new Promise((r) => setTimeout(r, 400));
 
-  const mainWorld = await wc.executeJavaScript(`window.__mainWorld || { note: "main world 无探针（说明注入也进了 isolated）" }`);
+  const mainWorld = await wc.executeJavaScript(
+    `window.__mainWorld || { note: "main world 无探针（说明注入也进了 isolated）" }`,
+  );
   console.log("main world 消息事件:", JSON.stringify(mainWorld));
 
   app.exit(0);

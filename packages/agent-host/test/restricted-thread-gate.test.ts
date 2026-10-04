@@ -207,8 +207,6 @@ describe("missingRestrictedSessionTools (session-start validation)", () => {
       ].map((name) => ({ name })),
       { name: "shell" },
     ];
-    expect(
-      missingRestrictedSessionTools(registered, []),
-    ).toEqual([]);
+    expect(missingRestrictedSessionTools(registered, [])).toEqual([]);
   });
 });

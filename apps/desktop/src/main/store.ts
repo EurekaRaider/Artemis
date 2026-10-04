@@ -410,6 +410,21 @@ interface PluginOperationRow {
   updated_at: string;
 }
 
+/**
+ * PR#245 P2-12：plugin_operations 的合法前向迁移表。终态只接受自身重放
+ *（幂等再提交），任何回退/终态后重启执行都在 recordPluginOperation 抛错。
+ */
+const PLUGIN_OPERATION_TRANSITIONS: Record<
+  PluginOperationRow["state"],
+  ReadonlySet<PluginOperationRow["state"]>
+> = {
+  prepared: new Set(["running", "cancelled", "succeeded", "failed"]),
+  running: new Set(["succeeded", "failed", "cancelled"]),
+  succeeded: new Set(["succeeded"]),
+  failed: new Set(["failed"]),
+  cancelled: new Set(["cancelled"]),
+};
+
 function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
   return {
     id: row.id,
@@ -1312,11 +1327,7 @@ export class AppStore {
             SET revoked_at = ?, updated_at = ?
           WHERE installation_id = ? AND revoked_at IS NULL`,
       )
-      .run(
-        new Date().toISOString(),
-        new Date().toISOString(),
-        installationId,
-      );
+      .run(new Date().toISOString(), new Date().toISOString(), installationId);
     return Number(result.changes);
   }
 
@@ -1386,15 +1397,25 @@ export class AppStore {
    * Transition a submission through the protocol state machine. Invalid
    * transitions throw; valid ones update state, reason and timestamp in one
    * statement. Crash-window recovery reads the rows and reconciles instead of
-   * blind re-dispatch.
+   * blind re-dispatch. PR#245 P2-10: an optional turnId binds the submission
+   * to the turn it started (immutable once set; a conflicting rebind throws).
    */
   transitionPromptSubmission(
     submissionId: string,
     nextState: SubmissionState,
     reason: string,
+    turnId?: string,
   ): SubmissionLedgerRecord {
     const current = this.getPromptSubmission(submissionId);
     if (!current) throw new Error(`Unknown submission: ${submissionId}`);
+    // Rebind check precedes transition validity: a turn conflict must be
+    // reported as a rebind refusal even when the state transition itself
+    // would be illegal (e.g. running → running with a different turn).
+    if (turnId && current.turnId && current.turnId !== turnId) {
+      throw new Error(
+        `Submission ${submissionId} is bound to turn ${current.turnId}; refusing rebind to ${turnId}`,
+      );
+    }
     if (!isValidSubmissionTransition(current.state, nextState)) {
       throw new Error(
         `Illegal submission transition: ${current.state} -> ${nextState}`,
@@ -1403,10 +1424,17 @@ export class AppStore {
     this.database
       .prepare(
         `UPDATE prompt_submissions
-         SET state = ?, last_transition_reason = ?, updated_at = ?
+         SET state = ?, last_transition_reason = ?, updated_at = ?,
+             turn_id = COALESCE(?, turn_id)
          WHERE submission_id = ?`,
       )
-      .run(nextState, reason, new Date().toISOString(), submissionId);
+      .run(
+        nextState,
+        reason,
+        new Date().toISOString(),
+        turnId ?? null,
+        submissionId,
+      );
     return this.getPromptSubmission(submissionId)!;
   }
 
@@ -1470,11 +1498,7 @@ export class AppStore {
            FROM plugin_state_heads
           WHERE thread_id = ? AND plugin_id = ? AND state_schema_version = ?`,
       )
-      .get(
-        input.threadId,
-        input.pluginId,
-        input.stateSchemaVersion,
-      ) as
+      .get(input.threadId, input.pluginId, input.stateSchemaVersion) as
       | {
           stateRevision: string;
           snapshotId: string;
@@ -1552,8 +1576,16 @@ export class AppStore {
 
   /**
    * Record a plugin operation. Repeated calls with the same operationId and
-   * identical request digest return the original state instead of executing
-   * again (§6.1 idempotency).
+   * identical request digest are resolved by the state machine below instead
+   * of silently returning (PR#245 P2-12: the old early-return made
+   * running→succeeded writes no-ops, leaving terminal operations stuck in
+   * `running`).
+   *
+   * Legal forward transitions only: prepared→running→succeeded/failed/
+   * cancelled (and prepared→cancelled). A terminal state accepts only the
+   * idempotent re-commit of itself; anything else — replays after terminal
+   * states, backwards moves, or digest conflicts — throws so the caller can
+   * stop re-executing and surface the stored outcome.
    */
   recordPluginOperation(operation: {
     operationId: string;
@@ -1575,6 +1607,27 @@ export class AppStore {
           `Operation ${operation.operationId} replayed with a different request digest; refusing.`,
         );
       }
+      const allowed = PLUGIN_OPERATION_TRANSITIONS[existing.state];
+      if (!allowed || !allowed.has(operation.state)) {
+        throw new Error(
+          `Operation ${operation.operationId} is ${existing.state}; transition to ${operation.state} is refused.`,
+        );
+      }
+      if (existing.state === operation.state) return;
+      this.database
+        .prepare(
+          `UPDATE plugin_operations
+           SET state = ?, result_ref = COALESCE(?, result_ref), error = ?,
+               updated_at = ?
+           WHERE operation_id = ?`,
+        )
+        .run(
+          operation.state,
+          operation.resultRef ?? null,
+          operation.error ?? null,
+          now,
+          operation.operationId,
+        );
       return;
     }
     this.database
@@ -1596,6 +1649,39 @@ export class AppStore {
         now,
         now,
       );
+  }
+
+  /**
+   * PR#245 P2-12：读取操作账本的当前状态，供调用方在执行前做重放判定
+   *（已成功的操作直接取回已存结果，不再重复执行）。
+   */
+  readPluginOperation(operationId: string):
+    | {
+        operationId: string;
+        threadId: string;
+        pluginId: string;
+        toolName: string;
+        requestDigest: string;
+        state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+        resultRef?: string;
+        error?: string;
+      }
+    | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM plugin_operations WHERE operation_id = ?")
+      .get(operationId) as PluginOperationRow | undefined;
+    if (!row) return undefined;
+    return {
+      operationId: row.operation_id,
+      threadId: row.thread_id,
+      pluginId: row.plugin_id,
+      toolName: row.tool_name,
+      requestDigest: row.request_digest,
+      state: row.state as
+        "prepared" | "running" | "succeeded" | "failed" | "cancelled",
+      ...(row.result_ref ? { resultRef: row.result_ref } : {}),
+      ...(row.error ? { error: row.error } : {}),
+    };
   }
 
   /**

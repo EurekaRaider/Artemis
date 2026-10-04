@@ -110,8 +110,7 @@ export class CapabilityPackService {
       const version =
         typeof fromPacks === "string"
           ? fromPacks
-          : this.packId === "office-core" &&
-              typeof value?.version === "string"
+          : this.packId === "office-core" && typeof value?.version === "string"
             ? value.version
             : undefined;
       if (!version || typeof version !== "string") return undefined;

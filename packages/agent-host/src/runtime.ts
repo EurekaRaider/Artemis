@@ -3632,9 +3632,25 @@ export class ArtemisAgentHost {
       throw new Error("Group sessions require a verified IM security context.");
     const current = this.threads.get(request.threadId);
     if (current) {
-      return current.session.sessionFile
-        ? { sessionFile: current.session.sessionFile }
-        : {};
+      // PR#245 P1-5：复用必须同 profile。绑定设计插件会把持久化 profile 换
+      // 成受限档；带着旧 profile 复用会话等于保留完整工具集（bash 等），
+      // 「打开面板即收紧权限」就失效了。profile 变化时原子重建会话
+      //（沿用 sessionFile，历史不丢）；回合进行中无法安全重建则拒绝
+      //（fail-closed，主进程执行边界重检仍兜底）。
+      if (
+        (current.executionProfile ?? undefined) !==
+        (request.executionProfile ?? undefined)
+      ) {
+        if (current.currentTurnId)
+          throw new Error(
+            "Cannot switch the task execution profile while a turn is active; retry after the turn ends.",
+          );
+        await this.closeThread(request.threadId);
+      } else {
+        return current.session.sessionFile
+          ? { sessionFile: current.session.sessionFile }
+          : {};
+      }
     }
 
     const invokeRemoteOperation = async (
@@ -6265,7 +6281,12 @@ export class ArtemisAgentHost {
         )
       : undefined;
     const hooksBridge = createHooksBridge({
-      enabled: () => this.configuration.hooksEnabled === true,
+      // PR#245 P1-6：受限 profile 的任务在会话装配侧就不装 Hooks——
+      // hooksEnabled 只控制全局开关，不构成 per-thread 边界。主进程
+      // hook.run 入口另有一重拒绝（双拒）。
+      enabled: () =>
+        this.configuration.hooksEnabled === true &&
+        request.executionProfile !== RESTRICTED_PROFILE_ID,
       broker: this.broker,
       threadId: request.threadId,
       cwd: request.workspacePath,
@@ -6409,8 +6430,7 @@ export class ArtemisAgentHost {
     // Restricted-profile gating (proposal §7): for plugin-restricted threads,
     // layer 1 filters denied tools out of the model-visible list and layer 2
     // wraps every surviving tool's execute with a pre-dispatch guard.
-    const restrictedThread =
-      request.executionProfile === RESTRICTED_PROFILE_ID;
+    const restrictedThread = request.executionProfile === RESTRICTED_PROFILE_ID;
     const customTools = restrictedThread
       ? [
           ...assembledToolsAll
@@ -6705,22 +6725,21 @@ export class ArtemisAgentHost {
       mcpDirectToolNames,
       // Restricted threads never delegate: plan/review toolsets are denied
       // by the profile, and the layer-2 guard refuses any leaked dispatch.
-      delegatedTools: (
-        restrictedThread
-          ? []
-          : [
-              ...session.agent.state.tools.filter((tool) =>
-                tool.name.startsWith("attachment_"),
-              ),
-              readSessionTool,
-              webSearchSessionTool,
-              requestUserInputSessionTool,
-              updatePlanSessionTool,
-              getGoalSessionTool,
-              spawnAgentSessionTool,
-              ...teamSessionTools,
-              ...childControlSessionTools,
-            ]
+      delegatedTools: (restrictedThread
+        ? []
+        : [
+            ...session.agent.state.tools.filter((tool) =>
+              tool.name.startsWith("attachment_"),
+            ),
+            readSessionTool,
+            webSearchSessionTool,
+            requestUserInputSessionTool,
+            updatePlanSessionTool,
+            getGoalSessionTool,
+            spawnAgentSessionTool,
+            ...teamSessionTools,
+            ...childControlSessionTools,
+          ]
       ).filter((tool): tool is SessionTool => Boolean(tool)),
       executeTools,
       childAgents: new Map(),

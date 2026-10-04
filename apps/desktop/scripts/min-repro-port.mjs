@@ -1,7 +1,13 @@
 // 最小复现：定位 port 送达失败的环节。逐步测试 artemis:port 自定义事件的 ports 传递。
-import { app, BrowserWindow, WebContentsView, MessageChannelMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  WebContentsView,
+  MessageChannelMain,
+} from "electron";
 
-const PANEL = "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/bfa5491035e62b88ee92a36d9a655dbcb36557c0ae76eebedb2fe39cf3b0093d/panel/index.html";
+const PANEL =
+  "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/bfa5491035e62b88ee92a36d9a655dbcb36557c0ae76eebedb2fe39cf3b0093d/panel/index.html";
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 900, height: 700, show: true });
@@ -28,7 +34,9 @@ app.whenReady().then(async () => {
   wc.postMessage("artemis:port", null, [panelPort]);
   await new Promise((r) => setTimeout(r, 500));
 
-  const probe1 = await wc.executeJavaScript(`window.__probe || "（无探针）"`).catch((e) => "执行失败: " + e.message);
+  const probe1 = await wc
+    .executeJavaScript(`window.__probe || "（无探针）"`)
+    .catch((e) => "执行失败: " + e.message);
   console.log("probe1（原生 message 路径后）:", probe1);
 
   // 在面板里挂诊断探针再试一次（新 port 对）

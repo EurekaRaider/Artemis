@@ -12,7 +12,7 @@ import type { PromptAttachment } from "@artemis/protocol";
 const document = {
   documentId: "doc-1",
   documentName: "customer.html",
-  html: "<!doctype html><html><body><button class=\"primary\">保存设置</button></body></html>",
+  html: '<!doctype html><html><body><button class="primary">保存设置</button></body></html>',
 };
 
 const annotation = {
@@ -85,7 +85,7 @@ describe("design annotation hint (message body)", () => {
     expect(hint).toContain("position: x312 y480 88x44");
     expect(hint).toContain("currentText: 保存设置");
     expect(hint).toContain(
-      "htmlHint: <button class=\"primary\">保存设置</button>",
+      'htmlHint: <button class="primary">保存设置</button>',
     );
     expect(hint).toContain("computedStyle: color:#ffffff; background:#0f172a");
   });

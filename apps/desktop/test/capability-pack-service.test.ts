@@ -463,7 +463,10 @@ function zipEntries(entries: Array<{ name: string; bytes: Buffer }>): Buffer {
 }
 
 const DESIGN_FILES = [
-  { name: "artemis.plugin.json", bytes: Buffer.from('{"id":"artemis-design"}') },
+  {
+    name: "artemis.plugin.json",
+    bytes: Buffer.from('{"id":"artemis-design"}'),
+  },
   { name: "panel/index.html", bytes: Buffer.from("<html>panel</html>") },
   { name: "runtime/index.mjs", bytes: Buffer.from("export {}") },
 ];
@@ -523,16 +526,18 @@ describe("software capability packs (multi-pack namespaces)", () => {
       dependents: async () => [],
       fetch: vi.fn(async () => new Response(archive)),
     });
-    await design.install(signedSoftware(archive, DESIGN_FILES, { version: "0.2.0" }));
+    await design.install(
+      signedSoftware(archive, DESIGN_FILES, { version: "0.2.0" }),
+    );
     const status = await design.status();
     expect(status.id).toBe("artemis-design");
     expect(status.activeVersion).toBe("0.2.0");
     expect(status.versions.map((entry) => entry.version)).toEqual(["0.2.0"]);
     const lease = await design.acquire();
     expect(lease.root).toContain(join("artemis-design", "0.2.0", "payload"));
-    expect(await readFile(join(lease.root, "artemis.plugin.json"), "utf8")).toContain(
-      "artemis-design",
-    );
+    expect(
+      await readFile(join(lease.root, "artemis.plugin.json"), "utf8"),
+    ).toContain("artemis-design");
     lease.release();
     // The pointer file holds one entry per pack.
     const pointer = JSON.parse(
@@ -559,7 +564,9 @@ describe("software capability packs (multi-pack namespaces)", () => {
     expect(office.id).toBe("office-core");
     expect(office.versions.map((entry) => entry.version)).toEqual(["1.0.0"]);
     const designStatus = await design.status();
-    expect(designStatus.versions.map((entry) => entry.version)).toEqual(["0.1.0"]);
+    expect(designStatus.versions.map((entry) => entry.version)).toEqual([
+      "0.1.0",
+    ]);
     // Pointer map carries both entries.
     const pointer = JSON.parse(
       await readFile(join(f.root, "packs/active.json"), "utf8"),

@@ -1817,9 +1817,7 @@ export function ResourceCenter({
                 <Button
                   variant="quiet"
                   size="compact"
-                  onClick={() =>
-                    void window.artemis.cancelDesignCapability()
-                  }
+                  onClick={() => void window.artemis.cancelDesignCapability()}
                 >
                   {copy.cancel}
                 </Button>
@@ -1843,10 +1841,7 @@ export function ResourceCenter({
                         )
                     }
                   >
-                    {copy.updateNow.replace(
-                      "{version}",
-                      status.updateVersion,
-                    )}
+                    {copy.updateNow.replace("{version}", status.updateVersion)}
                   </Button>
                 ) : null}
                 <Button

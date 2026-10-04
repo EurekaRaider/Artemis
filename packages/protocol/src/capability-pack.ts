@@ -48,10 +48,7 @@ const capabilityFileSchema = z
     executable: z.boolean(),
   })
   .strict();
-const capabilityFilesSchema = z
-  .array(capabilityFileSchema)
-  .min(1)
-  .max(50_000);
+const capabilityFilesSchema = z.array(capabilityFileSchema).min(1).max(50_000);
 const capabilitySignatureSchema = z
   .object({
     keyId: z.string().regex(/^[a-zA-Z0-9._-]{1,100}$/u),

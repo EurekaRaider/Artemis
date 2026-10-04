@@ -97,7 +97,9 @@ export function addDesignDocumentAttachment(
  * 预算：currentText 160、htmlHint 180；超长以 ... 收尾）。
  */
 function trimOneLine(value: string | undefined | null, max: number): string {
-  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  const text = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   return text.length > max ? `${text.slice(0, max - 3)}...` : text;
 }
 
@@ -188,7 +190,9 @@ export function buildDesignAnnotationHint(
           : "";
       lines.push(`position: x${item.x} y${item.y}${size}`);
     }
-    lines.push(`currentText: ${trimOneLine(item.currentText, 160) || "(empty)"}`);
+    lines.push(
+      `currentText: ${trimOneLine(item.currentText, 160) || "(empty)"}`,
+    );
     lines.push(`htmlHint: ${trimOneLine(item.htmlHint, 180) || "(none)"}`);
     const style = trimOneLine(item.style, 400);
     if (style) lines.push(`computedStyle: ${style}`);

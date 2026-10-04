@@ -6,11 +6,7 @@
 // App 的 DesignSparkIcon——图标改动须两处同步。
 
 export type WorkspaceTabMenuKind =
-  | "review"
-  | "terminal"
-  | "browser"
-  | "file"
-  | "design";
+  "review" | "terminal" | "browser" | "file" | "design";
 
 export interface WorkspaceTabMenuEntry {
   kind: WorkspaceTabMenuKind;

@@ -6,7 +6,10 @@
   "projectTypes": [
     {
       "id": "s0-shapes",
-      "title": { "zh-CN": "S0 图形（测试插件）", "en": "S0 Shapes (test plugin)" },
+      "title": {
+        "zh-CN": "S0 图形（测试插件）",
+        "en": "S0 Shapes (test plugin)"
+      },
       "targets": ["project", "temporary"],
       "panelIds": ["shapes"]
     }

@@ -17,7 +17,13 @@
 //        NEW version. Stale writers get a conflict carrying currentRevision
 //        so they can rebase instead of overwriting (§10.1).
 
-import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  readdir,
+  writeFile,
+} from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 
@@ -161,6 +167,29 @@ async function headVersion(documentId) {
   return restored ?? versions.at(-1);
 }
 
+// PR#245 P1-4：documentId 一律过形态校验（运行时生成的 uuid：小写十六
+// 进制+连字符），杜绝把 ../ 之类拼进 documents/ 路径。
+const DOCUMENT_ID_PATTERN = /^[0-9a-f][0-9a-f-]{7,63}$/;
+function invalidDocumentId(documentId) {
+  return (
+    typeof documentId !== "string" || !DOCUMENT_ID_PATTERN.test(documentId)
+  );
+}
+
+// PR#245 P2-13：新序号必须取「全部历史（含被撤销掉的未来版本）的最大
+// 序号 + 1」。只按 HEAD.sequence + 1 会在撤销后编辑时与磁盘上既存的
+// 被撤销版本撞号（同 v3 两份不同内容），历史就乱了。
+async function nextSequenceNumber(documentId) {
+  const versions = await readVersions(documentId);
+  return (
+    versions.reduce((max, version) => Math.max(max, version.sequence), 0) + 1
+  );
+}
+
+async function headMarkerFile(documentId) {
+  return join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD");
+}
+
 const tools = {
   async create_document(args) {
     const name = String(args?.name ?? "").trim();
@@ -179,7 +208,10 @@ const tools = {
     }
     const documentId = crypto.randomUUID();
     const html = renderDocumentHtml(name, brief);
-    const revision = createHash("sha256").update(html).digest("hex").slice(0, 16);
+    const revision = createHash("sha256")
+      .update(html)
+      .digest("hex")
+      .slice(0, 16);
     const directory = join(process.cwd(), DOCUMENTS_DIR, documentId);
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, `v1-${revision}.html`), html, "utf8");
@@ -202,8 +234,8 @@ const tools = {
 
   async list_versions(args) {
     const documentId = String(args?.documentId ?? "");
-    if (!documentId) {
-      return { status: "failed", error: "documentId must be non-empty" };
+    if (invalidDocumentId(documentId)) {
+      return { status: "failed", error: "invalid documentId" };
     }
     const versions = await readVersions(documentId);
     return {
@@ -222,14 +254,31 @@ const tools = {
   async get_snapshot() {
     const ledger = await readLedger();
     // 按 id 聚合：编辑条目（apply_edit 追加，无 name/brief）不能透传成
-    // 独立文档，否则面板按 name 分类时直接崩（name undefined）。
+    // 独立文档，否则面板按 name 分类时直接崩（name undefined）。删除墓碑
+    // （P2-16 deleteDocument）之后的条目一律跳过，文档不再列出。
     const byId = new Map();
+    const deletedIds = new Set();
     for (const record of ledger) {
-      const entry = byId.get(record.id) ?? { id: record.id, name: "", brief: "", updatedAt: "" };
+      if (record.deleted) {
+        deletedIds.add(record.id);
+        continue;
+      }
+      if (deletedIds.has(record.id)) continue;
+      const entry = byId.get(record.id) ?? {
+        id: record.id,
+        name: "",
+        brief: "",
+        updatedAt: "",
+      };
       if (record.name) entry.name = record.name;
       if (record.brief && !entry.brief) entry.brief = record.brief;
       // 卡片「相对时间」用的最近活动时间（创建/编辑/恢复取最新）
-      const ts = record.editedAt || record.restoredAt || record.createdAt || record.undoneAt || record.redoneAt;
+      const ts =
+        record.editedAt ||
+        record.restoredAt ||
+        record.createdAt ||
+        record.undoneAt ||
+        record.redoneAt;
       if (ts && ts > entry.updatedAt) entry.updatedAt = ts;
       byId.set(record.id, entry);
     }
@@ -255,7 +304,10 @@ const tools = {
     const operationId = String(args?.operationId ?? "");
     const find = String(args?.find ?? "");
     const replace = String(args?.replace ?? "");
-    if (!documentId || !expectedRevision || !operationId) {
+    if (invalidDocumentId(documentId)) {
+      return { status: "failed", error: "invalid documentId" };
+    }
+    if (!expectedRevision || !operationId) {
       return {
         status: "failed",
         error: "documentId, expectedRevision and operationId are required",
@@ -296,7 +348,9 @@ const tools = {
       };
     }
     const nextHtml = head.html.replace(find, replace);
-    const nextSequence = head.sequence + 1;
+    // P2-13：序号取全历史最大值+1（撤销后 head.sequence+1 会与被撤销
+    // 版本撞号），写入后推进 HEAD。
+    const nextSequence = await nextSequenceNumber(documentId);
     const nextRevision = createHash("sha256")
       .update(nextHtml)
       .digest("hex")
@@ -317,7 +371,7 @@ const tools = {
     });
     // 推进 HEAD：否则面板/snapshot 仍读旧版本，且下一次 CAS 编辑必然冲突
     await writeFile(
-      join(directory, "HEAD"),
+      await headMarkerFile(documentId),
       `${nextSequence}-${nextRevision}\n`,
       "utf8",
     );
@@ -335,19 +389,47 @@ const tools = {
   async undo(args) {
     const documentId = String(args?.documentId ?? "");
     const operationId = String(args?.operationId ?? "");
-    if (!documentId || !operationId) {
-      return { status: "failed", error: "documentId and operationId are required" };
+    if (invalidDocumentId(documentId)) {
+      return { status: "failed", error: "invalid documentId" };
+    }
+    if (!operationId) {
+      return {
+        status: "failed",
+        error: "documentId and operationId are required",
+      };
     }
     const versions = await readVersions(documentId);
-    if (versions.length < 2) {
-      return { status: "failed", error: "nothing to undo (head is the first version)" };
+    if (versions.length === 0) {
+      return { status: "failed", error: `unknown document ${documentId}` };
     }
-    const head = versions.at(-1);
-    const previous = versions.at(-2);
+    // P2-13：撤销必须沿 HEAD 位置回退。按数值序取倒数第二个会在「连
+    // 续撤销」时永远停在同一版本（HEAD 重新指回当前版）。
+    const head = await headVersion(documentId);
+    if (!head) {
+      return { status: "failed", error: `unknown document ${documentId}` };
+    }
+    const headIndex = versions.findIndex(
+      (version) =>
+        version.sequence === head.sequence &&
+        version.revision === head.revision,
+    );
+    if (headIndex < 0) {
+      return {
+        status: "failed",
+        error: "head marker does not match any version",
+      };
+    }
+    if (headIndex === 0) {
+      return {
+        status: "failed",
+        error: "nothing to undo (head is the first version)",
+      };
+    }
+    const previous = versions[headIndex - 1];
     // Undo moves the HEAD marker; version files stay (auditable history).
     // Implemented as head-state file: documents/<id>/HEAD names the current.
     await writeFile(
-      join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
+      await headMarkerFile(documentId),
       `${previous.sequence}-${previous.revision}\n`,
       "utf8",
     );
@@ -375,7 +457,10 @@ const tools = {
     const documentId = String(args?.documentId ?? "");
     const revision = String(args?.revision ?? "");
     const operationId = String(args?.operationId ?? "");
-    if (!documentId || !revision || !operationId) {
+    if (invalidDocumentId(documentId)) {
+      return { status: "failed", error: "invalid documentId" };
+    }
+    if (!revision || !operationId) {
       return {
         status: "failed",
         error: "documentId, revision and operationId are required",
@@ -396,7 +481,7 @@ const tools = {
     if (head.revision === revision) {
       return { status: "failed", error: "target revision is already the head" };
     }
-    const nextSequence = head.sequence + 1;
+    const nextSequence = await nextSequenceNumber(documentId);
     const nextRevision = createHash("sha256")
       .update(target.html)
       .digest("hex")
@@ -418,7 +503,7 @@ const tools = {
       restoredAt: new Date().toISOString(),
     });
     await writeFile(
-      join(directory, "HEAD"),
+      await headMarkerFile(documentId),
       `${nextSequence}-${nextRevision}\n`,
       "utf8",
     );
@@ -437,36 +522,59 @@ const tools = {
   async redo(args) {
     const documentId = String(args?.documentId ?? "");
     const operationId = String(args?.operationId ?? "");
-    if (!documentId || !operationId) {
-      return { status: "failed", error: "documentId and operationId are required" };
+    if (invalidDocumentId(documentId)) {
+      return { status: "failed", error: "invalid documentId" };
     }
-    // Redo is only valid right after an undo of the latest version.
+    if (!operationId) {
+      return {
+        status: "failed",
+        error: "documentId and operationId are required",
+      };
+    }
+    // P2-13：redo = HEAD 跳回全局最新版本，仅在「HEAD 不在历史末尾」时
+    // 有效。撤销后一旦产生新版本，HEAD 就在末端，redo 自然拒绝——不会
+    // 越过新版本把旧内容拽回来（旧实现无条件跳到数值序最后，编辑后仍
+    // 会把 HEAD 拽走）。
     const versions = await readVersions(documentId);
-    const headMarker = await readFile(
-      join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
-      "utf8",
-    ).catch(() => null);
-    if (!headMarker) {
+    if (versions.length === 0) {
+      return { status: "failed", error: `unknown document ${documentId}` };
+    }
+    const head = await headVersion(documentId);
+    if (!head) {
+      return { status: "failed", error: `unknown document ${documentId}` };
+    }
+    const headIndex = versions.findIndex(
+      (version) =>
+        version.sequence === head.sequence &&
+        version.revision === head.revision,
+    );
+    if (headIndex < 0) {
+      return {
+        status: "failed",
+        error: "head marker does not match any version",
+      };
+    }
+    if (headIndex === versions.length - 1) {
       return { status: "failed", error: "nothing to redo (no undo in effect)" };
     }
-    const latest = versions.at(-1);
+    const target = versions.at(-1);
     await writeFile(
-      join(process.cwd(), DOCUMENTS_DIR, documentId, "HEAD"),
-      `${latest.sequence}-${latest.revision}\n`,
+      await headMarkerFile(documentId),
+      `${target.sequence}-${target.revision}\n`,
       "utf8",
     );
     await appendLedger({
       id: documentId,
       operationId,
-      redoneRevision: latest.revision,
+      redoneRevision: target.revision,
       redoneAt: new Date().toISOString(),
     });
     return {
       status: "succeeded",
       output: JSON.stringify({
         documentId,
-        headRevision: latest.revision,
-        redoneRevision: latest.revision,
+        headRevision: target.revision,
+        redoneRevision: target.revision,
       }),
     };
   },

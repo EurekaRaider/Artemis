@@ -1,13 +1,19 @@
 // 真实实例内面板验证脚本：本脚本作为独立 Electron 应用启动，
 // 模拟宿主把面板 WebContentsView 挂到窗口 + 发真实 port 下行，验证可点性。
 // 与宿主实现完全同构（file:// + postMessage port）——如果这里能点而实例不能，差异就在宿主侧。
-import { app, BrowserWindow, WebContentsView, MessageChannelMain } from "electron";
+import {
+  app,
+  BrowserWindow,
+  WebContentsView,
+  MessageChannelMain,
+} from "electron";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { writeFileSync } from "node:fs";
 
-const PANEL = "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/531ba0dc55c7c86d6e334f13cf23dcd67ed067884dd72ee6c0e86a0d5d912f9c/panel/index.html";
+const PANEL =
+  "/private/tmp/artemis-dev-user-data/plugins/plugin-revisions/com.artemis.design/531ba0dc55c7c86d6e334f13cf23dcd67ed067884dd72ee6c0e86a0d5d912f9c/panel/index.html";
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ width: 1180, height: 860, show: true });
@@ -16,7 +22,12 @@ app.whenReady().then(async () => {
       sandbox: true,
       nodeIntegration: false,
       contextIsolation: true,
-      preload: join(__dirname, "..", "dist-electron", "design-plugin-panel-preload.cjs"),
+      preload: join(
+        __dirname,
+        "..",
+        "dist-electron",
+        "design-plugin-panel-preload.cjs",
+      ),
     },
   });
   win.contentView.addChildView(view);
@@ -49,14 +60,21 @@ app.whenReady().then(async () => {
     type: "snapshot",
     snapshot: {
       documents: [
-        { documentId: "seed-customer", name: "customer.html", headRevision: "x", versionCount: 2 },
+        {
+          documentId: "seed-customer",
+          name: "customer.html",
+          headRevision: "x",
+          versionCount: 2,
+        },
       ],
       projectName: "设计验证",
     },
   });
   await new Promise((r) => setTimeout(r, 400));
 
-  const state2 = await wc.executeJavaScript(`document.querySelectorAll(".design-file-card").length`);
+  const state2 = await wc.executeJavaScript(
+    `document.querySelectorAll(".design-file-card").length`,
+  );
   console.log("快照后文件卡数:", state2);
 
   // 真实 DOM 点击文件卡（dispatchEvent 走完整冒泡，等同用户点击）
@@ -75,7 +93,12 @@ app.whenReady().then(async () => {
       "/private/tmp/artemis-dev-user-data/plugin-scratch/fa88e738-9f19-407b-8291-6b2abb19cf91/531ba0dc55c7c86d6e334f13cf23dcd67ed067884dd72ee6c0e86a0d5d912f9c/documents/seed-customer/v2-12771ba0e0b78686.html",
       "utf8",
     );
-    hostSide.postMessage({ type: "document-html", html, name: "customer.html", subtitle: "客户档案" });
+    hostSide.postMessage({
+      type: "document-html",
+      html,
+      name: "customer.html",
+      subtitle: "客户档案",
+    });
     await new Promise((r) => setTimeout(r, 500));
   }
 

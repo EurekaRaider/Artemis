@@ -35,6 +35,7 @@ export class PluginDispatchRefusedError extends Error {
       | "grant-revoked"
       | "mode-denied"
       | "tool-not-declared"
+      | "operation-conflict"
       | "sandbox-unavailable",
     message: string,
   ) {
@@ -54,9 +55,7 @@ export interface DispatchPluginToolInput {
 }
 
 export interface DispatchPluginToolStore {
-  getThread(
-    threadId: string,
-  ): unknown;
+  getThread(threadId: string): unknown;
   listPluginGrants(scopeId: string): Array<Record<string, unknown>>;
   recordPluginOperation(operation: {
     operationId: string;
@@ -68,6 +67,15 @@ export interface DispatchPluginToolStore {
     resultRef?: string;
     error?: string;
   }): void;
+  /** PR#245 P2-12：执行前读取既有操作，做重放判定。 */
+  readPluginOperation(operationId: string):
+    | {
+        state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+        requestDigest: string;
+        resultRef?: string;
+        error?: string;
+      }
+    | undefined;
   appendPluginEvent(event: {
     eventId: string;
     streamId: string;
@@ -122,9 +130,7 @@ export interface PluginDispatchHost {
    * the trust chain runs. The design plugin's removal sets this — a bound
    * revision surviving on disk must not keep a removed plugin usable.
    */
-  availabilityGate?: (input: { threadId: string }) => Promise<
-    string | null
-  >;
+  availabilityGate?: (input: { threadId: string }) => Promise<string | null>;
   /** Manifest tool declarations, resolved from the published revision. */
   loadPublishedManifest(input: {
     installationId: string;
@@ -162,6 +168,7 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     const store = host.store;
     const thread = store.getThread(input.threadId) as
       | {
+          mode?: "execute" | "plan" | "review";
           typeBinding?: {
             installationId: string;
             pluginId: string;
@@ -176,7 +183,12 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       | undefined;
     const binding = thread?.typeBinding;
     if (!thread || !binding) {
-      return refuse(store, input, "no-type-binding", "thread has no type binding");
+      return refuse(
+        store,
+        input,
+        "no-type-binding",
+        "thread has no type binding",
+      );
     }
 
     // Step 0: the plugin itself must still be installed. A surviving bound
@@ -208,7 +220,8 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         `no published revision at ${revisionRoot}`,
       );
     }
-    const actualHash = await PluginRevisionStore.computeContentHash(revisionRoot);
+    const actualHash =
+      await PluginRevisionStore.computeContentHash(revisionRoot);
     if (actualHash !== binding.contentHash) {
       return refuse(
         store,
@@ -224,13 +237,21 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       (grant) => grant.installation_id === binding.installationId,
     );
     if (matching.length === 0) {
-      return refuse(store, input, "grant-missing", "no plugin grant for this thread");
+      return refuse(
+        store,
+        input,
+        "grant-missing",
+        "no plugin grant for this thread",
+      );
     }
     if (matching.every((grant) => grant.revoked_at != null)) {
       return refuse(store, input, "grant-revoked", "all grants are revoked");
     }
 
-    // Profile/mode gate: plugin runtimes only run in execute mode.
+    // Profile/mode gate: plugin runtimes only run in execute mode. Both the
+    // caller-supplied mode AND the persisted task mode are checked (PR#245
+    // P1-7): a "mode: execute" claim from a Plan/Review task must not reach
+    // a filesystem-writing runtime.
     if (input.mode !== "execute") {
       return refuse(
         store,
@@ -239,9 +260,19 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         `mode ${input.mode} may not run plugin tools`,
       );
     }
+    if (thread.mode !== "execute") {
+      return refuse(
+        store,
+        input,
+        "mode-denied",
+        `persisted task mode is ${thread.mode ?? "unknown"}; plugin tools require execute`,
+      );
+    }
 
     // The tool must be declared by the published manifest.
-    const declared = published.tools.find((tool) => tool.name === input.toolName);
+    const declared = published.tools.find(
+      (tool) => tool.name === input.toolName,
+    );
     if (!declared) {
       return refuse(
         store,
@@ -253,6 +284,29 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
 
     const operationId = input.operationId ?? randomUUID();
     const requestDigest = `${actualHash}:${input.toolName}:${JSON.stringify(input.args)}`;
+    // PR#245 P2-12：重放判定。同 operationId 的重复请求不得再次执行——
+    // 已成功直接取回已存结果；进行中/失败/取消的既有操作原样返回状态，
+    // 调用方按非 succeeded 处理；digest 冲突（同 ID 不同参数）拒绝。
+    const prior = store.readPluginOperation(operationId);
+    if (prior) {
+      if (prior.requestDigest !== requestDigest) {
+        return refuse(
+          store,
+          input,
+          "operation-conflict",
+          `operation ${operationId} already exists with a different request digest`,
+        );
+      }
+      if (prior.state === "succeeded") {
+        return { status: "succeeded", result: undefined };
+      }
+      return {
+        status: prior.state,
+        error:
+          prior.error ??
+          `operation ${operationId} already exists in state ${prior.state}; not re-executed`,
+      };
+    }
     store.recordPluginOperation({
       operationId,
       threadId: input.threadId,
@@ -270,7 +324,40 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
         contentHash: binding.contentHash,
         toolName: input.toolName,
         args: input.args,
-      })) as { status?: string } | undefined;
+      })) as { status?: string; error?: string } | undefined;
+
+      // PR#245 P2-11：runtime 以返回值（而非异常）报告失败时必须传播——
+      // 失败不记录 succeeded、不推进状态提交、不追加成功事件、不触发
+      // 产物刷新。
+      const runtimeStatus =
+        typeof result?.status === "string" ? result.status : "succeeded";
+      if (runtimeStatus !== "succeeded") {
+        const runtimeError =
+          (typeof result?.error === "string" && result.error) ||
+          `runtime reported status ${runtimeStatus}`;
+        store.recordPluginOperation({
+          operationId,
+          threadId: input.threadId,
+          pluginId: binding.pluginId,
+          toolName: input.toolName,
+          requestDigest,
+          state: "failed",
+          error: runtimeError,
+        });
+        store.appendPluginEvent({
+          eventId: randomUUID(),
+          streamId: `thread/${input.threadId}/${binding.pluginId}`,
+          threadId: input.threadId,
+          schemaVersion: 1,
+          payload: {
+            kind: "tool-failed",
+            operationId,
+            toolName: input.toolName,
+            error: runtimeError,
+          },
+        });
+        return { status: "failed", error: runtimeError };
+      }
 
       store.recordPluginOperation({
         operationId,
@@ -321,7 +408,10 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
           },
         });
         try {
-          host.onArtifactWrite?.({ threadId: input.threadId, toolName: input.toolName });
+          host.onArtifactWrite?.({
+            threadId: input.threadId,
+            toolName: input.toolName,
+          });
         } catch {
           // Panel refresh is best-effort; never fail the tool result for it.
         }

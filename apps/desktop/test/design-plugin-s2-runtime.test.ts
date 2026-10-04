@@ -56,9 +56,15 @@ function childAlive(pid: number | undefined): boolean {
 }
 
 async function setupBoundThread() {
-  const revisionsRoot = join(directory, `plugin-revisions-${randomUUID().slice(0, 6)}`);
+  const revisionsRoot = join(
+    directory,
+    `plugin-revisions-${randomUUID().slice(0, 6)}`,
+  );
   const scratchRoot = join(directory, `scratch-${randomUUID().slice(0, 6)}`);
-  const databasePath = join(directory, `state-${randomUUID().slice(0, 6)}.sqlite`);
+  const databasePath = join(
+    directory,
+    `state-${randomUUID().slice(0, 6)}.sqlite`,
+  );
   const store = new AppStore(databasePath);
 
   const contentHash = await PluginRevisionStore.computeContentHash(
@@ -120,9 +126,16 @@ async function setupBoundThread() {
     availabilityGate: async ({ threadId: gated }) =>
       availabilityRefused.includes(gated) ? "设计插件已移除" : null,
     loadPublishedManifest: async (input) => {
-      const revisionRoot = join(revisionsRoot, input.installationId, input.contentHash);
+      const revisionRoot = join(
+        revisionsRoot,
+        input.installationId,
+        input.contentHash,
+      );
       try {
-        const bytes = await readFile(join(revisionRoot, "artemis.plugin.json"), "utf8");
+        const bytes = await readFile(
+          join(revisionRoot, "artemis.plugin.json"),
+          "utf8",
+        );
         const manifest = JSON.parse(bytes) as {
           tools: Array<{ name: string; effect: string }>;
           runtime: { entry: string };
@@ -137,7 +150,18 @@ async function setupBoundThread() {
       }
     },
   });
-  return { store, dispatch, threadId, binding, published, revisionsRoot, scratchRoot, databasePath, artifactWrites, availabilityRefused };
+  return {
+    store,
+    dispatch,
+    threadId,
+    binding,
+    published,
+    revisionsRoot,
+    scratchRoot,
+    databasePath,
+    artifactWrites,
+    availabilityRefused,
+  };
 }
 
 describe("S2 runtime isolation", () => {
@@ -254,14 +278,20 @@ describe("S2 runtime isolation", () => {
       pluginId: "com.artemis.design",
       contentHash: "lifecycle-test",
     };
-    const first = await manager.invoke({ ...base, toolName: "get_snapshot", args: {} });
+    const first = await manager.invoke({
+      ...base,
+      toolName: "get_snapshot",
+      args: {},
+    });
     const pid = manager.childPidOf("com.artemis.design", "lifecycle-test");
     expect(pid).toBeTruthy();
     expect(childAlive(pid)).toBe(true);
 
     // 第二次调用复用同一实例（同 PID）
     await manager.invoke({ ...base, toolName: "get_snapshot", args: {} });
-    expect(manager.childPidOf("com.artemis.design", "lifecycle-test")).toBe(pid);
+    expect(manager.childPidOf("com.artemis.design", "lifecycle-test")).toBe(
+      pid,
+    );
 
     // 并发两个调用：排队串行完成，都成功
     const [a, b] = await Promise.all([
@@ -298,7 +328,9 @@ describe("S2 runtime isolation", () => {
     // 懒 spawn 会重新拉起 worker 并正常执行（线程未关闭语义在
     // ThreadRuntimeManager 层由 closedThreads 集合保证——此处主进程
     // 派发器走的是 managerFor 新实例路径，语义为"树被杀"即验证目标）
-    expect(second.status === "succeeded" || second.status === "refused").toBe(true);
+    expect(second.status === "succeeded" || second.status === "refused").toBe(
+      true,
+    );
     ctx.store.close();
   }, 30_000);
 
@@ -425,22 +457,28 @@ describe("S2 runtime isolation", () => {
     const ctx = await setupBoundThread();
     const counts = () => ({
       snapshots: Number(
-        (ctx.store.database
-          .prepare("SELECT COUNT(*) AS n FROM plugin_snapshots")
-          .get() as { n: number }).n,
+        (
+          ctx.store.database
+            .prepare("SELECT COUNT(*) AS n FROM plugin_snapshots")
+            .get() as { n: number }
+        ).n,
       ),
       events: Number(
-        (ctx.store.database
-          .prepare("SELECT COUNT(*) AS n FROM plugin_events")
-          .get() as { n: number }).n,
+        (
+          ctx.store.database
+            .prepare("SELECT COUNT(*) AS n FROM plugin_events")
+            .get() as { n: number }
+        ).n,
       ),
     });
     const before = counts();
     // 原型链委托覆盖：保留 AppStore 全部方法，仅让事件写入中途抛错
     const failingStore = Object.create(ctx.store) as typeof ctx.store;
-    (failingStore as unknown as {
-      appendPluginEvent: () => void;
-    }).appendPluginEvent = () => {
+    (
+      failingStore as unknown as {
+        appendPluginEvent: () => void;
+      }
+    ).appendPluginEvent = () => {
       throw new Error("mid-transaction failure (test)");
     };
     expect(() =>

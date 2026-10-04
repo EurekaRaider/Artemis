@@ -43,7 +43,8 @@ export async function prepareImShellRuntime(): Promise<ImShellRuntime> {
       npm_config_userconfig: join(bin, "user.config"),
       npm_config_globalconfig: join(bin, "global.config"),
       npm_config_update_notifier: "false",
-    },    dispose: () => rm(root, { recursive: true, force: true }),
+    },
+    dispose: () => rm(root, { recursive: true, force: true }),
   };
   try {
     await mkdir(bin);
@@ -135,9 +136,7 @@ export async function prepareImShellRuntime(): Promise<ImShellRuntime> {
             }
           }
           if (!resolved)
-            throw new Error(
-              "Node runtime @rpath dependency did not resolve.",
-            );
+            throw new Error("Node runtime @rpath dependency did not resolve.");
           await inspect(resolved);
           continue;
         }

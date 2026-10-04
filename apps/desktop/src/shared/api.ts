@@ -1078,26 +1078,12 @@ export interface ArtemisApi {
     candidateText: string;
     submissionId: string;
   }>;
-  /**
-   * S4 export (host-owned action, proposal §10.3): copies the document's
-   * current version file to a host-chosen destination. Refuses path
-   * escapes and unknown documents.
-   */
-  exportDesignDocument(input: {
+  /** 「加入输入框」：staged 语义，提交不进 dispatching（PR#245 P2-10）。 */
+  stageDesignPanelSend(credential: string): Promise<{
     threadId: string;
-    documentId: string;
-    revision?: string;
-  }): Promise<{ path: string; revision: string }>;
-  /**
-   * S4 handoff (§10.3 coding handoff): create a NORMAL coding task from
-   * the selected design with a handoff summary. Idempotent by handoffId —
-   * a repeat call returns the existing task, never a duplicate.
-   */
-  handoffDesignToProject(input: {
-    threadId: string;
-    documentId: string;
-    handoffId: string;
-  }): Promise<{ threadId: string; created: boolean }>;
+    candidateText: string;
+    submissionId: string;
+  }>;
   /** Record the composer outcome (running/completed/failed). */
   reportDesignPanelSendOutcome(
     submissionId: string,
@@ -1556,9 +1542,8 @@ export const IPC = {
   workspaceTabMenuClosed: "artemis:workspace-tab-menu-closed",
   designPanelCandidateAccept: "artemis:design-panel-candidate-accept",
   designPanelSendConsume: "artemis:design-panel-send-consume",
+  designPanelSendStage: "artemis:design-panel-send-stage",
   designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",
-  designPanelExport: "artemis:design-panel-export",
-  designPanelHandoff: "artemis:design-panel-handoff",
   designPanelSendOutcome: "artemis:design-panel-send-outcome",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",

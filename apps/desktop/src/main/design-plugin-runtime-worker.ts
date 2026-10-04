@@ -4,12 +4,34 @@
 // protocol, performs the hello/ready handshake, dispatches tool invocations,
 // and guarantees teardown of the whole process tree on dispose.
 //
+// Process isolation (PR #245 review items):
+//   - The runtime launches through the packaged native OS sandbox: Seatbelt
+//     (sandbox-exec) on macOS via @artemis/platform's buildSeatbeltLaunch,
+//     the same helper/profile family the MCP stdio servers use. Writes are
+//     confined to the task-private scratch directory; reads cover the
+//     scratch, the plugin runtime directory that ships the entry, and the
+//     interpreter's own install roots; network is fully denied; process
+//     spawning stays allowed (profile parity with MCP stdio servers).
+//   - Sandbox failure REFUSES the launch. There is no unsandboxed fallback
+//     path on any platform: platforms without a wired sandbox throw, and a
+//     missing/unusable sandbox-exec wrapper throws before any spawn.
+//   - The child is spawned as its own process-group leader (detached) and
+//     dispose() SIGKILLs the whole group, so runtime-spawned grandchildren
+//     cannot outlive the worker — including on the crash path, where the
+//     child's exit handler reaps the remaining group immediately.
+//
 // S0 scope: single in-flight request per runtime, host-side timeout, no
 // generation/revision negotiation yet (those land with S2 trust wiring).
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { accessSync, constants, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+
+import { buildSeatbeltLaunch, type SandboxLaunch } from "@artemis/platform";
+
 import {
   FrameDecoder,
   RUNTIME_PROTOCOL_VERSION,
@@ -18,6 +40,9 @@ import {
   type RuntimeToHostMessage,
   type ToolResultMessage,
 } from "./design-plugin-runtime-protocol.js";
+import { macosAppRuntimeReadOnlyPaths } from "./macos-app-runtime.js";
+
+const SEATBELT_EXECUTABLE = "/usr/bin/sandbox-exec";
 
 export interface RuntimeSpawnOptions {
   /** Absolute path to the runtime entry (.mjs). */
@@ -30,12 +55,74 @@ export interface RuntimeSpawnOptions {
   readyTimeoutMs?: number;
   /** Per-invocation deadline; default 30s (proposal §9.4). */
   invokeTimeoutMs?: number;
+  /**
+   * Diagnostics/tests only: alternative sandbox-exec wrapper path, used to
+   * exercise the refusal path when the wrapper is missing. The wrapper must
+   * still enforce the generated Seatbelt profile — there is deliberately
+   * no option to disable sandboxing.
+   */
+  sandboxExecutable?: string;
 }
 
 interface PendingInvoke {
   resolve: (result: ToolResultMessage) => void;
   reject: (error: Error) => void;
   timer: NodeJS.Timeout;
+}
+
+function realpathOrSelf(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+/**
+ * Install-prefix root for an interpreter path, following the MCP stdio
+ * sandbox derivation (mcp-client-manager.ts). Homebrew builds keep the
+ * binary's dylibs (libnode, icu4c, openssl, …) across the whole prefix, so
+ * a bare binary directory is not enough; version managers get their
+ * versioned root. Keep both call sites in sync.
+ */
+function posixRuntimeReadRoot(path: string): string {
+  if (path === "/opt/homebrew" || path.startsWith("/opt/homebrew/")) {
+    return "/opt/homebrew";
+  }
+  if (path === "/usr/local" || path.startsWith("/usr/local/")) {
+    return "/usr/local";
+  }
+  for (const managed of [
+    join(homedir(), ".volta"),
+    join(homedir(), ".local"),
+  ]) {
+    if (path === managed || path.startsWith(`${managed}/`)) return managed;
+  }
+  const nvmVersion = path.match(/^(.+?\/\.nvm\/versions\/[^/]+\/[^/]+)/u);
+  return nvmVersion?.[1] ?? path;
+}
+
+/**
+ * Read-only roots the sandboxed runtime needs to boot: the interpreter
+ * (Node under vitest, the Electron binary in the packaged app — plus its
+ * bundle frameworks) and the plugin runtime directory that ships the entry.
+ * The entry's directory stays READ-ONLY: a writable code directory would
+ * let a runtime rewrite trusted, content-hashed code.
+ */
+function darwinRuntimeReadRoots(entry: string): string[] {
+  const roots = new Set<string>();
+  for (const candidate of [process.execPath, entry]) {
+    for (const path of [candidate, realpathOrSelf(candidate)]) {
+      roots.add(posixRuntimeReadRoot(dirname(path)));
+    }
+  }
+  for (const appPath of macosAppRuntimeReadOnlyPaths(
+    "darwin",
+    process.execPath,
+  )) {
+    roots.add(posixRuntimeReadRoot(appPath));
+  }
+  return [...roots];
 }
 
 export class PluginRuntimeWorker {
@@ -49,6 +136,15 @@ export class PluginRuntimeWorker {
   private pending = new Map<string, PendingInvoke>();
   private disposed = false;
   private stdoutClosed = false;
+  /** Tail of the runtime's stderr; surfaces sandbox/profile failures. */
+  private stderrTail = "";
+  /**
+   * Exactly-once guard for the process-group SIGKILL. Firing at the
+   * earliest of dispose() and the child's exit bounds the pid-reuse window:
+   * after the group is empty, a later kill(-pid) could only hit a recycled
+   * process-group id.
+   */
+  private groupKillIssued = false;
 
   constructor(private readonly options: RuntimeSpawnOptions) {}
 
@@ -56,15 +152,32 @@ export class PluginRuntimeWorker {
   async start(): Promise<ReadyMessage> {
     if (this.disposed) throw new Error("Worker already disposed.");
     if (this.ready) return this.ready;
-    this.child = spawn(process.execPath, [this.options.entry], {
-      cwd: this.options.cwd,
+    // Throws (refuses) on unsupported platforms and when the sandbox
+    // wrapper is unavailable — the runtime never spawns unsandboxed.
+    const launch = this.buildSandboxedLaunch();
+    this.child = spawn(launch.executable, launch.args, {
+      cwd: launch.cwd,
       stdio: ["pipe", "pipe", "pipe"],
       // Minimal environment: the runtime must not inherit host credentials.
-      // ELECTRON_RUN_AS_NODE is required because process.execPath is the
-      // Electron binary — without it each worker launches as a new app
-      // instance (second Dock icon, full app lifecycle) instead of running
-      // the runtime script as plain Node.
-      env: { NODE_OPTIONS: "", ELECTRON_RUN_AS_NODE: "1" },
+      // ELECTRON_RUN_AS_NODE is required because the interpreter is the
+      // Electron binary in the packaged app — without it each worker
+      // launches as a new app instance (second Dock icon, full app
+      // lifecycle) instead of running the runtime script as plain Node.
+      // TMPDIR pins any temp use into the writable task-private scratch.
+      env: launch.env,
+      // Own process group: sandbox-exec execs the runtime in place, so the
+      // spawned pid stays the group leader and killProcessTree() can
+      // reclaim the whole tree with kill(-pid) even when the runtime has
+      // spawned helpers of its own.
+      detached: process.platform !== "win32",
+    });
+    this.child.on("error", (error) => {
+      this.failAll(
+        new Error(`Runtime process failed to start: ${error.message}`),
+      );
+    });
+    this.child.stderr?.on("data", (chunk: Buffer) => {
+      this.stderrTail = (this.stderrTail + chunk.toString("utf8")).slice(-400);
     });
     this.child.stdout?.on("data", (chunk: Buffer) => {
       try {
@@ -82,9 +195,17 @@ export class PluginRuntimeWorker {
       }
     });
     this.child.on("exit", (code, signal) => {
+      // Crash path: the runtime died while its grandchildren may still be
+      // running. Reap the rest of the process group immediately (ESRCH
+      // just means the group is already empty).
+      this.killProcessTree();
       if (!this.disposed) {
         this.failAll(
-          new Error(`Runtime exited early (code=${code} signal=${signal}).`),
+          new Error(
+            `Runtime exited early (code=${code} signal=${signal})${
+              this.stderrTail ? `; stderr: ${this.stderrTail}` : ""
+            }.`,
+          ),
         );
       }
     });
@@ -108,6 +229,65 @@ export class PluginRuntimeWorker {
       );
     });
     return Promise.race([handshake, timeout]);
+  }
+
+  /**
+   * Build the sandboxed launch for this runtime.
+   *
+   * darwin: Seatbelt via the packaged @artemis/platform helper — the same
+   * profile family the MCP stdio servers run under. Writable surface is
+   * exactly the task-private scratch (cwd); the plugin runtime directory
+   * and interpreter roots are read-only; network is denied; (allow
+   * process*) in the packaged profile keeps process spawning working.
+   *
+   * Every other platform refuses: Windows AppContainer infrastructure
+   * exists in the repo but is not wired into the design-plugin chain yet
+   * (it needs the packaged helper path from the Electron main process).
+   * Refusing beats shipping an unsandboxed path.
+   */
+  private buildSandboxedLaunch(): SandboxLaunch {
+    if (process.platform !== "darwin") {
+      throw new Error(
+        `Design-plugin runtime requires the native OS sandbox; platform ${process.platform} has no wired sandbox implementation yet (Windows AppContainer pending). Refusing to start unsandboxed.`,
+      );
+    }
+    const sandboxExecutable =
+      this.options.sandboxExecutable ?? SEATBELT_EXECUTABLE;
+    try {
+      accessSync(sandboxExecutable, constants.X_OK);
+    } catch {
+      throw new Error(
+        `Seatbelt wrapper ${sandboxExecutable} is unavailable; refusing to start design-plugin runtime ${this.options.pluginId} without a sandbox.`,
+      );
+    }
+    // Seatbelt subpath filters match the KERNEL-RESOLVED path, and macOS
+    // hands out symlinked aliases (/var/folders -> /private/var/folders).
+    // Canonicalize like the MCP stdio sandbox does, or the writable grant
+    // silently never matches.
+    const cwd = realpathOrSelf(this.options.cwd);
+    const launch = buildSeatbeltLaunch(
+      {
+        executable: realpathOrSelf(process.execPath),
+        args: [this.options.entry],
+        cwd,
+        env: {
+          NODE_OPTIONS: "",
+          ELECTRON_RUN_AS_NODE: "1",
+          TMPDIR: cwd,
+        },
+      },
+      {
+        workspacePath: cwd,
+        mode: "execute",
+        network: "deny",
+        readOnlyPaths: darwinRuntimeReadRoots(this.options.entry),
+      },
+    );
+    // buildSeatbeltLaunch hardcodes the system wrapper; the override only
+    // redirects to a different sandbox-exec-compatible wrapper for
+    // diagnostics — the profile is always applied.
+    launch.executable = sandboxExecutable;
+    return launch;
   }
 
   /** Invoke a tool by name; resolves with the runtime's terminal result. */
@@ -137,7 +317,7 @@ export class PluginRuntimeWorker {
     return promise;
   }
 
-  /** Kill the whole process and reject everything in flight. */
+  /** Kill the whole process tree and reject everything in flight. */
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
@@ -146,22 +326,88 @@ export class PluginRuntimeWorker {
       pending.reject(new Error("Runtime disposed."));
     }
     this.pending.clear();
-    // SIGKILL: the runtime has no shutdown work worth coordinating in S0,
-    // and the host must reclaim the process tree deterministically.
-    this.child?.kill("SIGKILL");
+    // SIGKILL on the process GROUP: the runtime has no shutdown work worth
+    // coordinating in S0, and a bare child.kill() only reaps the direct
+    // child — runtime-spawned grandchildren would survive task close,
+    // plugin unload, and crashes.
+    this.killProcessTree();
   }
 
   isDisposed(): boolean {
     return this.disposed;
   }
 
-  /** Host-side PID of the runtime child; undefined before start(). */
+  /**
+   * Host-side PID of the runtime child; undefined before start(). The
+   * sandbox wrapper and the runtime share it: sandbox-exec execs the
+   * command in place, so this PID is also the process-group leader.
+   */
   childPid(): number | undefined {
     return this.child?.pid;
   }
 
   stdoutEnded(): boolean {
     return this.stdoutClosed;
+  }
+
+  /**
+   * Reclaim the entire process tree exactly once, at the earliest of
+   * dispose() and the child's exit event.
+   *
+   * POSIX/macOS: the child was spawned detached, so it leads its own
+   * process group and kill(-pid, SIGKILL) reaches every member, including
+   * grandchildren the runtime spawned. The direct child itself is reaped by
+   * libuv's waitpid (the exit event); orphaned grandchildren are re-parented
+   * to launchd after the group kill. ESRCH means the group is already
+   * empty. The groupKillIssued guard plus try/catch is the pid-reuse
+   * protection: we never signal a stale pgid twice.
+   *
+   * Windows: taskkill /T walks the tree; /F matches the SIGKILL semantics.
+   */
+  private killProcessTree(): void {
+    const child = this.child;
+    if (this.groupKillIssued || !child || child.pid === undefined) return;
+    const pid = child.pid;
+    this.groupKillIssued = true;
+    if (process.platform === "win32") {
+      const killer = spawn(
+        join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32",
+          "taskkill.exe",
+        ),
+        ["/PID", String(pid), "/T", "/F"],
+        { windowsHide: true, stdio: "ignore" },
+      );
+      killer.once("error", () => {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // Already gone.
+        }
+      });
+      killer.once("exit", (code) => {
+        if (code !== 0) {
+          try {
+            child.kill("SIGKILL");
+          } catch {
+            // Already gone.
+          }
+        }
+      });
+      return;
+    }
+    try {
+      process.kill(-pid, "SIGKILL");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // Already gone.
+        }
+      }
+    }
   }
 
   private handleMessage(message: RuntimeToHostMessage) {

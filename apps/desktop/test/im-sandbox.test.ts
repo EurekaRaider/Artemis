@@ -478,9 +478,8 @@ it.runIf(process.platform === "darwin")(
 it.runIf(process.platform === "darwin")(
   "prepares the runtime env without host config reads (isolated OPENSSL_CONF)",
   async () => {
-    const { prepareImShellRuntime } = await import(
-      "../src/main/im-shell-runtime.js"
-    );
+    const { prepareImShellRuntime } =
+      await import("../src/main/im-shell-runtime.js");
     const runtime = await prepareImShellRuntime();
     try {
       // The runtime may legitimately lack node (not installed); when present,

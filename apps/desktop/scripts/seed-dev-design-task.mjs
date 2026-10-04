@@ -3,7 +3,14 @@
 //    userData/design-plugins/revisions/（pack 已安装时优先用 pack payload）
 // 2. 建一个 artemis-design 类型的受限线程（typeBinding + executionProfile + grant）
 // 用法：node scripts/seed-dev-design-task.mjs <userDataPath>
-import { mkdir, cp, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  cp,
+  readdir,
+  readFile,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -38,7 +45,10 @@ async function resolvePackageRoot() {
     }
   }
   console.log("source: bundled resources (dev fallback)");
-  return new URL("../resources/design-plugins/artemis-design", import.meta.url).pathname.replace(/\/$/, "");
+  return new URL(
+    "../resources/design-plugins/artemis-design",
+    import.meta.url,
+  ).pathname.replace(/\/$/, "");
 }
 
 const packageRoot = await resolvePackageRoot();
@@ -51,8 +61,14 @@ async function collect(root) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (entry.name.startsWith(".")) continue;
       const abs = join(dir, entry.name);
-      if (entry.isDirectory()) { await walk(abs); continue; }
-      const rel = abs.slice(root.length + 1).split("\\").join("/");
+      if (entry.isDirectory()) {
+        await walk(abs);
+        continue;
+      }
+      const rel = abs
+        .slice(root.length + 1)
+        .split("\\")
+        .join("/");
       files.push({ path: rel, bytes: await readFile(abs) });
     }
   };
@@ -62,7 +78,9 @@ async function collect(root) {
 
 const files = await collect(packageRoot);
 const manifestText = files
-  .map((f) => `${f.path}:${createHash("sha256").update(f.bytes).digest("hex")}\n`)
+  .map(
+    (f) => `${f.path}:${createHash("sha256").update(f.bytes).digest("hex")}\n`,
+  )
   .join("");
 const contentHash = createHash("sha256").update(manifestText).digest("hex");
 
@@ -73,7 +91,10 @@ await cp(packageRoot, revisionRoot, { recursive: true });
 const { rm: rmDir } = await import("node:fs/promises");
 for (const entry of await readdir(revisionsRoot + "/com.artemis.design")) {
   if (entry !== contentHash && !entry.startsWith(".")) {
-    await rmDir(join(revisionsRoot, "com.artemis.design", entry), { recursive: true, force: true });
+    await rmDir(join(revisionsRoot, "com.artemis.design", entry), {
+      recursive: true,
+      force: true,
+    });
     console.log("removed stale revision:", entry);
   }
 }
@@ -96,21 +117,36 @@ const binding = {
   bindingRevision: `rev-${contentHash.slice(0, 12)}`,
 };
 // 幂等：若线程已存在则更新其绑定与 grant 到正确哈希
-const existing = db.prepare("SELECT id FROM threads WHERE title = ?").get("设计验证任务（S2-S4）");
+const existing = db
+  .prepare("SELECT id FROM threads WHERE title = ?")
+  .get("设计验证任务（S2-S4）");
 if (existing) {
   threadId = existing.id;
-  db.prepare("UPDATE threads SET type_binding_json = ?, updated_at = ? WHERE id = ?")
-    .run(JSON.stringify(binding), now, threadId);
-  db.prepare("UPDATE plugin_grants SET content_hash = ?, grant_revision = ?, updated_at = ? WHERE scope_id = ?")
-    .run(contentHash, binding.bindingRevision, now, threadId);
+  db.prepare(
+    "UPDATE threads SET type_binding_json = ?, updated_at = ? WHERE id = ?",
+  ).run(JSON.stringify(binding), now, threadId);
+  db.prepare(
+    "UPDATE plugin_grants SET content_hash = ?, grant_revision = ?, updated_at = ? WHERE scope_id = ?",
+  ).run(contentHash, binding.bindingRevision, now, threadId);
   console.log("thread updated:", threadId);
 } else {
-  db.prepare(`INSERT INTO threads (id, title, mode, target, status, pinned, archived, type_binding_json, execution_profile, created_at, updated_at)
-              VALUES (?, ?, 'execute', 'local', 'idle', 0, 0, ?, 'plugin-restricted-v1', ?, ?)`)
-    .run(threadId, "设计验证任务（S2-S4）", JSON.stringify(binding), now, now);
-  db.prepare(`INSERT INTO plugin_grants (grant_id, installation_id, plugin_id, content_hash, scope, scope_id, capabilities_json, resource_refs_json, grant_revision, created_at, updated_at)
-              VALUES (?, ?, ?, ?, 'thread', ?, '{}', '{}', ?, ?, ?)`)
-    .run(randomUUID(), "com.artemis.design", "com.artemis.design", contentHash, threadId, binding.bindingRevision, now, now);
+  db.prepare(
+    `INSERT INTO threads (id, title, mode, target, status, pinned, archived, type_binding_json, execution_profile, created_at, updated_at)
+              VALUES (?, ?, 'execute', 'local', 'idle', 0, 0, ?, 'plugin-restricted-v1', ?, ?)`,
+  ).run(threadId, "设计验证任务（S2-S4）", JSON.stringify(binding), now, now);
+  db.prepare(
+    `INSERT INTO plugin_grants (grant_id, installation_id, plugin_id, content_hash, scope, scope_id, capabilities_json, resource_refs_json, grant_revision, created_at, updated_at)
+              VALUES (?, ?, ?, ?, 'thread', ?, '{}', '{}', ?, ?, ?)`,
+  ).run(
+    randomUUID(),
+    "com.artemis.design",
+    "com.artemis.design",
+    contentHash,
+    threadId,
+    binding.bindingRevision,
+    now,
+    now,
+  );
   console.log("thread created:", threadId);
 }
 // ---- 种子初始文档（幂等）：面板打开即有内容可渲染 ----
@@ -119,7 +155,12 @@ if (existing) {
 // data/documents/；种子不建文档则面板永远为空（真实场景里首条指令会
 // create_document）。已有账本（真实数据或迁移结果）一律不覆写。
 import { existsSync } from "node:fs";
-import { mkdirSync, writeFileSync, readFileSync, appendFileSync } from "node:fs";
+import {
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  appendFileSync,
+} from "node:fs";
 const dataRoot = join(userData, "plugin-scratch", threadId, "data");
 const scratchRoot = join(dataRoot, "documents");
 const hasExistingData = existsSync(join(dataRoot, "design-documents.jsonl"));
@@ -146,8 +187,8 @@ button{padding:10px 24px;border-radius:10px;border:0;font-weight:600;font-size:1
 <div class="mock-actions"><button class="ghost">取消</button><button class="primary">保存设置</button></div>
 </div></body></html>`;
 const seedDocs = [
-  { id: "seed-customer", seq: 2 },   // v2 当前版
-  { id: "seed-customer", seq: 1 },   // v1 旧版（恢复链路可用）
+  { id: "seed-customer", seq: 2 }, // v2 当前版
+  { id: "seed-customer", seq: 1 }, // v1 旧版（恢复链路可用）
 ];
 let seeded = 0;
 for (const d of hasExistingData ? [] : seedDocs) {
@@ -155,12 +196,19 @@ for (const d of hasExistingData ? [] : seedDocs) {
   if (!existsSync(docDir)) mkdirSync(docDir, { recursive: true });
   // 版本文件名：v<seq>-<16位hash>.html —— hash 用内容 sha256 前 16 位（与 runtime 约定一致）
   const { createHash } = await import("node:crypto");
-  const rev = d.seq === 2
-    ? createHash("sha256").update(SEED_DOC_HTML).digest("hex").slice(0, 16)
-    : "aaaa1111aaaa1111";
+  const rev =
+    d.seq === 2
+      ? createHash("sha256").update(SEED_DOC_HTML).digest("hex").slice(0, 16)
+      : "aaaa1111aaaa1111";
   const file = join(docDir, `v${d.seq}-${rev}.html`);
   if (!existsSync(file)) {
-    writeFileSync(file, d.seq === 2 ? SEED_DOC_HTML : SEED_DOC_HTML.replace("客户档案", "客户资料"), "utf8");
+    writeFileSync(
+      file,
+      d.seq === 2
+        ? SEED_DOC_HTML
+        : SEED_DOC_HTML.replace("客户档案", "客户资料"),
+      "utf8",
+    );
     seeded += 1;
   }
 }
@@ -168,24 +216,33 @@ for (const d of hasExistingData ? [] : seedDocs) {
 // 记录字段与 create_document 写入一致：id/name/brief/createdAt）
 if (!hasExistingData) {
   const { createHash } = await import("node:crypto");
-  const rev = createHash("sha256").update(SEED_DOC_HTML).digest("hex").slice(0, 16);
+  const rev = createHash("sha256")
+    .update(SEED_DOC_HTML)
+    .digest("hex")
+    .slice(0, 16);
   const docDir = join(scratchRoot, "seed-customer");
   writeFileSync(join(docDir, "HEAD"), `2-${rev}\n`, "utf8");
   const rootLedger = join(dataRoot, "design-documents.jsonl");
   if (!existsSync(rootLedger)) {
-    writeFileSync(rootLedger, JSON.stringify({
-      id: "seed-customer",
-      name: "customer.html",
-      brief: "客户档案 · 管理客户的基础信息与偏好",
-      createdAt: now,
-    }) + "\n", "utf8");
+    writeFileSync(
+      rootLedger,
+      JSON.stringify({
+        id: "seed-customer",
+        name: "customer.html",
+        brief: "客户档案 · 管理客户的基础信息与偏好",
+        createdAt: now,
+      }) + "\n",
+      "utf8",
+    );
     console.log("root ledger design-documents.jsonl seeded");
   }
 } else {
   // 增量演示（只补缺，不动已有数据）：虚拟文件夹路径文档
   // pages/orders.html —— 面板文件夹导航 + 真实缩略图的真机演示载体。
   const ledgerPath = join(dataRoot, "design-documents.jsonl");
-  const ledgerText = existsSync(ledgerPath) ? readFileSync(ledgerPath, "utf8") : "";
+  const ledgerText = existsSync(ledgerPath)
+    ? readFileSync(ledgerPath, "utf8")
+    : "";
   if (!ledgerText.includes('"id":"seed-orders"')) {
     const { createHash } = await import("node:crypto");
     const SEED_ORDERS_HTML = `<!doctype html>
@@ -205,23 +262,33 @@ body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f8fafc;
 <div class="mock-row"><label>订单 #2038</label><i>待发货 · ¥158</i></div>
 <div class="mock-row"><label>订单 #2032</label><i>已完成 · ¥89</i></div>
 </div></body></html>`;
-    const rev = createHash("sha256").update(SEED_ORDERS_HTML).digest("hex").slice(0, 16);
+    const rev = createHash("sha256")
+      .update(SEED_ORDERS_HTML)
+      .digest("hex")
+      .slice(0, 16);
     const docDir = join(scratchRoot, "seed-orders");
     mkdirSync(docDir, { recursive: true });
     writeFileSync(join(docDir, `v1-${rev}.html`), SEED_ORDERS_HTML, "utf8");
     writeFileSync(join(docDir, "HEAD"), `1-${rev}\n`, "utf8");
-    appendFileSync(ledgerPath, JSON.stringify({
-      id: "seed-orders",
-      name: "pages/orders.html",
-      brief: "订单列表 · 虚拟文件夹演示页",
-      createdAt: now,
-    }) + "\n", "utf8");
+    appendFileSync(
+      ledgerPath,
+      JSON.stringify({
+        id: "seed-orders",
+        name: "pages/orders.html",
+        brief: "订单列表 · 虚拟文件夹演示页",
+        createdAt: now,
+      }) + "\n",
+      "utf8",
+    );
     console.log("seeded folder demo document: pages/orders.html");
   } else {
     console.log("existing thread data found; keeping documents untouched");
   }
 }
-if (seeded > 0) console.log(`seeded ${seeded} document version file(s) under plugin-scratch/data`);
+if (seeded > 0)
+  console.log(
+    `seeded ${seeded} document version file(s) under plugin-scratch/data`,
+  );
 
 db.close();
 console.log("grant inserted for", binding.bindingRevision);

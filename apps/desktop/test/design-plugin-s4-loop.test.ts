@@ -42,7 +42,10 @@ afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-function output(result: { status: string; output?: string }): Record<string, unknown> {
+function output(result: {
+  status: string;
+  output?: string;
+}): Record<string, unknown> {
   expect(result.status).toBe("succeeded");
   return JSON.parse(result.output ?? "{}");
 }
@@ -81,9 +84,7 @@ describe("S4 design document loop", () => {
 
   it("get_snapshot reports the head document with version metadata", async () => {
     const snapshot = output(await worker.invoke("get_snapshot", {}));
-    const documents = snapshot.documents as Array<
-      Record<string, unknown>
-    >;
+    const documents = snapshot.documents as Array<Record<string, unknown>>;
     expect(documents).toHaveLength(1);
     expect(documents[0]!.documentId).toBe(documentId);
     expect(documents[0]!.headRevision).toBe(headRevision);
@@ -117,9 +118,7 @@ describe("S4 design document loop", () => {
     );
     expect(html).toContain("（v2）");
     // Immutable history: v1 still exists and lists alongside v2.
-    const listed = output(
-      await worker.invoke("list_versions", { documentId }),
-    );
+    const listed = output(await worker.invoke("list_versions", { documentId }));
     expect(listed.versions).toHaveLength(2);
     expect(listed.versions[0]!.sequence).toBe(1);
     expect(listed.versions[1]!.sequence).toBe(2);
@@ -152,15 +151,16 @@ describe("S4 design document loop", () => {
     // "客户档案页 v2" 改过 title/h1 一处；此处 find 用 body 短语
     // 若恰好唯一会成功——换确定重复的：badge 文本 ARTEMIS DESIGN 出现一次；
     // 用 html 头部 meta charset 出现 1 次。真正重复的："" 引号字符。
-    const result = ambiguous.status === "succeeded"
-      ? await worker.invoke("apply_edit", {
-          documentId,
-          expectedRevision: headRevision,
-          operationId: "op-ambiguous-2",
-          find: "e",
-          replace: "E",
-        })
-      : ambiguous;
+    const result =
+      ambiguous.status === "succeeded"
+        ? await worker.invoke("apply_edit", {
+            documentId,
+            expectedRevision: headRevision,
+            operationId: "op-ambiguous-2",
+            find: "e",
+            replace: "E",
+          })
+        : ambiguous;
     expect(["failed", "conflict"]).toContain(result.status);
     expect(String(result.error)).toMatch(/ambiguous/i);
   });

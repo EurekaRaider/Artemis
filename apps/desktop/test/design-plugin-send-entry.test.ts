@@ -67,7 +67,11 @@ describe("S3 panel send entry", () => {
     expect(accepted.credential).toContain(accepted.submission.submissionId);
     // 空候选拒绝
     expect(() =>
-      service.acceptCandidate({ threadId, candidateText: "   ", bindingRevision: "r" }),
+      service.acceptCandidate({
+        threadId,
+        candidateText: "   ",
+        bindingRevision: "r",
+      }),
     ).toThrow(/empty/i);
   });
 
@@ -82,16 +86,20 @@ describe("S3 panel send entry", () => {
     expect(consumed.candidateText).toBe("第二次验证");
     expect(consumed.threadId).toBe(threadId);
     // 状态已推进到 dispatching
-    expect(store.getPromptSubmission(accepted.submission.submissionId)?.state).toBe(
-      "dispatching",
-    );
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("dispatching");
     // 重放拒绝（同凭证第二次）
-    expect(() => service.consumeCredential(accepted.credential)).toThrow(/consumed/);
-    // 伪造/未知凭证拒绝
-    expect(() => service.consumeCredential(`${randomUUID()}.${randomUUID()}`)).toThrow(
-      /unknown/,
+    expect(() => service.consumeCredential(accepted.credential)).toThrow(
+      /consumed/,
     );
-    expect(() => service.consumeCredential("garbage")).toThrow(/malformed|unknown/);
+    // 伪造/未知凭证拒绝
+    expect(() =>
+      service.consumeCredential(`${randomUUID()}.${randomUUID()}`),
+    ).toThrow(/unknown/);
+    expect(() => service.consumeCredential("garbage")).toThrow(
+      /malformed|unknown/,
+    );
   });
 
   it("a restarted service refuses to re-consume a spent credential (rows are truth)", () => {
@@ -102,10 +110,11 @@ describe("S3 panel send entry", () => {
       bindingRevision: "rev-test",
     });
     first.consumeCredential(accepted.credential);
-    // 重启：新实例只有库里的行——dispatching 状态不是 accepted，wrong-state 拒绝
+    // 重启：nonce 注册表随进程消失——凭据无法再次验证签发来源（P2-9：
+    // 旧实现只验证 submissionId，任意 nonce 都能配上已 accepted 的行）。
     const restarted = new PanelSendEntryService(store);
     expect(() => restarted.consumeCredential(accepted.credential)).toThrow(
-      /wrong-state|consumed/,
+      /nonce was not issued/,
     );
   });
 
@@ -168,7 +177,7 @@ describe("S3 send-entry closure (discard / reconcile / recover)", () => {
     );
   });
 
-  it("turn reconciliation advances dispatching/running rows to the outcome", () => {
+  it("turn reconciliation advances only the submission bound to that turn", () => {
     const service = new PanelSendEntryService(store);
     const accepted = service.acceptCandidate({
       threadId,
@@ -176,13 +185,20 @@ describe("S3 send-entry closure (discard / reconcile / recover)", () => {
       bindingRevision: "rev-test",
     });
     service.consumeCredential(accepted.credential);
-    // dispatching → completed（turn.completed 模拟）
-    service.reconcileTurnOutcome(threadId, "completed");
+    // 未绑定 turn：任何结算都不得触碰（P2-10：跨 turn 扫荡是旧缺陷）。
+    service.reconcileTurnOutcome(threadId, "completed", randomUUID());
+    expect(
+      store.getPromptSubmission(accepted.submission.submissionId)?.state,
+    ).toBe("dispatching");
+    // turn 启动绑定后结算：dispatching → completed（turn.completed 模拟）
+    const turnId = randomUUID();
+    service.bindStartedTurn(threadId, turnId);
+    service.reconcileTurnOutcome(threadId, "completed", turnId);
     expect(
       store.getPromptSubmission(accepted.submission.submissionId)?.state,
     ).toBe("completed");
     // 幂等：再对账不动终态
-    service.reconcileTurnOutcome(threadId, "failed");
+    service.reconcileTurnOutcome(threadId, "failed", turnId);
     expect(
       store.getPromptSubmission(accepted.submission.submissionId)?.state,
     ).toBe("completed");
@@ -207,8 +223,12 @@ describe("S3 send-entry closure (discard / reconcile / recover)", () => {
     const restarted = new PanelSendEntryService(store);
     const recovered = restarted.recoverInterruptedSubmissions(threadId);
     expect(recovered).toBeGreaterThanOrEqual(2);
-    expect(store.getPromptSubmission(a.submission.submissionId)?.state).toBe("unknown");
-    expect(store.getPromptSubmission(b.submission.submissionId)?.state).toBe("unknown");
+    expect(store.getPromptSubmission(a.submission.submissionId)?.state).toBe(
+      "unknown",
+    );
+    expect(store.getPromptSubmission(b.submission.submissionId)?.state).toBe(
+      "unknown",
+    );
     // accepted 行不受影响
     const fresh = restarted.acceptCandidate({
       threadId,

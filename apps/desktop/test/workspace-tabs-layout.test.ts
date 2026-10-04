@@ -281,7 +281,10 @@ describe("Codex-like workspace tab layout contract", () => {
     const entriesStart = appSource.indexOf(
       "const entries: WorkspaceTabMenuEntry[]",
     );
-    const entriesEnd = appSource.indexOf("showWorkspaceTabMenu({", entriesStart);
+    const entriesEnd = appSource.indexOf(
+      "showWorkspaceTabMenu({",
+      entriesStart,
+    );
     const entriesSource = appSource.slice(entriesStart, entriesEnd);
     expect(entriesSource).not.toContain('kind: "markdown"');
     expect(entriesSource).not.toContain('kind: "sources"');

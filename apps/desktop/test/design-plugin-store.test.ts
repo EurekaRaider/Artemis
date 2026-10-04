@@ -258,9 +258,18 @@ describe("AppStore converged prompt-submission ledger", () => {
     store.close();
   });
 
-  it("records plugin operations idempotently and rejects digest drift", () => {
+  it("records plugin operations with forward-only transitions and rejects digest drift", () => {
     const store = new AppStore(join(directory, "operations.sqlite"));
     const operationId = randomUUID();
+    store.recordPluginOperation({
+      operationId,
+      threadId: "thread-op",
+      pluginId: "com.artemis.design",
+      toolName: "create_document",
+      requestDigest: "digest-1",
+      state: "running",
+    });
+    // 前向迁移推进状态（P2-12：旧实现在这里静默返回，行永远停在 running）。
     store.recordPluginOperation({
       operationId,
       threadId: "thread-op",
@@ -270,15 +279,31 @@ describe("AppStore converged prompt-submission ledger", () => {
       state: "succeeded",
       resultRef: "blob://op-1",
     });
-    // Same digest replay is a no-op (returns original state).
+    expect(store.readPluginOperation(operationId)?.state).toBe("succeeded");
+    expect(store.readPluginOperation(operationId)?.resultRef).toBe(
+      "blob://op-1",
+    );
+    // Same digest same-state replay is an idempotent no-op.
     store.recordPluginOperation({
       operationId,
       threadId: "thread-op",
       pluginId: "com.artemis.design",
       toolName: "create_document",
       requestDigest: "digest-1",
-      state: "failed",
+      state: "succeeded",
     });
+    // 终态后试图改判（succeeded → failed）被状态机拒绝。
+    expect(() =>
+      store.recordPluginOperation({
+        operationId,
+        threadId: "thread-op",
+        pluginId: "com.artemis.design",
+        toolName: "create_document",
+        requestDigest: "digest-1",
+        state: "failed",
+      }),
+    ).toThrow(/transition to failed is refused/);
+    // Different digest replay is corruption and refuses.
     expect(() =>
       store.recordPluginOperation({
         operationId,

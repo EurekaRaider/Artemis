@@ -163,7 +163,8 @@ describe("design page attachment (annotated html)", () => {
         type: "file",
         name: "customer.html",
         mimeType: "text/html",
-        content: "<!doctype html><html><body><button class=\"primary\">保存设置</button></body></html>",
+        content:
+          '<!doctype html><html><body><button class="primary">保存设置</button></body></html>',
       },
     ]);
     expect(prompt).toContain('name="customer.html"');

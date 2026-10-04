@@ -61,7 +61,10 @@ async function buildPack(overrides: Record<string, unknown> = {}) {
   const publicKeyPem = pair.publicKey
     .export({ type: "spki", format: "pem" })
     .toString();
-  const signWith = (unsignedItem: Record<string, unknown>, key = pair.privateKey) =>
+  const signWith = (
+    unsignedItem: Record<string, unknown>,
+    key = pair.privateKey,
+  ) =>
     signManifest(unsignedItem, {
       privateKeyPem: key.export({ type: "pkcs8", format: "pem" }).toString(),
       keyId,
@@ -134,7 +137,10 @@ describe("design pack build & release chain", () => {
     expect(pluginManifest.id).toBe("com.artemis.design");
     const panel = await readFile(join(lease.root, "panel/index.html"), "utf8");
     expect(panel).toContain("dzMockDesktop");
-    const runtime = await readFile(join(lease.root, "runtime/index.mjs"), "utf8");
+    const runtime = await readFile(
+      join(lease.root, "runtime/index.mjs"),
+      "utf8",
+    );
     expect(runtime).toContain("protocolVersion");
     lease.release();
     softwareVerifyNative.mockClear();

@@ -8,7 +8,8 @@ const en: CapabilityPackCopy = {
   manage: "Manage the design plugin",
   manageDescription:
     "The design plugin opens and edits design files in design mode. Updates arrive through the same verified channel.",
-  shared: "Download the design plugin to open and edit design files in design mode.",
+  shared:
+    "Download the design plugin to open and edit design files in design mode.",
   lite: "Design mode stays hidden until the plugin is downloaded.",
   working: "Working…",
   cancel: "Cancel download",
@@ -32,7 +33,8 @@ const en: CapabilityPackCopy = {
   offlineMaintenanceHint:
     "Choose a newer .artemis-design pack to update, or the current version to repair.",
   offlineHint: "Select one .artemis-design file. No extraction is needed.",
-  unavailable: "Online installation is not available yet. Import an offline pack.",
+  unavailable:
+    "Online installation is not available yet. Import an offline pack.",
   install: "Download",
   offline: "Import offline pack",
   close: "Close",
@@ -154,6 +156,8 @@ const settingsCopy: Partial<Record<AppLocale, DesignPackSettingsCopy>> = {
   },
 };
 
-export function designPackSettingsCopy(locale: AppLocale): DesignPackSettingsCopy {
+export function designPackSettingsCopy(
+  locale: AppLocale,
+): DesignPackSettingsCopy {
   return settingsCopy[locale] ?? settingsCopy.en!;
 }

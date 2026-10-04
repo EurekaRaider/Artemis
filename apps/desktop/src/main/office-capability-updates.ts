@@ -140,7 +140,8 @@ export class OfficeCapabilityUpdates {
     let bytes = 0;
     for await (const chunk of response.body) {
       bytes += chunk.length;
-      if (bytes > limit) throw new Error(`${this.label} update catalog is too large`);
+      if (bytes > limit)
+        throw new Error(`${this.label} update catalog is too large`);
       chunks.push(Buffer.from(chunk));
     }
     const data = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<

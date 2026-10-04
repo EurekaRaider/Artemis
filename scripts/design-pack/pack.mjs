@@ -48,7 +48,8 @@ export function zipEntries(entries) {
   let offset = 0;
   for (const entry of entries) {
     const name = Buffer.from(entry.name, "utf8");
-    if (name.length > 0xffff) throw new Error(`ZIP name too long: ${entry.name}`);
+    if (name.length > 0xffff)
+      throw new Error(`ZIP name too long: ${entry.name}`);
     const mode = ((entry.executable ? 0o100755 : 0o100644) << 16) >>> 0;
     const deflated = deflateRawSync(entry.bytes, { level: 6 });
     const method = deflated.length < entry.bytes.length ? 8 : 0;
@@ -118,7 +119,9 @@ export async function inventoryTree(root) {
       if (entry.isDirectory()) await visit(join(prefix, entry.name));
       else if (entry.isFile())
         files.push({
-          path: `${join(prefix, entry.name).slice(root.length + 1).replaceAll("\\", "/")}`,
+          path: `${join(prefix, entry.name)
+            .slice(root.length + 1)
+            .replaceAll("\\", "/")}`,
           bytes: (await stat(absolute)).size,
           sha256: await fileSha256(absolute),
           executable: false,
