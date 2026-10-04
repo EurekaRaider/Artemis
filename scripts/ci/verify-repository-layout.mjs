@@ -1,9 +1,27 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
+const ignoredScripts = execFileSync(
+  "git",
+  [
+    "ls-files",
+    "--others",
+    "--ignored",
+    "--exclude-standard",
+    "-z",
+    "--",
+    "scripts",
+    "apps/desktop/scripts",
+  ],
+  { cwd: root, encoding: "utf8" },
+)
+  .split("\0")
+  .filter((file) => /\.(?:[cm]?[jt]sx?|ps1)$/u.test(file));
+assert.deepEqual(ignoredScripts, [], "Source scripts must not be Git-ignored");
 const entrypoints = {
   scripts: [],
   "apps/desktop/scripts": [],

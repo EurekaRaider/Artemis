@@ -88,7 +88,9 @@ export async function verifySlackCliCompatibility(runtime) {
         config: { "sdk-managed-connection-enabled": true },
       }),
     );
-    const command = { runtime, directory, signal: AbortSignal.timeout(60000) };
+    // runSlackCli bounds each invocation independently; the direct native
+    // probes below also need time for a cold Windows PowerShell startup.
+    const command = { runtime, directory, signal: new AbortController().signal };
     if (process.platform === "win32") {
       const probe = await exec(
         windowsPowerShell,
@@ -102,7 +104,7 @@ export async function verifySlackCliCompatibility(runtime) {
           cwd: join(directory, "project"),
           env: slackCliEnvironment({ ...command, args: [] }),
           encoding: "buffer",
-          timeout: 15000,
+          timeout: 60000,
         },
       );
       let actualManifest;
@@ -165,7 +167,7 @@ export async function verifySlackCliCompatibility(runtime) {
           SLACK_BOT_TOKEN: tokens.botToken,
         },
         cwd: join(directory, "project"),
-        timeout: 15000,
+        timeout: 60000,
         windowsHide: process.platform !== "win32",
       },
     );
