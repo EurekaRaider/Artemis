@@ -82,14 +82,12 @@ public static class ArtemisSandboxCapability
 }
 '@
 
-if ('ArtemisNativeSandbox' -as [type]) {
-  $capabilitySid = [ArtemisNativeSandbox]::CapabilitySid('artemisWorkspaceTraverse')
-} else {
-  Add-Type -TypeDefinition $capabilitySource -Language CSharp
-  $capabilitySid = [ArtemisSandboxCapability]::Sid('artemisWorkspaceTraverse')
-}
-$traverseCapability = [System.Security.Principal.SecurityIdentifier]::new($capabilitySid)
-
+Add-Type -TypeDefinition $capabilitySource -Language CSharp
+$traverseCapability = [System.Security.Principal.SecurityIdentifier]::new(
+  [ArtemisSandboxCapability]::Sid(
+    'artemisWorkspaceTraverse'
+  )
+)
 foreach ($pathValue in $paths) {
   if (
     $null -eq $pathValue -or
@@ -102,9 +100,6 @@ foreach ($pathValue in $paths) {
     throw "Sandbox ancestor path does not exist: $path"
   }
 
-  if ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS -eq '1') {
-    [Console]::Error.WriteLine("Artemis ancestor metadata grant starting: $path")
-  }
   $directory = New-Object System.IO.DirectoryInfo($path)
   $security = $directory.GetAccessControl(
     [System.Security.AccessControl.AccessControlSections]::Access
@@ -121,7 +116,4 @@ foreach ($pathValue in $paths) {
   )
   $security.AddAccessRule($rule)
   $directory.SetAccessControl($security)
-  if ($env:ARTEMIS_WINDOWS_SANDBOX_DIAGNOSTICS -eq '1') {
-    [Console]::Error.WriteLine("Artemis ancestor metadata grant complete: $path")
-  }
 }

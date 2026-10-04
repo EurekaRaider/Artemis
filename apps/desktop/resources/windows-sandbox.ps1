@@ -1533,45 +1533,42 @@ finally {
 }
 Write-SandboxDiagnostic 'native helper compiled'
 Write-SandboxDiagnostic "profile identity: $Identity"
+$workspaceRoot = [System.IO.Path]::GetPathRoot($workspace)
+$systemRoot = [System.IO.Path]::GetPathRoot(
+  [System.Environment]::SystemDirectory
+)
+$needsClassicAncestorAccess = -not $workspaceRoot.Equals(
+  $systemRoot,
+  [System.StringComparison]::OrdinalIgnoreCase
+)
 function Initialize-ClassicAppContainerAncestors {
-  $traverseSid = [System.Security.Principal.SecurityIdentifier]::new(
-    [ArtemisNativeSandbox]::CapabilitySid(
-      'artemisWorkspaceTraverse'
-    )
-  )
-  $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
-  $ancestors = @(
-    $accessPaths |
-      ForEach-Object { Get-AncestorDirectories $_ } |
-      Sort-Object -Unique
-  )
-  $missingTraverse = @(
-    $ancestors | Where-Object {
-      -not (Test-AppContainerAncestorAccess $_ $traverseSid)
-    }
-  )
-  if ($missingTraverse.Count -gt 0) {
-    $setupPath = Join-Path $PSScriptRoot 'windows-sandbox-setup.ps1'
-    if (-not [System.IO.File]::Exists($setupPath)) {
-      throw "Windows sandbox setup helper does not exist: $setupPath"
-    }
-    $pathsBase64 = [System.Convert]::ToBase64String(
-      [System.Text.Encoding]::UTF8.GetBytes(
-        ($missingTraverse | ConvertTo-Json -Compress)
+  if ($needsClassicAncestorAccess) {
+    $traverseSid = [System.Security.Principal.SecurityIdentifier]::new(
+      [ArtemisNativeSandbox]::CapabilitySid(
+        'artemisWorkspaceTraverse'
       )
     )
-    $principal = [System.Security.Principal.WindowsPrincipal]::new(
-      [System.Security.Principal.WindowsIdentity]::GetCurrent()
+    $accessPaths = @($workspace) + @($writablePaths) + @($readOnlyPaths)
+    $ancestors = @(
+      $accessPaths |
+        ForEach-Object { Get-AncestorDirectories $_ } |
+        Sort-Object -Unique
     )
-    $isAdministrator = $principal.IsInRole(
-      [System.Security.Principal.WindowsBuiltInRole]::Administrator
+    $missingTraverse = @(
+      $ancestors | Where-Object {
+        -not (Test-AppContainerAncestorAccess $_ $traverseSid)
+      }
     )
-    if ($isAdministrator -or [System.Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0) {
-      # Already-elevated hosts need no UAC prompt. Services use only their
-      # existing permissions and fail closed if those are insufficient.
-      Write-SandboxDiagnostic 'installing ancestor metadata access directly'
-      & $setupPath -PathsBase64 $pathsBase64
-    } else {
+    if ($missingTraverse.Count -gt 0) {
+      $setupPath = Join-Path $PSScriptRoot 'windows-sandbox-setup.ps1'
+      if (-not [System.IO.File]::Exists($setupPath)) {
+        throw "Windows sandbox setup helper does not exist: $setupPath"
+      }
+      $pathsBase64 = [System.Convert]::ToBase64String(
+        [System.Text.Encoding]::UTF8.GetBytes(
+          ($missingTraverse | ConvertTo-Json -Compress)
+        )
+      )
       $escapedSetupPath = $setupPath.Replace("'", "''")
       $setupCommand = "& '$escapedSetupPath' -PathsBase64 '$pathsBase64'"
       $encodedSetupCommand = [System.Convert]::ToBase64String(
@@ -1595,10 +1592,10 @@ function Initialize-ClassicAppContainerAncestors {
       if ($setupProcess.ExitCode -ne 0) {
         throw "Windows sandbox setup failed with exit code $($setupProcess.ExitCode)"
       }
-    }
-    foreach ($ancestor in $ancestors) {
-      if (-not (Test-AppContainerAncestorAccess $ancestor $traverseSid)) {
-        throw "Windows sandbox setup did not grant ancestor access: $ancestor"
+      foreach ($ancestor in $ancestors) {
+        if (-not (Test-AppContainerAncestorAccess $ancestor $traverseSid)) {
+          throw "Windows sandbox setup did not grant ancestor access: $ancestor"
+        }
       }
     }
   }
@@ -1635,8 +1632,11 @@ if (-not $useClassicAppContainer) {
   }
 }
 if ($useClassicAppContainer) {
-  Write-SandboxDiagnostic 'checking classic ancestor metadata access'
-  Initialize-ClassicAppContainerAncestors
+  # Services cannot display UAC. The classic launcher grants access only to
+  # the requested paths and fails closed if their existing ancestors block it.
+  if ([System.Diagnostics.Process]::GetCurrentProcess().SessionId -ne 0) {
+    Initialize-ClassicAppContainerAncestors
+  }
   Write-SandboxDiagnostic 'falling back to classic AppContainer'
   $exitCode = [ArtemisNativeSandbox]::LaunchClassic(
     $Identity,

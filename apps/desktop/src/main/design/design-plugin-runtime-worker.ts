@@ -27,6 +27,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { accessSync, constants, realpathSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   buildSeatbeltLaunch,
@@ -292,7 +293,14 @@ export class PluginRuntimeWorker {
       return buildWindowsAppContainerLaunch(
         {
           executable: process.execPath,
-          args: [entry],
+          // Resolve the trusted entry on the host. AppContainer need not
+          // read metadata from every ancestor of an already canonical path.
+          args: [
+            "--preserve-symlinks",
+            "--preserve-symlinks-main",
+            "--entry-url",
+            pathToFileURL(entry).href,
+          ],
           cwd,
           env: {
             SystemRoot: systemRoot,
