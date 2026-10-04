@@ -41,6 +41,7 @@ async function fixture() {
   const engine = await UnoOfficeEngine.create(
     root,
     {
+      id: "office-core",
       version: "1.0.0",
       entrypoint: "office-bridge",
       officeExecutable: "runtime/program/soffice",

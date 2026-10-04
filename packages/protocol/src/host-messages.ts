@@ -204,6 +204,22 @@ export type AgentHostCommand =
       sessionFile?: string;
       selection?: ModelSelection;
       contextWindow?: number;
+      /**
+       * S2 design-plugin binding: the thread's frozen typeBinding snapshot.
+       * Threads opened with a binding get plugin-restricted customTools.
+       */
+      typeBinding?: import("./schema.js").Thread["typeBinding"];
+      /** Fixed execution profile ("plugin-restricted-v1"). */
+      executionProfile?: string;
+      /**
+       * Declared plugin tools for the bound plugin (resolved by the main
+       * process from the published revision manifest before open).
+       */
+      pluginTools?: Array<{
+        name: string;
+        description: string;
+        effect: "artifact-write" | "state-read";
+      }>;
     }
   | {
       type: "thread.model.set";
@@ -377,6 +393,16 @@ export type BrokerExecutionRequest =
       turnId: string;
       mode: RunMode;
       operation: RemoteOperation;
+    }
+  | {
+      kind: "plugin.tool";
+      approvalId: string;
+      threadId: string;
+      turnId: string;
+      mode: RunMode;
+      pluginId: string;
+      toolName: string;
+      args: Record<string, unknown>;
     }
   | {
       kind: "goal.get";

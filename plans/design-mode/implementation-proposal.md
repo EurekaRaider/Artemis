@@ -112,12 +112,12 @@ flowchart LR
 ```json
 {
   "schemaVersion": 1,
-  "id": "com.artemis.ui-design",
+  "id": "com.artemis.design",
   "version": "0.1.0",
   "engines": { "artemisPluginApi": "1" },
   "projectTypes": [
     {
-      "id": "ui-design",
+      "id": "artemis-design",
       "title": { "zh-CN": "界面设计", "en": "UI Design" },
       "targets": ["project", "temporary"],
       "panelIds": ["studio"]
@@ -367,7 +367,7 @@ OpenDesign 可采用的内容是：结果优先、操作和产物分离、错误
 | apps/desktop/resources 下的第一方设计插件（新增）                       | manifest、独立面板、业务 runtime、schema 和资源；按既有资源打包流程接入 |
 | packages/platform 的沙箱/原生 helper                                    | 私有工作目录、最小环境、进程树撤销、平台证据；按实际缺口修改            |
 
-身份、授权、原生进程和导出属于 main；插件定义的 HTML 编辑规则和设计工具属于插件。宿主代码不得按 com.artemis.ui-design 写业务分支。
+身份、授权、原生进程和导出属于 main；插件定义的 HTML 编辑规则和设计工具属于插件。宿主代码不得按 com.artemis.design 写业务分支。
 
 ## 12. 实施顺序与可验证出口
 

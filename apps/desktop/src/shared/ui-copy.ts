@@ -76,6 +76,7 @@ export const UI_COPY = {
     reviewPanel: uiText(locale, "App_copy.review"),
     agentTeam: uiText(locale, "App_copy.agentTeam"),
     terminal: uiText(locale, "App_copy.terminal"),
+    designTab: uiText(locale, "App_copy.designTab"),
     browser: uiText(locale, "App_copy.browser"),
     browserAddress: uiText(locale, "App_copy.browserAddress"),
     browserBack: uiText(locale, "App_copy.browserBack"),

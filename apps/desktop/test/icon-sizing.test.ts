@@ -262,7 +262,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       ".workspace-file-kind .seti-file-icon,\n.workspace-file-kind .seti-file-icon svg",
       16,
     ],
-    [".workspace-tab-menu svg", 17],
     [".sources-panel-icon svg", 16],
     [".archive-empty-artwork", 64],
   ];
@@ -275,6 +274,18 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       expect(block).toMatch(new RegExp(`(?<![a-z-])height:\\s*${px}px`));
     },
   );
+
+  it("keeps the child-window workspace menu icons at their v69 pixel size", () => {
+    // The "+" menu renders inside a transparent child window, so its CSS is
+    // inlined in the page builder rather than styles.css.
+    const menuHtmlSource = readFileSync(
+      resolve(process.cwd(), "src/renderer/workspace-tab-menu-html.ts"),
+      "utf8",
+    );
+    expect(menuHtmlSource).toContain(
+      ".menu svg { color: ${muted}; height: 17px; width: 17px; }",
+    );
+  });
 
   it("keeps EnvironmentPanelIcons on the shared standard catalog", () => {
     expect(iconsSource).toContain('from "@artemis/ui/icons"');

@@ -64,6 +64,9 @@ function fixture(temporary = false) {
     cleanupGoalObjective: vi.fn(),
     taskNotifications: { refresh: vi.fn() },
     computerUseHost: { clearTask: vi.fn() },
+    // S2: thread deletion now also kills plugin runtime trees and panels.
+    pluginDispatch: { closeThread: vi.fn() },
+    designPanelHost: { releasePanel: vi.fn() },
   };
   new Function(
     ...Object.keys(scope),

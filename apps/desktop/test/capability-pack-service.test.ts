@@ -417,3 +417,208 @@ describe("host capability packs", () => {
     expect((await f.service.status()).activeVersion).toBe("1.0.0");
   });
 });
+
+/** Software-pack (no native engine) fixtures: signed multi-file inventory. */
+const RELEASE_HOST =
+  "https://github.com/EurekaRaider/ArtemisRelease/releases/download/";
+
+function zipEntries(entries: Array<{ name: string; bytes: Buffer }>): Buffer {
+  const parts: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const { name, bytes } of entries) {
+    const text = Buffer.from(name);
+    const compressed = deflateRawSync(bytes);
+    const header = Buffer.alloc(30);
+    header.writeUInt32LE(0x04034b50);
+    header.writeUInt16LE(20, 4);
+    header.writeUInt16LE(8, 8);
+    header.writeUInt32LE(crc32(bytes), 14);
+    header.writeUInt32LE(compressed.length, 18);
+    header.writeUInt32LE(bytes.length, 22);
+    header.writeUInt16LE(text.length, 26);
+    const directory = Buffer.alloc(46);
+    directory.writeUInt32LE(0x02014b50);
+    directory.writeUInt16LE(0x0314, 4);
+    directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(8, 10);
+    directory.writeUInt32LE(crc32(bytes), 16);
+    directory.writeUInt32LE(compressed.length, 20);
+    directory.writeUInt32LE(bytes.length, 24);
+    directory.writeUInt16LE(text.length, 28);
+    directory.writeUInt32LE((0o100600 << 16) >>> 0, 38);
+    directory.writeUInt32LE(offset, 42);
+    parts.push(header, text, compressed);
+    centrals.push(directory, text);
+    offset += header.length + text.length + compressed.length;
+  }
+  const directorySize = centrals.reduce((sum, part) => sum + part.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directorySize, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...parts, ...centrals, end]);
+}
+
+const DESIGN_FILES = [
+  {
+    name: "artemis.plugin.json",
+    bytes: Buffer.from('{"id":"artemis-design"}'),
+  },
+  { name: "panel/index.html", bytes: Buffer.from("<html>panel</html>") },
+  { name: "runtime/index.mjs", bytes: Buffer.from("export {}") },
+];
+
+function signedSoftware(
+  archive: Buffer,
+  files: Array<{ name: string; bytes: Buffer }>,
+  overrides: Record<string, unknown> = {},
+): CapabilityPackManifest {
+  const version =
+    typeof overrides.version === "string" ? overrides.version : "0.1.0";
+  const unpacked = files.reduce((sum, file) => sum + file.bytes.length, 0);
+  const data = {
+    schemaVersion: 1,
+    id: "artemis-design",
+    version,
+    hostRange: ">=1.6.8 <2",
+    platform: "darwin",
+    arch: "arm64",
+    sourceDigest: sha("source"),
+    archive: {
+      url: `${RELEASE_HOST}artemis-design-v${version}/pack.zip`,
+      sha256: sha(archive),
+      downloadBytes: archive.length,
+      unpackedBytes: unpacked,
+    },
+    files: files.map((file) => ({
+      path: file.name,
+      sha256: sha(file.bytes),
+      bytes: file.bytes.length,
+      executable: false,
+    })),
+    ...overrides,
+  };
+  return {
+    ...data,
+    signature: {
+      keyId: "test",
+      value: sign(
+        null,
+        Buffer.from(canonicalCapabilityJson(data)),
+        keys.privateKey,
+      ).toString("base64"),
+    },
+  } as CapabilityPackManifest;
+}
+
+describe("software capability packs (multi-pack namespaces)", () => {
+  it("downloads and installs a design pack into its own namespace", async () => {
+    const archive = zipEntries(DESIGN_FILES);
+    const f = await fixture(zip());
+    const design = new CapabilityPackService({
+      ...target,
+      root: join(f.root, "packs"),
+      packId: "artemis-design",
+      verifyNative: vi.fn(async () => undefined),
+      dependents: async () => [],
+      fetch: vi.fn(async () => new Response(archive)),
+    });
+    await design.install(
+      signedSoftware(archive, DESIGN_FILES, { version: "0.2.0" }),
+    );
+    const status = await design.status();
+    expect(status.id).toBe("artemis-design");
+    expect(status.activeVersion).toBe("0.2.0");
+    expect(status.versions.map((entry) => entry.version)).toEqual(["0.2.0"]);
+    const lease = await design.acquire();
+    expect(lease.root).toContain(join("artemis-design", "0.2.0", "payload"));
+    expect(
+      await readFile(join(lease.root, "artemis.plugin.json"), "utf8"),
+    ).toContain("artemis-design");
+    lease.release();
+    // The pointer file holds one entry per pack.
+    const pointer = JSON.parse(
+      await readFile(join(f.root, "packs/active.json"), "utf8"),
+    );
+    expect(pointer.packs["artemis-design"]).toBe("0.2.0");
+  });
+
+  it("keeps pack namespaces isolated and never writes foreign pointers", async () => {
+    const f = await fixture(zip());
+    await f.service.install(f.manifest, f.path);
+    const archive = zipEntries(DESIGN_FILES);
+    const design = new CapabilityPackService({
+      ...target,
+      root: join(f.root, "packs"),
+      packId: "artemis-design",
+      verifyNative: vi.fn(async () => undefined),
+      dependents: async () => [],
+      fetch: vi.fn(async () => new Response(archive)),
+    });
+    await design.install(signedSoftware(archive, DESIGN_FILES));
+    // Each service lists only its own pack.
+    const office = await f.service.status();
+    expect(office.id).toBe("office-core");
+    expect(office.versions.map((entry) => entry.version)).toEqual(["1.0.0"]);
+    const designStatus = await design.status();
+    expect(designStatus.versions.map((entry) => entry.version)).toEqual([
+      "0.1.0",
+    ]);
+    // Pointer map carries both entries.
+    const pointer = JSON.parse(
+      await readFile(join(f.root, "packs/active.json"), "utf8"),
+    );
+    expect(pointer.packs).toEqual({
+      "office-core": "1.0.0",
+      "artemis-design": "0.1.0",
+    });
+    // Deactivating the design pack leaves the office pointer intact.
+    await design.deactivate();
+    const after = JSON.parse(
+      await readFile(join(f.root, "packs/active.json"), "utf8"),
+    );
+    expect(after.packs).toEqual({ "office-core": "1.0.0" });
+    expect((await f.service.status()).activeVersion).toBe("1.0.0");
+  });
+
+  it("reads the legacy single-version pointer for office-core only and migrates it on write", async () => {
+    const f = await fixture(zip());
+    await f.service.install(f.manifest, f.path);
+    await writeFile(join(f.root, "packs/active.json"), '{"version":"1.0.0"}');
+    expect((await f.service.status()).activeVersion).toBe("1.0.0");
+    const archive = zipEntries(DESIGN_FILES);
+    const design = new CapabilityPackService({
+      ...target,
+      root: join(f.root, "packs"),
+      packId: "artemis-design",
+      verifyNative: vi.fn(async () => undefined),
+      dependents: async () => [],
+      fetch: vi.fn(async () => new Response(archive)),
+    });
+    // A non-office pack ignores the legacy pointer.
+    expect(await design.status().then((s) => s.activeVersion)).toBeUndefined();
+    await design.install(signedSoftware(archive, DESIGN_FILES));
+    // The office entry survived the migration into the map form.
+    const pointer = JSON.parse(
+      await readFile(join(f.root, "packs/active.json"), "utf8"),
+    );
+    expect(pointer.packs).toEqual({
+      "office-core": "1.0.0",
+      "artemis-design": "0.1.0",
+    });
+  });
+
+  it("rejects a software-shaped manifest claiming the reserved office-core id", () => {
+    const archive = zipEntries(DESIGN_FILES);
+    const manifest = signedSoftware(archive, DESIGN_FILES, {
+      id: "office-core",
+      version: "9.9.9",
+    });
+    // Neither union branch accepts it: office-core demands the native-engine
+    // shape, software packs refuse the reserved id.
+    expect(() => verifyCapabilityManifest(manifest, target)).toThrow();
+  });
+});

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "id": "com.artemis.design",
+  "version": "0.2.0",
+  "engines": {
+    "artemisPluginApi": "1"
+  },
+  "projectTypes": [
+    {
+      "id": "artemis-design",
+      "title": {
+        "zh-CN": "设计",
+        "en": "Design"
+      },
+      "targets": ["project", "temporary"],
+      "panelIds": ["workspace"]
+    }
+  ],
+  "panels": [
+    {
+      "id": "workspace",
+      "entry": "panel/index.html"
+    }
+  ],
+  "runtime": {
+    "entry": "runtime/index.mjs",
+    "protocolVersion": 1
+  },
+  "tools": [
+    {
+      "name": "create_document",
+      "description": "Create a design document artifact.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "get_snapshot",
+      "description": "Get the current snapshot of the design document.",
+      "effect": "state-read"
+    },
+    {
+      "name": "list_versions",
+      "description": "List the published versions of a design document.",
+      "effect": "state-read"
+    },
+    {
+      "name": "apply_edit",
+      "description": "Apply a CAS-guarded text edit as a new document version.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "undo",
+      "description": "Undo the head edit; restores the previous version (auditable, files kept).",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "restore_version",
+      "description": "Restore a historical version by saving its content as a new head version (append-only; current content is kept as the previous version).",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "redo",
+      "description": "Redo an undone edit when it is still the latest version.",
+      "effect": "artifact-write"
+    }
+  ],
+  "capabilities": {
+    "artifactStore": "thread",
+    "projectFiles": "explicit-import",
+    "network": "none",
+    "sessionInput": "host-user-action"
+  }
+}

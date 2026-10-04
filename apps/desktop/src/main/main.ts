@@ -1,3 +1,30 @@
+import { createDesignHandoffHandler } from "./design-plugin-handoff.js";
+import {
+  deleteDesignDocument,
+  readDesignDocumentLedger,
+  readDesignDocumentVersionBytes,
+  requireDesignDocumentId,
+  resolveDesignDocumentDirectory,
+  resolveHeadVersionEntry,
+} from "./design-plugin-document-files.js";
+import { DesignPanelHost } from "./design-plugin-panel-host.js";
+import {
+  closeWorkspaceTabMenu,
+  setWorkspaceTabMenuHandlers,
+  showWorkspaceTabMenu,
+  workspaceTabMenuParent,
+} from "./workspace-tab-menu-window.js";
+import {
+  createDispatchPluginTool,
+  type PluginDispatch,
+} from "./design-plugin-dispatch.js";
+import { createDesignPackRuntime } from "./design-pack-runtime.js";
+import {
+  designPluginRevisionsRoot,
+  ensureThreadDataRoot,
+  migrateLegacyDesignPluginRevisions,
+} from "./design-plugin-thread-data.js";
+import { PanelSendEntryService } from "./design-plugin-send-entry.js";
 import { ProviderLoginService } from "./provider-login-service.js";
 import { isExecutionMode } from "@artemis/protocol";
 import { AppearanceService } from "./appearance-service.js";
@@ -45,9 +72,11 @@ import {
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { SleepPrevention } from "./sleep-prevention.js";
 import { ImService } from "./im-service.js";
+import { readProjectFileForPreview } from "./design-plugin-project-files.js";
 import { turnRecoveryContext, type TurnCheckpoint } from "./turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
 import { imManagementSchema, reduceAgentEvents } from "@artemis/protocol";
+import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ensureProjectGitWatcher } from "./project-git-watcher.js";
@@ -55,10 +84,15 @@ import {
   TaskNotifications,
   registerTaskNotifications,
 } from "./task-notifications.js";
+import { constants as fsConstants } from "node:fs";
 import {
+  appendFile,
   copyFile,
   mkdir,
+  open,
+  readdir,
   readFile,
+  realpath,
   rm,
   stat,
   writeFile,
@@ -68,6 +102,7 @@ import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import {
   basename,
   dirname,
+  extname,
   isAbsolute,
   join,
   relative,
@@ -490,6 +525,20 @@ interface PendingMultiUserInput {
 
 let mainWindow: BrowserWindow | undefined;
 let store: AppStore | undefined;
+// S1 design-plugin panel host; created in the ready handler below.
+let designPanelHost: DesignPanelHost | undefined;
+// Artifact-write dispatches land outside registerIpc's scope; registerIpc
+// installs this sink so they can trigger the debounced snapshot push.
+let designArtifactWriteSink: ((threadId: string) => void) | undefined;
+let pluginDispatch: PluginDispatch | undefined;
+/**
+ * Design-plugin availability gate, installed during startup (the design
+ * capability runtime section). Non-null reason = plugin removed: panel
+ * mounts and tool dispatches refuse. Undefined (before install) = usable.
+ */
+let designPluginAvailabilityGate:
+  ((threadId?: string) => Promise<string | null>) | undefined;
+let panelSendEntry: PanelSendEntryService | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
@@ -805,6 +854,9 @@ function syncWindowBackgroundColors(): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.setBackgroundColor(windowBackgroundColor());
   }
+  designPanelHost?.broadcastTheme(
+    nativeTheme.shouldUseDarkColors ? "dark" : "light",
+  );
 }
 
 function applyNativeTheme(theme: AppTheme): void {
@@ -2012,6 +2064,37 @@ async function resetAgentThreadsForToolChange(): Promise<void> {
   }
 }
 
+/**
+ * PR#245 P1-5：绑定设计插件后立刻收紧会话。若线程本进程内已按普通
+ * profile 打开会话，原子关闭并按（已持久化的）受限 profile 重开——
+ * 「打开面板即绑定」不能只改数据库不换会话。回合进行中无法安全关闭：
+ * 保留旧会话并记录（主进程执行边界重检已按当前持久化 profile 拒绝能力
+ * 型请求，窗口期不放大权限；下一次 openThread 的复用守卫会再重建）。
+ */
+async function tightenThreadToRestrictedProfile(
+  threadId: string,
+): Promise<void> {
+  if (!agentProcess || !openedThreads.has(threadId)) return;
+  const pending = openingThreads.get(threadId);
+  if (pending) await pending.catch(() => undefined);
+  try {
+    await agentProcess.request({
+      type: "thread.close",
+      requestId: randomUUID(),
+      threadId,
+    });
+    openedThreads.delete(threadId);
+    const thread = store?.getThread(threadId);
+    if (thread) await openAgentThread(thread);
+  } catch (error) {
+    console.warn(
+      `[design-panel] restricted-profile rebuild deferred for ${threadId.slice(0, 8)}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+}
+
 type ModelSettingsSnapshot = Pick<
   SettingsSnapshot,
   | "models"
@@ -2802,6 +2885,7 @@ function applyPayloadSideEffects(
   threadId: string,
   payload: AgentPayload,
   threadAlreadyUpdated = false,
+  turnId?: string,
 ): void {
   if (!store) throw new Error("Application store is not ready.");
   switch (payload.type) {
@@ -2850,6 +2934,12 @@ function applyPayloadSideEffects(
     }
     case "turn.completed":
       store.updateThread(threadId, { status: "idle" });
+      // P2-10：只结算绑定到该 turn 的提交；其他 turn 或未发送的草稿不动。
+      panelSendEntry?.reconcileTurnOutcome(
+        threadId,
+        payload.reason === "cancelled" ? "cancelled" : "completed",
+        turnId,
+      );
       {
         const completion = store.completeAutomationRunForThread(threadId);
         publishAutomationRun(completion?.run);
@@ -2908,6 +2998,7 @@ function applyPayloadSideEffects(
     }
     case "turn.failed":
       store.updateThread(threadId, { status: "failed" });
+      panelSendEntry?.reconcileTurnOutcome(threadId, "failed", turnId);
       publishAutomationRun(
         store.updateAutomationRunForThread(threadId, "failed", payload.message),
       );
@@ -3244,7 +3335,7 @@ function emitPayloadBatch(events: readonly AgentHostEvent[]): AgentEvent[] {
   imService?.observe(persisted);
   mainWindow?.webContents.send(IPC.agentEvents, persisted);
   for (const event of durableEvents) {
-    applyPayloadSideEffects(threadId, event.payload);
+    applyPayloadSideEffects(threadId, event.payload, false, event.turnId);
     accountGoalPayload(event.turnId, event.payload);
     scheduleTurnChangeSetCompletion(threadId, event.turnId, event.payload);
   }
@@ -3389,6 +3480,7 @@ function prepareRecoverableQueuePayload(
     return { ...payload, ...queue };
   }
   if (payload.type === "queue.recovered") {
+    if (turnId) panelSendEntry?.recoverInterruptedSubmissions(threadId, turnId);
     if (payload.items) {
       recoverableTurnQueues.discard(threadId);
       return payload;
@@ -3480,7 +3572,12 @@ async function emitInitialTurn(
   }
   mainWindow?.webContents.send(IPC.agentEvents, result.events);
   for (const payload of payloads) {
-    applyPayloadSideEffects(threadId, payload, payload.type === "turn.started");
+    applyPayloadSideEffects(
+      threadId,
+      payload,
+      payload.type === "turn.started",
+      turnId,
+    );
   }
   return result.events;
 }
@@ -4363,6 +4460,41 @@ async function openAgentThread(
         contextWindow,
       });
     }
+    // S2: threads with a frozen typeBinding open plugin-restricted; the
+    // declared tools are resolved from the published revision so the
+    // agent-host injects them as broker-mediated customTools only for
+    // execute-restricted sessions.
+    let pluginTools:
+      | Array<{
+          name: string;
+          description: string;
+          effect: "artifact-write" | "state-read";
+        }>
+      | undefined;
+    if (thread.typeBinding) {
+      try {
+        const manifestBytes = await readFile(
+          join(
+            designPluginRevisionsRoot(app.getPath("userData")),
+            thread.typeBinding.installationId,
+            thread.typeBinding.contentHash,
+            "artemis.plugin.json",
+          ),
+          "utf8",
+        );
+        const manifest = JSON.parse(manifestBytes) as {
+          tools: Array<{
+            name: string;
+            description: string;
+            effect: "artifact-write" | "state-read";
+          }>;
+        };
+        pluginTools = manifest.tools;
+      } catch {
+        // Missing revision: open without plugin tools. The dispatcher
+        // refuses any tool call for this binding (revision-missing).
+      }
+    }
     const data = await agentProcess.request<{ sessionFile?: string }>({
       type: "thread.open",
       ...(imService?.profile(thread.id)
@@ -4378,7 +4510,17 @@ async function openAgentThread(
       ...(thread.sessionFile ? { sessionFile: thread.sessionFile } : {}),
       ...(selection ? { selection } : {}),
       ...(contextWindow ? { contextWindow } : {}),
+      ...(thread.typeBinding ? { typeBinding: thread.typeBinding } : {}),
+      ...(thread.executionProfile
+        ? { executionProfile: thread.executionProfile }
+        : {}),
+      ...(pluginTools ? { pluginTools } : {}),
     });
+    if (thread.typeBinding) {
+      console.log(
+        `[design-panel] thread.open ${thread.id.slice(0, 8)} profile=${thread.executionProfile ?? "none"} pluginTools=${pluginTools?.length ?? 0}`,
+      );
+    }
     if (data.sessionFile) {
       store.updateThread(thread.id, { sessionFile: data.sessionFile });
     }
@@ -4400,6 +4542,34 @@ async function handleBrokerRequest(
 ): Promise<void> {
   if (!canRunLicensed() || !agentProcess || !store) {
     return;
+  }
+  // PR#245 P1-5/P1-6 宿主执行边界重检：绑定设计插件的任务按「当前持久
+  // 化的受限 profile」拒绝一切能力型 broker 请求。即使 agent-host 里还挂
+  // 着绑定前创建的普通会话（完整工具集），能力也不会在主进程侧兑现。
+  // 允许清单与 agent-host restricted-thread-gate 的类别映射互为镜像
+  // （plan/goal/memory/workspace-deps/user-input/attachment/plugin），
+  // 未知 kind 一律拒绝（allow-list 语义）。plugin.tool 另有独立的信任
+  // 链复核（dispatcher），不在此处放行细节。
+  if (
+    ![
+      "attachment.read",
+      "plugin.tool",
+      "goal.get",
+      "goal.create",
+      "goal.update",
+      "user.input",
+      "memory.append",
+    ].includes(request.kind)
+  ) {
+    const boundThread = store.getThread(request.threadId);
+    if (boundThread?.executionProfile === RESTRICTED_PROFILE_ID) {
+      rejectBrokerRequest(
+        workerRequestId,
+        request,
+        `Broker request "${request.kind}" is denied for plugin-restricted threads (${RESTRICTED_PROFILE_ID}).`,
+      );
+      return;
+    }
   }
   if (request.kind === "hook.run") {
     try {
@@ -4661,6 +4831,9 @@ async function handleBrokerRequest(
       return;
     case "office.document":
       await handleOfficeDocumentBrokerRequest(workerRequestId, request);
+      return;
+    case "plugin.tool":
+      await handlePluginToolBrokerRequest(workerRequestId, request);
       return;
   }
   const decision = evaluateModePolicy(request.mode, {
@@ -5287,6 +5460,50 @@ async function handleOfficeDocumentBrokerRequest(
       : "deny",
     modelReason: request.modelApproval.reason,
     ...(request.actorAgentId ? { actorAgentId: request.actorAgentId } : {}),
+  });
+}
+
+async function handlePluginToolBrokerRequest(
+  workerRequestId: string,
+  request: Extract<BrokerExecutionRequest, { kind: "plugin.tool" }>,
+): Promise<void> {
+  if (!store || !pluginDispatch) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "Design-plugin dispatch is not available.",
+    );
+    return;
+  }
+  const outcome = await pluginDispatch.dispatch({
+    threadId: request.threadId,
+    toolName: request.toolName,
+    args: request.args,
+    mode: request.mode,
+  });
+  if (outcome.status === "refused") {
+    rejectBrokerRequest(workerRequestId, request, outcome.error ?? "refused");
+    return;
+  }
+  if (outcome.status === "failed") {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      outcome.error ?? "plugin tool failed",
+    );
+    return;
+  }
+  agentProcess?.post({
+    type: "broker.resolve",
+    requestId: workerRequestId,
+    resolution: {
+      approvalId: request.approvalId,
+      nonce: randomUUID(),
+      approved: true,
+      scope: "once",
+      source: "policy",
+    },
+    result: outcome.result ?? {},
   });
 }
 
@@ -6430,6 +6647,14 @@ async function startTaskTurnUnchecked(
   if (!thread) {
     throw new Error(`Thread not found: ${input.threadId}`);
   }
+  if (input.designPanelCredential) {
+    if (!panelSendEntry) throw new Error("Send entry unavailable.");
+    panelSendEntry.validateForThread(
+      input.designPanelCredential,
+      thread.id,
+      thread.typeBinding?.bindingRevision ?? "unbound-preview",
+    );
+  }
   if (thread.archived) {
     throw new Error("Archived tasks cannot start a turn.");
   }
@@ -6785,7 +7010,17 @@ async function startTaskTurnUnchecked(
       };
     }
   }
+  let panelSubmissionId: string | undefined;
   try {
+    if (input.designPanelCredential) {
+      panelSubmissionId = panelSendEntry!.consumeForTurn(
+        input.designPanelCredential,
+        thread.id,
+        store.getThread(thread.id)?.typeBinding?.bindingRevision ??
+          "unbound-preview",
+        turnId,
+      ).submissionId;
+    }
     if (
       options.delegationContinuationId &&
       !imService?.canResumeDelegation(options.delegationContinuationId)
@@ -6817,6 +7052,8 @@ async function startTaskTurnUnchecked(
       return { turnId, thread: store.getThread(thread.id) ?? thread };
     }
   } catch (error) {
+    if (panelSubmissionId)
+      panelSendEntry?.markOutcome(panelSubmissionId, "failed");
     for (const invocation of invocations) {
       store.transitionCustomAgentInvocation(
         thread.id,
@@ -7079,6 +7316,18 @@ async function queueTurn(
   }
   const command = parseThreadCommand({ type, ...input });
   const thread = store.getThread(command.threadId);
+  if (input.designPanelCredential) {
+    if (!thread || !panelSendEntry) throw new Error("Send entry unavailable.");
+    panelSendEntry.validateForThread(
+      input.designPanelCredential,
+      thread.id,
+      thread.typeBinding?.bindingRevision ?? "unbound-preview",
+    );
+    if (compactingThreads.has(thread.id))
+      throw new Error(
+        "Wait for context compaction before sending the design candidate.",
+      );
+  }
   if (thread && command.attachments?.length)
     command.attachments = await attachmentStore().bind(
       attachmentScope(thread.id),
@@ -7115,7 +7364,17 @@ async function queueTurn(
     command.attachments,
     appendPromptFiles(command.text, command.attachments),
   );
+  let panelSubmissionId: string | undefined;
   try {
+    if (input.designPanelCredential) {
+      panelSubmissionId = panelSendEntry!.consumeForTurn(
+        input.designPanelCredential,
+        thread.id,
+        store.getThread(thread.id)?.typeBinding?.bindingRevision ??
+          "unbound-preview",
+        turnId,
+      ).submissionId;
+    }
     await agentProcess.request({
       type,
       requestId: randomUUID(),
@@ -7127,6 +7386,8 @@ async function queueTurn(
     });
   } catch (error) {
     recoverableTurnQueues.remove(thread.id, recoverableId);
+    if (panelSubmissionId)
+      panelSendEntry?.markOutcome(panelSubmissionId, "failed");
     throw error;
   }
   for (const attachment of command.attachments ?? []) {
@@ -7167,6 +7428,7 @@ async function controlTurnQueue(
     throw new Error("Task has no active turn.");
   }
 
+  const queuedTurnId = activeTurns.get(thread.id);
   const result = await agentProcess.request<{
     steering: string[];
     followUp: string[];
@@ -7176,6 +7438,7 @@ async function controlTurnQueue(
     threadId: thread.id,
   });
   if (type === "turn.queue.clear") {
+    panelSendEntry?.recoverInterruptedSubmissions(thread.id, queuedTurnId);
     recoverableTurnQueues.discard(thread.id);
   }
   return result;
@@ -7206,6 +7469,7 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
     throw new Error("Task has no active turn.");
   }
 
+  const queuedTurnId = activeTurns.get(thread.id);
   const rollback = recoverableTurnQueues.replaceFollowUp(
     thread.id,
     command.expectedFollowUp,
@@ -7220,6 +7484,7 @@ async function replaceTurnQueue(input: ReplaceQueuedTurnInput): Promise<void> {
       expectedFollowUp: rollback.runtimeExpectedFollowUp,
       followUp: rollback.runtimeFollowUp,
     });
+    panelSendEntry?.recoverInterruptedSubmissions(thread.id, queuedTurnId);
   } catch (error) {
     recoverableTurnQueues.rollbackFollowUp(rollback);
     throw error;
@@ -10115,6 +10380,934 @@ function registerIpc(): void {
     },
   );
   ipcMain.handle(
+    IPC.designPanelEnsure,
+    async (event, threadId: string, panelId: string) => {
+      if (!designPanelHost) throw new Error("Panel host is not ready.");
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) throw new Error("Host window is not available.");
+      const thread = store?.getThread(threadId);
+      if (!thread) throw new Error("Active task not found.");
+      // Removal gate: an uninstalled plugin must not mount, even though its
+      // bound revision survives on disk (reinstall restores it in place).
+      const unavailable = await designPluginAvailabilityGate?.(threadId);
+      if (unavailable) throw new Error(unavailable);
+      // S2: verify the thread's revision binding before mounting; a
+      // tampered revision refuses the load with a repair hint.
+      const boundThread = store?.getThread(threadId);
+      if (boundThread?.typeBinding) {
+        const revisionRoot = join(
+          designPluginRevisionsRoot(app.getPath("userData")),
+          boundThread.typeBinding.installationId,
+          boundThread.typeBinding.contentHash,
+        );
+        await designPanelHost.setThreadBinding({
+          threadId,
+          installationId: boundThread.typeBinding.installationId,
+          contentHash: boundThread.typeBinding.contentHash,
+          revisionRoot,
+        });
+      } else {
+        // 打开面板即绑定：临时会话/普通项目线程首次使用设计面板时，冻结到
+        // 当前激活的 pack 修订（持久化 binding + thread 授权），使面板与
+        // 工具链在同一信任链上工作。移除插件时由可用性 gate 统一拒绝。
+        const synced = await ensureDesignPackSynced();
+        if (!synced)
+          throw new Error(
+            "设计插件未安装：请在 插件市场 → 随应用提供的插件 中获取。",
+          );
+        const manifest = JSON.parse(
+          await readFile(
+            join(synced.revisionRoot, "artemis.plugin.json"),
+            "utf8",
+          ),
+        ) as { id: string; version: string };
+        const binding = {
+          installationId: synced.installationId,
+          pluginId: synced.installationId,
+          typeId: "artemis-design",
+          pluginVersion: manifest.version,
+          contentHash: synced.contentHash,
+          bindingRevision: `rev-${synced.contentHash.slice(0, 12)}`,
+        };
+        store?.updateThread(threadId, { typeBinding: binding });
+        store?.insertPluginGrant({
+          grantId: randomUUID(),
+          installationId: binding.installationId,
+          pluginId: binding.pluginId,
+          contentHash: binding.contentHash,
+          scope: "thread",
+          scopeId: threadId,
+          capabilities: { artifactStore: "thread" },
+          resourceRefs: {
+            revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+          },
+          grantRevision: binding.bindingRevision,
+        });
+        // P1-5：绑定即收紧——普通会话立刻换受限会话（原子关闭+重开），
+        // 而不是等下一次 app 启动才生效。
+        await tightenThreadToRestrictedProfile(threadId);
+        await designPanelHost.setThreadBinding({
+          threadId,
+          installationId: binding.installationId,
+          contentHash: binding.contentHash,
+          revisionRoot: synced.revisionRoot,
+        });
+      }
+      const handle = await designPanelHost.ensurePanel(
+        window,
+        threadId,
+        panelId,
+      );
+      // S4: push an initial snapshot so the panel can render the file list
+      // and load the head document without waiting for a renderer event.
+      // （首推可能早于面板脚本/port 握手就绪而丢：3s 后无条件补推一次，
+      // 快照推送幂等；面板侧 snapshot-request 是另一重兜底。）
+      void pushDesignSnapshot(threadId, panelId);
+      // 补推兜底只兜"首推在 port 握手前丢失"：面板收到并渲染首份快照会
+      // 回 snapshot-ack，已 ack 则无需再推（避免重复渲染闪烁）。
+      setTimeout(() => {
+        if (designPanelHost?.hasAckedSnapshot(threadId, panelId)) return;
+        void pushDesignSnapshot(threadId, panelId);
+      }, 3000);
+      // Theme follows the host: the panel is a separate webContents and
+      // cannot observe the parent window's data-theme attribute.
+      designPanelHost.pushTheme(
+        threadId,
+        panelId,
+        nativeTheme.shouldUseDarkColors ? "dark" : "light",
+      );
+      return handle;
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelBounds,
+    async (
+      _event,
+      threadId: string,
+      panelId: string,
+      bounds: { x: number; y: number; width: number; height: number },
+    ) => {
+      designPanelHost?.setBounds(threadId, panelId, bounds);
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelVisible,
+    async (_event, threadId: string, panelId: string, visible: boolean) => {
+      designPanelHost?.setVisible(threadId, panelId, visible);
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelRelease,
+    async (_event, threadId: string, panelId: string) => {
+      designPanelHost?.releasePanel(threadId, panelId);
+    },
+  );
+  // S3 host send entry (proposal §9.2): candidates never reach Pi from the
+  // panel; the user consumes a one-time credential in the renderer to move
+  // the text into the composer through the ledger state machine.
+  ipcMain.handle(
+    IPC.designPanelCandidateAccept,
+    async (_event, threadId: string, candidateText: string) => {
+      if (!store || !panelSendEntry) throw new Error("Send entry unavailable.");
+      const thread = store.getThread(threadId);
+      const bindingRevision =
+        thread?.typeBinding?.bindingRevision ?? "unbound-preview";
+      const accepted = panelSendEntry.acceptCandidate({
+        threadId,
+        candidateText,
+        bindingRevision,
+      });
+      return {
+        threadId: accepted.threadId,
+        candidateText: accepted.candidateText,
+        credential: accepted.credential,
+        submissionId: accepted.submission.submissionId,
+      };
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelSendConsume,
+    async (_event, credential: string) => {
+      if (!panelSendEntry) throw new Error("Send entry unavailable.");
+      try {
+        const consumed = panelSendEntry.consumeCredential(credential);
+        return {
+          threadId: consumed.threadId,
+          candidateText: consumed.candidateText,
+          submissionId: credential.split(".")[0] ?? "",
+        };
+      } catch (error) {
+        throw new Error(
+          `Send credential refused: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    },
+  );
+  // （历史 S4 直连 IPC 的 export/handoff 处理器已删除：面板统一走 port
+  // request handlers（designPanelHost.setRequestHandlers），那里有完整的
+  // documentId 校验与安全读取；重复保留两条路径只会留下第二攻击面。）
+  // P2-10：「加入输入框」走 staged 语义（accepted → cancelled），不再把
+  // 未发送的草稿推进 dispatching。
+  ipcMain.handle(
+    IPC.designPanelSendStage,
+    async (_event, credential: string) => {
+      if (!panelSendEntry) throw new Error("Send entry unavailable.");
+      try {
+        const staged = panelSendEntry.stageCredential(credential);
+        return {
+          threadId: staged.threadId,
+          candidateText: staged.candidateText,
+          submissionId: credential.split(".")[0] ?? "",
+        };
+      } catch (error) {
+        throw new Error(
+          `Send credential refused: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    },
+  );
+  ipcMain.handle(
+    IPC.designPanelSendOutcome,
+    async (_event, submissionId: string, outcome: "completed" | "failed") => {
+      panelSendEntry?.markOutcome(submissionId, outcome);
+    },
+  );
+  // S4: snapshot downlink — the panel renders its file list from this.
+  async function pushDesignSnapshot(
+    threadId: string,
+    panelId: string,
+  ): Promise<void> {
+    if (!pluginDispatch || !designPanelHost) return;
+    // First-open dispatch can race runtime worker startup; one deferred
+    // retry covers the "Worker not ready" window instead of leaving the
+    // panel blank forever.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const delivered = await deliverDesignSnapshot(threadId, panelId);
+      if (delivered) return;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+    }
+  }
+
+  // Artifact writes arrive in bursts (one turn can apply several edits);
+  // coalesce to a single trailing snapshot push per thread.
+  const designSnapshotPushTimers = new Map<string, NodeJS.Timeout>();
+  function pushDesignSnapshotDebounced(
+    threadId: string,
+    panelId: string,
+  ): void {
+    const existing = designSnapshotPushTimers.get(threadId);
+    if (existing) clearTimeout(existing);
+    designSnapshotPushTimers.set(
+      threadId,
+      setTimeout(() => {
+        designSnapshotPushTimers.delete(threadId);
+        void pushDesignSnapshot(threadId, panelId);
+      }, 250),
+    );
+  }
+  designArtifactWriteSink = (threadId) => {
+    pushDesignSnapshotDebounced(threadId, "workspace");
+  };
+
+  async function deliverDesignSnapshot(
+    threadId: string,
+    panelId: string,
+  ): Promise<boolean> {
+    if (!pluginDispatch || !designPanelHost) return false;
+    const outcome = await pluginDispatch.dispatch({
+      threadId,
+      toolName: "get_snapshot",
+      args: {},
+      mode: "work",
+    });
+    let documents: unknown[] = [];
+    if (outcome.status === "succeeded" && outcome.result) {
+      try {
+        const parsed = JSON.parse(
+          (outcome.result as { output?: string }).output ?? "{}",
+        ) as { documents?: unknown[] };
+        documents = parsed.documents ?? [];
+      } catch {
+        documents = [];
+      }
+    } else {
+      // runtime worker 不在（会话已完成/未启动）时的降级：直读线程数据店
+      // 组装文档清单（get_snapshot 的纯文件等价物）——面板只读展示不需要
+      // 运行时存活，否则已完成会话的面板永远空白。
+      console.error(
+        `[design-panel] snapshot dispatch unavailable, reading store directly: ${JSON.stringify(outcome).slice(0, 200)}`,
+      );
+      documents = await readSnapshotDocumentsDirect(threadId);
+    }
+    const thread = store?.getThread(threadId);
+    const project = thread?.projectId
+      ? store?.getProject(thread.projectId)
+      : undefined;
+    // 项目会话：扫描项目工作区文件（只读清单，不进线程数据店），面板在
+    // 文件归类里与设计文档并列展示。上限 400 个文件 / 4 层深，忽略依赖与
+    // 构建产物目录。
+    let projectFiles: Array<{
+      path: string;
+      bytes: number;
+      updatedAt: string;
+    }> = [];
+    if (thread?.projectId) {
+      try {
+        const workspace = await resolveThreadWorkspace(thread);
+        projectFiles = await scanProjectDesignFiles(workspace.workspacePath);
+      } catch (error) {
+        console.error("[design-panel] project scan failed", error);
+      }
+    }
+    designPanelHost.pushSnapshot(threadId, panelId, {
+      documents,
+      projectFiles,
+      projectName: project?.name ?? "设计任务",
+    });
+    return true;
+  }
+
+  /** runtime 缺席时的快照降级读取：直读线程数据店的账本与版本目录
+     （runtime get_snapshot 的纯文件等价物，含 HEAD 恢复指针语义）。 */
+  async function readSnapshotDocumentsDirect(
+    threadId: string,
+  ): Promise<unknown[]> {
+    const dataRoot = await ensureThreadDataRoot(
+      join(app.getPath("userData"), "plugin-scratch"),
+      threadId,
+    );
+    let ledger: Array<Record<string, string>> = [];
+    try {
+      ledger = (await readDesignDocumentLedger(dataRoot))
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as Record<string, string>);
+    } catch {
+      return [];
+    }
+    const byId = new Map<
+      string,
+      { id: string; name: string; brief: string; updatedAt: string }
+    >();
+    const deletedIds = new Set<string>();
+    for (const record of ledger) {
+      const id = record.id ?? "";
+      // P2-16：删除墓碑——之后的条目不再聚合，文档从快照消失。
+      if ((record as { deleted?: boolean }).deleted) {
+        deletedIds.add(id);
+        byId.delete(id);
+        continue;
+      }
+      if (deletedIds.has(id)) continue;
+      const entry = byId.get(id) ?? { id, name: "", brief: "", updatedAt: "" };
+      if (record.name) entry.name = record.name;
+      if (record.brief && !entry.brief) entry.brief = record.brief;
+      const ts =
+        record.editedAt ||
+        record.restoredAt ||
+        record.createdAt ||
+        record.undoneAt ||
+        record.redoneAt;
+      if (ts && ts > entry.updatedAt) entry.updatedAt = ts;
+      byId.set(id, entry);
+    }
+    const documents: unknown[] = [];
+    for (const entry of byId.values()) {
+      if (!entry.name) continue;
+      const docDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        entry.id,
+      ).catch(() => undefined);
+      if (!docDir) continue;
+      const versionFiles = (await readdir(docDir).catch(() => []))
+        .filter((file) => /^v\d+-/.test(file))
+        .sort(
+          (a, b) =>
+            Number(/^v(\d+)/.exec(a)?.[1] ?? 0) -
+            Number(/^v(\d+)/.exec(b)?.[1] ?? 0),
+        );
+      const head = versionFiles.at(-1);
+      // HEAD 标记（恢复指针）优先：内容 <seq>-<rev>，指向恢复来源版本
+      const marker = (
+        await readDesignDocumentVersionBytes(
+          dataRoot,
+          docDir,
+          "HEAD",
+          1024,
+        ).catch(() => Buffer.alloc(0))
+      )
+        .toString("utf8")
+        .trim();
+      const markerSeq = marker.split("-")[0] ?? "";
+      const markerRev = marker.split("-")[1] ?? "";
+      const headEntry = versionFiles.find(
+        (file) =>
+          !!marker &&
+          String(/^v(\d+)/.exec(file)?.[1] ?? "") === markerSeq &&
+          (/^v\d+-(.+)\.html$/.exec(file)?.[1] ?? "") === markerRev,
+      );
+      const headFile = headEntry ?? head;
+      documents.push({
+        documentId: entry.id,
+        name: entry.name,
+        brief: entry.brief,
+        headRevision: headFile
+          ? (/^v\d+-(.+)\.html$/.exec(headFile)?.[1] ?? null)
+          : null,
+        versionCount: versionFiles.length,
+        ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
+      });
+    }
+    return documents;
+  }
+
+  // P1-3：项目文件读取管线已抽出为 design-plugin-project-files.ts
+  //（readProjectFileForPreview），见其内注释的安全模型。
+
+  const DESIGN_SCAN_IGNORED_DIRS = new Set([
+    "node_modules",
+    ".git",
+    "dist",
+    "dist-electron",
+    "dist-renderer",
+    "build",
+    "out",
+    "coverage",
+    "vendor",
+    "__pycache__",
+    ".cache",
+    ".next",
+    ".output",
+    "target",
+    "artifacts",
+    ".zcode",
+  ]);
+  async function scanProjectDesignFiles(
+    workspacePath: string,
+  ): Promise<Array<{ path: string; bytes: number; updatedAt: string }>> {
+    // 广度优先：浅层文件先收录（归类概览不被深层目录挤占）。
+    const files: Array<{ path: string; bytes: number; updatedAt: string }> = [];
+    let level: Array<{ dir: string; prefix: string }> = [
+      { dir: workspacePath, prefix: "" },
+    ];
+    for (let depth = 0; level.length > 0 && files.length < 400; depth += 1) {
+      if (depth > 4) break;
+      const next: Array<{ dir: string; prefix: string }> = [];
+      for (const { dir, prefix } of level) {
+        if (files.length >= 400) break;
+        const entries = (
+          await readdir(dir, { withFileTypes: true }).catch(() => [])
+        ).sort((a, b) => a.name.localeCompare(b.name));
+        for (const entry of entries) {
+          if (files.length >= 400) break;
+          if (entry.name.startsWith(".")) continue;
+          const absolute = join(dir, entry.name);
+          const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+          if (entry.isSymbolicLink()) continue;
+          if (entry.isDirectory()) {
+            if (DESIGN_SCAN_IGNORED_DIRS.has(entry.name)) continue;
+            next.push({ dir: absolute, prefix: path });
+            continue;
+          }
+          if (!entry.isFile()) continue;
+          const info = await stat(absolute).catch(() => undefined);
+          if (!info || !info.isFile()) continue;
+          files.push({
+            path,
+            bytes: info.size,
+            updatedAt: info.mtime.toISOString(),
+          });
+        }
+      }
+      level = next;
+    }
+    return files;
+  }
+
+  // 面板就绪后主动拉完整快照：首开的 host push 可能早于 port 握手而丢失
+  //（白屏无卡片），面板发 snapshot-request 时补推。
+  designPanelHost?.onSnapshotRequest(({ threadId, panelId }) => {
+    void pushDesignSnapshot(threadId, panelId);
+  });
+
+  /**
+   * P2-13：统一 HEAD 语义。runtime 的撤销只回拨 HEAD 指针（append-only 版
+   * 本目录不动），数值序最后一个是「被撤销掉的未来」。预览/导出/截图/恢
+   * 复兜底一律按 HEAD 选版本，无指针时回退数值序最后（runtime headVersion
+   * 同构）。
+   */
+
+  /** 导出文件名：优先账本显示名（customer.html），回退版本文件名。 */
+  async function readDesignDocumentName(
+    dataRoot: string,
+    documentId: string,
+    fallback: string,
+  ): Promise<string> {
+    try {
+      const ledgerText = await readDesignDocumentLedger(dataRoot);
+      let deleted = false;
+      for (const line of ledgerText.split("\n")) {
+        if (!line.trim()) continue;
+        const record = JSON.parse(line) as {
+          id?: string;
+          name?: string;
+          deleted?: boolean;
+        };
+        if (record.id !== documentId) continue;
+        if (record.deleted) {
+          deleted = true;
+          continue;
+        }
+        if (record.name && !deleted)
+          return sanitizeDesignExportName(record.name);
+      }
+    } catch {
+      /* 账本缺失时回退到版本文件名 */
+    }
+    return fallback;
+  }
+
+  /** 导出文件名净化：账本名可能带路径分隔符，压平成安全文件名。 */
+  function sanitizeDesignExportName(name: string): string {
+    const base = basename(name.replace(/\\/g, "/")).trim();
+    if (!base || base === "." || base === "..") return "design-document.html";
+    return /\.html?$/i.test(base) ? base : `${base}.html`;
+  }
+
+  designPanelHost?.setRequestHandlers({
+    /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
+     * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
+    readProjectFile: async (input) => {
+      if (!store) throw new Error("Application store is not ready.");
+      const thread = store.getThread(input.threadId);
+      if (!thread) throw new Error("Active task not found.");
+      const workspace = await resolveThreadWorkspace(thread);
+      const requestedPath = String(input.path ?? "").trim();
+      const { content } = await readProjectFileForPreview({
+        workspacePath: workspace.workspacePath,
+        requestedPath,
+      });
+      // 页面间导航与相对资源的解析基址：srcdoc 无 base URL（相对引用会落
+      // 到面板自身目录 → 404 白屏）。宿主开一个 lease，把目录级 URL 交给
+      // 面板注入 <base>——页面 location.href/<a href> 导航到租约内兄弟
+      // 文件即真实显示（OD 的 /raw/ base 同构）。lease 进程期保留。
+      let baseUrl: string | undefined;
+      if (/\.html?$/i.test(requestedPath)) {
+        try {
+          const { url } = await workspaceHtmlPreview.open(
+            input.threadId,
+            requestedPath,
+          );
+          baseUrl = url.replace(/[^/]+$/, "");
+        } catch {
+          baseUrl = undefined;
+        }
+      }
+      return {
+        name: requestedPath,
+        content,
+        ...(baseUrl ? { baseUrl } : {}),
+      };
+    },
+    /** 项目 HTML 预览 lease：面板只换得 artemis-preview URL（URL-load，
+     * 相对资源由协议处理器在文件目录内解析——OD 的 /raw/ 同构）。 */
+    projectPreview: async (input) => {
+      if (!store) throw new Error("Application store is not ready.");
+      const thread = store.getThread(input.threadId);
+      if (!thread) throw new Error("Active task not found.");
+      return workspaceHtmlPreview.open(input.threadId, String(input.path));
+    },
+    exportDocument: async (input) => {
+      if (!store || !pluginDispatch) throw new Error("Export unavailable.");
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding)
+        throw new Error("Thread has no plugin binding.");
+      const documentId = requireDesignDocumentId(input.documentId);
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
+      const entries = await readdir(documentDir).catch(() => []);
+      // 指定 revision 时精确匹配；默认导出 HEAD 当前版本（P2-13）。
+      const source = input.revision
+        ? entries.find((entry) => entry.endsWith(`-${input.revision}.html`))
+        : await resolveHeadVersionEntry(dataRoot, documentDir, entries);
+      if (!source) throw new Error("No version file for the document.");
+      const bytes = await readDesignDocumentVersionBytes(
+        dataRoot,
+        documentDir,
+        source,
+      );
+      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
+      // P2-16：真实下载——保存对话框由用户选目的地，取消则如实返回
+      //（此前只写进宿主私有目录就弹「已下载」）。
+      const displayName = await readDesignDocumentName(
+        dataRoot,
+        documentId,
+        source,
+      );
+      const parent =
+        BrowserWindow.getFocusedWindow() ??
+        BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
+      const save = parent
+        ? await dialog.showSaveDialog(parent, {
+            defaultPath: displayName,
+            filters: [{ name: "HTML", extensions: ["html"] }],
+          })
+        : { canceled: true, filePath: "" as string | undefined };
+      if (save.canceled || !save.filePath) {
+        return { path: "", revision, canceled: true };
+      }
+      await writeFile(save.filePath, bytes);
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/export`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-exported",
+          documentId,
+          revision,
+          destination: save.filePath,
+        },
+      });
+      return { path: save.filePath, revision };
+    },
+    readDocument: async (input) => {
+      if (!store) return undefined;
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) return undefined;
+      const documentId = requireDesignDocumentId(input.documentId);
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
+      const entries = await readdir(documentDir).catch(() => []);
+      // P2-13：按 HEAD 指针选版本（撤销后预览跟随回拨，不再显示被撤销内容）。
+      const source = await resolveHeadVersionEntry(
+        dataRoot,
+        documentDir,
+        entries,
+      );
+      if (!source) return undefined;
+      // 显示名取账本的文档名（customer.html），而非版本文件名（v2-xxx.html）。
+      let displayName = documentId;
+      try {
+        const ledgerText = await readDesignDocumentLedger(dataRoot);
+        for (const line of ledgerText.split("\n")) {
+          if (!line.trim()) continue;
+          const record = JSON.parse(line) as {
+            id?: string;
+            name?: string;
+          };
+          if (record.id === documentId && record.name) {
+            displayName = record.name;
+            break;
+          }
+        }
+      } catch {
+        /* 账本缺失时回退到 documentId */
+      }
+      return {
+        html: (
+          await readDesignDocumentVersionBytes(dataRoot, documentDir, source)
+        ).toString("utf8"),
+        name: displayName,
+      };
+    },
+    listDocuments: async (input) => {
+      if (!pluginDispatch) throw new Error("Dispatch unavailable.");
+      const outcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "get_snapshot",
+        args: {},
+        mode: "work",
+      });
+      let documents: unknown[] = [];
+      if (outcome.status === "succeeded" && outcome.result) {
+        try {
+          const parsed = JSON.parse(
+            (outcome.result as { output?: string }).output ?? "{}",
+          ) as { documents?: unknown[] };
+          documents = parsed.documents ?? [];
+        } catch {
+          documents = [];
+        }
+      }
+      const thread = store?.getThread(input.threadId);
+      const project = thread?.projectId
+        ? store?.getProject(thread.projectId)
+        : undefined;
+      return {
+        documents,
+        projectName: project?.name ?? "设计任务",
+      };
+    },
+    handoff: createDesignHandoffHandler(() => store, app.getPath("userData")),
+    restoreDocument: async (input) => {
+      if (!store || !pluginDispatch) {
+        return { ok: false, error: "Restore unavailable." };
+      }
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) {
+        return { ok: false, error: "Thread has no plugin binding." };
+      }
+      // P1-7：恢复 = 把历史版本写成新版本，是文件写入。必须在任何目录
+      // 创建、文件写入或 runtime 调用之前按「持久化的任务模式」门禁——
+      // Plan/Review 一律拒绝（面板按钮禁用只是辅助，不能作为边界）。
+      if (!isExecutionMode(thread.mode)) {
+        return {
+          ok: false,
+          error: "当前任务处于 Plan 模式，恢复版本需要写入文件，已被拒绝。",
+        };
+      }
+      const documentId = requireDesignDocumentId(input.documentId);
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
+      const versionSequence = (entry: string): number =>
+        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
+      const entries = (await readdir(documentDir).catch(() => []))
+        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
+        .sort((a, b) => versionSequence(a) - versionSequence(b));
+      if (entries.length === 0) {
+        return { ok: false, error: "暂无可恢复的历史版本。" };
+      }
+      const operationId = `panel-restore-${randomUUID()}`;
+      // OD 语义：恢复 = 把目标版本存成新版本（runtime restore_version，
+      // append-only）。任何历史版本都可恢复；点当前版本由 runtime 拒绝。
+      const outcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "restore_version",
+        args: {
+          documentId,
+          ...(input.revision ? { revision: input.revision } : {}),
+          operationId,
+        },
+        mode: "work",
+      });
+      if (outcome.status !== "succeeded") {
+        return {
+          ok: false,
+          error: outcome.error || "runtime 拒绝了恢复请求。",
+        };
+      }
+      let restoredFile: string | undefined;
+      try {
+        const parsed = JSON.parse(
+          (outcome.result as { output?: string }).output ?? "{}",
+        ) as { revision?: string; version?: number };
+        restoredFile =
+          parsed.revision && parsed.version
+            ? `v${parsed.version}-${parsed.revision}.html`
+            : undefined;
+      } catch {
+        restoredFile = undefined;
+      }
+      if (!restoredFile) {
+        // 兜底：恢复后 HEAD 已推进，按 HEAD 选新当前版本（P2-13）。
+        restoredFile = await resolveHeadVersionEntry(
+          dataRoot,
+          documentDir,
+          await readdir(documentDir).catch(() => []),
+        );
+      }
+      if (!restoredFile) {
+        return { ok: false, error: "恢复目标不存在。" };
+      }
+      const restoredHtml = (
+        await readDesignDocumentVersionBytes(
+          dataRoot,
+          documentDir,
+          restoredFile,
+        )
+      ).toString("utf8");
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/restore`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-restored",
+          documentId,
+          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(restoredFile)?.[1] ?? "",
+        },
+      });
+      return { ok: true, documentHtml: restoredHtml, name: restoredFile };
+    },
+    captureScreenshot: async (input) => {
+      if (!store || !pluginDispatch) {
+        throw new Error("Screenshot unavailable.");
+      }
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding) {
+        throw new Error("Thread has no plugin binding.");
+      }
+      const documentId = requireDesignDocumentId(input.documentId);
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      const documentDir = await resolveDesignDocumentDirectory(
+        dataRoot,
+        documentId,
+      );
+      const source = await resolveHeadVersionEntry(
+        dataRoot,
+        documentDir,
+        await readdir(documentDir).catch(() => []),
+      );
+      if (!source) throw new Error("No version file for the document.");
+      // P2-16：真实像素捕获——面板预览区域截图为 PNG（此前只是复制 HTML
+      // 还生成 .html.html 文件，纯属误导）。
+      const image = await designPanelHost?.capturePanelArea(
+        input.threadId,
+        input.panelId,
+        input.rect,
+      );
+      if (!image || image.isEmpty()) {
+        throw new Error("No visible design panel to capture.");
+      }
+      const screenshotRoot = join(
+        app.getPath("userData"),
+        "design-screenshots",
+        documentId,
+      );
+      await mkdir(screenshotRoot, { recursive: true });
+      const destination = join(screenshotRoot, `${source}.png`);
+      await writeFile(destination, image.toPNG());
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/screenshot`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-screenshot",
+          documentId,
+          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "",
+          destination,
+        },
+      });
+      return { path: destination };
+    },
+    deleteDocument: async (input) => {
+      if (!store) throw new Error("Delete unavailable.");
+      const thread = store.getThread(input.threadId);
+      if (!thread?.typeBinding)
+        throw new Error("Thread has no plugin binding.");
+      // 删除是破坏性写入：仅 Execute 任务允许（P1-7 同款门禁）。
+      if (!isExecutionMode(thread.mode)) {
+        return {
+          ok: false,
+          error: "当前任务处于 Plan 模式，删除文档需要写入，已被拒绝。",
+        };
+      }
+      const documentId = requireDesignDocumentId(input.documentId);
+      const dataRoot = await ensureThreadDataRoot(
+        join(app.getPath("userData"), "plugin-scratch"),
+        input.threadId,
+      );
+      await deleteDesignDocument(dataRoot, documentId);
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/delete`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "document-deleted",
+          documentId,
+        },
+      });
+      pushDesignSnapshotDebounced(input.threadId, input.panelId ?? "workspace");
+      return { ok: true };
+    },
+    listVersions: async (input) => {
+      if (!pluginDispatch) throw new Error("Dispatch unavailable.");
+      const documentId = requireDesignDocumentId(input.documentId);
+      const outcome = await pluginDispatch.dispatch({
+        threadId: input.threadId,
+        toolName: "list_versions",
+        args: { documentId },
+        mode: "work",
+      });
+      if (outcome.status !== "succeeded") {
+        throw new Error(outcome.error ?? "list_versions failed.");
+      }
+      return outcome.result;
+    },
+  });
+  // Candidate prompts flow main -> renderer; the panel never gets a channel.
+  designPanelHost?.onCandidatePrompt((candidate) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(IPC.designPanelCandidate, {
+        kind: candidate.kind,
+        threadId: candidate.threadId,
+        panelId: candidate.panelId,
+        text: candidate.text,
+        source: candidate.source,
+        occurredAt: candidate.occurredAt,
+        ...(candidate.autoSend === false ? { autoSend: false } : {}),
+        ...(candidate.images ? { images: candidate.images } : {}),
+        ...(candidate.annotations
+          ? { annotations: candidate.annotations }
+          : {}),
+        ...(candidate.document ? { document: candidate.document } : {}),
+      });
+    }
+  });
+  // Composer binding (OD activeProjectFileName): the panel's active document
+  // tab locks the composer onto that page; null unbinds (files grid).
+  designPanelHost?.onActiveDocument((binding) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (window.isDestroyed()) continue;
+      window.webContents.send(IPC.designPanelBinding, binding);
+    }
+  });
+
+  // 工作区"+"菜单：透明子窗口承载应用自绘 HTML（独立原生层，浮于设计面板
+  // 之上）。选择回包发给开菜单的窗口；无选择关闭只回按钮复位信号。
+  setWorkspaceTabMenuHandlers({
+    onSelect: (kind) => {
+      const window = workspaceTabMenuParent();
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC.workspaceTabMenuSelect, kind);
+      }
+    },
+    onDismiss: () => {
+      const window = workspaceTabMenuParent();
+      if (window && !window.isDestroyed()) {
+        window.webContents.send(IPC.workspaceTabMenuClosed);
+      }
+    },
+  });
+  ipcMain.handle(IPC.workspaceTabMenuShow, (event, input) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return;
+    return showWorkspaceTabMenu(window, input);
+  });
+  ipcMain.handle(IPC.workspaceTabMenuClose, () => {
+    closeWorkspaceTabMenu();
+  });
+
+  ipcMain.handle(
     IPC.workspaceHtmlOpen,
     async (event, threadId: string, href: string) => {
       assertWorkspacePreviewSender(event);
@@ -10277,6 +11470,268 @@ function registerIpc(): void {
     IPC.officeCapabilityUninstall,
     async (_event, version: string) =>
       (await getOfficeWorkbench()).packs.uninstall(version),
+  );
+
+  // Design capability pack (todo ⑤): the settings toggle's backend. Mirrors
+  // the office capability surface namespaced to packId "artemis-design".
+  let designPackRuntime: ReturnType<typeof createDesignPackRuntime> | undefined;
+  const getDesignPackRuntime = () => {
+    designPackRuntime ??= createDesignPackRuntime({
+      userData: app.getPath("userData"),
+      catalogPath:
+        process.env.ARTEMIS_DESIGN_PACK_CATALOG ??
+        (app.isPackaged
+          ? join(
+              process.resourcesPath,
+              "resources",
+              "design-plugins",
+              "catalog.json",
+            )
+          : join(
+              app.getAppPath(),
+              "resources",
+              "design-plugins",
+              "catalog.json",
+            )),
+      hostVersion: app.getVersion(),
+      revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+    });
+    return designPackRuntime;
+  };
+  /** Install/activate must land the payload in the thread-binding trust chain. */
+  type DesignRevisionSync =
+    | { installationId: string; contentHash: string; revisionRoot: string }
+    | undefined;
+  const syncDesignPackRevision = async (): Promise<DesignRevisionSync> => {
+    try {
+      const result = await (await getDesignPackRuntime()).syncActiveRevision();
+      if (result) {
+        // Follow-the-active-revision（一方插件语义）：本安装的所有绑定线程
+        // 统一迁到新修订（改绑定哈希/版本 + 补授权），面板与工具链随 pack
+        // 更新即时跟进；修订库不可变，老修订内容原地保留。
+        const manifest = JSON.parse(
+          await readFile(
+            join(result.revisionRoot, "artemis.plugin.json"),
+            "utf8",
+          ),
+        ) as { id: string; version: string };
+        const binding = {
+          installationId: result.installationId,
+          pluginId: result.installationId,
+          typeId: "artemis-design",
+          pluginVersion: manifest.version,
+          contentHash: result.contentHash,
+          bindingRevision: `rev-${result.contentHash.slice(0, 12)}`,
+        };
+        for (const thread of store?.listThreads() ?? []) {
+          if (thread.typeBinding?.installationId !== result.installationId)
+            continue;
+          if (thread.typeBinding.contentHash === result.contentHash) continue;
+          store?.updateThread(thread.id, { typeBinding: binding });
+          store?.insertPluginGrant({
+            grantId: randomUUID(),
+            installationId: binding.installationId,
+            pluginId: binding.pluginId,
+            contentHash: binding.contentHash,
+            scope: "thread",
+            scopeId: thread.id,
+            capabilities: { artifactStore: "thread" },
+            resourceRefs: {
+              revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+            },
+            grantRevision: binding.bindingRevision,
+          });
+        }
+      }
+      return result;
+    } catch (error) {
+      console.error("[design-pack] revision sync failed", error);
+      return undefined;
+    }
+  };
+  // An install from a previous run leaves the pack active but its payload
+  // possibly unpublished (crash between install and sync); lazily reconcile
+  // once per process on the first status read. Idempotent and cheap.
+  let designPackSyncedThisRun = false;
+  let designPackSyncedRevision: DesignRevisionSync;
+  const ensureDesignPackSynced = async (): Promise<DesignRevisionSync> => {
+    // Only a successful sync is cached; an undefined result (pack absent or
+    // not yet installed) retries on the next ensure so an install later in
+    // the same process publishes instead of serving the stale miss.
+    if (designPackSyncedThisRun && designPackSyncedRevision)
+      return designPackSyncedRevision;
+    designPackSyncedThisRun = true;
+    designPackSyncedRevision = await syncDesignPackRevision();
+    return designPackSyncedRevision;
+  };
+  ipcMain.handle(IPC.designCapabilityStatus, async () => {
+    await ensureDesignPackSynced();
+    return (await getDesignPackRuntime()).status();
+  });
+  /** Entry-visibility seed: whether the pack is active right now. */
+  ipcMain.handle(IPC.designCapabilityAvailability, async () => {
+    await ensureDesignPackSynced();
+    const status = await (await getDesignPackRuntime()).status();
+    return { available: Boolean(status.activeVersion) };
+  });
+  /**
+   * Why the design plugin is currently unusable for a thread, or null when
+   * usable. A thread WITH a type binding (every real design task) requires
+   * the capability pack: removing the pack hides design mode even though
+   * the bound revision survives on disk (reinstalling restores it in place,
+   * zero data movement). Only the unbound dev/catalog path falls back to the
+   * bundled resources.
+   */
+  const designPluginUnavailableReason = async (
+    threadId?: string,
+  ): Promise<string | null> => {
+    const bound = threadId
+      ? Boolean(store?.getThread(threadId)?.typeBinding)
+      : true;
+    try {
+      await ensureDesignPackSynced();
+      const status = await (await getDesignPackRuntime()).status();
+      if (status.activeVersion) return null;
+    } catch {
+      // Catalog problems fall through to the bundled-resource check below.
+    }
+    if (!bound) {
+      const bundled = join(
+        app.getAppPath(),
+        "resources",
+        "design-plugins",
+        "artemis-design",
+        "artemis.plugin.json",
+      );
+      try {
+        await readFile(bundled);
+        return null;
+      } catch {
+        /* fall through to the removal message */
+      }
+    }
+    return "设计插件已移除：请在 设置 → 执行权限 中重新获取。设计文件与历史版本已保留，重新安装后自动恢复。";
+  };
+  designPluginAvailabilityGate = designPluginUnavailableReason;
+  /** Entry visibility + tab lifecycle follow the pack: broadcast on change. */
+  const broadcastDesignAvailability = async () => {
+    try {
+      const status = await (await getDesignPackRuntime()).status();
+      const available = Boolean(status.activeVersion);
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (window.isDestroyed()) continue;
+        window.webContents.send(IPC.designCapabilityAvailability, {
+          available,
+        });
+      }
+    } catch (error) {
+      console.error("[design-pack] availability broadcast failed", error);
+    }
+  };
+  /** Remove = design mode off: close every open panel of the plugin. */
+  const closeDesignPanels = (threadId?: string) => {
+    if (!designPanelHost) return;
+    const threads = threadId
+      ? [threadId]
+      : [...new Set(store?.listThreads().map((thread) => thread.id) ?? [])];
+    for (const id of threads) {
+      for (const handle of designPanelHost.listPanels(id)) {
+        designPanelHost.releasePanel(id, handle.panelId);
+      }
+    }
+  };
+  ipcMain.handle(IPC.designCapabilityCheckUpdates, async () => {
+    await (await getDesignPackRuntime()).updates.check();
+  });
+  /** Map trust-chain failures to actionable user language. */
+  const translateDesignPackError = (error: unknown): Error => {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/Untrusted capability signing key/.test(message))
+      return new Error(
+        "此安装包不是由当前应用信任的发布方签名：应用尚未内置该发布公钥，或安装包来自非官方渠道。请更新应用后重试，或使用官方发布的安装包。",
+      );
+    if (/No verified design plugin release/.test(message))
+      return new Error("暂时没有可下载的官方版本。可先通过“导入离线包”安装。");
+    return error instanceof Error ? error : new Error(message);
+  };
+  ipcMain.handle(IPC.designCapabilityInstall, async () => {
+    const runtime = await getDesignPackRuntime();
+    const manifest = runtime.updates.available();
+    if (!manifest)
+      throw new Error(
+        "No verified design plugin release is available for this platform yet.",
+      );
+    try {
+      await runtime.packs.install(manifest);
+    } catch (error) {
+      throw translateDesignPackError(error);
+    }
+    await syncDesignPackRevision();
+    await broadcastDesignAvailability();
+  });
+  ipcMain.handle(
+    IPC.designCapabilityImport,
+    async (_event, input?: { path?: string }) => {
+      // Explicit path (drag-and-drop import / automation) skips the picker;
+      // installOffline verifies the container signature either way.
+      const explicit = input?.path;
+      if (explicit) {
+        try {
+          await (
+            await getDesignPackRuntime()
+          ).packs.installOffline(String(explicit));
+        } catch (error) {
+          throw translateDesignPackError(error);
+        }
+        await syncDesignPackRevision();
+        await broadcastDesignAvailability();
+        return;
+      }
+      const selected = await dialog.showOpenDialog({
+        title: "Import design plugin offline pack",
+        properties: ["openFile"],
+        filters: [
+          { name: "Design plugin pack", extensions: ["artemis-design"] },
+        ],
+      });
+      if (selected.canceled || !selected.filePaths[0]) return;
+      try {
+        await (
+          await getDesignPackRuntime()
+        ).packs.installOffline(selected.filePaths[0]);
+      } catch (error) {
+        throw translateDesignPackError(error);
+      }
+      await syncDesignPackRevision();
+      await broadcastDesignAvailability();
+    },
+  );
+  ipcMain.handle(IPC.designCapabilityCancel, async () =>
+    (await getDesignPackRuntime()).packs.cancel(),
+  );
+  ipcMain.handle(
+    IPC.designCapabilityActivate,
+    async (_event, version: string) => {
+      await (await getDesignPackRuntime()).packs.activate(version);
+      await syncDesignPackRevision();
+      await broadcastDesignAvailability();
+    },
+  );
+  ipcMain.handle(IPC.designCapabilityDeactivate, async () => {
+    await (await getDesignPackRuntime()).packs.deactivate();
+    // Design mode is off: open panels must go with it.
+    closeDesignPanels();
+    await broadcastDesignAvailability();
+  });
+  ipcMain.handle(
+    IPC.designCapabilityUninstall,
+    async (_event, version: string) => {
+      await (await getDesignPackRuntime()).packs.uninstall(version);
+      // Design mode is off: open panels must go with it. Revisions (and with
+      // them every thread's files and history) stay on disk.
+      closeDesignPanels();
+      await broadcastDesignAvailability();
+    },
   );
   ipcMain.handle(
     IPC.workspaceTextFileRead,
@@ -11089,8 +12544,13 @@ function registerIpc(): void {
       const updated = store.updateThread(thread.id, {
         archived: command.archived,
       });
-      if (command.archived)
+      if (command.archived) {
+        // S2: archived threads stop hosting plugin runtimes; the next
+        // unarchive + tool call lazily respawns a fresh worker.
+        pluginDispatch?.closeThread(thread.id);
+        designPanelHost?.releasePanel(thread.id, "workspace");
         computerUseHost?.clearTask(thread.id, "Task archived");
+      }
       taskNotifications?.refresh();
       return updated;
     },
@@ -11218,6 +12678,10 @@ function registerIpc(): void {
       await turnChangeSetService?.deleteThread(threadId);
       await taskSourceImages().deleteThread(threadId);
       await attachmentStore().deleteThread(attachmentScope(threadId));
+      // S2: the thread is gone; its plugin runtime trees must not outlive
+      // it (SIGKILL via ThreadRuntimeManager.closeThread).
+      pluginDispatch?.closeThread(threadId);
+      designPanelHost?.releasePanel(threadId, "workspace");
       store.deleteThread(threadId);
       computerUseHost?.clearTask(threadId, "Task deleted");
       threadHistoryService?.discard(threadId);
@@ -22497,6 +23961,88 @@ app
     );
     markStartupStage("diagnostics-ready");
     store = new AppStore(join(app.getPath("userData"), "artemis.sqlite"));
+
+    // S1 design-plugin panel host: sandboxed WebContentsView per (thread,
+    // panelId). Catalog points at the first-party package root for now; the
+    // installed-revision view replaces this when the trust chain lands.
+    designPanelHost = new DesignPanelHost();
+    designPanelHost.setCatalogRoot(
+      join(app.getAppPath(), "resources", "design-plugins"),
+    );
+    // 项目 HTML 预览（URL-load）：面板 session 不共享 defaultSession 的协议
+    // 处理器，由 panel host 逐 session 注册 artemis-preview。
+    designPanelHost.setPreviewResponder((request) =>
+      workspaceHtmlPreview.respond(request),
+    );
+    // 沙箱预览内的页面导航（桥拦不住的 location.href 类）兜底同步：租约
+    // 服务了目录内兄弟 HTML 时把工作区相对路径推给面板——面板用它同步
+    // 文件 tab，并在进入注释/标记拾取时按"当前页"重建带桥传输（OD 的
+    // 拾取模式换传输重建语义）。
+    workspaceHtmlPreview.onHtmlResourceServed = (
+      leaseHostname,
+      path,
+      threadId,
+    ) => {
+      designPanelHost?.pushProjectNavigated(threadId, "workspace", path);
+    };
+    // S3 host send entry: panel candidates enter the ledger here and are
+    // consumed exactly once via one-time credentials.
+    panelSendEntry = new PanelSendEntryService(store);
+    // Crash-window recovery (§9.3): rows stuck in dispatching/running from a
+    // previous run are outcome-unknown — marked, never blindly re-sent.
+    {
+      let recoveredSubmissions = 0;
+      for (const row of store.listThreads()) {
+        recoveredSubmissions += panelSendEntry.recoverInterruptedSubmissions(
+          row.id,
+        );
+      }
+      if (recoveredSubmissions > 0) {
+        diagnosticBundleService?.record({
+          source: "main",
+          severity: "warning",
+          message: `Marked ${recoveredSubmissions} plugin prompt submission(s) outcome-unknown after restart.`,
+        });
+      }
+    }
+    // S2 trusted dispatch: every plugin tool call from a restricted thread
+    // lands here; the trust chain (revision hash + grant + mode) is enforced
+    // in the main process before any runtime spawn.
+    pluginDispatch = createDispatchPluginTool({
+      store,
+      revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+      scratchRoot: join(app.getPath("userData"), "plugin-scratch"),
+      // 卸载设计插件后拒绝一切工具调用：修订残留不等于插件可用。
+      availabilityGate: async (input: { threadId: string }) =>
+        (await designPluginAvailabilityGate?.(input.threadId)) ?? null,
+      // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
+      // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
+      onArtifactWrite: ({ threadId }) => {
+        designArtifactWriteSink?.(threadId);
+      },
+      loadPublishedManifest: async (input) => {
+        const revisionRoot = join(
+          designPluginRevisionsRoot(app.getPath("userData")),
+          input.installationId,
+          input.contentHash,
+        );
+        const manifestPath = join(revisionRoot, "artemis.plugin.json");
+        try {
+          const bytes = await readFile(manifestPath, "utf8");
+          const manifest = JSON.parse(bytes) as {
+            tools: Array<{ name: string; effect: string }>;
+            runtime: { entry: string };
+          };
+          return {
+            tools: manifest.tools,
+            runtimeEntry: join(revisionRoot, manifest.runtime.entry),
+            revisionRoot,
+          };
+        } catch {
+          return undefined;
+        }
+      },
+    });
     markStartupStage("database-ready");
     threadHistoryService = new ThreadHistoryService(
       join(app.getPath("userData"), "artemis.sqlite"),
@@ -22805,6 +24351,9 @@ app
     seedSmokeMessageActionsFixture();
     seedSmokeQueuedSteerFixture();
     seedSmokeMarkdownEditorFixture();
+    // Frees the plugins/ namespace (S1 revisions lived under it) before the
+    // native plugin-format migration claims it as its destination.
+    await migrateLegacyDesignPluginRevisions(app.getPath("userData"));
     await migratePluginUserData(
       app.getPath("userData"),
       join(app.getPath("home"), ".pi", "agent", "skills"),
@@ -22913,6 +24462,7 @@ app
     artemisPluginService = new ArtemisPluginService({
       skillsRoot: join(app.getPath("home"), ".pi", "agent", "skills"),
       pluginsRoot: join(app.getPath("userData"), "plugins"),
+      designRevisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
       marketplacesRoot: join(app.getPath("userData"), "plugin-marketplaces"),
       marketplaceStatePath: join(
         app.getPath("userData"),

@@ -11,6 +11,7 @@ import { promisify } from "node:util";
 import type {
   ArtifactOperation,
   CapabilityPackManifest,
+  OfficeCorePackManifest,
 } from "@artemis/protocol";
 import type {
   OfficeEngine,
@@ -23,6 +24,9 @@ export async function verifyOfficeNative(
   directory: string,
   manifest: CapabilityPackManifest,
 ): Promise<void> {
+  if (manifest.id !== "office-core")
+    throw new Error("Native verification applies only to office-core packs");
+  const office = manifest as OfficeCorePackManifest;
   if (process.platform === "darwin") {
     const app = join(directory, "ArtemisOfficeRuntime.app");
     await runFile(
@@ -38,7 +42,7 @@ export async function verifyOfficeNative(
     if (
       !identity.stderr
         .split(/\r?\n/u)
-        .includes(`TeamIdentifier=${manifest.native.signer}`) ||
+        .includes(`TeamIdentifier=${office.native.signer}`) ||
       !identity.stderr.includes("runtime")
     )
       throw new Error(
@@ -57,10 +61,10 @@ export async function verifyOfficeNative(
   // Null is an explicit publisher-signed inventory policy for an unsigned EXE.
   // Package signature, every file digest and the final installed path are still verified.
   const binaries =
-    manifest.native.windows ??
-    [manifest.entrypoint, manifest.officeExecutable].map((path) => ({
+    office.native.windows ??
+    [office.entrypoint, office.officeExecutable].map((path) => ({
       path,
-      signer: manifest.native.signer,
+      signer: office.native.signer,
     }));
   for (const { path, signer } of binaries) {
     await runFile(
@@ -100,7 +104,7 @@ export class UnoOfficeEngine implements OfficeEngine {
 
   private constructor(
     root: string,
-    manifest: CapabilityPackManifest,
+    manifest: OfficeCorePackManifest,
     profile: string,
     private readonly release: () => void,
   ) {
@@ -213,6 +217,9 @@ export class UnoOfficeEngine implements OfficeEngine {
     profile: string,
     release: () => void,
   ): Promise<UnoOfficeEngine> {
+    if (manifest.id !== "office-core")
+      throw new Error("The UNO office engine runs only office-core packs");
+    const office = manifest as OfficeCorePackManifest;
     await mkdir(profile, { recursive: true, mode: 0o700 });
     if (process.platform === "darwin") {
       // Headless LibreOffice needs Fontconfig to discover macOS CJK fonts.
@@ -222,7 +229,7 @@ export class UnoOfficeEngine implements OfficeEngine {
           .replaceAll("<", "&lt;")
           .replaceAll(">", "&gt;");
       const bundledFonts = join(
-        dirname(join(root, manifest.officeExecutable)),
+        dirname(join(root, office.officeExecutable)),
         "..",
         "Resources",
         "fonts",
@@ -242,7 +249,7 @@ export class UnoOfficeEngine implements OfficeEngine {
         { encoding: "utf8", mode: 0o600 },
       );
     }
-    return new UnoOfficeEngine(root, manifest, profile, release);
+    return new UnoOfficeEngine(root, office, profile, release);
   }
 
   private fail(error: Error): void {

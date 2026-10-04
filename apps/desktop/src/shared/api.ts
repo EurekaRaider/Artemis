@@ -92,6 +92,8 @@ export interface CreateThreadInput {
 }
 
 export interface StartTurnInput {
+  /** A panel candidate is consumed only when this exact submission is dispatched. */
+  designPanelCredential?: string;
   customAgentTasks?: CustomAgentTaskInvocation[];
   threadId: string;
   text: string;
@@ -174,6 +176,7 @@ export interface SaveAutomationInput {
 }
 
 export interface QueueTurnInput {
+  designPanelCredential?: string;
   threadId: string;
   text: string;
   attachments?: PromptAttachment[];
@@ -1058,6 +1061,122 @@ export interface ArtemisApi {
     href: string,
   ): Promise<import("./workspace-video.js").WorkspaceVideoSource>;
   releaseWorkspaceVideo(threadId: string, url: string): Promise<void>;
+  ensureDesignPanel(
+    threadId: string,
+    panelId: string,
+  ): Promise<{ panelId: string; pluginId: string; entryUrl: string }>;
+  setDesignPanelBounds(
+    threadId: string,
+    panelId: string,
+    bounds: { x: number; y: number; width: number; height: number },
+  ): Promise<void>;
+  setDesignPanelVisible(
+    threadId: string,
+    panelId: string,
+    visible: boolean,
+  ): Promise<void>;
+  releaseDesignPanel(threadId: string, panelId: string): Promise<void>;
+  /** S3 host send entry: accept a candidate, minting a one-time credential. */
+  acceptDesignPanelCandidate(
+    threadId: string,
+    candidateText: string,
+  ): Promise<{
+    threadId: string;
+    candidateText: string;
+    credential: string;
+    submissionId: string;
+  }>;
+  /** Discard the card: accepted → cancelled, credential voided. */
+  discardDesignPanelCandidate(credential: string): Promise<void>;
+  /** Consume the credential once; returns the text for the composer. */
+  consumeDesignPanelSend(credential: string): Promise<{
+    threadId: string;
+    candidateText: string;
+    submissionId: string;
+  }>;
+  /** 「加入输入框」：staged 语义，提交不进 dispatching（PR#245 P2-10）。 */
+  stageDesignPanelSend(credential: string): Promise<{
+    threadId: string;
+    candidateText: string;
+    submissionId: string;
+  }>;
+  /** Record the composer outcome (running/completed/failed). */
+  reportDesignPanelSendOutcome(
+    submissionId: string,
+    outcome: "completed" | "failed",
+  ): Promise<void>;
+  onDesignPanelCandidate(
+    listener: (event: {
+      kind: "candidate-prompt";
+      threadId: string;
+      panelId: string;
+      text: string;
+      source: string;
+      occurredAt: string;
+      /** false = fill the composer without auto-triggering send (OD draft). */
+      autoSend?: boolean;
+      /** Attached screenshots/images as data URLs (panel → composer). */
+      images?: string[];
+      /** Structured panel annotations (rendered into the message body). */
+      annotations?:
+        | Array<{
+            id?: string;
+            kind?: string;
+            markKind?: string;
+            label?: string;
+            text?: string;
+            documentId?: string | null;
+            documentName?: string | null;
+            currentText?: string;
+            selector?: string;
+            x?: number | null;
+            y?: number | null;
+            w?: number | null;
+            h?: number | null;
+            htmlHint?: string;
+            style?: string;
+          }>
+        | undefined;
+      /** The annotated page itself (the attachment the agent operates on). */
+      document?:
+        | {
+            documentId: string;
+            documentName: string;
+            html: string;
+          }
+        | undefined;
+    }) => void,
+  ): () => void;
+  onDesignPanelBinding(
+    listener: (event: {
+      threadId: string;
+      panelId: string;
+      /** Active document tab in the design panel; null = files grid. */
+      documentId: string | null;
+      name?: string;
+      html?: string;
+    }) => void,
+  ): () => void;
+  /**
+   * Show the workspace "+" menu in a transparent child window. A child
+   * window is its own native layer, so it paints above the design panel's
+   * WebContentsView while keeping the app-styled HTML menu. The html is
+   * built by the renderer from live theme tokens; anchors are the "+" button
+   * rect in window CSS coordinates.
+   */
+  showWorkspaceTabMenu(input: {
+    html: string;
+    anchorRight: number;
+    anchorTop: number;
+  }): Promise<void>;
+  closeWorkspaceTabMenu(): Promise<void>;
+  onWorkspaceTabMenuSelect(
+    listener: (
+      kind: "review" | "terminal" | "browser" | "file" | "design",
+    ) => void,
+  ): () => void;
+  /** Menu closed without a selection (outside click / Escape). */
+  onWorkspaceTabMenuClosed(listener: () => void): () => void;
   openWorkspaceHtml(threadId: string, href: string): Promise<{ url: string }>;
   releaseWorkspaceHtml(threadId: string, url: string): Promise<void>;
   openOfficeFile(
@@ -1093,6 +1212,23 @@ export interface ArtemisApi {
   activateOfficeCapability(version: string): Promise<void>;
   deactivateOfficeCapability(): Promise<void>;
   uninstallOfficeCapability(version: string): Promise<void>;
+  /** Design plugin capability pack (settings toggle backend, todo ⑤). */
+  designCapabilityStatus(): Promise<
+    import("@artemis/protocol").CapabilityPackStatus
+  >;
+  /** Entry-visibility seed for the design mode entrances. */
+  designCapabilityAvailability(): Promise<{ available: boolean }>;
+  /** Pushed on install/import/activate/deactivate/uninstall. */
+  onDesignCapabilityAvailability(
+    listener: (event: { available: boolean }) => void,
+  ): () => void;
+  checkDesignCapabilityUpdates(): Promise<void>;
+  installDesignCapability(): Promise<void>;
+  importDesignCapability(input?: { path: string }): Promise<void>;
+  cancelDesignCapability(): Promise<void>;
+  activateDesignCapability(version: string): Promise<void>;
+  deactivateDesignCapability(): Promise<void>;
+  uninstallDesignCapability(version: string): Promise<void>;
   readWorkspaceTextFile(
     threadId: string,
     path: string,
@@ -1424,6 +1560,21 @@ export const IPC = {
   workspaceHtmlOpen: "artemis:workspace-html-open",
   workspaceHtmlRelease: "artemis:workspace-html-release",
   officeOpen: "artemis:office-open",
+  designPanelEnsure: "artemis:design-panel-ensure",
+  designPanelBounds: "artemis:design-panel-bounds",
+  designPanelVisible: "artemis:design-panel-visible",
+  designPanelRelease: "artemis:design-panel-release",
+  designPanelCandidate: "artemis:design-panel-candidate",
+  designPanelBinding: "artemis:design-panel-binding",
+  workspaceTabMenuShow: "artemis:workspace-tab-menu-show",
+  workspaceTabMenuClose: "artemis:workspace-tab-menu-close",
+  workspaceTabMenuSelect: "artemis:workspace-tab-menu-select",
+  workspaceTabMenuClosed: "artemis:workspace-tab-menu-closed",
+  designPanelCandidateAccept: "artemis:design-panel-candidate-accept",
+  designPanelSendConsume: "artemis:design-panel-send-consume",
+  designPanelSendStage: "artemis:design-panel-send-stage",
+  designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",
+  designPanelSendOutcome: "artemis:design-panel-send-outcome",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",
   workspaceCsvSave: "artemis:workspace-csv-save",
@@ -1436,6 +1587,15 @@ export const IPC = {
   officeCapabilityActivate: "artemis:office-capability-activate",
   officeCapabilityDeactivate: "artemis:office-capability-deactivate",
   officeCapabilityUninstall: "artemis:office-capability-uninstall",
+  designCapabilityStatus: "artemis:design-capability-status",
+  designCapabilityAvailability: "artemis:design-capability-availability",
+  designCapabilityCheckUpdates: "artemis:design-capability-check-updates",
+  designCapabilityInstall: "artemis:design-capability-install",
+  designCapabilityImport: "artemis:design-capability-import",
+  designCapabilityCancel: "artemis:design-capability-cancel",
+  designCapabilityActivate: "artemis:design-capability-activate",
+  designCapabilityDeactivate: "artemis:design-capability-deactivate",
+  designCapabilityUninstall: "artemis:design-capability-uninstall",
   workspaceTextFileRead: "artemis:workspace-text-file-read",
   workspaceImageRead: "artemis:workspace-image-read",
   workspaceDirectoryList: "artemis:workspace-directory-list",

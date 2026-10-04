@@ -6,6 +6,7 @@ export type WorkspaceTabKind =
   | "browser"
   | "file"
   | "office"
+  | "design"
   | "markdown"
   | "sources"
   | "goal"

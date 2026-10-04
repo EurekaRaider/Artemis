@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { pluginTypeBindingSchema } from "./design-plugin.js";
 import { artifactEventSchema } from "./artifact.js";
 
 // Multi-question user-input payloads evolved in place within v4 (the kind
@@ -1253,6 +1254,10 @@ export const threadSchema = z.object({
   contextWindow: z.number().int().positive().optional(),
   pinned: z.boolean(),
   archived: z.boolean(),
+  /** S1 design plugins: type snapshot frozen at thread creation (§6.1). */
+  typeBinding: pluginTypeBindingSchema.optional(),
+  /** S1 design plugins: fixed restricted profile id for plugin threads. */
+  executionProfile: z.string().optional(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),
 });

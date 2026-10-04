@@ -348,3 +348,26 @@ AppContainer 提供文件、网络等资源隔离；Electron 官方要求启用�
 待原型验证的主要未知项是面板容器选型、常驻进程沙箱与撤销行为、跨轮次来源和有效授权传播、提交队列崩溃恢复、现有 DesignPanel 迁移成本。这些不影响功能扩展的可行性结论，但决定实现规模与可承诺的安全范围。目前没有足够实测依据给出可靠工期、宣称第三方插件全面兼容，或宣称恶意插件强隔离已完成。
 
 本次产物为源码与文档核查后的探索报告；未安装待研究插件、未改变扩展权限、未运行插件原型，也未进行平台验证。
+
+## 12. 与 ArtemisPluginShop 的关系（2026-09-30 调研结论）
+
+[ArtemisPluginShop](https://github.com/williamjinj-eng/ArtemisPluginShop) 是独立的签名插件市场仓库，当前专做**连接器（Connector）插件**：每个插件以一个 `.mcp.json` 声明唯一 stdio MCP server 运行时和 `x-artemis.connector` v2 对象（OAuth 授权、scopes、clientId、宿主能力要求），配合 SKILL.md 与打包产物，经 Ed25519 市场签名 + 文件清单哈希 + 指纹核对分发。宿主侧校验在 `codex-plugin-service.ts` 的 `connectorTrusted` 路径。
+
+**设计插件不进入连接器契约，但复用 PluginShop 的分发基建。** 两者是并行的插件类别：
+
+| 维度     | 连接器插件                               | 设计/项目类型插件                                               |
+| -------- | ---------------------------------------- | --------------------------------------------------------------- |
+| 目的     | 给模型接外部服务工具（Gmail、Figma API） | 给工作台加项目类型 + UI 面板 + 受限会话                         |
+| 运行时   | stdio MCP server（现有 MCP 通道）        | 自有 stdio 帧协议；MCP 是未来适配器（见 §4，不同时交付两套）    |
+| UI       | 无面板，仅 SKILL.md                      | panel 是核心交付物（WebContentsView 容器）                      |
+| 权限模型 | OAuth 授权 + 现有 MCP 沙箱               | `plugin-restricted-v1` 受限 profile + plugin_grants 信任链      |
+| manifest | `.mcp.json` + `x-artemis.connector` v2   | `artemis.plugin.json`（projectTypes/panels/tools/capabilities） |
+
+把设计插件塞进 `x-artemis.connector` 会把 OAuth 连接器的安全审查面和受限 profile 的执行边界搅在一起，两边都变复杂。正确的整合方式：
+
+1. **PluginShop 作为分发渠道**：设计插件作为新的插件类别进入该仓库（新增一节开发文档与校验规则），契约用并行的 `artemis.plugin.json`，与 `.mcp.json` 互不替代。
+2. **宿主侧共用安装机制**：`codex-plugin-service.ts` 的下载/本地安装、签名校验、市场清单机制对两类插件共用（实施方案 §5.1 本就如此规划）。
+3. **直接搬用的基建**：esbuild 零依赖单文件打包、Ed25519 签名 + 全文件清单哈希、双发布路径（PR 给官方商店由维护者签名 / 自建市场用自己指纹）、`PLUGIN_DEVELOPMENT.md` 的文档结构。S1 的不可变 revision 存储按其"文件清单哈希 + 不可变发布"模式设计。
+4. **限制对齐**：PluginShop 的 500 文件 / 25 MiB 上限、禁止符号链接与逃逸路径、签名目录内不含开发密钥的规则，同样适用于设计插件包。
+
+结论：**设计插件的宿主能力（面板容器、受限 profile、提交账本）在 Artemis 主仓库实现；PluginShop 承担打包、签名与分发。** 本仓库 S0 的 `resources/s0-plugins/` 仅为原型捷径，正式发布形态是 PluginShop 中的一类新包。

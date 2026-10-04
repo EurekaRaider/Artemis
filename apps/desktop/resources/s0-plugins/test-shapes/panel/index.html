@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>S0 Shapes Panel</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 16px;
+        background: #f4f8ff;
+        color: #123;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      #shapes {
+        font-size: 13px;
+      }
+      #add {
+        margin-top: 12px;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>S0 Shapes panel</h2>
+    <div id="shapes">No shapes yet.</div>
+    <button id="add">Add shape</button>
+    <script>
+      // Deliberately different business UI from test-notes: the host must not
+      // know either plugin's semantics.
+      const shapes = document.getElementById("shapes");
+      const add = document.getElementById("add");
+      add.addEventListener("click", () => {
+        const next = document.createElement("div");
+        next.textContent = "shape " + Date.now();
+        shapes.appendChild(next);
+      });
+    </script>
+  </body>
+</html>

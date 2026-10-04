@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>S0 Notes Panel</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 16px;
+        background: #fafafa;
+        color: #222;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 0 0 8px;
+      }
+      #notes {
+        font-size: 13px;
+        white-space: pre-wrap;
+      }
+      #send {
+        margin-top: 12px;
+        width: 100%;
+        padding: 6px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>S0 Notes panel</h2>
+    <div id="notes">No notes yet.</div>
+    <button id="send">Ask AI about these notes</button>
+    <script>
+      // S0 panel: communicates only through the one-shot MessagePort the host
+      // hands over. No Node, no ipcRenderer, no network fetch.
+      const notes = document.getElementById("notes");
+      const send = document.getElementById("send");
+      send.addEventListener("click", () => {
+        // In S0 the port is delivered by the host preload; until wiring the
+        // button records the intent in the DOM for the container test.
+        send.dataset.lastIntent = "prompt-candidate";
+      });
+    </script>
+  </body>
+</html>

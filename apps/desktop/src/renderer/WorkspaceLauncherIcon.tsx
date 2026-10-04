@@ -3,7 +3,7 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 export function WorkspaceLauncherIcon({
   kind,
 }: {
-  kind: "review" | "terminal" | "browser" | "files";
+  kind: "review" | "terminal" | "browser" | "files" | "design";
 }) {
   return (
     <span className="workspace-launcher-icon" data-kind={kind}>
@@ -38,6 +38,9 @@ export function WorkspaceLauncherIcon({
               <path d="M8 7V5a2 2 0 0 1 2-2h3l2 2h5a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2" />
               <path d="M2 9a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2Z" />
             </>
+          )}
+          {kind === "design" && (
+            <path d="M12 4.5l1.7 5.3 5.3 1.7-5.3 1.7L12 18.5l-1.7-5.3L5 11.5l5.3-1.7z" />
           )}
         </svg>
       )}

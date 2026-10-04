@@ -90,6 +90,7 @@ import {
   type ChildAgentPayload,
   type AgentRuntimeCatalog,
   type AgentRuntimeConfiguration,
+  RESTRICTED_PROFILE_ID,
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
   type ModelSelection,
@@ -114,6 +115,11 @@ import { toPiProviderConfig } from "./provider-configuration.js";
 import { forkPiSession } from "./session-fork.js";
 import { deletePiSessionTranscript } from "./session-delete.js";
 import { RuntimeCredentialStore } from "./runtime-credentials.js";
+import {
+  assertToolAllowedForRestrictedThread,
+  isToolDeniedForRestrictedThread,
+  missingRestrictedSessionTools,
+} from "./restricted-thread-gate.js";
 import {
   AgentConcurrencyLimiter,
   type AgentConcurrencyLease,
@@ -889,12 +895,44 @@ export interface OpenThreadRequest {
   sessionFile?: string;
   selection?: ModelSelection;
   contextWindow?: number;
+  /**
+   * Fixed execution profile for this thread. When set to
+   * "plugin-restricted-v1" the thread is created restricted for its entire
+   * lifetime (proposal §7): denied tools are filtered from the customTools
+   * list AND every surviving tool's dispatch is guarded, so a stale list or
+   * direct call cannot widen the profile.
+   */
+  executionProfile?: string;
+  /**
+   * S2 design-plugin binding snapshot for this thread. Threads opened with
+   * a binding get the plugin's declared tools injected as broker-mediated
+   * customTools (the tool body always round-trips to the main process
+   * dispatcher; the agent-host never spawns plugin runtimes itself).
+   */
+  typeBinding?: {
+    installationId: string;
+    pluginId: string;
+    typeId: string;
+    pluginVersion: string;
+    contentHash: string;
+    bindingRevision: string;
+  };
+  /**
+   * Declared plugin tools for the bound plugin (resolved by the main
+   * process from the published revision manifest before open).
+   */
+  pluginTools?: Array<{
+    name: string;
+    description: string;
+    effect: "artifact-write" | "state-read";
+  }>;
 }
 
 interface HostedThread {
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
+  executionProfile?: string | undefined;
   selection?: ModelSelection;
   contextWindow?: number;
   session: AgentSession;
@@ -905,8 +943,9 @@ interface HostedThread {
   currentMode: RunMode | undefined;
   compacting: boolean;
   topLevelUserTurns: number;
-  readTool: SessionTool;
-  writeTool: SessionTool;
+  /** Unset on plugin-restricted threads: file tools are profile-denied. */
+  readTool?: SessionTool;
+  writeTool?: SessionTool;
   mcpToolNames: Set<string>;
   mcpDirectToolNames: Set<string>;
   delegatedTools: SessionTool[];
@@ -3648,9 +3687,25 @@ export class ArtemisAgentHost {
       throw new Error("Group sessions require a verified IM security context.");
     const current = this.threads.get(request.threadId);
     if (current) {
-      return current.session.sessionFile
-        ? { sessionFile: current.session.sessionFile }
-        : {};
+      // PR#245 P1-5：复用必须同 profile。绑定设计插件会把持久化 profile 换
+      // 成受限档；带着旧 profile 复用会话等于保留完整工具集（bash 等），
+      // 「打开面板即收紧权限」就失效了。profile 变化时原子重建会话
+      //（沿用 sessionFile，历史不丢）；回合进行中无法安全重建则拒绝
+      //（fail-closed，主进程执行边界重检仍兜底）。
+      if (
+        (current.executionProfile ?? undefined) !==
+        (request.executionProfile ?? undefined)
+      ) {
+        if (current.currentTurnId)
+          throw new Error(
+            "Cannot switch the task execution profile while a turn is active; retry after the turn ends.",
+          );
+        await this.closeThread(request.threadId);
+      } else {
+        return current.session.sessionFile
+          ? { sessionFile: current.session.sessionFile }
+          : {};
+      }
     }
 
     const invokeRemoteOperation = async (
@@ -6393,7 +6448,12 @@ export class ArtemisAgentHost {
         )
       : undefined;
     const hooksBridge = createHooksBridge({
-      enabled: () => this.configuration.hooksEnabled === true,
+      // PR#245 P1-6：受限 profile 的任务在会话装配侧就不装 Hooks——
+      // hooksEnabled 只控制全局开关，不构成 per-thread 边界。主进程
+      // hook.run 入口另有一重拒绝（双拒）。
+      enabled: () =>
+        this.configuration.hooksEnabled === true &&
+        request.executionProfile !== RESTRICTED_PROFILE_ID,
       broker: this.broker,
       threadId: request.threadId,
       cwd: request.workspacePath,
@@ -6457,7 +6517,10 @@ export class ArtemisAgentHost {
       modelRuntime,
       () => this.threads.get(request.threadId)?.currentMode,
     );
-    const customTools = [
+    // 组装顺序：model 能力工具在前（main 的 Pi 升级），其余全量在后；
+    // configureToolExposure 是 main 新增的按模式暴露配置，包在受限过滤
+    // 之前，保证受限 allow-list 看到的是最终形态的工具。
+    const assembledToolsAll = [
       ...modelTools,
       ...attachmentTools,
       ...remoteTools,
@@ -6493,6 +6556,80 @@ export class ArtemisAgentHost {
       ...mcpTools,
       ...extensionTools,
     ].map(configureToolExposure);
+
+    // S2 plugin tools (proposal §5/§7): tools declared by the bound plugin's
+    // published manifest are injected as broker-mediated customTools. The
+    // execute body carries no capability of its own — it round-trips to the
+    // main-process dispatcher which re-verifies the trust chain (content
+    // hash recomputed from disk + unrevoked grant + mode gate) before any
+    // runtime spawn. Plan/Review never sees plugin tools at all.
+    const pluginBrokerTools =
+      request.executionProfile === RESTRICTED_PROFILE_ID && request.typeBinding
+        ? (request.pluginTools ?? []).map((declared) =>
+            defineTool({
+              name: `plugin_${declared.name}`,
+              label: declared.name,
+              description: declared.description,
+              parameters: Type.Object(
+                {
+                  input: Type.Optional(
+                    Type.Record(Type.String(), Type.Unknown()),
+                  ),
+                },
+                { additionalProperties: true },
+              ),
+              execute: async (_toolCallId, params) => {
+                const hosted = this.threads.get(request.threadId);
+                const result = await this.broker.request({
+                  kind: "plugin.tool",
+                  approvalId: randomUUID(),
+                  threadId: request.threadId,
+                  turnId: hosted?.currentTurnId ?? request.threadId,
+                  mode: hosted?.currentMode ?? "work",
+                  pluginId: request.typeBinding!.pluginId,
+                  toolName: declared.name,
+                  args:
+                    params.input && typeof params.input === "object"
+                      ? (params.input as Record<string, unknown>)
+                      : {},
+                });
+                if (!result.approved) {
+                  throw new Error(
+                    result.error ?? "Plugin tool dispatch was refused.",
+                  );
+                }
+                return {
+                  content: [
+                    {
+                      type: "text" as const,
+                      text: JSON.stringify(result.data ?? {}, null, 2),
+                    },
+                  ],
+                  details: result.data,
+                };
+              },
+            }),
+          )
+        : [];
+
+    // Restricted-profile gating (proposal §7): for plugin-restricted threads,
+    // layer 1 filters denied tools out of the model-visible list and layer 2
+    // wraps every surviving tool's execute with a pre-dispatch guard.
+    const restrictedThread = request.executionProfile === RESTRICTED_PROFILE_ID;
+    const customTools = restrictedThread
+      ? [
+          ...assembledToolsAll
+            .filter((tool) => !isToolDeniedForRestrictedThread(tool.name))
+            .map((tool) => ({
+              ...tool,
+              execute: (async (...args: Parameters<typeof tool.execute>) => {
+                assertToolAllowedForRestrictedThread(tool.name);
+                return tool.execute(...args);
+              }) as typeof tool.execute,
+            })),
+          ...pluginBrokerTools,
+        ]
+      : assembledToolsAll;
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
@@ -6567,7 +6704,14 @@ export class ArtemisAgentHost {
     session.setActiveToolsByName(
       session
         .getActiveToolNames()
-        .filter((name) => !mcpDirectToolNames.has(name)),
+        .filter((name) => !mcpDirectToolNames.has(name))
+        // Restricted threads keep the profile filter on every re-activation
+        // path; a refresh must never widen the active tool set (§7).
+        .filter(
+          (name) =>
+            request.executionProfile !== RESTRICTED_PROFILE_ID ||
+            !isToolDeniedForRestrictedThread(name),
+        ),
     );
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
@@ -6638,7 +6782,22 @@ export class ArtemisAgentHost {
     const bashCancelSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "shell_cancel",
     );
-    if (
+    if (restrictedThread) {
+      // Restricted profile (proposal §7): validate the allow-listed fixed
+      // tools plus one broker-mediated tool per declared manifest tool —
+      // the full-workspace check below would demand bash/agents/files,
+      // which layer 1 filtered out on purpose.
+      const missingRestricted = missingRestrictedSessionTools(
+        session.agent.state.tools,
+        request.pluginTools ?? [],
+      );
+      if (missingRestricted.length) {
+        session.dispose();
+        throw new Error(
+          `Pi did not register the plugin-restricted toolset (missing ${missingRestricted.join(", ")}).`,
+        );
+      }
+    } else if (
       !readSessionTool ||
       !webSearchSessionTool ||
       !localFileReadSessionTool ||
@@ -6669,6 +6828,10 @@ export class ArtemisAgentHost {
         tool.name === "read" ||
         tool.name === "web_search" ||
         tool.name.startsWith("attachment_") ||
+        // Broker-mediated plugin tools (restricted threads): the whole point
+        // of the profile — dropping them here left the model with no write
+        // channel at all even though session-start validation passed.
+        tool.name.startsWith("plugin_") ||
         tool.name === "local_file_read" ||
         modelTools.some((candidate) => candidate.name === tool.name) ||
         tool.name === "local_file_write" ||
@@ -6700,6 +6863,9 @@ export class ArtemisAgentHost {
       threadId: request.threadId,
       workspacePath: request.workspacePath,
       target: request.target,
+      ...(request.executionProfile
+        ? { executionProfile: request.executionProfile }
+        : {}),
       ...(selection ? { selection: structuredClone(selection) } : {}),
       ...((request.contextWindow ?? this.configuration.contextWindow)
         ? {
@@ -6753,25 +6919,30 @@ export class ArtemisAgentHost {
       currentMode: undefined,
       compacting: false,
       topLevelUserTurns: restoredTopLevelUserTurns,
-      readTool: readSessionTool,
-      writeTool: writeSessionTool,
+      ...(readSessionTool ? { readTool: readSessionTool } : {}),
+      ...(writeSessionTool ? { writeTool: writeSessionTool } : {}),
       mcpToolNames: new Set(
         [...mcpDiscoveryTools, ...mcpTools].map((tool) => tool.name),
       ),
       mcpDirectToolNames,
-      delegatedTools: [
-        ...session.agent.state.tools.filter((tool) =>
-          tool.name.startsWith("attachment_"),
-        ),
-        readSessionTool,
-        webSearchSessionTool,
-        requestUserInputSessionTool,
-        updatePlanSessionTool,
-        getGoalSessionTool,
-        spawnAgentSessionTool,
-        ...teamSessionTools,
-        ...childControlSessionTools,
-      ],
+      // Restricted threads never delegate: plan/review toolsets are denied
+      // by the profile, and the layer-2 guard refuses any leaked dispatch.
+      delegatedTools: (restrictedThread
+        ? []
+        : [
+            ...session.agent.state.tools.filter((tool) =>
+              tool.name.startsWith("attachment_"),
+            ),
+            readSessionTool,
+            webSearchSessionTool,
+            requestUserInputSessionTool,
+            updatePlanSessionTool,
+            getGoalSessionTool,
+            spawnAgentSessionTool,
+            ...teamSessionTools,
+            ...childControlSessionTools,
+          ]
+      ).filter((tool): tool is SessionTool => Boolean(tool)),
       executeTools,
       childAgents: new Map(),
       activeLeases: new Map(),

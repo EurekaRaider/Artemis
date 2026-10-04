@@ -1,6 +1,8 @@
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { OfficeCapabilityPanel } from "./OfficeCapabilityPanel.js";
+import { DesignCapabilityPanel } from "./DesignCapabilityPanel.js";
+import { designPackCopy } from "./design-pack-copy.js";
 import { officeCopy } from "./office-copy.js";
 import { PluginUninstallDialog } from "./PluginUninstallDialog.js";
 import { ResourceRemovalDialog } from "./ResourceRemovalDialog.js";
@@ -20,7 +22,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import type { AppLocale } from "@artemis/protocol";
+import type { AppLocale, CapabilityPackStatus } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import {
   Dialog,
@@ -226,6 +228,10 @@ export function ResourceCenter({
   const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
   const [officeCapabilityInstalled, setOfficeCapabilityInstalled] =
     useState<boolean>();
+  // 设计插件卡（随应用提供的插件，todo ⑤→④）：状态轮询 + 管理弹窗。
+  const [designPackStatus, setDesignPackStatus] =
+    useState<CapabilityPackStatus>();
+  const [designPackOpen, setDesignPackOpen] = useState(false);
   const [pluginUninstallDraft, setPluginUninstallDraft] =
     useState<InstalledArtemisPlugin>();
   const [resourceRemovalDraft, setResourceRemovalDraft] =
@@ -291,6 +297,26 @@ export function ResourceCenter({
       window.removeEventListener("focus", refresh);
     };
   }, [hasOfficePlugins, officeCapabilityOpen]);
+
+  // 设计插件状态轮询：轻量本地 IPC，跟随窗口焦点刷新。
+  useEffect(() => {
+    let active = true;
+    const refresh = () =>
+      void window.artemis
+        .designCapabilityStatus?.()
+        .then((status) => {
+          if (active) setDesignPackStatus(status);
+        })
+        .catch(() => {});
+    refresh();
+    const timer = setInterval(refresh, 1000);
+    window.addEventListener("focus", refresh);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [designPackOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -1746,7 +1772,136 @@ export function ResourceCenter({
     );
   }
 
+  /** 随应用提供的设计插件卡：安装/卸载决定设计面板入口的显隐（todo ⑤）。 */
+  function renderDesignPackCard() {
+    const copy = designPackCopy(locale);
+    const status = designPackStatus;
+    const installed = Boolean(status?.activeVersion);
+    const working = Boolean(status && status.phase !== "idle");
+    return (
+      <ManagementCard className="plugin-market-card design-pack-card">
+        <div className="plugin-market-card-heading">
+          <ResourceAvatar
+            brandColor="#6d5ae6"
+            iconKey="code"
+            kind="plugin"
+            name={locale.startsWith("zh") ? "设计插件" : "Design"}
+          />
+          <div className="plugin-market-card-titles">
+            <strong>{locale.startsWith("zh") ? "设计插件" : "Design"}</strong>
+            <small className="plugin-market-card-source">
+              {t.marketplaceSource}: {t.bundledPlugins}
+            </small>
+          </div>
+        </div>
+        <div className="plugin-market-copy">
+          <small>
+            {locale.startsWith("zh")
+              ? "在设计模式中打开与修改设计文件。移除后设计入口隐藏，设计文件与版本历史保留。"
+              : "Open and edit design files in design mode. Removing the pack hides design entrances; design files and history are kept."}
+          </small>
+        </div>
+        <div className="plugin-market-card-footer">
+          <div className="plugin-market-card-actions">
+            {working ? (
+              <div
+                className="office-capability-progress"
+                role="status"
+                style={{ display: "flex", alignItems: "center", gap: 10 }}
+              >
+                <progress
+                  max={status?.totalBytes || 1}
+                  value={status?.downloadedBytes}
+                  style={{ width: 140 }}
+                />
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  onClick={() => void window.artemis.cancelDesignCapability()}
+                >
+                  {copy.cancel}
+                </Button>
+              </div>
+            ) : installed ? (
+              <>
+                {status?.updateVersion ? (
+                  <Button
+                    variant="primary"
+                    size="compact"
+                    icon={<ArtemisIcon name="download" />}
+                    onClick={() =>
+                      void window.artemis
+                        .installDesignCapability()
+                        .catch((reason: unknown) =>
+                          setMessage(
+                            reason instanceof Error
+                              ? reason.message
+                              : String(reason),
+                          ),
+                        )
+                    }
+                  >
+                    {copy.updateNow.replace("{version}", status.updateVersion)}
+                  </Button>
+                ) : null}
+                <Button
+                  className="management-destructive-action plugin-market-remove-action"
+                  icon={<TrashIcon />}
+                  variant="secondary"
+                  onClick={() =>
+                    void window.artemis
+                      .uninstallDesignCapability(status!.activeVersion!)
+                      .catch((reason: unknown) =>
+                        setMessage(
+                          reason instanceof Error
+                            ? reason.message
+                            : String(reason),
+                        ),
+                      )
+                  }
+                >
+                  {locale.startsWith("zh") ? "卸载" : t.remove}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="primary"
+                size="compact"
+                icon={<ArtemisIcon name="download" />}
+                onClick={() => {
+                  if (status?.availableVersion) {
+                    void window.artemis
+                      .installDesignCapability()
+                      .catch((reason: unknown) =>
+                        setMessage(
+                          reason instanceof Error
+                            ? reason.message
+                            : String(reason),
+                        ),
+                      );
+                    return;
+                  }
+                  // 无在线版本：管理弹窗承载离线导入路径。
+                  setDesignPackOpen(true);
+                }}
+              >
+                {locale.startsWith("zh") ? "安装" : t.install}
+              </Button>
+            )}
+          </div>
+        </div>
+      </ManagementCard>
+    );
+  }
+
   function renderPluginConnection() {
+    if (designPackOpen)
+      return (
+        <DesignCapabilityPanel
+          locale={locale}
+          onClose={() => setDesignPackOpen(false)}
+        />
+      );
     if (officeCapabilityOpen)
       return (
         <OfficeCapabilityPanel
@@ -2357,6 +2512,9 @@ export function ResourceCenter({
                       )}
                 </h2>
                 <div className="plugin-market-grid">
+                  {group.sourceId === "bundled" &&
+                    !marketplaceFilter &&
+                    renderDesignPackCard()}
                   {group.plugins.map((plugin) =>
                     renderPluginCard(plugin, group.sourceId),
                   )}

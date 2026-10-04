@@ -1,0 +1,88 @@
+# Design capability-pack release (todo ③).
+#
+# Builds and publishes the artemis-design pack to the release host, signing
+# with the owner-held ed25519 key. Archives and manifests are immutable: a
+# published version can never be rebuilt (the service rejects republished
+# digests and this workflow refuses an existing release).
+#
+# ── OWNER SETUP (one-time) ─────────────────────────────────────────────────
+# 1. Secrets → Actions: add DESIGN_PACK_ED25519_PRIVATE_KEY (PEM, PKCS8).
+#    Generate with: openssl genpkey -algorithm ed25519 -out design-pack.pem
+#    The matching PUBLIC pem must ship inside the app's bundled design
+#    catalog (apps/desktop/resources/design-plugins/catalog.json — added by
+#    todo ④) so installs verify.
+# 2. Confirm ARTEMIS_RELEASE_TOKEN (already used by the office pipeline)
+#    retains Contents:write on EurekaRaider/ArtemisRelease.
+# ────────────────────────────────────────────────────────────────────────────
+name: Release design pack
+on:
+  push:
+    tags:
+      - "artemis-design-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Pack version (x.y.z, must match the tag format on publish)
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: design-pack-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26.9.0
+      - run: npm ci
+      - run: npm run build:core
+      - name: Build and sign the design pack
+        env:
+          DESIGN_PACK_ED25519_PRIVATE_KEY: ${{ secrets.DESIGN_PACK_ED25519_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ inputs.version || github.ref_name }}"
+          VERSION="${VERSION#artemis-design-v}"
+          node scripts/design-pack/build-design-pack.mjs --version "$VERSION"
+      - name: Refuse to republish an immutable version
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+        run: |
+          VERSION="${{ inputs.version || github.ref_name }}"
+          VERSION="${VERSION#artemis-design-v}"
+          if gh release view "artemis-design-v$VERSION" --repo EurekaRaider/ArtemisRelease >/dev/null 2>&1; then
+            echo "::error::artemis-design-v$VERSION is already published; capability versions are immutable."
+            exit 1
+          fi
+      - name: Publish archives, manifests and catalog to the release host
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+        run: |
+          VERSION="${{ inputs.version || github.ref_name }}"
+          VERSION="${VERSION#artemis-design-v}"
+          gh release create "artemis-design-v$VERSION" \
+            --repo EurekaRaider/ArtemisRelease \
+            --title "artemis-design v$VERSION" \
+            --notes "Design plugin capability pack $VERSION (signed)." \
+            "artifacts/design-pack/$VERSION/artemis-design-darwin-arm64.zip" \
+            "artifacts/design-pack/$VERSION/artemis-design-win32-x64.zip" \
+            "artifacts/design-pack/$VERSION/manifest-darwin-arm64.json" \
+            "artifacts/design-pack/$VERSION/manifest-win32-x64.json" \
+            "artifacts/design-pack/$VERSION/catalog.json"
+      - name: Refresh the update catalog on the release host
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+        run: |
+          # The update check reads catalog.json from the release repo's main
+          # branch (raw.githubusercontent); keep it in lockstep with the
+          # newest release. Same pattern as scripts/office/publish-office-catalog.mjs.
+          node scripts/design-pack/publish-design-catalog.mjs \
+            artifacts/design-pack
+      - name: Retain the build report
+        run: cat "artifacts/design-pack/$(echo "${{ inputs.version || github.ref_name }}" | sed 's/^artemis-design-v//')/report.json"

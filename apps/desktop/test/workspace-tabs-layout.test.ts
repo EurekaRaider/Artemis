@@ -261,7 +261,7 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
   });
 
-  it("wires the plus control to an additional-tab menu without replacing existing instances", () => {
+  it("wires the plus control to the child-window menu without replacing existing instances", () => {
     const addClassIndex = appSource.indexOf('className="workspace-tab-add"');
     const addButtonStart = appSource.lastIndexOf("<button", addClassIndex);
     const addButtonEnd = appSource.indexOf("</button>", addClassIndex);
@@ -272,52 +272,61 @@ describe("Codex-like workspace tab layout contract", () => {
     expect(addButtonEnd).toBeGreaterThan(addButtonStart);
     expect(addButtonSource).toContain("onClick=");
     expect(addButtonSource).toMatch(/<ArtemisIcon\b[^>]*name="plus"[^>]*\/>/u);
+    // The menu renders in a transparent child window (the only native layer
+    // that paints above the design panel's WebContentsView); the renderer
+    // builds its HTML from live theme tokens.
     expect(appSource).toContain("workspaceTabMenuOpen");
-    expect(appSource).toContain('className="workspace-tab-menu"');
-    const menuStart = appSource.indexOf('className="workspace-tab-menu"');
-    const menuEnd = appSource.indexOf(".map(([kind, label, icon])", menuStart);
-    const menuSource = appSource.slice(menuStart, menuEnd);
-    expect(menuSource).not.toContain(
-      '["markdown", t.markdownReader, <MarkdownIcon />]',
+    expect(appSource).toContain("window.artemis.showWorkspaceTabMenu({");
+    expect(appSource).toContain("buildWorkspaceTabMenuHtml(entries)");
+    const entriesStart = appSource.indexOf(
+      "const entries: WorkspaceTabMenuEntry[]",
     );
-    expect(menuSource).not.toContain('["sources", t.sources');
-    expect(menuSource).toContain('["file", t.files, <FilesIcon />]');
+    const entriesEnd = appSource.indexOf(
+      "showWorkspaceTabMenu({",
+      entriesStart,
+    );
+    const entriesSource = appSource.slice(entriesStart, entriesEnd);
+    expect(entriesSource).not.toContain('kind: "markdown"');
+    expect(entriesSource).not.toContain('kind: "sources"');
+    expect(entriesSource).toContain('{ kind: "file", label: t.files }');
+    // 安装即入口：设计项只跟随插件可用性（designPluginAvailable），不再
+    // 要求线程 typeBinding —— 项目与临时会话都出现；选择仍复用既有 tab。
+    expect(entriesSource).toContain("designPluginAvailable && !designOpen");
+    expect(entriesSource).toContain('kind: "design"');
     expect(appSource).toMatch(/type:\s*"open"/u);
     expect(cssRule(".workspace-tab-add")).toMatch(/\bflex:\s*0\s+0\s+auto/u);
   });
 
-  it("dismisses the additional-tab menu on an outside press or Escape", () => {
-    const effectStart = appSource.indexOf("if (!workspaceTabMenuOpen) return;");
-    const effectEnd = appSource.indexOf(
-      "const skillCommandMenuOpen",
-      effectStart,
+  it("dismisses the child-window menu on selection, outside press, or Escape", () => {
+    // Selection: reset the expanded state and open the requested tab
+    // (design reuses its existing tab; the rest force a new one).
+    const selectStart = appSource.indexOf(
+      "window.artemis.onWorkspaceTabMenuSelect((kind) => {",
     );
-    const effectSource = appSource.slice(effectStart, effectEnd);
-
-    expect(appSource).toContain(
-      "const workspaceTabMenuRoot = useRef<HTMLDivElement>(null);",
+    const selectEnd = appSource.indexOf("}, [openWorkspaceTab]);", selectStart);
+    const selectSource = appSource.slice(selectStart, selectEnd);
+    expect(selectStart).toBeGreaterThan(-1);
+    expect(selectSource).toContain("setWorkspaceTabMenuOpen(false)");
+    expect(selectSource).toContain('kind === "design"');
+    expect(selectSource).toContain("{ reuseKind: true }");
+    expect(selectSource).toContain("{ forceNew: true }");
+    // Outside press (window blur) / Escape: the main process closes the menu
+    // and only the expanded state resets.
+    const closedStart = appSource.indexOf(
+      "window.artemis.onWorkspaceTabMenuClosed(() => {",
     );
-    expect(appSource).toContain("ref={workspaceTabMenuRoot}");
-    expect(effectStart).toBeGreaterThan(-1);
-    expect(effectEnd).toBeGreaterThan(effectStart);
-    expect(effectSource).toContain(
-      "workspaceTabMenuRoot.current?.contains(event.target as Node)",
+    const closedEnd = appSource.indexOf("}, []);", closedStart);
+    expect(closedStart).toBeGreaterThan(-1);
+    expect(appSource.slice(closedStart, closedEnd)).toContain(
+      "setWorkspaceTabMenuOpen(false)",
     );
-    expect(effectSource).toContain(
-      'document.addEventListener("pointerdown", closeOutside)',
-    );
-    expect(effectSource).toContain(
-      'window.addEventListener("keydown", closeOnEscape)',
-    );
-    expect(effectSource).toContain('event.key === "Escape"');
-    expect(effectSource).toContain("setWorkspaceTabMenuOpen(false)");
-    expect(mainSource).toContain("view.startsWith('workspace-tab-menu')");
-    expect(mainSource).toContain("workspace-tab-menu-outside-click");
-    expect(mainSource).toContain("workspace-tab-menu-escape");
-    expect(mainSource).toContain("Workspace tab menu did not open.");
-    expect(mainSource).toContain(
-      "Workspace tab menu remained open after dismissal.",
-    );
+    // Clicking "+" while the menu is open closes it (native menu semantics).
+    expect(appSource).toContain("window.artemis.closeWorkspaceTabMenu()");
+    // The child window itself closes on blur; the page reports Escape.
+    const menuWindowSource = source("../src/main/workspace-tab-menu-window.ts");
+    expect(menuWindowSource).toContain('win.on("blur"');
+    const menuHtmlSource = source("../src/renderer/workspace-tab-menu-html.ts");
+    expect(menuHtmlSource).toContain("event.key === 'Escape'");
   });
 
   it("renders file types with the Seti icon set instead of hand-built glyphs", () => {

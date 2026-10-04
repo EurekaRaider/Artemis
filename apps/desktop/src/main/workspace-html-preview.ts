@@ -22,6 +22,10 @@ interface HtmlLease {
   url: string;
 }
 const assetTypes: Record<string, string> = {
+  // 页面间导航（<base> 相对解析，OD /raw/ 同构）：租约目录内兄弟 HTML 按
+  // 真实文档返回（CSP 沙箱随响应下发，脚本限制不变）
+  ".html": "text/html; charset=utf-8",
+  ".htm": "text/html; charset=utf-8",
   ".js": "text/javascript",
   ".mjs": "text/javascript",
   ".css": "text/css",
@@ -52,6 +56,13 @@ const inside = (directory: string, path: string) => {
 export class WorkspaceHtmlPreview {
   private leases = new Map<string, HtmlLease>();
   private generation = 0;
+  /** 沙箱预览内发生页面导航（租约内兄弟 HTML 被服务）时的通知：
+   *  (leaseHostname, workspaceRelativePath, threadId)。设计面板用它把
+   *  "用户当前看的是哪个文件"同步回工作区（OD od:preview-open-file 的
+   *  宿主侧对偶——桥拦不住的 JS location 导航由此兜底）。 */
+  onHtmlResourceServed:
+    | ((leaseHostname: string, path: string, threadId: string) => void)
+    | undefined;
   constructor(
     private workspaceForThread: (threadId: string) => Promise<string>,
   ) {}
@@ -121,6 +132,16 @@ export class WorkspaceHtmlPreview {
         ? "text/html; charset=utf-8"
         : assetTypes[extname(path).toLowerCase()];
       if (!mimeType) throw new Error("Unsupported preview resource.");
+      if (
+        !document &&
+        mimeType.startsWith("text/html") &&
+        this.onHtmlResourceServed
+      ) {
+        const rel = relative(lease.workspace, path).replaceAll("\\", "/");
+        if (rel && !rel.startsWith("..")) {
+          this.onHtmlResourceServed(url.hostname, rel, lease.threadId);
+        }
+      }
       handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
       const metadata = await handle.stat();
       const limit = mimeType.startsWith("image/")

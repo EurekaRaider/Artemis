@@ -49,6 +49,8 @@ import {
 } from "node:path";
 
 import { x as extractTar } from "tar";
+import { PluginRevisionStore } from "./design-plugin-revision-store.js";
+import { pluginManifestSchema, type PluginManifest } from "@artemis/protocol";
 
 import type {
   ArtemisPluginMarketplace,
@@ -68,6 +70,25 @@ import {
   isSkillInstallerMetadata,
 } from "./skill-metadata.js";
 import { assertNativeManifestVersion } from "../shared/plugin-manifest.js";
+
+/**
+ * A package carries a design-plugin manifest only when it declares the
+ * artemisPluginApi engine. Native plugins and skins share the
+ * artemis.plugin.json filename with a different contract — they are not
+ * design plugins and must never hit the strict design schema.
+ */
+function parseDesignPluginManifest(value: unknown): PluginManifest | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const engines = (value as { engines?: { artemisPluginApi?: unknown } })
+    .engines;
+  if (
+    !engines ||
+    typeof engines !== "object" ||
+    engines.artemisPluginApi !== "1"
+  )
+    return undefined;
+  return pluginManifestSchema.parse(value);
+}
 
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_MARKETPLACE_BYTES = 5 * 1024 * 1024;
@@ -144,6 +165,8 @@ interface ParsedPlugin {
   capabilityDependencies?: CapabilityDependency[];
   hasHooks?: boolean;
   localizations?: PluginLocalizations;
+  /** S1: parsed artemis.plugin.json when the package carries one. */
+  designPluginManifest?: PluginManifest;
   root: string;
   id: string;
   name: string;
@@ -202,6 +225,13 @@ interface StoredPlugin {
   appPreviews: ArtemisPluginPreview["apps"];
   unsupported: string[];
   warnings: string[];
+  /** S1: immutable revision pointer for design plugins. */
+  designPlugin?: {
+    installationId: string;
+    contentHash: string;
+    revisionRoot: string;
+    version: string;
+  };
 }
 
 interface PluginStore {
@@ -261,6 +291,12 @@ export interface ArtemisPluginServiceOptions {
   mcpStore: McpConfigStore;
   bundledArtifactRoot?: string;
   computerUseRoot?: string;
+  /**
+   * Design-plugin revision store root. Defaults to the legacy
+   * plugins/plugin-revisions location; production passes the
+   * design-plugins namespace (the native plugin migration owns plugins/).
+   */
+  designRevisionsRoot?: string;
   cloneRepository?: CloneRepository;
   fetcher?: MarketplaceFetcher;
   beforeSnapshotChange?: (pluginId: string) => Promise<void>;
@@ -2335,7 +2371,18 @@ export class ArtemisPluginService {
         plugins: store.plugins.filter((plugin) => plugin.id !== existing.id),
       };
       await this.commitMoves(moves, currentMcp, nextMcp, nextStore);
-      return { warnings: [] };
+      // S1: best-effort cleanup of the plugin's immutable revisions. Failure
+      // only warns: leftover revisions are inert without an installation.
+      const warnings: string[] = [];
+      try {
+        await rm(
+          join(this.options.pluginsRoot, "plugin-revisions", existing.id),
+          { recursive: true, force: true },
+        );
+      } catch (error) {
+        warnings.push(`Failed to remove plugin revisions: ${String(error)}`);
+      }
+      return { warnings };
     });
   }
 
@@ -3309,9 +3356,23 @@ export class ArtemisPluginService {
           maximumBytes: MAX_PLUGIN_BYTES,
         })
       : undefined;
+    // S1: parallel design-plugin contract. A package may carry both a
+    // .codex-plugin/plugin.json (market metadata) and an artemis.plugin.json
+    // (design-plugin contract); the latter is strictly validated here so a
+    // broken manifest never reaches the revision store or thread bindings.
+    // Native plugins/skins (v1.6.18+) use the same filename with a different
+    // contract — they lack the artemisPluginApi engine marker and are left
+    // to the native machinery, never fed to the design schema.
+    const designManifestPath = join(root, "artemis.plugin.json");
+    const designPluginManifest = (await exists(designManifestPath))
+      ? parseDesignPluginManifest(
+          JSON.parse((await readFile(designManifestPath)).toString("utf8")),
+        )
+      : undefined;
     return {
       root,
       capabilityDependencies,
+      ...(designPluginManifest ? { designPluginManifest } : {}),
       id: pluginId(name, source),
       name,
       displayName,
@@ -3449,6 +3510,7 @@ export class ArtemisPluginService {
       updatedAt: plugin.updatedAt,
       skillNames: plugin.skills.map((skill) => skill.name),
       mcpServerIds: plugin.mcpServers.map((server) => server.id),
+      ...(plugin.designPlugin ? { designPlugin: plugin.designPlugin } : {}),
     };
   }
 
@@ -3799,6 +3861,11 @@ export class ArtemisPluginService {
       hasHooks: parsed.hasHooks ?? false,
       unsupported: [...parsed.unsupported],
       warnings: [...parsed.warnings],
+      // S2: publish an immutable revision for design-plugin packages so
+      // thread bindings and the dispatcher have a verifiable target.
+      ...(parsed.designPluginManifest
+        ? { designPlugin: await this.publishDesignPluginRevision(parsed) }
+        : {}),
     };
     const nextStore: PluginStore = {
       version: 1,
@@ -3812,6 +3879,36 @@ export class ArtemisPluginService {
     return {
       plugin: this.installedPlugin(stored),
       warnings: [...stored.warnings],
+    };
+  }
+
+  /**
+   * S2: publish the parsed package's design-plugin payload as an immutable
+   * revision under plugin-revisions/<installationId>/<contentHash>/.
+   */
+  private async publishDesignPluginRevision(
+    parsed: ParsedPlugin,
+  ): Promise<NonNullable<StoredPlugin["designPlugin"]>> {
+    const manifest = parsed.designPluginManifest!;
+    const revisionsRoot =
+      this.options.designRevisionsRoot ??
+      join(this.options.pluginsRoot, "plugin-revisions");
+    const revisionStore = new PluginRevisionStore(revisionsRoot);
+    // The revision content is the plugin directory the install parsed
+    // (artemis.plugin.json + panel + runtime + schema).
+    const sourceRoot = parsed.root;
+    const contentHash =
+      await PluginRevisionStore.computeContentHash(sourceRoot);
+    const published = await revisionStore.publish({
+      installationId: manifest.id,
+      contentHash,
+      sourceRoot,
+    });
+    return {
+      installationId: manifest.id,
+      contentHash: published.contentHash,
+      revisionRoot: published.revisionRoot,
+      version: manifest.version,
     };
   }
 

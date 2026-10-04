@@ -43,6 +43,13 @@ import {
   type CustomAgentModelPolicy,
   type CustomAgentThinkingPolicy,
   type CustomAgentToolPolicy,
+  SUBMISSION_TRANSITIONS,
+  hashSubmissionPayload,
+  isValidSubmissionTransition,
+  pluginTypeBindingSchema,
+  type PluginTypeBinding,
+  type SubmissionLedgerRecord,
+  type SubmissionState,
 } from "@artemis/protocol";
 
 import type { ReviewComment, ReviewCommentAnchor } from "../shared/api.js";
@@ -71,6 +78,8 @@ interface ThreadRow {
   context_window: number | null;
   pinned: number;
   archived: number;
+  type_binding_json: string | null;
+  execution_profile: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -198,6 +207,13 @@ const DATABASE_VERSION = 12;
 // constant instead of a hardcoded number that goes stale on the next bump.
 export const CUSTOM_AGENTS_DATABASE_VERSION = 13;
 export const CURRENT_DATABASE_VERSION = 14;
+// S1 design plugins: grants/state heads/snapshots/ledger tables plus thread
+// type-binding snapshot columns. Threads created for plugin project types
+// freeze their binding and restricted profile at creation time (§6.1).
+// 合并 main 的三模式迁移（v14）时升到 16：三模式迁移必须先跑（它重写
+// threads.mode 的值域），插件表迁移在后；已在 15 的开发库靠旧值内容
+// 探测补跑三模式迁移，user_version 只升不降。
+export const DESIGN_PLUGIN_DATABASE_VERSION = 16;
 const EVENT_PROTOCOL_DATABASE_VERSION = 9;
 
 export interface EventAppendInput {
@@ -358,6 +374,70 @@ function agentEventFromBody(body: string): AgentEvent {
   });
 }
 
+interface PromptSubmissionRow {
+  submission_id: string;
+  thread_id: string;
+  source: "panel" | "composer";
+  candidate_text: string;
+  payload_hash: string;
+  sequence: number;
+  state: SubmissionState;
+  turn_id: string | null;
+  binding_revision: string;
+  last_transition_reason: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function promptSubmissionFromRow(
+  row: PromptSubmissionRow,
+): SubmissionLedgerRecord {
+  return {
+    submissionId: row.submission_id,
+    threadId: row.thread_id,
+    source: row.source,
+    candidateText: row.candidate_text,
+    payloadHash: row.payload_hash,
+    sequence: row.sequence,
+    state: row.state,
+    turnId: row.turn_id,
+    bindingRevision: row.binding_revision,
+    lastTransitionReason: row.last_transition_reason,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+interface PluginOperationRow {
+  operation_id: string;
+  thread_id: string;
+  plugin_id: string;
+  tool_name: string;
+  request_digest: string;
+  state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+  result_ref: string | null;
+  result_json: string | null;
+  error: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * PR#245 P2-12：plugin_operations 的合法前向迁移表。终态只接受自身重放
+ *（幂等再提交），任何回退/终态后重启执行都在 recordPluginOperation 抛错。
+ */
+const PLUGIN_OPERATION_TRANSITIONS: Record<
+  PluginOperationRow["state"],
+  ReadonlySet<PluginOperationRow["state"]>
+> = {
+  prepared: new Set(["running", "cancelled", "succeeded", "failed"]),
+  running: new Set(["succeeded", "failed", "cancelled"]),
+  succeeded: new Set(["succeeded"]),
+  failed: new Set(["failed"]),
+  cancelled: new Set(["cancelled"]),
+};
+
 function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
   return {
     id: row.id,
@@ -378,6 +458,16 @@ function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
     ...(row.context_window ? { contextWindow: row.context_window } : {}),
     pinned: row.pinned === 1,
     archived: row.archived === 1,
+    ...(row.type_binding_json
+      ? {
+          typeBinding: pluginTypeBindingSchema.parse(
+            JSON.parse(row.type_binding_json),
+          ),
+        }
+      : {}),
+    ...(row.execution_profile
+      ? { executionProfile: row.execution_profile }
+      : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -470,6 +560,98 @@ function persistentAgentPayload(payload: AgentPayload): AgentPayload {
   return payload;
 }
 
+// Six design-plugin tables (proposal §6.1). Shared by the fresh-database
+// constructor transaction and the S1 migration path so their definitions
+// can never drift apart.
+const DESIGN_PLUGIN_TABLES_DDL = `
+      CREATE TABLE IF NOT EXISTS plugin_grants (
+        grant_id TEXT PRIMARY KEY,
+        installation_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        scope TEXT NOT NULL CHECK (scope IN ('thread', 'project')),
+        scope_id TEXT NOT NULL,
+        capabilities_json TEXT NOT NULL,
+        resource_refs_json TEXT NOT NULL,
+        grant_revision TEXT NOT NULL,
+        revoked_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (installation_id, scope, scope_id, grant_revision)
+      );
+
+      CREATE TABLE IF NOT EXISTS plugin_state_heads (
+        thread_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        binding_revision TEXT NOT NULL,
+        state_schema_version INTEGER NOT NULL,
+        state_revision TEXT NOT NULL,
+        snapshot_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (thread_id, plugin_id, state_schema_version)
+      );
+
+      CREATE TABLE IF NOT EXISTS plugin_snapshots (
+        snapshot_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        files_json TEXT NOT NULL,
+        parent_snapshot_id TEXT,
+        created_by_operation_id TEXT,
+        package_revision TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS prompt_submissions (
+        submission_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('panel', 'composer')),
+        candidate_text TEXT NOT NULL,
+        payload_hash TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN (
+          'prepared','accepted','queued','dispatching','running',
+          'completed','failed','cancelled','unknown'
+        )),
+        turn_id TEXT,
+        binding_revision TEXT NOT NULL,
+        last_transition_reason TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_prompt_submissions_thread_seq
+        ON prompt_submissions (thread_id, sequence);
+
+      CREATE TABLE IF NOT EXISTS plugin_operations (
+        operation_id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        plugin_id TEXT NOT NULL,
+        tool_name TEXT NOT NULL,
+        request_digest TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN (
+          'prepared','running','succeeded','failed','cancelled'
+        )),
+        result_ref TEXT,
+        result_json TEXT,
+        error TEXT,
+        cancelled_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS plugin_events (
+        event_id TEXT PRIMARY KEY,
+        stream_id TEXT NOT NULL,
+        thread_id TEXT NOT NULL,
+        seq INTEGER NOT NULL,
+        schema_version INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (stream_id, seq)
+      );
+`;
+
 export class AppStore {
   private readonly database: DatabaseSync;
   readonly notifications: TaskNotificationStore;
@@ -507,6 +689,8 @@ export class AppStore {
         context_window INTEGER,
         pinned INTEGER NOT NULL DEFAULT 0,
         archived INTEGER NOT NULL DEFAULT 0,
+        type_binding_json TEXT,
+        execution_profile TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -580,6 +764,8 @@ export class AppStore {
         created_at TEXT NOT NULL,
         UNIQUE(thread_id, seq)
       );
+
+      ${DESIGN_PLUGIN_TABLES_DDL}
 
       CREATE TABLE IF NOT EXISTS turn_checkpoints (
         thread_id TEXT PRIMARY KEY REFERENCES threads(id) ON DELETE CASCADE,
@@ -784,6 +970,43 @@ export class AppStore {
     if (customAgentsVersion.user_version < CUSTOM_AGENTS_DATABASE_VERSION) {
       this.advanceDatabaseVersion(CUSTOM_AGENTS_DATABASE_VERSION);
     }
+
+    // 三模式迁移（execute→work / review→plan / +codemode）必须先于设计
+    // 插件表迁移：它重写既有 threads 的 mode 值域。除了版本门，还要探测
+    // 残留旧值——设计插件分支先到过 v15 的开发库从未跑过三模式迁移。
+    const hasLegacyModes = Boolean(
+      this.database
+        .prepare(
+          "SELECT 1 FROM threads WHERE mode IN ('execute','review') LIMIT 1",
+        )
+        .get() ??
+      this.database
+        .prepare(
+          "SELECT 1 FROM automations WHERE mode IN ('execute','review') LIMIT 1",
+        )
+        .get(),
+    );
+    const beforeThreeModes = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (
+      beforeThreeModes.user_version < CURRENT_DATABASE_VERSION ||
+      hasLegacyModes
+    ) {
+      this.migrateThreeModes();
+      if (beforeThreeModes.user_version > CURRENT_DATABASE_VERSION) {
+        this.advanceDatabaseVersion(beforeThreeModes.user_version);
+      }
+    }
+    // S1 design plugins: add the six plugin tables and thread binding columns.
+    // CREATE IF NOT EXISTS keeps this safe for fresh databases, and the ALTER
+    // paths only run when an older threads table lacks the new columns.
+    const afterThreeModes = this.database
+      .prepare("PRAGMA user_version")
+      .get() as { user_version: number };
+    if (afterThreeModes.user_version < DESIGN_PLUGIN_DATABASE_VERSION) {
+      this.migrateDesignPluginTables();
+    }
     // Run after legacy mode migrations, which rebuild the automations table.
     const automationColumns = this.database
       .prepare("PRAGMA table_info(automations)")
@@ -797,11 +1020,6 @@ export class AppStore {
         "ALTER TABLE automations ADD COLUMN model_selection_json TEXT",
       );
     }
-    const latestVersion = this.database
-      .prepare("PRAGMA user_version")
-      .get() as { user_version: number };
-    if (latestVersion.user_version < CURRENT_DATABASE_VERSION)
-      this.migrateThreeModes();
     this.notifications = new TaskNotificationStore(this.database);
   }
 
@@ -898,6 +1116,35 @@ export class AppStore {
     if (violations.length > 0) {
       throw new Error("Run mode migration produced invalid references.");
     }
+  }
+
+  /**
+   * S1 design-plugin migration (§6.1). Creates the six plugin tables on older
+   * databases and adds the thread type-binding columns when missing. The
+   * prompt_submissions CHECK constraints mirror the protocol state machine;
+   * the S0 standalone ledger table is byte-compatible, so S1 convergence only
+   * needs the tables to exist in the main database.
+   */
+  private migrateDesignPluginTables(): void {
+    const threadColumns = this.database
+      .prepare("PRAGMA table_info(threads)")
+      .all() as Array<{ name: string }>;
+    this.database.exec(`
+      BEGIN IMMEDIATE;
+      ${threadColumns.some((column) => column.name === "type_binding_json") ? "" : "ALTER TABLE threads ADD COLUMN type_binding_json TEXT;"}
+      ${threadColumns.some((column) => column.name === "execution_profile") ? "" : "ALTER TABLE threads ADD COLUMN execution_profile TEXT;"}
+      COMMIT;
+    `);
+    this.database.exec(DESIGN_PLUGIN_TABLES_DDL);
+    const operationColumns = this.database
+      .prepare("PRAGMA table_info(plugin_operations)")
+      .all() as Array<{ name: string }>;
+    if (!operationColumns.some((column) => column.name === "result_json")) {
+      this.database.exec(
+        "ALTER TABLE plugin_operations ADD COLUMN result_json TEXT",
+      );
+    }
+    this.advanceDatabaseVersion(DESIGN_PLUGIN_DATABASE_VERSION);
   }
 
   private migrateThreeModes(): void {
@@ -1184,14 +1431,479 @@ export class AppStore {
     return row ? projectFromRow(row) : undefined;
   }
 
+  // -------------------------------------------------------------------------
+  // S1 design-plugin persistence (proposal §6.1). All six tables live in the
+  // main database and reuse the same transaction discipline as the rest of
+  // the store. The methods below are the store layer only: policy (gates,
+  // dispatch guards) stays in design-plugin-tool-gate and the runtime worker.
+  // -------------------------------------------------------------------------
+
+  /** Insert a plugin grant row; idempotent on the natural key. */
+  insertPluginGrant(grant: {
+    grantId: string;
+    installationId: string;
+    pluginId: string;
+    contentHash: string;
+    scope: "thread" | "project";
+    scopeId: string;
+    capabilities: Record<string, unknown>;
+    resourceRefs: Record<string, unknown>;
+    grantRevision: string;
+  }): void {
+    const now = new Date().toISOString();
+    this.database
+      .prepare(
+        `INSERT INTO plugin_grants (
+          grant_id, installation_id, plugin_id, content_hash, scope, scope_id,
+          capabilities_json, resource_refs_json, grant_revision, created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (installation_id, scope, scope_id, grant_revision)
+        DO NOTHING`,
+      )
+      .run(
+        grant.grantId,
+        grant.installationId,
+        grant.pluginId,
+        grant.contentHash,
+        grant.scope,
+        grant.scopeId,
+        JSON.stringify(grant.capabilities),
+        JSON.stringify(grant.resourceRefs),
+        grant.grantRevision,
+        now,
+        now,
+      );
+  }
+
+  /**
+   * S2 trust chain: revoke every non-revoked grant for one installation.
+   * Dispatch checks treat a revoked grant as no grant, so plugin tool calls
+   * are refused from the moment this commits.
+   */
+  revokePluginGrants(installationId: string): number {
+    const result = this.database
+      .prepare(
+        `UPDATE plugin_grants
+            SET revoked_at = ?, updated_at = ?
+          WHERE installation_id = ? AND revoked_at IS NULL`,
+      )
+      .run(new Date().toISOString(), new Date().toISOString(), installationId);
+    return Number(result.changes);
+  }
+
+  listPluginGrants(scopeId: string): Array<Record<string, unknown>> {
+    return this.database
+      .prepare("SELECT * FROM plugin_grants WHERE scope_id = ?")
+      .all(scopeId) as Array<Record<string, unknown>>;
+  }
+
+  /**
+   * Accept a prompt submission into the converged ledger. Idempotent by
+   * submissionId: the same payload returns the stored record, a different
+   * payload under the same id is rejected as ledger corruption (S0 §9.3
+   * invariants preserved in the main database).
+   */
+  acceptPromptSubmission(input: {
+    submissionId: string;
+    threadId: string;
+    source: "panel" | "composer";
+    candidateText: string;
+    bindingRevision: string;
+  }): SubmissionLedgerRecord {
+    const existing = this.getPromptSubmission(input.submissionId);
+    const payloadHash = hashSubmissionPayload(input.candidateText);
+    if (existing) {
+      if (existing.payloadHash !== payloadHash) {
+        throw new Error(
+          `Submission ${input.submissionId} already exists with a different payload; refusing to overwrite.`,
+        );
+      }
+      return existing;
+    }
+    const now = new Date().toISOString();
+    const sequence = this.nextSubmissionSequence(input.threadId);
+    this.database
+      .prepare(
+        `INSERT INTO prompt_submissions (
+          submission_id, thread_id, source, candidate_text, payload_hash,
+          sequence, state, turn_id, binding_revision,
+          last_transition_reason, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'accepted', NULL, ?, 'host-accept', ?, ?)`,
+      )
+      .run(
+        input.submissionId,
+        input.threadId,
+        input.source,
+        input.candidateText,
+        payloadHash,
+        sequence,
+        input.bindingRevision,
+        now,
+        now,
+      );
+    return this.getPromptSubmission(input.submissionId)!;
+  }
+
+  getPromptSubmission(
+    submissionId: string,
+  ): SubmissionLedgerRecord | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM prompt_submissions WHERE submission_id = ?")
+      .get(submissionId) as PromptSubmissionRow | undefined;
+    return row ? promptSubmissionFromRow(row) : undefined;
+  }
+
+  /**
+   * Transition a submission through the protocol state machine. Invalid
+   * transitions throw; valid ones update state, reason and timestamp in one
+   * statement. Crash-window recovery reads the rows and reconciles instead of
+   * blind re-dispatch. PR#245 P2-10: an optional turnId binds the submission
+   * to the turn it started (immutable once set; a conflicting rebind throws).
+   */
+  transitionPromptSubmission(
+    submissionId: string,
+    nextState: SubmissionState,
+    reason: string,
+    turnId?: string,
+  ): SubmissionLedgerRecord {
+    const current = this.getPromptSubmission(submissionId);
+    if (!current) throw new Error(`Unknown submission: ${submissionId}`);
+    // Rebind check precedes transition validity: a turn conflict must be
+    // reported as a rebind refusal even when the state transition itself
+    // would be illegal (e.g. running → running with a different turn).
+    if (turnId && current.turnId && current.turnId !== turnId) {
+      throw new Error(
+        `Submission ${submissionId} is bound to turn ${current.turnId}; refusing rebind to ${turnId}`,
+      );
+    }
+    if (!isValidSubmissionTransition(current.state, nextState)) {
+      throw new Error(
+        `Illegal submission transition: ${current.state} -> ${nextState}`,
+      );
+    }
+    this.database
+      .prepare(
+        `UPDATE prompt_submissions
+         SET state = ?, last_transition_reason = ?, updated_at = ?,
+             turn_id = COALESCE(?, turn_id)
+         WHERE submission_id = ?`,
+      )
+      .run(
+        nextState,
+        reason,
+        new Date().toISOString(),
+        turnId ?? null,
+        submissionId,
+      );
+    return this.getPromptSubmission(submissionId)!;
+  }
+
+  listPromptSubmissions(threadId: string): SubmissionLedgerRecord[] {
+    return (
+      this.database
+        .prepare(
+          "SELECT * FROM prompt_submissions WHERE thread_id = ? ORDER BY sequence",
+        )
+        .all(threadId) as unknown as PromptSubmissionRow[]
+    ).map(promptSubmissionFromRow);
+  }
+
+  private nextSubmissionSequence(threadId: string): number {
+    const row = this.database
+      .prepare(
+        "SELECT COALESCE(MAX(sequence), 0) AS max FROM prompt_submissions WHERE thread_id = ?",
+      )
+      .get(threadId) as { max: number };
+    return row.max + 1;
+  }
+
+  /**
+   * S2 state transactions: run work inside BEGIN IMMEDIATE / COMMIT with
+   * rollback on throw. The design-plugin state layer uses this to commit
+   * snapshot + head + event as one atomic unit (proposal §6.1).
+   */
+  commitPluginStateTransaction<T>(work: () => T): T {
+    this.database.exec("BEGIN IMMEDIATE;");
+    try {
+      const result = work();
+      this.database.exec("COMMIT;");
+      return result;
+    } catch (error) {
+      try {
+        this.database.exec("ROLLBACK;");
+      } catch {
+        // The transaction may have failed before BEGIN returned.
+      }
+      throw error;
+    }
+  }
+
+  /** Read one plugin state head; undefined when the plugin has no state. */
+  readPluginStateHead(input: {
+    threadId: string;
+    pluginId: string;
+    stateSchemaVersion: number;
+  }):
+    | {
+        stateRevision: string;
+        snapshotId: string;
+        bindingRevision: string;
+        updatedAt: string;
+      }
+    | undefined {
+    return this.database
+      .prepare(
+        `SELECT state_revision AS stateRevision, snapshot_id AS snapshotId,
+                binding_revision AS bindingRevision, updated_at AS updatedAt
+           FROM plugin_state_heads
+          WHERE thread_id = ? AND plugin_id = ? AND state_schema_version = ?`,
+      )
+      .get(input.threadId, input.pluginId, input.stateSchemaVersion) as
+      | {
+          stateRevision: string;
+          snapshotId: string;
+          bindingRevision: string;
+          updatedAt: string;
+        }
+      | undefined;
+  }
+
+  /**
+   * Insert-or-advance one plugin state head (UPSERT). Writers must prefer
+   * commitPluginStateChange() which CAS-guards this write; this raw method
+   * exists for the initial head creation and store-internal recovery paths.
+   */
+  upsertPluginStateHead(input: {
+    threadId: string;
+    pluginId: string;
+    stateSchemaVersion: number;
+    bindingRevision: string;
+    stateRevision: string;
+    snapshotId: string;
+  }): void {
+    this.database
+      .prepare(
+        `INSERT INTO plugin_state_heads (
+           thread_id, plugin_id, binding_revision, state_schema_version,
+           state_revision, snapshot_id, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (thread_id, plugin_id, state_schema_version) DO UPDATE SET
+           binding_revision = excluded.binding_revision,
+           state_revision = excluded.state_revision,
+           snapshot_id = excluded.snapshot_id,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        input.threadId,
+        input.pluginId,
+        input.bindingRevision,
+        input.stateSchemaVersion,
+        input.stateRevision,
+        input.snapshotId,
+        new Date().toISOString(),
+      );
+  }
+
+  /** Insert an immutable plugin snapshot row. */
+  insertPluginSnapshot(snapshot: {
+    snapshotId: string;
+    threadId: string;
+    pluginId: string;
+    files: Array<{ path: string; hash: string }>;
+    parentSnapshotId?: string;
+    createdByOperationId?: string;
+    packageRevision: string;
+  }): void {
+    this.database
+      .prepare(
+        `INSERT INTO plugin_snapshots (
+          snapshot_id, thread_id, plugin_id, files_json,
+          parent_snapshot_id, created_by_operation_id, package_revision,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        snapshot.snapshotId,
+        snapshot.threadId,
+        snapshot.pluginId,
+        JSON.stringify(snapshot.files),
+        snapshot.parentSnapshotId ?? null,
+        snapshot.createdByOperationId ?? null,
+        snapshot.packageRevision,
+        new Date().toISOString(),
+      );
+  }
+
+  /**
+   * Record a plugin operation. Repeated calls with the same operationId and
+   * identical request digest are resolved by the state machine below instead
+   * of silently returning (PR#245 P2-12: the old early-return made
+   * running→succeeded writes no-ops, leaving terminal operations stuck in
+   * `running`).
+   *
+   * Legal forward transitions only: prepared→running→succeeded/failed/
+   * cancelled (and prepared→cancelled). A terminal state accepts only the
+   * idempotent re-commit of itself; anything else — replays after terminal
+   * states, backwards moves, or digest conflicts — throws so the caller can
+   * stop re-executing and surface the stored outcome.
+   */
+  recordPluginOperation(operation: {
+    operationId: string;
+    threadId: string;
+    pluginId: string;
+    toolName: string;
+    requestDigest: string;
+    state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+    resultRef?: string;
+    result?: unknown;
+    error?: string;
+  }): void {
+    const existing = this.database
+      .prepare("SELECT * FROM plugin_operations WHERE operation_id = ?")
+      .get(operation.operationId) as PluginOperationRow | undefined;
+    const now = new Date().toISOString();
+    if (existing) {
+      if (
+        existing.request_digest !== operation.requestDigest ||
+        existing.thread_id !== operation.threadId ||
+        existing.plugin_id !== operation.pluginId ||
+        existing.tool_name !== operation.toolName
+      ) {
+        throw new Error(
+          `Operation ${operation.operationId} replayed with a different request digest; refusing.`,
+        );
+      }
+      const allowed = PLUGIN_OPERATION_TRANSITIONS[existing.state];
+      if (!allowed || !allowed.has(operation.state)) {
+        throw new Error(
+          `Operation ${operation.operationId} is ${existing.state}; transition to ${operation.state} is refused.`,
+        );
+      }
+      if (existing.state === operation.state) return;
+      this.database
+        .prepare(
+          `UPDATE plugin_operations
+           SET state = ?, result_ref = COALESCE(?, result_ref),
+               result_json = ?, error = ?,
+               updated_at = ?
+           WHERE operation_id = ?`,
+        )
+        .run(
+          operation.state,
+          operation.resultRef ?? null,
+          operation.result === undefined
+            ? null
+            : JSON.stringify(operation.result),
+          operation.error ?? null,
+          now,
+          operation.operationId,
+        );
+      return;
+    }
+    this.database
+      .prepare(
+        `INSERT INTO plugin_operations (
+          operation_id, thread_id, plugin_id, tool_name, request_digest,
+          state, result_ref, result_json, error, cancelled_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+      )
+      .run(
+        operation.operationId,
+        operation.threadId,
+        operation.pluginId,
+        operation.toolName,
+        operation.requestDigest,
+        operation.state,
+        operation.resultRef ?? null,
+        operation.result === undefined
+          ? null
+          : JSON.stringify(operation.result),
+        operation.error ?? null,
+        now,
+        now,
+      );
+  }
+
+  /**
+   * PR#245 P2-12：读取操作账本的当前状态，供调用方在执行前做重放判定
+   *（已成功的操作直接取回已存结果，不再重复执行）。
+   */
+  readPluginOperation(operationId: string):
+    | {
+        operationId: string;
+        threadId: string;
+        pluginId: string;
+        toolName: string;
+        requestDigest: string;
+        state: "prepared" | "running" | "succeeded" | "failed" | "cancelled";
+        resultRef?: string;
+        result?: unknown;
+        error?: string;
+      }
+    | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM plugin_operations WHERE operation_id = ?")
+      .get(operationId) as PluginOperationRow | undefined;
+    if (!row) return undefined;
+    return {
+      operationId: row.operation_id,
+      threadId: row.thread_id,
+      pluginId: row.plugin_id,
+      toolName: row.tool_name,
+      requestDigest: row.request_digest,
+      state: row.state as
+        "prepared" | "running" | "succeeded" | "failed" | "cancelled",
+      ...(row.result_ref ? { resultRef: row.result_ref } : {}),
+      ...(row.result_json ? { result: JSON.parse(row.result_json) } : {}),
+      ...(row.error ? { error: row.error } : {}),
+    };
+  }
+
+  /**
+   * Append one plugin event inside the caller's transaction discipline. The
+   * stream seq is allocated per (streamId) and the UNIQUE constraint keeps
+   * concurrent appends honest; on violation the insert throws and the caller
+   * retries with the next seq (no partial publishes).
+   */
+  appendPluginEvent(event: {
+    eventId: string;
+    streamId: string;
+    threadId: string;
+    schemaVersion: number;
+    payload: Record<string, unknown>;
+  }): void {
+    const seqRow = this.database
+      .prepare(
+        "SELECT COALESCE(MAX(seq), 0) AS max FROM plugin_events WHERE stream_id = ?",
+      )
+      .get(event.streamId) as { max: number };
+    this.database
+      .prepare(
+        `INSERT INTO plugin_events (
+          event_id, stream_id, thread_id, seq, schema_version, payload_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        event.eventId,
+        event.streamId,
+        event.threadId,
+        seqRow.max + 1,
+        event.schemaVersion,
+        JSON.stringify(event.payload),
+        new Date().toISOString(),
+      );
+  }
+
   createThread(thread: Thread): Thread {
     this.database
       .prepare(
         `INSERT INTO threads (
           id, project_id, title, goal, mode, target, status, session_file,
-          model_selection_json, context_window, pinned, archived, created_at,
-          updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          model_selection_json, context_window, pinned, archived,
+          type_binding_json, execution_profile, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         thread.id,
@@ -1206,6 +1918,8 @@ export class AppStore {
         thread.contextWindow ?? null,
         thread.pinned ? 1 : 0,
         thread.archived ? 1 : 0,
+        thread.typeBinding ? JSON.stringify(thread.typeBinding) : null,
+        thread.executionProfile ?? null,
         thread.createdAt,
         thread.updatedAt,
       );
@@ -1380,12 +2094,26 @@ export class AppStore {
     > & {
       modelSelection?: ModelSelection | null;
       contextWindow?: number | null;
+      /** Design-plugin binding: freezes the thread onto a plugin revision. */
+      typeBinding?: Thread["typeBinding"];
     },
   ): Thread {
     const current = this.getThread(id);
     if (!current) {
       throw new Error(`Thread not found: ${id}`);
     }
+    const typeBinding =
+      changes.typeBinding === undefined
+        ? current.typeBinding
+        : changes.typeBinding;
+    const executionProfile =
+      changes.typeBinding !== undefined
+        ? // A bound thread runs the plugin-restricted profile so the agent
+          // receives the plugin's tools; unbinding keeps the current profile.
+          changes.typeBinding
+          ? "plugin-restricted-v1"
+          : (current.executionProfile ?? null)
+        : (current.executionProfile ?? null);
     const modelSelection =
       changes.modelSelection === undefined
         ? current.modelSelection
@@ -1400,7 +2128,8 @@ export class AppStore {
         `UPDATE threads
          SET mode = ?, status = ?, session_file = ?, title = ?, goal = ?,
              pinned = ?, archived = ?, target = ?, model_selection_json = ?,
-             context_window = ?, updated_at = ?
+             context_window = ?, type_binding_json = ?, execution_profile = ?,
+             updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -1414,6 +2143,8 @@ export class AppStore {
         changes.target ?? current.target,
         modelSelection ? JSON.stringify(modelSelection) : null,
         contextWindow,
+        typeBinding ? JSON.stringify(typeBinding) : null,
+        executionProfile,
         updatedAt,
         id,
       );

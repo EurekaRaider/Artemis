@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "com.artemis.s0.test-notes",
+  "version": "0.1.0",
+  "engines": { "artemisPluginApi": "1" },
+  "projectTypes": [
+    {
+      "id": "s0-notes",
+      "title": {
+        "zh-CN": "S0 笔记（测试插件）",
+        "en": "S0 Notes (test plugin)"
+      },
+      "targets": ["project", "temporary"],
+      "panelIds": ["notes"]
+    }
+  ],
+  "panels": [{ "id": "notes", "entry": "panel/index.html" }],
+  "runtime": { "entry": "runtime/index.mjs", "protocolVersion": 1 },
+  "tools": [
+    {
+      "name": "notes_append",
+      "description": "Append a note to the S0 notes document.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "notes_list",
+      "description": "List all notes in the S0 notes document.",
+      "effect": "state-read"
+    }
+  ],
+  "capabilities": {
+    "artifactStore": "thread",
+    "projectFiles": "explicit-import",
+    "network": "none",
+    "sessionInput": "host-user-action"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://artemis.local/plugins/artemis-design/design-document.schema.json",
+  "title": "Artemis Design Document",
+  "description": "Parameters and artifact shape for the create_document tool of the artemis-design plugin.",
+  "type": "object",
+  "$defs": {
+    "createDocumentArguments": {
+      "title": "create_document arguments",
+      "description": "Arguments accepted by the create_document tool.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Human-readable name of the design document."
+        },
+        "brief": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Optional design brief describing the intent of the document."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "designDocument": {
+      "title": "Design document record",
+      "description": "A single persisted design document artifact.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier of the document."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Human-readable name of the design document."
+        },
+        "brief": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Optional design brief describing the intent of the document."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 creation timestamp."
+        }
+      },
+      "required": ["id", "name", "brief", "createdAt"],
+      "additionalProperties": false
+    },
+    "createDocumentOutput": {
+      "title": "create_document output",
+      "description": "Output payload returned by create_document.",
+      "type": "object",
+      "properties": {
+        "documentId": {
+          "$ref": "#/$defs/designDocument/properties/id"
+        }
+      },
+      "required": ["documentId"],
+      "additionalProperties": false
+    },
+    "getSnapshotOutput": {
+      "title": "get_snapshot output",
+      "description": "Output payload returned by get_snapshot.",
+      "type": "object",
+      "properties": {
+        "documents": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/designDocument" }
+        }
+      },
+      "required": ["documents"],
+      "additionalProperties": false
+    }
+  }
+}
