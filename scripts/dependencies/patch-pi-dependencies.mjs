@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Pi >= 1.0.1 no longer publishes a shrinkwrap. Verify npm's resolution
@@ -32,7 +32,7 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
-  await patchPiDependencies(dirname(dirname(fileURLToPath(import.meta.url))));
+  await patchPiDependencies(fileURLToPath(new URL("../../", import.meta.url)));
   console.log(
     "Pi 1.0.2 dependency resolution verified: brace-expansion 5.0.12.",
   );

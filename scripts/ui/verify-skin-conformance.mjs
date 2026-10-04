@@ -674,6 +674,7 @@ const expectedCssRules = new Map([
     'normal|[data-artemis-component="select"] [data-part="option"]',
     {
       display: "grid",
+      "flex-shrink": "0",
       "box-sizing": "border-box",
       "grid-template-columns": "var(--artemis-space-4) minmax(0, 1fr)",
       "align-items": "center",

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { patchPiDependencies } from "./patch-pi-dependencies.mjs";
 
 const root = await mkdtemp(join(tmpdir(), "artemis-pi-resolution-"));
@@ -11,6 +13,12 @@ const nested = join(pi, "node_modules", "brace-expansion");
 const manifest = (version) =>
   JSON.stringify({ name: "brace-expansion", version });
 try {
+  const cli = execFileSync(
+    process.execPath,
+    [fileURLToPath(new URL("./patch-pi-dependencies.mjs", import.meta.url))],
+    { cwd: root, encoding: "utf8" },
+  );
+  assert.match(cli, /Pi 1\.0\.2 dependency resolution verified/);
   await mkdir(shared, { recursive: true });
   await mkdir(pi, { recursive: true });
   await writeFile(
