@@ -247,6 +247,12 @@ async function renderSettingsPanel(
     />,
   );
   await act(async () => {});
+  if (initialTab === "providers") {
+    const details = document.querySelector<HTMLDetailsElement>(
+      ".provider-add-model",
+    );
+    if (details) fireEvent.click(details.querySelector("summary")!);
+  }
 }
 
 const avatarInput = () =>
@@ -469,7 +475,7 @@ describe("avatar file field contract (SettingsPanel general tab, §5 file-合同
 });
 
 describe("settings management operation contract (MIG5A)", () => {
-  it("opens model settings with the complete bundled catalog, including aliases with identical names", async () => {
+  it("groups the complete bundled catalog by provider, including aliases with identical names", async () => {
     const models = filterVisibleModels(await loadBundledModelCatalog());
     expect(models.length).toBeGreaterThan(100);
     const initial = settingsSnapshot({ models });
@@ -478,8 +484,12 @@ describe("settings management operation contract (MIG5A)", () => {
     await userEvent.click(
       screen.getByRole("tab", { name: "Providers & models" }),
     );
+    await userEvent.click(screen.getByRole("button", { name: /^mistral/ }));
+    fireEvent.click(document.querySelector(".provider-add-model summary")!);
     await userEvent.click(screen.getByLabelText("Model"));
-    expect(screen.getAllByRole("option")).toHaveLength(models.length);
+    expect(screen.getAllByRole("option")).toHaveLength(
+      models.filter((model) => model.providerId === "mistral").length,
+    );
     expect(
       screen.getByRole("option", {
         name: "Devstral 2 · mistral · devstral-2512",
@@ -602,56 +612,47 @@ describe("settings management operation contract (MIG5A)", () => {
     );
   });
 
-  it.each(["", "synthetic-replacement-key"])(
-    "edits a saved model with key %j without resetting its context window",
-    async (key) => {
-      const saved = {
-        providerId: syntheticModel.providerId,
-        modelId: syntheticModel.modelId,
-        contextWindow: 64_000,
-      };
-      const initial = settingsSnapshot({
-        models: [syntheticModel],
-        addedModels: [saved],
-        credentials: [
-          { providerId: syntheticModel.providerId, type: "api_key" },
-        ],
-      });
-      const addModel = vi.fn().mockResolvedValue(initial);
-      stubSettingsApi(initial, { addModel });
-      await renderSettingsPanel(initial, "providers");
-      await userEvent.click(
-        screen.getByRole("button", { name: "Edit: Synthetic Model" }),
-      );
-      const editor = screen.getByRole("form", {
-        name: "Edit: Synthetic Model",
-      });
-      expect(editor.closest(".added-model-item")).toHaveTextContent(
-        "Synthetic Model",
-      );
-      expect(within(editor).getByLabelText("Context length")).toHaveValue(
-        64_000,
-      );
-      expect(within(editor).getByLabelText("Context length")).toHaveFocus();
-      const keyInput = within(editor).getByLabelText(
-        "API key · synthetic-provider",
-      );
-      expect(keyInput).toHaveValue("");
-      if (key) await userEvent.type(keyInput, key);
-      const save = within(editor).getByRole("button", { name: "Save changes" });
-      expect(save).toHaveAttribute("data-variant", "primary");
-      await userEvent.click(save);
-      expect(addModel).toHaveBeenCalledExactlyOnceWith(saved, key || undefined);
-      expect(await screen.findByText("Model updated")).toBeVisible();
-      expect(
-        screen.queryByRole("form", { name: "Edit: Synthetic Model" }),
-      ).toBeNull();
-      expect(
-        screen.getByRole("button", { name: "Edit: Synthetic Model" }),
-      ).toHaveFocus();
-      expect(document.querySelectorAll(".added-model-row")).toHaveLength(1);
-    },
-  );
+  it("edits a saved model without rewriting provider credentials or resetting its context window", async () => {
+    const saved = {
+      providerId: syntheticModel.providerId,
+      modelId: syntheticModel.modelId,
+      contextWindow: 64_000,
+    };
+    const initial = settingsSnapshot({
+      models: [syntheticModel],
+      addedModels: [saved],
+      credentials: [{ providerId: syntheticModel.providerId, type: "api_key" }],
+    });
+    const addModel = vi.fn().mockResolvedValue(initial);
+    stubSettingsApi(initial, { addModel });
+    await renderSettingsPanel(initial, "providers");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Edit: Synthetic Model" }),
+    );
+    const editor = screen.getByRole("form", {
+      name: "Edit: Synthetic Model",
+    });
+    expect(editor.closest(".added-model-item")).toHaveTextContent(
+      "Synthetic Model",
+    );
+    expect(within(editor).getByLabelText("Context length")).toHaveValue(64_000);
+    expect(within(editor).getByLabelText("Context length")).toHaveFocus();
+    expect(
+      within(editor).queryByLabelText("API key · synthetic-provider"),
+    ).toBeNull();
+    const save = within(editor).getByRole("button", { name: "Save changes" });
+    expect(save).toHaveAttribute("data-variant", "primary");
+    await userEvent.click(save);
+    expect(addModel).toHaveBeenCalledExactlyOnceWith(saved, undefined);
+    expect(await screen.findByText("Model updated")).toBeVisible();
+    expect(
+      screen.queryByRole("form", { name: "Edit: Synthetic Model" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Edit: Synthetic Model" }),
+    ).toHaveFocus();
+    expect(document.querySelectorAll(".added-model-row")).toHaveLength(1);
+  });
 
   it.each(["button", "Escape"])(
     "cancels inline edits with %s while preserving the add-model draft and returning focus",
@@ -689,10 +690,6 @@ describe("settings management operation contract (MIG5A)", () => {
       fireEvent.change(within(editor).getByLabelText("Context length"), {
         target: { value: "32000" },
       });
-      await userEvent.type(
-        within(editor).getByLabelText("API key · synthetic-provider"),
-        "synthetic-edit-draft",
-      );
       expect(screen.getByLabelText("Model")).toHaveTextContent("Another Model");
       if (cancelWith === "button") {
         await userEvent.click(
@@ -716,8 +713,8 @@ describe("settings management operation contract (MIG5A)", () => {
         64_000,
       );
       expect(
-        within(reopened).getByLabelText("API key · synthetic-provider"),
-      ).toHaveValue("");
+        within(reopened).queryByLabelText("API key · synthetic-provider"),
+      ).toBeNull();
     },
   );
 
@@ -893,7 +890,7 @@ describe("settings management operation contract (MIG5A)", () => {
     stubSettingsApi(initial);
     await renderSettingsPanel(initial, "providers");
 
-    for (const selector of [".settings-tabs", ".provider-config-tabs"]) {
+    for (const selector of [".settings-tabs"]) {
       const tablist = document.querySelector(selector);
       expect(tablist).not.toBeNull();
       const tabs = [...tablist!.querySelectorAll<HTMLElement>('[role="tab"]')];
@@ -912,10 +909,6 @@ describe("settings management operation contract (MIG5A)", () => {
     expect(document.querySelector(".settings-tabs")).toHaveAttribute(
       "aria-orientation",
       "vertical",
-    );
-    expect(document.querySelector(".provider-config-tabs")).toHaveAttribute(
-      "aria-orientation",
-      "horizontal",
     );
   });
 
@@ -1008,8 +1001,8 @@ describe("settings management operation contract (MIG5A)", () => {
   it("keeps an entered credential out of visible text and sends it once", async () => {
     const sentinel = "synthetic-settings-secret-5a";
     const initial = settingsSnapshot({ models: [syntheticModel] });
-    const addModel = vi.fn(() => Promise.resolve(initial));
-    stubSettingsApi(initial, { addModel });
+    const saveApiKey = vi.fn(() => Promise.resolve(initial));
+    stubSettingsApi(initial, { saveApiKey });
     await renderSettingsPanel(initial, "providers");
 
     const credential = screen.getByLabelText(
@@ -1019,9 +1012,10 @@ describe("settings management operation contract (MIG5A)", () => {
     expect(credential.value).toBe(sentinel);
     expect(document.body.textContent).not.toContain(sentinel);
 
-    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
-    await waitFor(() => expect(addModel).toHaveBeenCalledTimes(1));
-    expect(addModel.mock.calls[0]?.[1]).toBe(sentinel);
+    await userEvent.click(screen.getByRole("button", { name: "Save API key" }));
+    await waitFor(() => expect(saveApiKey).toHaveBeenCalledTimes(1));
+    expect(saveApiKey).toHaveBeenCalledWith("synthetic-provider", sentinel);
+    expect(credential).toHaveValue("");
     expect(document.body.textContent).not.toContain(sentinel);
   });
 });

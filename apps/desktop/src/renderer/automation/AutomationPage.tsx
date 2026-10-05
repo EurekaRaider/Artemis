@@ -754,7 +754,7 @@ export function AutomationPage(props: {
               />
             }
             onClick={() => openDraft()}
-            variant="primary"
+            variant="secondary"
           >
             {t.create}
           </Button>

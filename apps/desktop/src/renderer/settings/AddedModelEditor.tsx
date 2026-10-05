@@ -30,7 +30,6 @@ export function AddedModelEditor({
   const [contextWindow, setContextWindow] = useState(
     String(model.contextWindow),
   );
-  const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
   const contextInputRef = useRef<HTMLInputElement>(null);
@@ -44,8 +43,7 @@ export function AddedModelEditor({
     Number.isInteger(parsedContextWindow) &&
     parsedContextWindow >= 1_024 &&
     parsedContextWindow <= catalogModel.contextWindow &&
-    (catalogModel.configured || credential || apiKey.trim()) &&
-    (!apiKey.trim() || settings.encryptionAvailable),
+    (catalogModel.configured || credential),
   );
   const title = `${t.edit}: ${catalogModel?.name ?? model.modelId}`;
 
@@ -63,10 +61,7 @@ export function AddedModelEditor({
     if (busy || !valid) return;
     setError("");
     try {
-      await onSave(
-        { ...model, contextWindow: parsedContextWindow },
-        apiKey.trim() || undefined,
-      );
+      await onSave({ ...model, contextWindow: parsedContextWindow }, undefined);
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     }
@@ -108,21 +103,6 @@ export function AddedModelEditor({
         step={1}
         type="number"
         value={contextWindow}
-      />
-      <TextField
-        autoComplete="off"
-        description={
-          settings.encryptionAvailable
-            ? `${t.encrypted} · ${t.sharedApiKey}`
-            : t.unavailable
-        }
-        disabled={busy || !settings.encryptionAvailable}
-        label={`${t.apiKey} · ${model.providerId}`}
-        onValueChange={setApiKey}
-        placeholder={credential ? t.storedApiKey : t.apiKey}
-        size="compact"
-        type="password"
-        value={apiKey}
       />
       {error && (
         <InlineNotice title={t.modelSaveFailed} tone="danger">

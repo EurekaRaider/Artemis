@@ -1,4 +1,13 @@
-import { ProviderLogin } from "../settings/ProviderLogin.js";
+import {
+  Cube,
+  User,
+  ChatDots,
+  CaretDown,
+  CaretUp,
+  Plus,
+} from "@phosphor-icons/react";
+import { ProviderWorkspace } from "../settings/ProviderWorkspace.js";
+import "../settings/provider-settings.css";
 import { modelAdvancedOptionsSchema } from "@artemis/protocol";
 import { AppearanceSettingsSection } from "../appearance/AppearanceSettingsSection.js";
 import { ComputerUseControls } from "../computer-use/ComputerUseControls.js";
@@ -208,9 +217,14 @@ export function SettingsPanel({
     return () => media.removeEventListener("change", update);
   }, []);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-  const [providerConfigTab, setProviderConfigTab] = useState<
-    "builtin" | "custom"
-  >("builtin");
+  const [addModelProviderId, setAddModelProviderId] = useState<string>();
+  const [selectedProviderId, setSelectedProviderId] = useState(
+    () =>
+      initialSettings?.selection?.providerId ??
+      initialSettings?.models[0]?.providerId ??
+      "",
+  );
+  const [showProviderForm, setShowProviderForm] = useState(false);
   const [settings, setSettings] = useState(initialSettings);
   const [selectedModel, setSelectedModel] = useState(
     () => modelFormState(initialSettings).selectedModel,
@@ -239,8 +253,6 @@ export function SettingsPanel({
     useState<ProviderThinkingLevel>("high");
   const [providerImages, setProviderImages] = useState(false);
   const [providerAdvanced, setProviderAdvanced] = useState("{}");
-  const [apiKey, setApiKey] = useState("");
-  const [keyApiKey, setKeyApiKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [modelApplyResult, setModelApplyResult] = useState<{
@@ -289,6 +301,14 @@ export function SettingsPanel({
       .then((snapshot) => {
         if (!mounted) return;
         setSettings(snapshot);
+        setSelectedProviderId(
+          (current) =>
+            current ||
+            snapshot.selection?.providerId ||
+            snapshot.models[0]?.providerId ||
+            snapshot.providers[0]?.id ||
+            "",
+        );
         setGlobalAgentsContent(snapshot.globalAgents.content);
         setAgentConcurrencyLimit(
           String(
@@ -390,8 +410,7 @@ ${model.providerId} · ${model.modelId}`,
     selectedModelInfo &&
     (selectedModelUsesCustomProvider ||
       selectedModelInfo.configured ||
-      selectedModelCredential ||
-      keyApiKey.trim()),
+      selectedModelCredential),
   );
   const parsedContextWindow = Number(contextWindow);
   const contextWindowValid =
@@ -420,9 +439,6 @@ ${model.providerId} · ${model.modelId}`,
 
   function selectModel(value: string) {
     const [providerId, modelId] = parseModelKey(value);
-    if (selectedModel && parseModelKey(selectedModel)[0] !== providerId) {
-      setKeyApiKey("");
-    }
     setSelectedModel(value);
     const model = models.find(
       (candidate) =>
@@ -462,13 +478,10 @@ ${model.providerId} · ${model.modelId}`,
           modelId,
           contextWindow: parsedContextWindow,
         },
-        selectedModelUsesCustomProvider
-          ? undefined
-          : keyApiKey.trim() || undefined,
+        undefined,
       );
       setSettings(updated);
       onSettingsChange(updated);
-      setKeyApiKey("");
       setModelApplyResult({
         kind: "success",
         title: selectedAddedModel ? t.modelUpdated : t.modelSaved,
@@ -633,15 +646,17 @@ ${model.providerId} · ${model.modelId}`,
       baseUrl: baseUrl.trim(),
       api: providerApi,
       models: existingProvider
-        ? existingProvider.models.map((model) =>
-            model.id === editingProviderModelId ? editedModel : model,
-          )
+        ? editingProviderModelId
+          ? existingProvider.models.map((model) =>
+              model.id === editingProviderModelId ? editedModel : model,
+            )
+          : [...existingProvider.models, editedModel]
         : [editedModel],
     };
     await run(async () => {
       const updated = await window.artemis.saveProviderConnection(
         provider,
-        apiKey.trim() || undefined,
+        undefined,
       );
       setSettings(updated);
       onSettingsChange(updated);
@@ -659,10 +674,12 @@ ${model.providerId} · ${model.modelId}`,
         setContextWindow(String(updated.models[0].contextWindow));
       }
       resetProviderForm();
+      setSelectedProviderId(provider.id);
     });
   }
 
   function resetProviderForm() {
+    setShowProviderForm(false);
     setEditingProviderId(undefined);
     setEditingProviderModelId(undefined);
     setProviderAdvanced("{}");
@@ -677,7 +694,6 @@ ${model.providerId} · ${model.modelId}`,
     setProviderReasoning(false);
     setProviderHighestThinkingLevel("high");
     setProviderImages(false);
-    setApiKey("");
   }
 
   function editProviderConnection(
@@ -687,6 +703,7 @@ ${model.providerId} · ${model.modelId}`,
     const model =
       provider.models.find((candidate) => candidate.id === modelId) ??
       provider.models[0];
+    setShowProviderForm(true);
     setEditingProviderId(provider.id);
     setEditingProviderModelId(model?.id);
     setProviderId(provider.id);
@@ -715,7 +732,6 @@ ${model.providerId} · ${model.modelId}`,
       ),
     );
     setProviderImages(model?.input.includes("image") ?? false);
-    setApiKey("");
   }
 
   async function deleteProviderConnection(provider: ProviderConnection) {
@@ -865,28 +881,28 @@ ${model.providerId} · ${model.modelId}`,
                 options={[
                   {
                     id: "settings-tab-general-button",
-                    icon: <ArtemisIcon name="settings" />,
+                    icon: <ArtemisIcon name="gear" />,
                     label: t.tabGeneral,
                     panelId: "settings-tab-general",
                     value: "general",
                   },
                   {
                     id: "settings-tab-providers-button",
-                    icon: <ArtemisIcon name="folder" />,
+                    icon: <ArtemisIcon name="database" />,
                     label: t.tabProviders,
                     panelId: "settings-tab-providers",
                     value: "providers",
                   },
                   {
                     id: "settings-tab-agents-button",
-                    icon: <ArtemisIcon name="agent-configuration" />,
+                    icon: <User aria-hidden="true" />,
                     label: t.tabAgents,
                     panelId: "settings-tab-agents",
                     value: "agents",
                   },
                   {
                     id: "settings-tab-im-button",
-                    icon: <ArtemisIcon name="mobile" />,
+                    icon: <ChatDots aria-hidden="true" />,
                     label: activeTabLabel.im,
                     panelId: "settings-tab-im",
                     value: "im",
@@ -900,7 +916,7 @@ ${model.providerId} · ${model.modelId}`,
                   },
                   {
                     id: "settings-tab-hooks-button",
-                    icon: <ArtemisIcon name="hooks" />,
+                    icon: <ArtemisIcon name="connector" />,
                     label: uiText(locale, "Hooks.title"),
                     panelId: "settings-tab-hooks",
                     value: "hooks",
@@ -971,295 +987,475 @@ ${model.providerId} · ${model.modelId}`,
               )}
               {activeTab === "providers" && (
                 <>
-                  <Tabs<"builtin" | "custom">
-                    className="provider-config-tabs"
-                    label={t.tabProviders}
-                    onValueChange={setProviderConfigTab}
-                    options={[
-                      {
-                        id: "provider-config-builtin-tab",
-                        label: t.providerConfigBuiltin,
-                        panelId: "provider-config-builtin",
-                        value: "builtin",
-                      },
-                      {
-                        id: "provider-config-custom-tab",
-                        label: t.providerConfigCustom,
-                        panelId: "provider-config-custom",
-                        value: "custom",
-                      },
-                    ]}
-                    size="compact"
-                    value={providerConfigTab}
-                  />
-                  {providerConfigTab !== "builtin" && (
-                    <div
-                      aria-labelledby="provider-config-builtin-tab"
-                      hidden
-                      id="provider-config-builtin"
-                      role="tabpanel"
-                    />
-                  )}
-                  {providerConfigTab !== "custom" && (
-                    <div
-                      aria-labelledby="provider-config-custom-tab"
-                      hidden
-                      id="provider-config-custom"
-                      role="tabpanel"
-                    />
-                  )}
-                  {providerConfigTab === "builtin" && (
-                    <ManagementSection
-                      className="settings-section settings-builtin-models"
-                      id="provider-config-builtin"
-                      labelledBy="provider-config-builtin-tab"
-                      role="tabpanel"
-                      title={t.model}
-                    >
-                      <SettingsRow
-                        label={t.model}
-                        description={uiText(locale, "SettingsPanel.inline2")}
-                      >
-                        <Select
-                          size="compact"
-                          label={t.model}
-                          disabled={
-                            busy ||
-                            Boolean(editingModelKey) ||
-                            models.length === 0
-                          }
-                          onValueChange={selectModel}
-                          noResultsLabel={t.modelSearchEmpty}
-                          className="model-catalog-select"
-                          options={modelOptions}
-                          searchPlaceholder={t.modelSearch}
-                          value={selectedModel}
-                        />
-                      </SettingsRow>
-                      {models.length === 0 && (
-                        <EmptyState
-                          className="settings-empty"
-                          title={t.modelUnavailable}
-                        />
-                      )}
-                      <SettingsRow
-                        label={t.contextWindow}
-                        description={
-                          selectedModelInfo
-                            ? t.contextWindowHint.replace(
-                                "{limit}",
-                                selectedModelInfo.contextWindow.toLocaleString(
-                                  locale,
-                                ),
+                  <ProviderWorkspace
+                    settings={settings}
+                    locale={locale}
+                    selectedProviderId={selectedProviderId}
+                    disabled={busy}
+                    creating={showProviderForm && !editingProviderId}
+                    onBusy={setBusy}
+                    onSelect={(id) => {
+                      setAddModelProviderId(undefined);
+                      resetProviderForm();
+                      setEditingModelKey(undefined);
+                      setMessage("");
+                      setSelectedProviderId(id);
+                      const model = models.find(
+                        (item) => item.providerId === id,
+                      );
+                      if (model)
+                        selectModel(modelKey(model.providerId, model.modelId));
+                      else setSelectedModel("");
+                    }}
+                    onAdd={() => {
+                      resetProviderForm();
+                      setShowProviderForm(true);
+                    }}
+                    onChange={(updated) => {
+                      setSettings(updated);
+                      onSettingsChange(updated);
+                    }}
+                    onEditConnection={() => {
+                      const provider = settings.providers.find(
+                        (item) => item.id === selectedProviderId,
+                      );
+                      if (provider) editProviderConnection(provider);
+                    }}
+                    onDeleteConnection={() =>
+                      setProviderDeleteTarget(
+                        settings.providers.find(
+                          (item) => item.id === selectedProviderId,
+                        ),
+                      )
+                    }
+                  >
+                    {(!showProviderForm || editingProviderId) && (
+                      <ManagementSection
+                        className="settings-section provider-models"
+                        title={t.addedModels}
+                        actions={
+                          <Button
+                            variant="quiet"
+                            disabled={busy}
+                            aria-expanded={
+                              addModelProviderId === selectedProviderId
+                            }
+                            onClick={() =>
+                              setAddModelProviderId(
+                                addModelProviderId === selectedProviderId
+                                  ? undefined
+                                  : selectedProviderId,
                               )
-                            : undefined
+                            }
+                            icon={<Plus aria-hidden="true" size={18} />}
+                          >
+                            {t.saveModel}
+                          </Button>
                         }
                       >
-                        <TextField
-                          className="settings-number-field"
-                          labelVisibility="hidden"
-                          size="compact"
-                          disabled={
-                            busy ||
-                            Boolean(editingModelKey) ||
-                            !selectedModelInfo
-                          }
-                          label={t.contextWindow}
-                          max={selectedModelInfo?.contextWindow}
-                          min={1_024}
-                          onValueChange={setContextWindow}
-                          step={1_024}
-                          type="number"
-                          value={contextWindow}
-                        />
-                      </SettingsRow>
-                      {!selectedModelUsesCustomProvider && (
-                        <SettingsRow
-                          className="settings-row-wide"
-                          label={t.apiKey}
-                          description={
-                            settings.encryptionAvailable ? (
-                              <>
-                                {t.encrypted} · {t.sharedApiKey}
-                              </>
-                            ) : (
-                              <InlineNotice tone="warning">
-                                {t.unavailable}
-                              </InlineNotice>
+                        {settings.providers.some(
+                          (item) => item.id === selectedProviderId,
+                        ) && (
+                          <Button
+                            variant="quiet"
+                            disabled={busy}
+                            onClick={() => {
+                              const provider = settings.providers.find(
+                                (item) => item.id === selectedProviderId,
+                              )!;
+                              resetProviderForm();
+                              setShowProviderForm(true);
+                              setEditingProviderId(provider.id);
+                              setProviderId(provider.id);
+                              setProviderName(provider.name);
+                              setBaseUrl(provider.baseUrl);
+                              setProviderApi(
+                                provider.api ?? "openai-completions",
+                              );
+                            }}
+                          >
+                            {uiText(locale, "Providers.defineModel")}
+                          </Button>
+                        )}
+                        {addModelProviderId === selectedProviderId && (
+                          <div
+                            className="provider-add-model"
+                            key={selectedProviderId}
+                          >
+                            <SettingsRow
+                              label={t.model}
+                              description={uiText(
+                                locale,
+                                "SettingsPanel.inline2",
+                              )}
+                            >
+                              <Select
+                                size="compact"
+                                label={t.model}
+                                disabled={
+                                  busy ||
+                                  Boolean(editingModelKey) ||
+                                  models.length === 0
+                                }
+                                onValueChange={selectModel}
+                                noResultsLabel={t.modelSearchEmpty}
+                                className="model-catalog-select"
+                                options={modelOptions.filter(
+                                  (option) =>
+                                    parseModelKey(option.value)[0] ===
+                                    selectedProviderId,
+                                )}
+                                searchPlaceholder={t.modelSearch}
+                                value={selectedModel}
+                              />
+                            </SettingsRow>
+                            {models.length === 0 && (
+                              <EmptyState
+                                className="settings-empty"
+                                title={t.modelUnavailable}
+                              />
+                            )}
+                            <SettingsRow
+                              label={t.contextWindow}
+                              description={
+                                selectedModelInfo
+                                  ? t.contextWindowHint.replace(
+                                      "{limit}",
+                                      selectedModelInfo.contextWindow.toLocaleString(
+                                        locale,
+                                      ),
+                                    )
+                                  : undefined
+                              }
+                            >
+                              <TextField
+                                className="settings-number-field"
+                                labelVisibility="hidden"
+                                size="compact"
+                                disabled={
+                                  busy ||
+                                  Boolean(editingModelKey) ||
+                                  !selectedModelInfo
+                                }
+                                label={t.contextWindow}
+                                max={selectedModelInfo?.contextWindow}
+                                min={1_024}
+                                onValueChange={setContextWindow}
+                                step={1_024}
+                                type="number"
+                                value={contextWindow}
+                              />
+                            </SettingsRow>
+                            <div className="provider-form-actions">
+                              <Button
+                                disabled={
+                                  busy ||
+                                  Boolean(editingModelKey) ||
+                                  !selectedModel ||
+                                  !contextWindowValid ||
+                                  !selectedModelCanBeAdded
+                                }
+                                onClick={addModel}
+                                variant="primary"
+                              >
+                                {selectedAddedModel
+                                  ? t.saveChanges
+                                  : t.saveModel}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        <div
+                          aria-label={t.addedModels}
+                          className="added-model-list"
+                        >
+                          {settings.addedModels
+                            .filter(
+                              (model) =>
+                                model.providerId === selectedProviderId,
                             )
+                            .map((model) => {
+                              const key = modelKey(
+                                model.providerId,
+                                model.modelId,
+                              );
+                              const editing = editingModelKey === key;
+                              const catalogModel = models.find(
+                                (candidate) =>
+                                  candidate.providerId === model.providerId &&
+                                  candidate.modelId === model.modelId,
+                              );
+                              return (
+                                <div
+                                  className="added-model-item"
+                                  data-editing={editing || undefined}
+                                  key={key}
+                                >
+                                  <ManagementRow
+                                    leading={
+                                      <Cube
+                                        aria-hidden="true"
+                                        size={26}
+                                        weight="regular"
+                                      />
+                                    }
+                                    actions={
+                                      <span className="mcp-server-actions">
+                                        <IconButton
+                                          disabled={
+                                            busy ||
+                                            Boolean(editingModelKey && !editing)
+                                          }
+                                          label={`${editing ? t.cancelEdit : t.edit}: ${catalogModel?.name ?? model.modelId}`}
+                                          onClick={(event) => {
+                                            if (editing) {
+                                              setEditingModelKey(undefined);
+                                              return;
+                                            }
+                                            setMessage("");
+                                            setSavedModelKey(undefined);
+                                            const provider =
+                                              settings.providers.find(
+                                                (item) =>
+                                                  item.id === model.providerId,
+                                              );
+                                            if (provider) {
+                                              editProviderConnection(
+                                                provider,
+                                                model.modelId,
+                                              );
+                                            } else {
+                                              modelEditTriggerRef.current =
+                                                event.currentTarget;
+                                              setEditingModelKey(key);
+                                            }
+                                          }}
+                                          variant="quiet"
+                                          icon={
+                                            editing ? (
+                                              <CaretUp
+                                                size={20}
+                                                aria-hidden="true"
+                                              />
+                                            ) : (
+                                              <CaretDown
+                                                size={20}
+                                                aria-hidden="true"
+                                              />
+                                            )
+                                          }
+                                        />
+                                        <IconButton
+                                          className="management-destructive-action"
+                                          icon={<ArtemisIcon name="trash" />}
+                                          title={t.delete}
+                                          disabled={
+                                            busy || Boolean(editingModelKey)
+                                          }
+                                          label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
+                                          onClick={() => {
+                                            setMessage("");
+                                            setModelDeleteTarget(model);
+                                          }}
+                                          variant="quiet"
+                                        />
+                                      </span>
+                                    }
+                                    className="added-model-row"
+                                    description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
+                                    title={catalogModel?.name ?? model.modelId}
+                                  />
+                                  {editing && (
+                                    <AddedModelEditor
+                                      busy={busy}
+                                      catalogModel={catalogModel}
+                                      locale={locale}
+                                      model={model}
+                                      onCancel={() =>
+                                        setEditingModelKey(undefined)
+                                      }
+                                      onSave={saveModelEdit}
+                                      settings={settings}
+                                    />
+                                  )}
+                                  {savedModelKey === key && (
+                                    <InlineNotice
+                                      className="added-model-feedback"
+                                      tone="success"
+                                    >
+                                      {t.modelUpdated}
+                                    </InlineNotice>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          {!settings.addedModels.some(
+                            (model) => model.providerId === selectedProviderId,
+                          ) && (
+                            <EmptyState
+                              className="settings-empty"
+                              title={t.noAddedModels}
+                            />
+                          )}
+                        </div>
+                      </ManagementSection>
+                    )}
+                    {showProviderForm && (
+                      <ManagementSection
+                        className="settings-section"
+                        description={t.providerHint}
+                        title={t.customProviders}
+                      >
+                        <form
+                          className="credential-form provider-form"
+                          onSubmit={(event) =>
+                            void saveProviderConnection(event)
                           }
                         >
                           <TextField
-                            autoComplete="off"
+                            autoCapitalize="none"
+                            autoCorrect="off"
+                            disabled={busy || Boolean(editingProviderId)}
+                            label={t.provider}
+                            labelVisibility="visible"
+                            maxLength={80}
+                            onValueChange={(value) =>
+                              setProviderId(value.toLocaleLowerCase("en-US"))
+                            }
+                            pattern="[a-z0-9][a-z0-9._-]*"
+                            placeholder={t.provider}
+                            spellCheck={false}
+                            value={providerId}
+                          />
+                          <TextField
+                            disabled={busy}
+                            label={t.providerName}
+                            labelVisibility="visible"
+                            onValueChange={setProviderName}
+                            placeholder={t.providerName}
+                            value={providerName}
+                          />
+                          <TextField
+                            disabled={busy}
+                            label={t.baseUrl}
+                            labelVisibility="visible"
+                            onValueChange={setBaseUrl}
+                            placeholder={t.baseUrl}
+                            type="url"
+                            value={baseUrl}
+                          />
+                          <Select<NonNullable<ProviderConnection["api"]>>
+                            label={t.providerApi}
+                            disabled={busy}
+                            onValueChange={setProviderApi}
+                            options={[
+                              {
+                                value: "openai-completions",
+                                label: t.chatCompletionsApi,
+                              },
+                              {
+                                value: "openai-responses",
+                                label: t.responsesApi,
+                              },
+                            ]}
+                            value={providerApi}
+                          />
+                          <TextField
+                            disabled={busy}
+                            label={t.modelId}
+                            labelVisibility="visible"
+                            onValueChange={setProviderModelId}
+                            placeholder={t.modelId}
+                            value={providerModelId}
+                          />
+                          <TextField
+                            disabled={busy}
+                            label={t.modelName}
+                            labelVisibility="visible"
+                            onValueChange={setProviderModelName}
+                            placeholder={t.modelName}
+                            value={providerModelName}
+                          />
+                          <TextField
                             className="settings-field"
-                            labelVisibility="hidden"
-                            size="compact"
+                            disabled={busy}
+                            label={t.contextWindow}
+                            max={10_000_000}
+                            min={1_024}
+                            onValueChange={setProviderContextWindow}
+                            step={1}
+                            type="number"
+                            value={providerContextWindow}
+                          />
+                          <TextField
+                            className="settings-field"
+                            disabled={busy}
+                            label={t.maxTokens}
+                            max={1_000_000}
+                            min={1}
+                            onValueChange={setProviderMaxTokens}
+                            step={1}
+                            type="number"
+                            value={providerMaxTokens}
+                          />
+                          <span className="provider-capabilities">
+                            <Checkbox
+                              checked={providerReasoning}
+                              disabled={busy}
+                              label={t.reasoningModel}
+                              onCheckedChange={setProviderReasoning}
+                            />
+                            <Checkbox
+                              checked={providerImages}
+                              disabled={busy}
+                              label={t.imageInput}
+                              onCheckedChange={setProviderImages}
+                            />
+                          </span>
+                          {providerReasoning && (
+                            <Select<ProviderThinkingLevel>
+                              label={t.highestReasoningLevel}
+                              disabled={busy}
+                              onValueChange={setProviderHighestThinkingLevel}
+                              options={[
+                                { value: "minimal", label: t.thinkingMinimal },
+                                { value: "low", label: t.thinkingLow },
+                                { value: "medium", label: t.thinkingMedium },
+                                { value: "high", label: t.thinkingHigh },
+                                { value: "xhigh", label: t.thinkingXHigh },
+                                { value: "max", label: t.thinkingMax },
+                              ]}
+                              value={providerHighestThinkingLevel}
+                            />
+                          )}
+                          <TextAreaField
+                            label={uiText(locale, "Model.advanced")}
+                            value={providerAdvanced}
+                            onValueChange={setProviderAdvanced}
+                            disabled={busy}
+                            rows={5}
+                          />
+                          <Button
                             disabled={
                               busy ||
-                              Boolean(editingModelKey) ||
-                              !selectedModelInfo ||
-                              !settings.encryptionAvailable
+                              !providerIdValid ||
+                              !baseUrl.trim() ||
+                              !providerModelId.trim() ||
+                              !providerContextWindowValid ||
+                              !providerMaxTokensValid
                             }
-                            label={`${t.apiKey}${
-                              selectedModelInfo?.providerId
-                                ? ` · ${selectedModelInfo.providerId}`
-                                : ""
-                            }`}
-                            onValueChange={setKeyApiKey}
-                            placeholder={
-                              selectedModelCredential
-                                ? t.storedApiKey
-                                : t.apiKey
-                            }
-                            type="password"
-                            value={keyApiKey}
-                          />
-                        </SettingsRow>
-                      )}
-                      <Button
-                        disabled={
-                          busy ||
-                          Boolean(editingModelKey) ||
-                          !selectedModel ||
-                          !contextWindowValid ||
-                          !selectedModelCanBeAdded
-                        }
-                        onClick={addModel}
-                        variant="primary"
-                      >
-                        {selectedAddedModel ? t.saveChanges : t.saveModel}
-                      </Button>
-                      <div
-                        aria-label={t.addedModels}
-                        className="added-model-list"
-                      >
-                        <strong>{t.addedModels}</strong>
-                        {settings.addedModels.map((model) => {
-                          const key = modelKey(model.providerId, model.modelId);
-                          const editing = editingModelKey === key;
-                          const catalogModel = models.find(
-                            (candidate) =>
-                              candidate.providerId === model.providerId &&
-                              candidate.modelId === model.modelId,
-                          );
-                          return (
-                            <div
-                              className="added-model-item"
-                              data-editing={editing || undefined}
-                              key={key}
-                            >
-                              <ManagementRow
-                                actions={
-                                  <span className="mcp-server-actions">
-                                    <Button
-                                      disabled={
-                                        busy ||
-                                        Boolean(editingModelKey && !editing)
-                                      }
-                                      label={`${editing ? t.cancelEdit : t.edit}: ${catalogModel?.name ?? model.modelId}`}
-                                      onClick={(event) => {
-                                        if (editing) {
-                                          setEditingModelKey(undefined);
-                                          return;
-                                        }
-                                        setMessage("");
-                                        setSavedModelKey(undefined);
-                                        const provider =
-                                          settings.providers.find(
-                                            (item) =>
-                                              item.id === model.providerId,
-                                          );
-                                        if (provider) {
-                                          editProviderConnection(
-                                            provider,
-                                            model.modelId,
-                                          );
-                                          setProviderConfigTab("custom");
-                                        } else {
-                                          modelEditTriggerRef.current =
-                                            event.currentTarget;
-                                          setEditingModelKey(key);
-                                        }
-                                      }}
-                                      variant="quiet"
-                                    >
-                                      {editing ? t.cancelEdit : t.edit}
-                                    </Button>
-                                    <IconButton
-                                      className="management-destructive-action"
-                                      icon={<ArtemisIcon name="trash" />}
-                                      title={t.delete}
-                                      disabled={
-                                        busy || Boolean(editingModelKey)
-                                      }
-                                      label={`${t.delete}: ${catalogModel?.name ?? model.modelId}`}
-                                      onClick={() => {
-                                        setMessage("");
-                                        setModelDeleteTarget(model);
-                                      }}
-                                      variant="quiet"
-                                    />
-                                  </span>
-                                }
-                                className="added-model-row"
-                                description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
-                                title={catalogModel?.name ?? model.modelId}
-                              />
-                              {editing && (
-                                <AddedModelEditor
-                                  busy={busy}
-                                  catalogModel={catalogModel}
-                                  locale={locale}
-                                  model={model}
-                                  onCancel={() => setEditingModelKey(undefined)}
-                                  onSave={saveModelEdit}
-                                  settings={settings}
-                                />
-                              )}
-                              {savedModelKey === key && (
-                                <InlineNotice
-                                  className="added-model-feedback"
-                                  tone="success"
-                                >
-                                  {t.modelUpdated}
-                                </InlineNotice>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {settings.addedModels.length === 0 && (
-                          <EmptyState
-                            className="settings-empty"
-                            title={t.noAddedModels}
-                          />
-                        )}
-                      </div>
-                      <ProviderLogin
-                        locale={locale}
-                        disabled={busy || !settings.encryptionAvailable}
-                        onComplete={async () =>
-                          setSettings(await window.artemis.getSettings())
-                        }
-                      />
-                      <Button
-                        className="management-text-action"
-                        variant="quiet"
-                        disabled={busy || !settings.encryptionAvailable}
-                        onClick={() =>
-                          void run(async () => {
-                            const result =
-                              await window.artemis.importPiCredentials();
-                            if (result) {
-                              setSettings(result.settings);
-                              setMessage(`${result.imported} ${t.imported}`);
-                            }
-                          })
-                        }
-                      >
-                        {t.importPi}
-                      </Button>
-                    </ManagementSection>
-                  )}
+                            type="submit"
+                            variant="primary"
+                          >
+                            {t.saveProvider}
+                          </Button>
+                          <Button disabled={busy} onClick={resetProviderForm}>
+                            {t.cancel}
+                          </Button>
+                        </form>
+                      </ManagementSection>
+                    )}
+                  </ProviderWorkspace>
                 </>
               )}
 
@@ -1391,239 +1587,6 @@ ${model.providerId} · ${model.modelId}`,
                     />
                   </SettingsRow>
                 </>
-              )}
-
-              {activeTab === "providers" && providerConfigTab === "custom" && (
-                <ManagementSection
-                  className="settings-section"
-                  description={t.providerHint}
-                  id="provider-config-custom"
-                  labelledBy="provider-config-custom-tab"
-                  role="tabpanel"
-                  title={t.customProviders}
-                >
-                  <form
-                    className="credential-form provider-form"
-                    onSubmit={(event) => void saveProviderConnection(event)}
-                  >
-                    <TextField
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      disabled={busy || Boolean(editingProviderId)}
-                      label={t.provider}
-                      labelVisibility="hidden"
-                      maxLength={80}
-                      onValueChange={(value) =>
-                        setProviderId(value.toLocaleLowerCase("en-US"))
-                      }
-                      pattern="[a-z0-9][a-z0-9._-]*"
-                      placeholder={t.provider}
-                      spellCheck={false}
-                      value={providerId}
-                    />
-                    <TextField
-                      disabled={busy}
-                      label={t.providerName}
-                      labelVisibility="hidden"
-                      onValueChange={setProviderName}
-                      placeholder={t.providerName}
-                      value={providerName}
-                    />
-                    <TextField
-                      disabled={busy}
-                      label={t.baseUrl}
-                      labelVisibility="hidden"
-                      onValueChange={setBaseUrl}
-                      placeholder={t.baseUrl}
-                      type="url"
-                      value={baseUrl}
-                    />
-                    <Select<NonNullable<ProviderConnection["api"]>>
-                      label={t.providerApi}
-                      disabled={busy}
-                      onValueChange={setProviderApi}
-                      options={[
-                        {
-                          value: "openai-completions",
-                          label: t.chatCompletionsApi,
-                        },
-                        {
-                          value: "openai-responses",
-                          label: t.responsesApi,
-                        },
-                      ]}
-                      value={providerApi}
-                    />
-                    <TextField
-                      disabled={busy}
-                      label={t.modelId}
-                      labelVisibility="hidden"
-                      onValueChange={setProviderModelId}
-                      placeholder={t.modelId}
-                      value={providerModelId}
-                    />
-                    <TextField
-                      disabled={busy}
-                      label={t.modelName}
-                      labelVisibility="hidden"
-                      onValueChange={setProviderModelName}
-                      placeholder={t.modelName}
-                      value={providerModelName}
-                    />
-                    <TextField
-                      className="settings-field"
-                      disabled={busy}
-                      label={t.contextWindow}
-                      max={10_000_000}
-                      min={1_024}
-                      onValueChange={setProviderContextWindow}
-                      step={1}
-                      type="number"
-                      value={providerContextWindow}
-                    />
-                    <TextField
-                      className="settings-field"
-                      disabled={busy}
-                      label={t.maxTokens}
-                      max={1_000_000}
-                      min={1}
-                      onValueChange={setProviderMaxTokens}
-                      step={1}
-                      type="number"
-                      value={providerMaxTokens}
-                    />
-                    <TextField
-                      autoComplete="off"
-                      disabled={busy || !settings.encryptionAvailable}
-                      label={t.optionalApiKey}
-                      labelVisibility="hidden"
-                      onValueChange={setApiKey}
-                      placeholder={
-                        settings.credentials.some(
-                          (credential) =>
-                            credential.providerId === editingProviderId &&
-                            credential.type === "api_key",
-                        )
-                          ? t.storedApiKey
-                          : t.optionalApiKey
-                      }
-                      type="password"
-                      value={apiKey}
-                    />
-                    {editingProviderId && (
-                      <p className="settings-row-description">
-                        {t.sharedApiKey}
-                      </p>
-                    )}
-                    <span className="provider-capabilities">
-                      <Checkbox
-                        checked={providerReasoning}
-                        disabled={busy}
-                        label={t.reasoningModel}
-                        onCheckedChange={setProviderReasoning}
-                      />
-                      <Checkbox
-                        checked={providerImages}
-                        disabled={busy}
-                        label={t.imageInput}
-                        onCheckedChange={setProviderImages}
-                      />
-                    </span>
-                    {providerReasoning && (
-                      <Select<ProviderThinkingLevel>
-                        label={t.highestReasoningLevel}
-                        disabled={busy}
-                        onValueChange={setProviderHighestThinkingLevel}
-                        options={[
-                          { value: "minimal", label: t.thinkingMinimal },
-                          { value: "low", label: t.thinkingLow },
-                          { value: "medium", label: t.thinkingMedium },
-                          { value: "high", label: t.thinkingHigh },
-                          { value: "xhigh", label: t.thinkingXHigh },
-                          { value: "max", label: t.thinkingMax },
-                        ]}
-                        value={providerHighestThinkingLevel}
-                      />
-                    )}
-                    <TextAreaField
-                      label={uiText(locale, "Model.advanced")}
-                      value={providerAdvanced}
-                      onValueChange={setProviderAdvanced}
-                      disabled={busy}
-                      rows={5}
-                    />
-                    <Button
-                      disabled={
-                        busy ||
-                        !providerIdValid ||
-                        !baseUrl.trim() ||
-                        !providerModelId.trim() ||
-                        !providerContextWindowValid ||
-                        !providerMaxTokensValid ||
-                        (Boolean(apiKey) && !settings.encryptionAvailable)
-                      }
-                      type="submit"
-                      variant="primary"
-                    >
-                      {t.saveProvider}
-                    </Button>
-                    {editingProviderId && (
-                      <Button disabled={busy} onClick={resetProviderForm}>
-                        {t.cancelEdit}
-                      </Button>
-                    )}
-                  </form>
-                  <strong className="settings-subheading">
-                    {t.configuredProviders}
-                  </strong>
-                  <div className="credential-list">
-                    {settings.providers.map((provider) => (
-                      <ManagementRow
-                        actions={
-                          <span className="mcp-server-actions">
-                            <Button
-                              disabled={busy}
-                              onClick={() => editProviderConnection(provider)}
-                              variant="quiet"
-                            >
-                              {t.edit}
-                            </Button>
-                            <IconButton
-                              className="management-destructive-action"
-                              icon={<ArtemisIcon name="trash" />}
-                              label={`${t.delete}: ${provider.id}`}
-                              title={t.delete}
-                              disabled={busy}
-                              onClick={() => setProviderDeleteTarget(provider)}
-                            />
-                          </span>
-                        }
-                        description={
-                          <span>
-                            <span>
-                              {provider.id} ·{" "}
-                              {provider.api ?? "openai-completions"} ·{" "}
-                              {provider.baseUrl}
-                            </span>
-                            <span>
-                              {provider.models
-                                .map((model) => model.name)
-                                .join(", ")}
-                            </span>
-                          </span>
-                        }
-                        key={provider.id}
-                        title={provider.name}
-                      />
-                    ))}
-                    {!settings.providers.length && (
-                      <EmptyState
-                        className="settings-empty"
-                        title={t.noProviders}
-                      />
-                    )}
-                  </div>
-                </ManagementSection>
               )}
 
               {activeTab === "agents" && (

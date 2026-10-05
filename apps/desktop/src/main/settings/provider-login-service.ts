@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type {
   AuthEvent,
@@ -10,6 +11,10 @@ import type {
   ProviderLoginState,
 } from "../../shared/provider-login.js";
 import type { EncryptedSettingsStore } from "./encrypted-settings-store.js";
+
+// Pi exposes static OAuth loaders for standalone bundles. Register them here
+// so Electron does not resolve lazy flow imports relative to dist-electron/main.js.
+registerBunOAuthFlows();
 
 /** App-owned prompts: never timed out into an answer and never put credentials in a transcript. */
 export class ProviderLoginService {

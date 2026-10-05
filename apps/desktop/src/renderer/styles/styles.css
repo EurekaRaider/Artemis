@@ -8603,12 +8603,9 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .token-usage-profile-badge {
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
   color: var(--muted);
   font-size: 14px;
   line-height: 26px;
-  padding: 0 10px;
 }
 
 .token-usage-summary {
@@ -9102,11 +9099,10 @@ kbd {
 
 .automation-create-button {
   align-self: flex-start;
-  border: 1px solid var(--accent);
   border-radius: 8px;
   box-shadow: none;
   flex: 0 0 auto;
-  font-weight: 520;
+  font-weight: 450;
   gap: 7px;
   height: 32px;
   padding: 6px 12px;
@@ -9125,22 +9121,6 @@ kbd {
   stroke-linecap: round;
   stroke-width: 1.7;
   width: 15px;
-}
-
-.automation-create-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, var(--panel));
-  border-color: color-mix(in srgb, var(--accent) 88%, var(--panel));
-  box-shadow:
-    0 3px 8px color-mix(in srgb, #000 24%, transparent),
-    inset 0 1px color-mix(in srgb, #fff 16%, transparent);
-  transform: translateY(-1px);
-}
-
-.automation-create-button:active:not(:disabled) {
-  box-shadow:
-    0 1px 2px color-mix(in srgb, #000 20%, transparent),
-    inset 0 1px 2px color-mix(in srgb, #000 18%, transparent);
-  transform: translateY(0);
 }
 
 .automation-create-button:disabled {
@@ -14142,4 +14122,23 @@ kbd {
   gap: 0.75rem;
   margin-block: 1rem;
   overflow-wrap: anywhere;
+}
+
+.provider-login-prompt {
+  min-width: 0;
+}
+.provider-login-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-block-start: 4px;
+}
+.provider-login-actions > [data-artemis-component="button"],
+.added-model-editor-actions > [data-artemis-component="button"] {
+  min-inline-size: 88px;
+  min-block-size: 32px;
+  padding-inline: 16px;
+  flex: 0 1 auto;
 }

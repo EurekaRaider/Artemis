@@ -11,12 +11,18 @@ import { uiText } from "../../shared/i18n/ui-text.js";
 
 export function ProviderLogin({
   locale,
+  providerId,
+  authType,
   disabled,
   onComplete,
+  onBusy,
 }: {
   locale: AppLocale;
+  providerId?: string;
+  authType?: ProviderLoginOption["type"];
   disabled: boolean;
   onComplete: () => Promise<void>;
+  onBusy?: (busy: boolean) => void;
 }) {
   const [providers, setProviders] = useState<ProviderLoginOption[]>([]);
   const [selected, setSelected] = useState("");
@@ -24,6 +30,10 @@ export function ProviderLogin({
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    onBusy?.(busy || state?.status === "running");
+    return () => onBusy?.(false);
+  }, [busy, state?.status, onBusy]);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const loginId = useRef<string | undefined>(undefined);
@@ -33,6 +43,11 @@ export function ProviderLogin({
       .providerLoginOptions()
       .then((value) => {
         if (!disposed) {
+          value = value.filter(
+            (option) =>
+              (!providerId || option.providerId === providerId) &&
+              (!authType || option.type === authType),
+          );
           setProviders(value);
           setSelected(
             value[0] ? `${value[0].providerId}:${value[0].type}` : "",
@@ -47,7 +62,7 @@ export function ProviderLogin({
       if (loginId.current)
         void window.artemis.providerLoginCancel(loginId.current);
     };
-  }, []);
+  }, [providerId, authType]);
   useEffect(() => {
     if (state?.status !== "running") return;
     let disposed = false;
@@ -92,38 +107,52 @@ export function ProviderLogin({
           {uiText(locale, "ProviderLogin.title")}
         </div>
         <p className="settings-row-description">
-          {uiText(locale, "ProviderLogin.description")}
+          {providerId
+            ? uiText(
+                locale,
+                authType === "oauth"
+                  ? "Providers.loginHint"
+                  : "Providers.guidedKey",
+              )
+            : uiText(locale, "ProviderLogin.description")}
         </p>
       </div>
-      <Select
-        label={uiText(locale, "ProviderLogin.title")}
-        labelVisibility="hidden"
-        value={selected}
-        disabled={disabled || busy || state?.status === "running"}
-        options={providers.map((p) => ({
-          value: `${p.providerId}:${p.type}`,
-          label: `${p.name} · ${p.providerId} (${p.type === "oauth" ? "OAuth" : "API key"})`,
-        }))}
-        onValueChange={setSelected}
-      />
-      <Button
-        disabled={disabled || busy || !selected || state?.status === "running"}
-        onClick={() =>
-          void run(async () => {
-            const provider = providers.find(
-              (p) => `${p.providerId}:${p.type}` === selected,
-            )!;
-            const next = await window.artemis.providerLoginStart(
-              provider.providerId,
-              provider.type,
-            );
-            loginId.current = next.id;
-            setState(next);
-          })
-        }
-      >
-        {uiText(locale, "ProviderLogin.start")}
-      </Button>
+      {!providerId && (
+        <Select
+          label={uiText(locale, "ProviderLogin.title")}
+          labelVisibility="hidden"
+          value={selected}
+          disabled={disabled || busy || state?.status === "running"}
+          options={providers.map((p) => ({
+            value: `${p.providerId}:${p.type}`,
+            label: `${p.name} · ${p.providerId} (${p.type === "oauth" ? "OAuth" : "API key"})`,
+          }))}
+          onValueChange={setSelected}
+        />
+      )}
+      {state?.status !== "running" && (
+        <div className="provider-login-actions">
+          <Button
+            disabled={disabled || busy || !selected}
+            onClick={() =>
+              void run(async () => {
+                const provider = providers.find(
+                  (p) => `${p.providerId}:${p.type}` === selected,
+                )!;
+                const next = await window.artemis.providerLoginStart(
+                  provider.providerId,
+                  provider.type,
+                );
+                loginId.current = next.id;
+                setState(next);
+                if (next.status === "completed") await onCompleteRef.current();
+              })
+            }
+          >
+            {uiText(locale, "ProviderLogin.start")}
+          </Button>
+        </div>
+      )}
       {state?.messages.map((message, index) => (
         <p key={index}>{message}</p>
       ))}
@@ -135,7 +164,7 @@ export function ProviderLogin({
         </p>
       ))}
       {prompt && (
-        <div>
+        <div className="provider-login-prompt">
           {prompt.type === "select" ? (
             <Select
               label={prompt.message}
@@ -159,37 +188,43 @@ export function ProviderLogin({
               autoComplete="off"
             />
           )}
-          <Button
-            disabled={busy || !answer}
-            onClick={() =>
-              void run(async () => {
-                setState(
-                  await window.artemis.providerLoginAnswer(
-                    state!.id,
-                    prompt.id,
-                    answer,
-                  ),
-                );
-                setAnswer("");
-              })
-            }
-          >
-            {uiText(locale, "ProviderLogin.continue")}
-          </Button>
         </div>
       )}
       {state?.status === "running" && (
-        <Button
-          variant="quiet"
-          onClick={() =>
-            void run(async () => {
-              await window.artemis.providerLoginCancel(state.id);
-              setState(await window.artemis.providerLoginStatus(state.id));
-            })
-          }
-        >
-          {uiText(locale, "ProviderLogin.cancel")}
-        </Button>
+        <div className="provider-login-actions">
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                await window.artemis.providerLoginCancel(state.id);
+                setState(await window.artemis.providerLoginStatus(state.id));
+              })
+            }
+          >
+            {uiText(locale, "ProviderLogin.cancel")}
+          </Button>
+          {prompt && (
+            <Button
+              variant="secondary"
+              disabled={busy || !answer}
+              onClick={() =>
+                void run(async () => {
+                  setState(
+                    await window.artemis.providerLoginAnswer(
+                      state.id,
+                      prompt.id,
+                      answer,
+                    ),
+                  );
+                  setAnswer("");
+                })
+              }
+            >
+              {uiText(locale, "ProviderLogin.continue")}
+            </Button>
+          )}
+        </div>
       )}
       {state?.status === "completed" && (
         <InlineNotice tone="success">

@@ -4,6 +4,10 @@ import { ensureWindowsPackageAccess } from "./updates/windows-package-access.js"
 import { WORKSPACE_PDF_SCHEME } from "./workspace/workspace-pdf-preview.js";
 import { WORKSPACE_VIDEO_SCHEME } from "../shared/workspace-video.js";
 import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
+import { guardStdio } from "./platform/stdio-guard.js";
+
+guardStdio(process.stdout);
+guardStdio(process.stderr);
 
 protocol.registerSchemesAsPrivileged([
   {

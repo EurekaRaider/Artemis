@@ -81,6 +81,15 @@ const settingsSource = readFileSync(
   ),
   "utf8",
 );
+const providerWorkspaceSource = readFileSync(
+  fileURLToPath(
+    new URL(
+      "../../src/renderer/settings/ProviderWorkspace.tsx",
+      import.meta.url,
+    ),
+  ),
+  "utf8",
+);
 const resourceCenterSource = readFileSync(
   fileURLToPath(
     new URL("../../src/renderer/plugins/ResourceCenter.tsx", import.meta.url),
@@ -1145,7 +1154,7 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       "searchText: `${model.providerId} ${model.name} ${model.modelId}`",
     );
-    expect(settingsSource).toContain("options={modelOptions}");
+    expect(settingsSource).toContain("options={modelOptions.filter(");
     expect(uiFormsSource).toContain('role="combobox"');
     expect(uiFormsSource).toContain('type="search"');
     expect(codexSelectSource).toContain(
@@ -1455,7 +1464,10 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain("value={providerMaxTokens}");
     const providerFormSource = settingsSource.slice(
       settingsSource.indexOf('className="credential-form provider-form"'),
-      settingsSource.indexOf("{t.configuredProviders}"),
+      settingsSource.indexOf(
+        "</form>",
+        settingsSource.indexOf('className="credential-form provider-form"'),
+      ),
     );
     expect(providerFormSource.match(/step=\{1\}/gu)).toHaveLength(2);
     expect(providerFormSource).not.toContain("step={1_024}");
@@ -1520,7 +1532,8 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toMatch(
       /window\.artemis\.deleteProviderConnection\(\s*provider\.id,?\s*\)/u,
     );
-    expect(settingsSource).toContain("setProviderDeleteTarget(provider)");
+    expect(settingsSource).toContain("onDeleteConnection=");
+    expect(providerWorkspaceSource).toContain("onClick={onDeleteConnection}");
     expect(settingsSource).toContain('variant="danger"');
     expect(settingsSource).toContain("<ConfirmationDialog");
     expect(apiSource).toMatch(
@@ -1549,13 +1562,13 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("adds a built-in model and its API key without using the switch API", () => {
+  it("saves models and provider credentials separately without using the switch API", () => {
     const providersTabStart = settingsSource.indexOf(
       '{activeTab === "providers"',
     );
-    const generalTabStart = settingsSource.indexOf('{activeTab === "general"');
+    const generalTabStart = settingsSource.indexOf("{showProviderForm && (");
     const customProvidersStart = settingsSource.indexOf(
-      'providerConfigTab === "custom"',
+      "{showProviderForm && (",
     );
     const agentsTabStart = settingsSource.indexOf('{activeTab === "agents"');
     const builtInProvidersTabSource = settingsSource.slice(
@@ -1584,12 +1597,11 @@ describe("renderer layout contract", () => {
       mainProcessSource.indexOf("IPC.settingsApiKeySave"),
     );
 
-    expect(builtInProvidersTabSource).toContain("title={t.model}");
+    expect(builtInProvidersTabSource).toContain("title={t.addedModels}");
     expect(builtInProvidersTabSource).not.toContain("{t.thinking}");
     expect(builtInProvidersTabSource).not.toContain("<h3>{t.apiKey}</h3>");
-    expect(builtInProvidersTabSource).toContain("label={`${t.apiKey}${");
-    expect(builtInProvidersTabSource).toContain(
-      "selectedModelInfo?.providerId",
+    expect(providerWorkspaceSource).toContain(
+      "window.artemis.saveApiKey(providerId, apiKey.trim())",
     );
     expect(builtInProvidersTabSource).toContain("onClick={addModel}");
     expect(builtInProvidersTabSource).not.toContain("onClick={saveKey}");
@@ -1601,10 +1613,13 @@ describe("renderer layout contract", () => {
     expect(builtInProvidersTabSource).not.toContain(
       "window.artemis.deleteCredential",
     );
-    expect(builtInProvidersTabSource).toContain("settings.addedModels.map");
+    expect(builtInProvidersTabSource).toContain("settings.addedModels");
+    expect(builtInProvidersTabSource).toContain(
+      "model.providerId === selectedProviderId",
+    );
     expect(builtInProvidersTabSource).toContain("setModelDeleteTarget(model)");
-    expect(builtInProvidersTabSource).toContain("importPiCredentials");
-    expect(addModelSource).toContain("keyApiKey.trim() || undefined");
+    expect(providerWorkspaceSource).toContain("importPiCredentials");
+    expect(addModelSource).not.toContain("keyApiKey");
     expect(apiSource).toMatch(
       /addModel\(\s*model: AddedModelConfiguration,\s*apiKey\?: string,/u,
     );
@@ -1642,7 +1657,7 @@ describe("renderer layout contract", () => {
     // Custom provider setup keeps its independent, working connection flow.
     expect(customProvidersTabSource).toContain("title={t.customProviders}");
     expect(customProvidersTabSource).toContain("saveProviderConnection");
-    expect(customProvidersTabSource).toContain("t.optionalApiKey");
+    expect(customProvidersTabSource).not.toContain("t.optionalApiKey");
     expect(customProvidersTabSource).not.toContain("onClick={saveKey}");
     expect(customProvidersTabSource).not.toContain("keyProviderId");
   });
@@ -1672,9 +1687,9 @@ describe("renderer layout contract", () => {
     expect(uiText("zh-CN", "SettingsPanel_labels.tabProviders")).toBe(
       "供应商及模型配置",
     );
-    expect(settingsSource).toContain('className="provider-config-tabs"');
-    expect(settingsSource).toContain('value: "builtin"');
-    expect(settingsSource).toContain('value: "custom"');
+    expect(settingsSource).toContain("<ProviderWorkspace");
+    expect(providerWorkspaceSource).toContain('className="provider-sidebar"');
+    expect(providerWorkspaceSource).toContain('className="provider-detail"');
     expect(uiManagementSource).not.toMatch(
       /@artemis\/protocol|electron|node:/u,
     );
@@ -2398,8 +2413,8 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toMatch(
       /<form\s+className="credential-form provider-form"/u,
     );
-    expect(settingsSource).toContain(
-      "onSubmit={(event) => void saveProviderConnection(event)}",
+    expect(settingsSource).toMatch(
+      /onSubmit=\{\(event\) =>\s*void saveProviderConnection\(event\)\s*\}/u,
     );
     expect(settingsSource).toContain('type="submit"');
     expect(settingsSource).toContain('variant="primary"');
@@ -3110,10 +3125,12 @@ describe("renderer layout contract", () => {
 
   it("renders settings actions as visually distinct primary and secondary buttons", () => {
     const buttonBefore = (label: string) => {
-      const labelIndex = settingsSource.indexOf(`{t.${label}}`);
+      const source =
+        label === "importPi" ? providerWorkspaceSource : settingsSource;
+      const labelIndex = source.indexOf(`{t.${label}}`);
       expect(labelIndex).toBeGreaterThan(-1);
-      const buttonIndex = settingsSource.lastIndexOf("<Button", labelIndex);
-      return settingsSource.slice(buttonIndex, labelIndex);
+      const buttonIndex = source.lastIndexOf("<Button", labelIndex);
+      return source.slice(buttonIndex, labelIndex);
     };
 
     // The model action changes its label between add and edit; its variant is

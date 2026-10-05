@@ -1,0 +1,43 @@
+{
+  "retrieved": "2026-10-05",
+  "lobeIconsVersion": "1.95.1",
+  "assets": {
+    "baseten.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/baseten.svg",
+    "githubcopilot.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/githubcopilot.svg",
+    "groq.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/groq.svg",
+    "moonshot.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/moonshot.svg",
+    "opencode.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/opencode.svg",
+    "vercel.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/vercel.svg",
+    "xai.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/xai.svg",
+    "xiaomimimo.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/xiaomimimo.svg",
+    "zai.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/zai.svg",
+    "radius.svg": "https://radius.earendil.com/assets/radius/favicon.svg",
+    "ant-ling.ico": "https://gw.alipayobjects.com/render/p/yuyan/180020010001289651/favicon.ico",
+    "typesafe.png": "https://framerusercontent.com/images/aNFzSFxM4fjICmnibw7npfZjcQ.png",
+    "openai.svg": "https://unpkg.com/@lobehub/icons-static-svg@latest/icons/openai.svg",
+    "anthropic.svg": "https://unpkg.com/@lobehub/icons-static-svg@latest/icons/anthropic.svg",
+    "vertexai-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/vertexai-color.svg",
+    "meta-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/meta-color.svg",
+    "workersai-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/workersai-color.svg",
+    "cloudflare-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/cloudflare-color.svg",
+    "huggingface-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/huggingface-color.svg",
+    "nvidia-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/nvidia-color.svg",
+    "kimi-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/kimi-color.svg",
+    "bedrock-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/bedrock-color.svg",
+    "fireworks-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/fireworks-color.svg",
+    "mistral-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/mistral-color.svg",
+    "deepseek-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/deepseek-color.svg",
+    "minimax-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/minimax-color.svg",
+    "qwen-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/qwen-color.svg",
+    "google-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/google-color.svg",
+    "azure-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/azure-color.svg",
+    "openrouter-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/openrouter-color.svg",
+    "together-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/together-color.svg",
+    "cerebras-color.svg": "https://unpkg.com/@lobehub/icons-static-svg@1.95.1/icons/cerebras-color.svg"
+  },
+  "officialPages": {
+    "radius": "https://radius.earendil.com/",
+    "ant-ling": "https://ant-ling.com/",
+    "typesafe": "https://typesafe.ai/"
+  }
+}

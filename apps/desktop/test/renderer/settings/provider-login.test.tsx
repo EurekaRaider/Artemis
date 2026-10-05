@@ -65,3 +65,63 @@ it.each(["en", "zh-CN"] as const)(
     );
   },
 );
+
+it.each(["secret", "text", "manual_code", "select"] as const)(
+  "submits a %s prompt from the login action bar",
+  async (type) => {
+    const running = {
+      id: "prompt-login",
+      providerId: "fixture",
+      status: "running" as const,
+      messages: [],
+      links: [],
+      prompt: {
+        id: "prompt",
+        type,
+        message: "Authorization value",
+        ...(type === "select"
+          ? { options: [{ id: "browser", label: "Browser login" }] }
+          : {}),
+      },
+    };
+    const answer = vi.fn(async () => ({
+      ...running,
+      status: "completed" as const,
+      prompt: undefined,
+    }));
+    const complete = vi.fn(async () => {});
+    stubWindowArtemis({
+      providerLoginOptions: async () => [
+        { providerId: "fixture", name: "Fixture", type: "oauth" },
+      ],
+      providerLoginStart: async () => running,
+      providerLoginStatus: async () => running,
+      providerLoginAnswer: answer,
+      providerLoginCancel: async () => {},
+    });
+    render(
+      <ProviderLogin locale="en" disabled={false} onComplete={complete} />,
+    );
+    const start = await screen.findByRole("button", { name: "Sign in" });
+    await waitFor(() => expect(start).toBeEnabled());
+    fireEvent.click(start);
+    const next = await screen.findByRole("button", { name: "Continue" });
+    expect(screen.queryByRole("button", { name: "Sign in" })).toBeNull();
+    if (type !== "select") {
+      expect(next).toBeDisabled();
+      fireEvent.change(screen.getByLabelText("Authorization value"), {
+        target: { value: "fixture-answer" },
+      });
+    }
+    await waitFor(() => expect(next).toBeEnabled());
+    fireEvent.click(next);
+    await waitFor(() =>
+      expect(answer).toHaveBeenCalledWith(
+        "prompt-login",
+        "prompt",
+        type === "select" ? "browser" : "fixture-answer",
+      ),
+    );
+    expect(await screen.findByText("Provider connected")).toBeVisible();
+  },
+);

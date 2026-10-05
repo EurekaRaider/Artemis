@@ -1,0 +1,5 @@
+Brand marks remain property of their respective owners; included solely to identify configured services.
+SVGs from Lobe Icons 1.95.1 use the accompanying MIT LICENSE. OpenAI and Anthropic were retrieved 2026-10-05 from the same static-svg package.
+Official Radius, Ant Ling and TypeSafe website icons retain their original artwork and colors; the Lobe Icons license does not apply to these three assets.
+Exact download URLs and official source pages: brand-sources.json.
+Provider ID to brand mapping: ../ProviderIcon.tsx. Regional/plan variants intentionally share their parent brand; Azure, Vertex AI and Workers AI use their service marks.
