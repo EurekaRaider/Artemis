@@ -15636,11 +15636,11 @@ async function driveSmokeFormControlsEvidence(
     },
     "form-controls-settings": {
       selector:
-        '#provider-config-builtin [data-artemis-component="text-field"] input[type="number"]',
+        '.provider-add-model [data-artemis-component="text-field"] input[type="number"]',
     },
     "form-controls-settings-custom": {
       selector:
-        '#provider-config-custom [data-artemis-component="checkbox"] [data-part="control"]',
+        '.provider-form [data-artemis-component="checkbox"] [data-part="control"]',
     },
     "form-controls-composer": {
       selector:
@@ -18981,14 +18981,14 @@ function createMainWindow(): BrowserWindow {
                     providersTab.click();
                     if (view === 'form-controls-settings-custom') {
                       const customTab = await waitForElement(
-                        '#provider-config-custom-tab',
+                        '.provider-sidebar-heading button',
                       );
                       if (!(customTab instanceof HTMLButtonElement)) {
                         throw new Error('Settings custom providers tab missing.');
                       }
                       customTab.click();
                       const checkboxRoot = await waitForElement(
-                        '#provider-config-custom [data-artemis-component="checkbox"]',
+                        '.provider-form [data-artemis-component="checkbox"]',
                       );
                       const checkbox = checkboxRoot?.querySelector(
                         '[data-part="control"]',
@@ -19006,16 +19006,23 @@ function createMainWindow(): BrowserWindow {
                         checkboxRootStable:
                           checkboxRoot ===
                           document.querySelector(
-                            '#provider-config-custom [data-artemis-component="checkbox"]',
+                            '.provider-form [data-artemis-component="checkbox"]',
                           ),
                       };
                       return;
                     }
+                    const addModel = await waitForElement(
+                      '.provider-models > [data-part="header"] [data-part="actions"] button',
+                    );
+                    if (!(addModel instanceof HTMLButtonElement)) {
+                      throw new Error('Settings add model button missing.');
+                    }
+                    addModel.click();
                     const field = await waitForElement(
-                      '#provider-config-builtin [data-artemis-component="text-field"] input[type="number"]',
+                      '.provider-add-model [data-artemis-component="text-field"] input[type="number"]',
                     );
                     const trigger = await waitForElement(
-                      '#provider-config-builtin [data-artemis-component="select"] [data-part="trigger"]:not(:disabled)',
+                      '.provider-add-model [data-artemis-component="select"] [data-part="trigger"]:not(:disabled)',
                     );
                     const selectRoot = trigger?.closest(
                       '[data-artemis-component="select"]',
@@ -19026,14 +19033,17 @@ function createMainWindow(): BrowserWindow {
                     ) {
                       throw new Error('Public Settings field/select missing.');
                     }
+                    trigger.scrollIntoView({ block: 'center' });
+                    await wait(200);
                     const beforeText = trigger.textContent?.trim() ?? '';
                     trigger.click();
                     const search = await waitForElement(
-                      '#provider-config-builtin [data-artemis-component="select"] [data-part="search"]',
+                      '.provider-add-model [data-artemis-component="select"] [data-part="search"]',
                     );
                     if (!(search instanceof HTMLInputElement)) {
                       throw new Error('Public searchable Select did not open.');
                     }
+                    await wait(200);
                     const openMenu = selectRoot.querySelector(
                       '[data-part="menu"]',
                     );
@@ -19132,7 +19142,7 @@ function createMainWindow(): BrowserWindow {
                       selectRootStable:
                         selectRoot ===
                         document.querySelector(
-                          '#provider-config-builtin [data-artemis-component="select"]',
+                          '.provider-add-model [data-artemis-component="select"]',
                         ),
                     };
                     return;

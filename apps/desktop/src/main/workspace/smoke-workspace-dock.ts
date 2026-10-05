@@ -407,8 +407,9 @@ export async function driveSmokeWorkspaceDockEvidence(
   await evaluate(`(async () => {
     const wait = (milliseconds) =>
       new Promise((resolve) => setTimeout(resolve, milliseconds));
-    const waitFor = async (predicate, label) => {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
+    const waitFor = async (predicate, label, timeoutMs = 10_000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
         if (predicate()) return;
         await wait(100);
       }
@@ -508,6 +509,7 @@ export async function driveSmokeWorkspaceDockEvidence(
         events.failures.length > failureBaseline &&
         surface.getAttribute('data-state') === 'error',
       'submitted loading/error state',
+      30_000, // Windows loopback connection refusal can exceed ten seconds.
     );
     recordSurface();
     const submission = {

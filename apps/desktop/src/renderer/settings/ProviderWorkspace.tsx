@@ -70,7 +70,10 @@ export function ProviderWorkspace({
     providers.set(provider.id, provider.name);
   const entries = [...providers].sort(([a], [b]) => a.localeCompare(b));
   const normalize = (value: string) =>
-    value.normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    value
+      .normalize("NFKC")
+      .toLocaleLowerCase()
+      .replace(/[^\p{L}\p{N}]/gu, "");
   const query = normalize(search);
   const visibleEntries = entries.filter(([id, name]) => {
     const candidate = normalize(`${name} ${id}`);

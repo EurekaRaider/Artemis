@@ -248,10 +248,11 @@ async function renderSettingsPanel(
   );
   await act(async () => {});
   if (initialTab === "providers") {
-    const details = document.querySelector<HTMLDetailsElement>(
-      ".provider-add-model",
+    await userEvent.click(
+      within(
+        document.querySelector(".provider-models > header") as HTMLElement,
+      ).getByRole("button", { name: "Add model" }),
     );
-    if (details) fireEvent.click(details.querySelector("summary")!);
   }
 }
 
@@ -485,7 +486,7 @@ describe("settings management operation contract (MIG5A)", () => {
       screen.getByRole("tab", { name: "Providers & models" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /^mistral/ }));
-    fireEvent.click(document.querySelector(".provider-add-model summary")!);
+    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     await userEvent.click(screen.getByLabelText("Model"));
     expect(screen.getAllByRole("option")).toHaveLength(
       models.filter((model) => model.providerId === "mistral").length,
@@ -965,7 +966,9 @@ describe("settings management operation contract (MIG5A)", () => {
     stubSettingsApi(initial, { addModel });
     await renderSettingsPanel(initial, "providers");
 
-    const add = screen.getByRole("button", { name: "Add model" });
+    const add = within(
+      document.querySelector(".provider-add-model") as HTMLElement,
+    ).getByRole("button", { name: "Add model" });
     fireEvent.click(add);
     fireEvent.click(add);
 
@@ -993,7 +996,11 @@ describe("settings management operation contract (MIG5A)", () => {
       "API key already stored — leave blank to keep it",
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    await userEvent.click(
+      within(
+        document.querySelector(".provider-add-model") as HTMLElement,
+      ).getByRole("button", { name: "Add model" }),
+    );
     await waitFor(() => expect(addModel).toHaveBeenCalledTimes(1));
     expect(addModel.mock.calls[0]?.[1]).toBeUndefined();
   });

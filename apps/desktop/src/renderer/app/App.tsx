@@ -253,7 +253,10 @@ import {
   userMessageAttachments,
 } from "../conversation/turn-timeline.js";
 import { HighlightedCodeLine } from "../workspace/WorkspaceFileEditor.js";
-import { DesignIcon, WorkspaceLauncherIcon } from "../workspace/WorkspaceLauncherIcon.js";
+import {
+  DesignIcon,
+  WorkspaceLauncherIcon,
+} from "../workspace/WorkspaceLauncherIcon.js";
 import {
   WorkspaceFileIcon,
   WorkspaceFilesPanel,

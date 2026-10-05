@@ -1,24 +1,20 @@
-# Artemis v1.7.0
+# Artemis v1.7.1
 
 ## 中文
 
-- 启动不再要求注册码、设备绑定或激活；保留插件信任、账号授权、凭据加密和原生沙箱。
-- 支持 Windows x64 和 macOS arm64，改用 GitHub 公共托管 CI。外部贡献通过 fork 与 PR，发布使用明确附件清单。
-- Windows 新增当前用户级 NSIS 安装包，ZIP 保持手动更新；安装版使用独立签名索引、附件验证、数据库快照和外部恢复助手。
-- Windows Design runtime 接入 AppContainer，限制网络、子进程和任务外访问。
-- 新增插件 v2 资源/交互契约、JSON Schema、轻量 runtime SDK 与开发工具；保留 v1 兼容和内容哈希授权。
-- 历史翻页读取分页投影，时间线共享可见区域调度，会话派生缓存采用数量和内存双限。
-- 更新 README、架构图、插件开发与双平台发布指南，移除过时的注册码及私有发布文档。
+- Artemis 升级后，启动时检查已启用的 Design 与 Office 能力包，并在有兼容新版本时更新；检查失败会在下次启动重试。
+- 插件市场新增更新检查和更新操作，完善能力包更新状态与反馈。
+- Work 与 Codemode 支持由宿主审批的单次沙箱提权，保留项目信任、账号授权和默认沙箱设置。
+- 改进设置中的服务商标签、下拉框定位和授权说明，整理仓库目录并增强布局校验。
+- 同步版本标识与 README，继续通过双平台 CI、安装包验证及 macOS 签名和公证流程发布。
 
 ## English
 
-- Remove activation, registration codes and device binding while retaining plugin trust, account authorization, encrypted credentials and native isolation.
-- Target Windows x64 and macOS arm64 on GitHub-hosted CI, with fork pull requests and explicit release asset allowlists.
-- Add per-user Windows NSIS distribution alongside manual ZIP downloads. Installed updates use a signed platform index, verified artifacts, database snapshots and an external recovery helper.
-- Connect Windows Design runtimes to AppContainer with task-private writes, no network and child-process restrictions.
-- Add v2 resource/interactive plugin contracts, JSON Schema, a lightweight runtime SDK and development tools, retaining v1 compatibility and content-hash trust.
-- Read history from page-sized projections, share timeline visibility scheduling and bound derived-session caches by count and memory.
-- Refresh the README, architecture diagrams and developer/release documentation; remove obsolete activation and private-release instructions.
+- After an Artemis upgrade, check active Design and Office capability packs at startup and install a newer compatible version when available; retry failed checks on the next launch.
+- Add marketplace update checks and update actions, with clearer capability pack update status and feedback.
+- Support host-approved, single-call sandbox escalation in Work and Codemode while retaining project trust, account authorization and default sandbox settings.
+- Improve provider labels, dropdown positioning and authorization descriptions in Settings; reorganize repository paths and strengthen layout verification.
+- Synchronize version identifiers and the README, retaining cross-platform CI, package verification and macOS signing and notarization in the release pipeline.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
 Release acceptance is established by the associated CI, final artifact checks and recorded platform tests, not by these change notes alone.

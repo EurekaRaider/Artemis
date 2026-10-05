@@ -49,8 +49,7 @@ export interface WindowsInstalledUpdaterOptions {
   cancelPreparation?(): void;
   fetcher?: typeof fetch;
 }
-const RELEASES =
-  "https://github.com/EurekaRaider/Artemis/releases/download/";
+const RELEASES = "https://github.com/EurekaRaider/Artemis/releases/download/";
 export class WindowsInstalledUpdater {
   private status: ReleaseUpdateStatus;
   private index: UpdateIndexPayload | undefined;

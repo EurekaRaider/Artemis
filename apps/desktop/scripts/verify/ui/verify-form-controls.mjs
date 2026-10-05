@@ -39,13 +39,13 @@ const steps = [
     id: "settings",
     view: "form-controls-settings",
     scenario:
-      "Settings Built-in renders the public TextField and Select consumers; searchable Select preserves IME Enter and commits the next keyboard option once.",
+      "Settings Add model renders the public TextField and Select consumers; searchable Select preserves IME Enter and commits the next keyboard option once.",
   },
   {
     id: "settings-custom",
     view: "form-controls-settings-custom",
     scenario:
-      "Settings Custom renders the public Checkbox consumer, performs one controlled toggle, and retains its public focus-visible treatment.",
+      "Settings Add provider renders the public Checkbox consumer, performs one controlled toggle, and retains its public focus-visible treatment.",
   },
   {
     id: "resource",
@@ -389,7 +389,7 @@ try {
           type: "number",
         },
       );
-      verifyFocusEvidence("settings-number-field", field, false, true);
+      verifyFocusEvidence("settings-number-field", field);
       assert(
         "settings-select-semantics",
         select.control.tagName === "button" &&

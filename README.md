@@ -56,6 +56,8 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
+Current release: **v1.7.1** · [Release notes](docs/records/release-notes.md).
+
 ## Quick start
 
 > Artemis is MIT-licensed and starts without activation or device registration.
@@ -203,6 +205,9 @@ breakdowns without double-counting forked history.
 The Resource Center brings **Plugins**, **MCP** and **Skills** into one place.
 Browse bundled or explicitly added marketplaces, inspect capabilities before
 installation, and manage updates, connections and removal from each plugin.
+Check for marketplace updates and apply available plugin updates from the Resource
+Center. After an Artemis upgrade, startup checks already active Design and Office
+capability packs and installs a newer compatible pack when available.
 
 - **Bundled document tools:** install Documents, PDF, Spreadsheets and
   Presentations Lite without Codex or an external document toolchain.

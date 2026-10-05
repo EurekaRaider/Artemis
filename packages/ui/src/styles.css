@@ -3400,11 +3400,11 @@
     flex-direction: column;
     gap: var(--artemis-space-3);
     overflow-wrap: anywhere;
+  }
 
-    > button {
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
+  [data-artemis-component="workspace-content-state"] > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   [data-artemis-component="workspace-content-state"][data-state="error"] {

@@ -17,6 +17,10 @@ const styles = readFileSync(
   join(root, "src/renderer/styles/styles.css"),
   "utf8",
 );
+const publicStyles = readFileSync(
+  join(root, "../../packages/ui/src/styles.css"),
+  "utf8",
+);
 const publicFeedback = readFileSync(
   join(root, "../../packages/ui/src/feedback.tsx"),
   "utf8",
@@ -92,9 +96,10 @@ describe("automation desktop integration", () => {
     expect(page).toContain("<ManagementHeader");
     expect(page).toContain('className="automation-create-button"');
     expect(page).toContain('className="automation-create-icon"');
-    expect(page).toContain('variant="primary"');
-    expect(styles).toMatch(
-      /\.automation-create-button:hover:not\(:disabled\)\s*\{\s*[^}]+\}/u,
+    expect(page).toContain('variant="secondary"');
+    expect(page).toContain("<Button");
+    expect(publicStyles).toMatch(
+      /\[data-artemis-component="button"\]\[data-variant="secondary"\]:hover:not\(\s*:disabled\s*\)/u,
     );
     expect(styles).toMatch(
       /\.automation-create-button:disabled\s*\{\s*[^}]+\}/u,
