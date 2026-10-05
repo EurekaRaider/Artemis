@@ -1105,6 +1105,10 @@ export interface ArtemisApi {
     candidateText: string;
     submissionId: string;
   }>;
+  /** 图片创作目录：读取记住的目录（null=未指定）。 */
+  getDesignImageFolder(): Promise<{ imageDir: string | null }>;
+  /** 图片创作目录：指定并持久记住。 */
+  setDesignImageFolder(dir: string): Promise<{ imageDir: string }>;
   /** Record the composer outcome (running/completed/failed). */
   reportDesignPanelSendOutcome(
     submissionId: string,
@@ -1581,6 +1585,8 @@ export const IPC = {
   designPanelSendStage: "artemis:design-panel-send-stage",
   designPanelCandidateDiscard: "artemis:design-panel-candidate-discard",
   designPanelSendOutcome: "artemis:design-panel-send-outcome",
+  designImageFolderGet: "artemis:design-image-folder-get",
+  designImageFolderSet: "artemis:design-image-folder-set",
   officeSnapshot: "artemis:office-snapshot",
   officeEdit: "artemis:office-edit",
   workspaceCsvSave: "artemis:workspace-csv-save",

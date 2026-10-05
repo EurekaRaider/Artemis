@@ -70,7 +70,10 @@ import {
 import { isAttachmentReference, attachmentIsImage } from "@artemis/protocol";
 import { SleepPrevention } from "./platform/sleep-prevention.js";
 import { ImService } from "./im/im-service.js";
-import { readProjectFileForPreview } from "./design/design-plugin-project-files.js";
+import {
+  readProjectFileForPreview,
+  scanProjectDesignFiles,
+} from "./design/design-plugin-project-files.js";
 import {
   turnRecoveryContext,
   type TurnCheckpoint,
@@ -10606,6 +10609,46 @@ function registerIpc(): void {
       panelSendEntry?.markOutcome(submissionId, outcome);
     },
   );
+  const DESIGN_IMAGE_MIME_TABLE: Record<string, string> = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+  };
+  // 图片创作：用户指定图片产出目录（项目工作区内或临时会话目录），选择
+  // 一次后持久记住（跨重启）。图片扫描与读取复用设计项目文件的安全模型。
+  const designImagePrefsPath = join(
+    app.getPath("userData"),
+    "design-image-prefs.json",
+  );
+  let designImageDir: string | undefined = (() => {
+    try {
+      const raw = readStartupFile(designImagePrefsPath, "utf8");
+      const parsed = JSON.parse(raw) as { imageDir?: string };
+      return typeof parsed.imageDir === "string" ? parsed.imageDir : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+  ipcMain.handle(IPC.designImageFolderGet, async () => {
+    return { imageDir: designImageDir ?? null };
+  });
+  ipcMain.handle(IPC.designImageFolderSet, async (_event, dir: string) => {
+    const clean = typeof dir === "string" ? dir.trim() : "";
+    if (!clean) throw new Error("目录无效。");
+    const real = await realpath(clean).catch(() => undefined);
+    if (!real) throw new Error("目录不存在。");
+    const info = await stat(real).catch(() => undefined);
+    if (!info?.isDirectory()) throw new Error("请选择一个文件夹。");
+    designImageDir = real;
+    await writeFile(
+      designImagePrefsPath,
+      JSON.stringify({ imageDir: real }, null, 2),
+    ).catch(() => undefined);
+    return { imageDir: real };
+  });
   // S4: snapshot downlink — the panel renders its file list from this.
   async function pushDesignSnapshot(
     threadId: string,
@@ -10677,10 +10720,35 @@ function registerIpc(): void {
     const project = thread?.projectId
       ? store?.getProject(thread.projectId)
       : undefined;
-    const projectFiles = selectedDesignProjectFiles.get(threadId) ?? [];
+    // 项目会话：扫描项目工作区（保守白名单：页面+图片，≤120 个）进总览；
+    // 显式选入的文件（从项目打开）永远保留并在去重时优先。
+    let projectFiles = selectedDesignProjectFiles.get(threadId) ?? [];
+    if (thread?.projectId) {
+      try {
+        const workspace = await resolveThreadWorkspace(thread);
+        const scanned = await scanProjectDesignFiles(workspace.workspacePath);
+        const selected = new Set(projectFiles.map((file) => file.path));
+        projectFiles = [
+          ...projectFiles,
+          ...scanned.filter((file) => !selected.has(file.path)),
+        ];
+      } catch (error) {
+        console.error("[design-panel] project scan failed", error);
+      }
+    }
+    // 图片创作目录快照：记住的目录 + 其中图片清单（同名同形与项目文件行）。
+    let imageDir: string | undefined = designImageDir;
+    let images: Array<{ path: string; bytes: number; updatedAt: string }> = [];
+    if (imageDir) {
+      images = (await scanProjectDesignFiles(imageDir)).filter(
+        (file) => !/\.html?$/i.test(file.path),
+      );
+    }
     designPanelHost.pushSnapshot(threadId, panelId, {
       documents,
       projectFiles,
+      imageDir: imageDir ?? null,
+      images,
       canOpenProject: Boolean(thread?.projectId),
       projectName: project?.name ?? "设计任务",
     });
@@ -10841,6 +10909,63 @@ function registerIpc(): void {
   }
 
   designPanelHost?.setRequestHandlers({
+    /** 图片创作：弹目录选择对话框并持久记住。 */
+    pickImageFolder: async () => {
+      const parent =
+        BrowserWindow.getFocusedWindow() ??
+        BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
+      const result = parent
+        ? await dialog.showOpenDialog(parent, {
+            title: "选择图片文件夹",
+            properties: ["openDirectory", "createDirectory"],
+          })
+        : { canceled: true, filePaths: [] };
+      if (result.canceled || !result.filePaths[0]) return {};
+      const real = await realpath(result.filePaths[0]).catch(() => undefined);
+      if (!real) return { error: "目录不存在。" };
+      designImageDir = real;
+      await writeFile(
+        designImagePrefsPath,
+        JSON.stringify({ imageDir: real }, null, 2),
+      ).catch(() => undefined);
+      return { imageDir: real };
+    },
+    /** 图片创作：把记住目录内的图片读成 dataURL（image-dir:/image-view:
+     * 前缀）。安全边界：realpath 后必须仍在已记住目录内，O_NOFOLLOW
+     * 打开，2 MiB 上限，MIME 白名单与图片扫描一致。 */
+    readImage: async (input) => {
+      if (!designImageDir) return {};
+      const raw = String(input.path ?? "");
+      const rel = raw.replace(/^image-(?:dir|view):/, "").trim();
+      if (!rel || rel.includes("..") || rel.startsWith("/")) return {};
+      const dirReal = await realpath(designImageDir).catch(() => undefined);
+      if (!dirReal) return {};
+      const target = join(dirReal, rel);
+      const targetReal = await realpath(target).catch(() => undefined);
+      if (
+        !targetReal ||
+        (targetReal !== dirReal && !targetReal.startsWith(dirReal + sep))
+      )
+        return {};
+      const ext = extname(targetReal).toLowerCase();
+      const mime = DESIGN_IMAGE_MIME_TABLE[ext];
+      if (!mime) return {};
+      let handle: Awaited<ReturnType<typeof open>> | undefined;
+      try {
+        handle = await open(
+          targetReal,
+          fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+        ).catch(() => undefined);
+        if (!handle) return {};
+        const meta = await handle.stat();
+        if (!meta.isFile() || meta.size > 2 * 1024 * 1024) return {};
+        const bytes = Buffer.alloc(meta.size);
+        await handle.read(bytes, 0, bytes.length, 0);
+        return { dataUrl: `data:${mime};base64,${bytes.toString("base64")}` };
+      } finally {
+        await handle?.close().catch(() => undefined);
+      }
+    },
     /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
      * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
     openProjectFile: async ({ threadId }) => {

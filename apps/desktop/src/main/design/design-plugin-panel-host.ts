@@ -225,6 +225,13 @@ export interface PanelRequestHandlers {
     panelId?: string;
     rect?: { x: number; y: number; width: number; height: number };
   }): Promise<{ path: string }>;
+  /** 图片创作：弹对话框选择图片目录（宿主持久记住）。 */
+  pickImageFolder(input: {
+    threadId: string;
+  }): Promise<{ imageDir?: string; error?: string }>;
+  /** 图片创作：读取图片为 dataURL（image-dir: 前缀=已记住目录内相对路径，
+   * image-view: 同左；路径解析与安全边界在宿主 handler 内完成）。 */
+  readImage(input: { path: string }): Promise<{ dataUrl?: string }>;
   /** PR#245 P2-16：持久删除需要知道面板，删除后定向推快照刷新。 */
   deleteDocument(input: {
     threadId: string;
@@ -788,6 +795,49 @@ export class DesignPanelHost {
             hostPort.postMessage({
               type: "screenshot-result",
               error: String(error),
+            });
+          });
+        return;
+      }
+      if (data?.type === "pick-image-folder-request") {
+        void (async () => {
+          try {
+            if (!this.requestHandlers?.pickImageFolder)
+              throw new Error("主进程不可用");
+            const result = await this.requestHandlers.pickImageFolder({
+              threadId,
+            });
+            hostPort.postMessage({
+              type: "pick-image-folder-result",
+              ...(result.imageDir ? { imageDir: result.imageDir } : {}),
+              ...(result.error ? { error: result.error } : {}),
+            });
+          } catch (error) {
+            hostPort.postMessage({
+              type: "pick-image-folder-result",
+              error: String(error),
+            });
+          }
+        })();
+        return;
+      }
+      if (
+        data?.type === "read-image-request" &&
+        typeof data.path === "string"
+      ) {
+        void this.requestHandlers
+          ?.readImage({ path: data.path })
+          .then((result) => {
+            hostPort.postMessage({
+              type: "read-image-result",
+              path: data.path,
+              ...(result?.dataUrl ? { dataUrl: result.dataUrl } : {}),
+            });
+          })
+          .catch(() => {
+            hostPort.postMessage({
+              type: "read-image-result",
+              path: data.path,
             });
           });
         return;

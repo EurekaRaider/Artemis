@@ -12210,8 +12210,19 @@ kbd {
 }
 
 /* 名称下方的来源市场徽章，与 .plugin-market-source 同一视觉语言。 */
+/* 已安装插件的版本小字（名称后 v+版本）：弱于标题一档，等宽数字。 */
+.plugin-market-card-vn {
+  margin-inline-start: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--artemis-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .plugin-market-card-source {
   display: block;
+  min-inline-size: 0;
   max-inline-size: 100%;
   font-size: 10px;
   line-height: 1.6;

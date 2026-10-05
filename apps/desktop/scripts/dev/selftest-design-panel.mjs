@@ -68,8 +68,6 @@ console.log("== 1. 原型结构对齐（关键容器/类名） ==");
 for (const sel of [
   ".design-ws-tabs",
   "#dzTabFiles",
-  "#dzPlusBtn",
-  "#dzPlusMenu",
   "#dzPresentBtn",
   "#dzPresentMenu",
   "#dzHistoryBtn",
@@ -199,10 +197,9 @@ check(
   sent.some((m) => m.type === "read-document-request"),
 );
 check(
-  "plus 菜单文档项随快照重建",
-  document.querySelectorAll(
-    '#dzPlusMenu .dz-menu-item[data-dz-open="customer.html"]',
-  ).length === 1,
+  "「+」菜单已移除（打开入口=总览卡片与动态 tab）",
+  !document.querySelector("#dzPlusBtn") &&
+    !document.querySelector("#dzPlusMenu"),
 );
 check("分类分段控件存在", !!document.querySelector("#dzCats .dz-seg"));
 check(
@@ -1014,25 +1011,16 @@ const catInfo = () =>
   }));
 const cats2 = catInfo();
 check(
-  "分类标签顺序对齐 OD（空类跳过）",
+  "分类白名单只保留页面与图片（保守档）",
   JSON.stringify(cats2.map((c) => c.label)) ===
-    JSON.stringify([
-      "页面",
-      "样式表",
-      "脚本",
-      "文本",
-      "图片",
-      "草图",
-      "PDF",
-      "电子表格",
-      "其它",
-    ]),
+    JSON.stringify(["页面", "图片"]),
   JSON.stringify(cats2),
 );
 check(
-  "svg/sketch- 前缀图/sketch.json 归草图",
-  (cats2.find((c) => c.label === "草图") || {}).count === "3",
-  JSON.stringify(cats2.find((c) => c.label === "草图")),
+  "图片类含 png；svg/sketch.json 随白名单退役不归类",
+  (cats2.find((c) => c.label === "图片") || {}).count === "2" &&
+    !cats2.some((c) => c.label === "草图"),
+  JSON.stringify(cats2),
 );
 check(
   "没有内容的分类不出胶囊",
@@ -1045,25 +1033,10 @@ check(
   document.querySelector(".design-cat.active")?.childNodes[0].textContent ===
     "页面",
 );
-const cssChip = Array.from(document.querySelectorAll(".design-cat")).find(
-  (c) => c.childNodes[0].textContent === "样式表",
-);
-cssChip.click();
-const visibleRows = () =>
-  Array.from(
-    document.querySelectorAll(".design-file-card, .dz-file-row"),
-  ).filter((c) => !c.hidden);
 check(
-  "切到样式表只剩 css 行",
-  visibleRows().length === 1 &&
-    visibleRows()[0].textContent.includes("tokens.css"),
-);
-check("非页面行是扩展名图标", !!visibleRows()[0].querySelector(".dz-row-icon"));
-visibleRows()[0].click();
-check(
-  "非页面文件打开进代码视图",
-  document.getElementById("dzSource").hidden === false &&
-    document.getElementById("dzStage").hidden === true,
+  "样式表/脚本随白名单退役（tokens.css/app.ts 不出胶囊）",
+  !catInfo().some((c) => c.label === "样式表" || c.label === "脚本"),
+  JSON.stringify(catInfo()),
 );
 // 恢复页面快照（后续用例回到单页面环境）
 fromHost({

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -12,8 +12,13 @@
         "zh-CN": "设计",
         "en": "Design"
       },
-      "targets": ["project", "temporary"],
-      "panelIds": ["workspace"]
+      "targets": [
+        "project",
+        "temporary"
+      ],
+      "panelIds": [
+        "workspace"
+      ]
     }
   ],
   "panels": [

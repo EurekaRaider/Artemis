@@ -271,6 +271,9 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.designPanelSendStage, credential),
   reportDesignPanelSendOutcome: (submissionId, outcome) =>
     ipcRenderer.invoke(IPC.designPanelSendOutcome, submissionId, outcome),
+  getDesignImageFolder: () => ipcRenderer.invoke(IPC.designImageFolderGet),
+  setDesignImageFolder: (dir) =>
+    ipcRenderer.invoke(IPC.designImageFolderSet, dir),
   onDesignPanelCandidate: (listener) => {
     const handler = (
       _event: unknown,
