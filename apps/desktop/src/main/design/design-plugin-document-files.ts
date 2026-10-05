@@ -5,7 +5,12 @@ import { readWorkspaceFileBytes } from "./design-plugin-project-files.js";
 
 export function requireDesignDocumentId(raw: unknown): string {
   const id = typeof raw === "string" ? raw.trim() : "";
-  if (!/^[0-9a-f][0-9a-f-]{7,63}$/.test(id)) {
+  // Legacy seed documents use a bounded slug, never a path. Directory anchoring
+  // and no-symlink checks below apply equally to both formats.
+  if (
+    !/^[0-9a-f][0-9a-f-]{7,63}$/.test(id) &&
+    !/^seed-[a-z0-9][a-z0-9-]{0,58}$/.test(id)
+  ) {
     throw new Error("Invalid design document id.");
   }
   return id;

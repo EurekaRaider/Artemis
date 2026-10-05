@@ -3743,6 +3743,8 @@
           var hostPort = null;
           var currentDocument = null; // { documentId, name, headRevision, versionCount }
           var lastDocumentHtml = "";
+          var documentRequestId = 0;
+          var documentLoaded = false;
           var lastVersions = [];
           var openFiles = []; // 当前打开的文件页签（从宿主快照生成）
 
@@ -3803,7 +3805,9 @@
               dzPostActiveDocument(null);
               return;
             }
-            dzPostActiveDocument(dzProjectView ? null : currentDocument);
+            dzPostActiveDocument(
+              dzProjectView || !documentLoaded ? null : currentDocument,
+            );
           }
           /* 把当前活动文档上报宿主（→ composer「编辑中」芯片 + 发送自动附页） */
           function dzPostActiveDocument(doc) {
@@ -3875,11 +3879,11 @@
               if (tab.classList.contains("active")) {
                 if (remaining.length) {
                   var nextName = remaining[0].dataset.dzFile;
-                  dzShow("preview", nextName, remaining[0].dataset.dzTitle);
+
                   var nextDoc = dzDocByName(nextName);
                   if (nextDoc) {
                     dzProjectView = null; // 文档 tab 退出项目只读态
-                    dzLoadDocument(nextDoc);
+                    dzOpenDocument(nextDoc);
                   } else if (dzIsProjectFile(nextName)) {
                     dzOpenProjectFile(nextName);
                   }
@@ -3887,11 +3891,11 @@
               }
               return;
             }
-            dzShow("preview", tab.dataset.dzFile, tab.dataset.dzTitle);
+
             var doc = dzDocByName(tab.dataset.dzFile);
             if (doc) {
               dzProjectView = null; // 文档 tab 退出项目只读态
-              dzLoadDocument(doc);
+              dzOpenDocument(doc);
             } else if (dzIsProjectFile(tab.dataset.dzFile)) {
               // 项目文件 tab 往返：重走只读预览装载（否则舞台空白、态丢失）
               dzOpenProjectFile(tab.dataset.dzFile);
@@ -4794,6 +4798,7 @@
               });
             }
             lastDocumentHtml = html;
+            documentLoaded = true;
             // 同 URL srcdoc 不重载：先摘属性再赋值强制刷新
             frame.removeAttribute("srcdoc");
             // eslint-disable-next-line no-unsanitized/property
@@ -5125,10 +5130,18 @@
           /* ============ 真实文档渲染（核心新能力：结构解析） ============ */
           function dzLoadDocument(doc) {
             currentDocument = doc;
+            documentLoaded = false;
+            lastDocumentHtml = "";
+            dzPostActiveDocument(null);
+            dzUnmountDocumentFrame();
+            dzSource.replaceChildren();
+            var empty = dzMockDesktop.querySelector(".mock-empty");
+            if (empty) empty.textContent = "正在加载 " + doc.name + "…";
             if (hostPort) {
               hostPort.postMessage({
                 type: "read-document-request",
                 documentId: doc.documentId,
+                requestId: ++documentRequestId,
               });
             }
           }
@@ -5138,8 +5151,8 @@
             dzProjectView = null; // 文档预览退出项目只读态
             if (!doc) return;
             dzEnsureFileTab(doc.name, (doc.name || "").replace(/\.html?$/, ""));
-            dzShow("preview", doc.name);
             dzLoadDocument(doc);
+            dzShow("preview", doc.name);
             if (asSource) dzSetMode("source");
           }
           /* ============ 真实文档渲染（沙箱帧 + 批注桥，与项目文件预览同构） ============
@@ -5206,6 +5219,7 @@
           }
           function dzRenderDocument(html, name, subtitle) {
             lastDocumentHtml = html;
+            documentLoaded = true;
             // 页签联动：当前文档必有 tab（快照首载/恢复路径不经卡片点击，这里兜底）
             var tabName = (currentDocument && currentDocument.name) || name;
             if (tabName)
@@ -5216,7 +5230,7 @@
             dzRenderSource(html);
             dzApplyStage();
             // 绑定上报放到这里：html 已是本文档的最新内容
-            dzPostActiveDocument(currentDocument);
+            dzPostActiveDocument(dzViewPreview.hidden ? null : currentDocument);
           }
           function dzRenderSource(html) {
             dzSource.replaceChildren();
@@ -5352,10 +5366,7 @@
               return;
             }
             if (currentDocument && hostPort) {
-              hostPort.postMessage({
-                type: "read-document-request",
-                documentId: currentDocument.documentId,
-              });
+              dzLoadDocument(currentDocument);
             }
             if (dzMode === "preview" && !dzStage.hidden) {
               dzStage.classList.remove("dz-rendering");
@@ -6856,10 +6867,7 @@
           function dzFlushPendingDocRefresh() {
             if (!pendingDocRefresh || !hostPort || !currentDocument) return;
             pendingDocRefresh = false;
-            hostPort.postMessage({
-              type: "read-document-request",
-              documentId: currentDocument.documentId,
-            });
+            dzLoadDocument(currentDocument);
           }
           function dzRenderHistoryList() {
             var wrap = $("#dzHistoryItems");
@@ -7200,17 +7208,37 @@
                 if (currentDocument) {
                   if ($("#dzNoteComposer").hidden) {
                     pendingDocRefresh = false;
-                    hostPort.postMessage({
-                      type: "read-document-request",
-                      documentId: currentDocument.documentId,
-                    });
+                    dzLoadDocument(currentDocument);
                   } else {
                     // 注释弹窗开着：不打断输入，关闭时补一次刷新
                     pendingDocRefresh = true;
                   }
                 }
               }
-              if (data.type === "document-html" && data.html) {
+              if (data.type === "document-html") {
+                if (
+                  !currentDocument ||
+                  dzProjectView ||
+                  data.documentId !== currentDocument.documentId ||
+                  data.requestId !== documentRequestId
+                )
+                  return;
+                if (data.error || typeof data.html !== "string") {
+                  documentLoaded = false;
+                  lastDocumentHtml = "";
+                  dzUnmountDocumentFrame();
+                  dzSource.replaceChildren();
+                  dzPostActiveDocument(null);
+                  var empty = dzMockDesktop.querySelector(".mock-empty");
+                  if (empty)
+                    empty.textContent =
+                      "无法加载 " +
+                      currentDocument.name +
+                      "：" +
+                      String(data.error || "文档不存在") +
+                      "。请重新打开文档重试。";
+                  return;
+                }
                 dzRenderDocument(data.html, data.name, data.subtitle);
               }
               if (data.type === "project-preview-result" && data.path) {

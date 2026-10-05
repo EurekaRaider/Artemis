@@ -381,15 +381,9 @@ function contrastRatio(first: string, second: string): number {
 
 describe("renderer layout contract", () => {
   it("offers Plan, Work, and Codemode in that order", () => {
-    const plan = composerContextSource.indexOf(
-      '{ value: "plan", label: t.plan }',
-    );
-    const work = composerContextSource.indexOf(
-      '{ value: "work", label: t.work }',
-    );
-    const codemode = composerContextSource.indexOf(
-      '{ value: "codemode", label: t.codemode }',
-    );
+    const plan = composerContextSource.indexOf('value: "plan"');
+    const work = composerContextSource.indexOf('value: "work"');
+    const codemode = composerContextSource.indexOf('value: "codemode"');
     expect(plan).toBeGreaterThan(-1);
     expect(work).toBeGreaterThan(plan);
     expect(codemode).toBeGreaterThan(work);

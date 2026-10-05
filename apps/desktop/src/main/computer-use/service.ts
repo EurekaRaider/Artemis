@@ -5,6 +5,9 @@ import {
   computerActSchema,
   computerOpenSchema,
   computerTargetSchema,
+  computerBrowserDebugSchema,
+  type BrowserPreviewCommand,
+  type BrowserPreviewSnapshot,
   type ComputerAction,
   type ComputerAct,
   type ComputerControlState,
@@ -39,6 +42,11 @@ export interface ComputerDriver {
     allowForeground?: boolean,
   ): Promise<void>;
   release(target: ComputerTarget): Promise<void>;
+  debug?(
+    target: ComputerTarget,
+    command: BrowserPreviewCommand,
+    signal: AbortSignal,
+  ): Promise<BrowserPreviewSnapshot>;
 }
 interface Lease {
   target: ComputerTarget;
@@ -532,6 +540,33 @@ export class ComputerUseService {
         return this.open(computerOpenSchema.parse(args), context);
       case "computer_act":
         return this.act(computerActSchema.parse(args), context);
+      case "computer_browser_debug": {
+        const input = computerBrowserDebugSchema.parse(args);
+        const lease = this.lease(input.targetId, context);
+        const driver = this.options.drivers[lease.target.kind];
+        if (
+          lease.target.kind !== "browser" ||
+          !driver.debug ||
+          input.command.action === "devtools"
+        )
+          throw new Error("This browser debug operation is unavailable to AI.");
+        if (lease.busy)
+          throw new Error("Wait for the current browser operation.");
+        lease.busy = true;
+        try {
+          const result = await driver.debug(
+            lease.target,
+            input.command,
+            lease.controller.signal,
+          );
+          lease.controller.signal.throwIfAborted();
+          if (["viewport", "reload"].includes(input.command.action))
+            delete lease.observation;
+          return result;
+        } finally {
+          lease.busy = false;
+        }
+      }
       case "computer_observe": {
         const lease = this.lease(
           computerTargetSchema.parse(args).targetId,

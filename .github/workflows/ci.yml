@@ -11,6 +11,9 @@ name: CI
     branches:
       - main
   pull_request: null
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
@@ -26,10 +29,12 @@ jobs:
           - platform: windows-x64
             runner: windows-2025
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 65
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -53,28 +58,6 @@ jobs:
         env:
           ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
           GITHUB_TOKEN: ${{ github.token }}
-  slack-cli-native:
-    name: Slack CLI native compatibility (${{ matrix.platform }})
-    if: ${{ !inputs.hooks_only }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-arm64
-            runner: macos-15
-          - platform: windows-x64
-            runner: windows-2025
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-      - name: Normalize reused Windows checkout to LF
-        if: matrix.platform == 'windows-x64'
-        run: node scripts/ci/normalize-windows-checkout.mjs
-      - run: npm ci
       - name: Verify official native CLI and bundled hooks
         run: node scripts/slack/test-slack-cli-native.mjs
         env:
@@ -114,6 +97,14 @@ jobs:
               Write-Host "No readable recent events in $log."
             }
           }
+      - run: node scripts/benchmarks/benchmark-history.mjs
+      - run: node --expose-gc scripts/benchmarks/benchmark-streaming.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: performance-${{ matrix.platform }}
+          path: artifacts/benchmarks
+          retention-days: 14
+          if-no-files-found: error
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
     if: ${{ !inputs.hooks_only }}
@@ -198,34 +189,3 @@ jobs:
           path: artifacts/verification/hooks-native
           if-no-files-found: warn
           retention-days: 7
-  performance:
-    name: History performance (${{ matrix.platform }})
-    if: ${{ !inputs.hooks_only }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macos-arm64
-            runner: macos-15
-          - platform: windows-x64
-            runner: windows-2025
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-      - run: npm ci
-      - run: npm run build:core
-      - run: node scripts/benchmarks/benchmark-history.mjs
-      - run: node --expose-gc scripts/benchmarks/benchmark-streaming.mjs
-      - uses: actions/upload-artifact@v6
-        with:
-          name: performance-${{ matrix.platform }}
-          path: artifacts/benchmarks
-          retention-days: 14
-          if-no-files-found: error

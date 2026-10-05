@@ -814,6 +814,7 @@ export function SearchField({
 }
 
 export interface SelectOption<Value extends string> {
+  readonly description?: string | undefined;
   readonly title?: string | undefined;
   readonly value: Value;
   readonly label: string;
@@ -1260,6 +1261,8 @@ export function Select<Value extends string>({
                   <div
                     aria-disabled={option.disabled || undefined}
                     aria-selected={option.value === value}
+                    aria-label={option.description ? option.label : undefined}
+                    aria-description={option.description}
                     data-active={
                       enabledIndex >= 0 && enabledIndex === activeIndex
                         ? "true"
@@ -1279,7 +1282,12 @@ export function Select<Value extends string>({
                     <span aria-hidden="true" data-part="check">
                       {option.value === value ? "✓" : ""}
                     </span>
-                    <span>{option.label}</span>
+                    <span>
+                      {option.label}
+                      {option.description ? (
+                        <small>{option.description}</small>
+                      ) : null}
+                    </span>
                   </div>
                 );
               })

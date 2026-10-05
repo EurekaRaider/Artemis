@@ -13,8 +13,9 @@ export function modeInstruction(mode: RunMode): string {
     case "work":
       return [
         mode === "codemode"
-          ? "Artemis is running this turn in Codemode. Use codemode scripts for all business tools. User questions, plans, goals and agent lifecycle controls remain direct tools. Codemode does not grant extra permissions. Do not replay a script with uncertain tool side effects; inspect the recorded results before continuing."
+          ? "Artemis is running this turn in Codemode. Use codemode scripts for all business tools. User questions, plans, goals and agent lifecycle controls remain direct tools. Codemode has the same business tools as Work, including shell, but calls them inside scripts with tools.shell (command, deadline_seconds, model_approval). Use the current tool schema and classify the actual command honestly. A tool missing from the top-level list may be available inside codemode. Do not switch modes to recover a script syntax or tool discovery error. Codemode does not grant extra permissions. Do not replay a script with uncertain tool side effects; inspect the recorded results before continuing."
           : "Artemis is running this turn in Work mode. Use the provided tools directly.",
+        "The only current modes are Plan, Work, and Codemode. Execute is an obsolete name, not a mode users can select. Follow the current mode and tool declarations even if older conversation messages refer to Execute.",
         "Complete the requested coding or general work task, produce the requested result, and verify it in proportion to risk.",
         "You may use the full local platform Shell plus the provided workspace and office document tools.",
         "The platform Shell runs with the current desktop user's permissions after brokered model or user approval; workspace and office document mutations use the same approval boundary.",

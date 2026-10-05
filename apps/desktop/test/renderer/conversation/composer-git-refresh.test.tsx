@@ -58,8 +58,13 @@ it.each([
     expect(
       screen
         .getAllByRole("option")
-        .map((option) => option.textContent?.replace("✓", "")),
+        .map((option) => option.getAttribute("aria-label")),
     ).toEqual(options);
+    expect(
+      screen
+        .getAllByRole("option")
+        .every((option) => option.querySelector("small")?.textContent),
+    ).toBe(true);
     fireEvent.click(screen.getByRole("option", { name: options[2] }));
     expect(onModeChange).toHaveBeenCalledExactlyOnceWith("codemode");
   },

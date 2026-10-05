@@ -9685,6 +9685,20 @@ ${model.providerId} · ${model.modelId}`}
                           )}
                           {tab.kind === "browser" && (
                             <WorkspaceBrowserPanel
+                              tabId={tab.id}
+                              onEvidence={(text, image) => {
+                                setPrompt(
+                                  (current) =>
+                                    `${current}${current.trim() ? "\n\n" : ""}${text}`,
+                                );
+                                if (image)
+                                  addPromptAttachments([
+                                    { name: "browser-evidence.jpg", ...image },
+                                  ]);
+                                window.requestAnimationFrame(() =>
+                                  promptInput.current?.focus(),
+                                );
+                              }}
                               key={`${activeThreadId ?? "project"}:${tab.id}`}
                               addressPlaceholder={t.browserAddress}
                               backLabel={t.browserBack}

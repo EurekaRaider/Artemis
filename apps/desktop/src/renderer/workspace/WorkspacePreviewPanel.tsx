@@ -1,3 +1,4 @@
+import { BrowserPreviewTools } from "./BrowserPreviewTools.js";
 import { IconButton } from "@artemis/ui/actions";
 import {
   useCallback,
@@ -62,6 +63,11 @@ interface MarkdownReaderProps extends WorkspacePreviewProps {
 }
 
 interface BrowserPanelProps extends WorkspacePreviewProps {
+  tabId: string;
+  onEvidence(
+    text: string,
+    image?: { data: string; mimeType: "image/jpeg" },
+  ): void;
   addressPlaceholder: string;
   backLabel: string;
   forwardLabel: string;
@@ -129,6 +135,11 @@ function useWorkspacePreviewFile({
 }
 
 export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
+  const [contentsId, setContentsId] = useState<number>();
+  const [htmlPreview, setHtmlPreview] = useState<{
+    label: string;
+    url: string;
+  }>();
   const rtl = localeDirection(props.locale) === "rtl";
   const webviewRef = useRef<Electron.WebviewTag>(null);
   const webviewReadyRef = useRef(false);
@@ -146,20 +157,44 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const workspaceDocument = useMemo(
     () =>
       file?.kind === "html"
-        ? {
-            label: file.path,
-            url: `data:text/html;charset=utf-8,${encodeURIComponent(file.content)}`,
-          }
+        ? htmlPreview
         : file?.kind === "pdf"
           ? {
               label: file.path,
               url: `${file.url}#navpanes=0&view=FitH`,
             }
           : undefined,
-    [file],
+    [file, htmlPreview],
   );
   const browserSource =
     workspaceDocument?.url ?? props.initialUrl ?? "about:blank";
+
+  useEffect(() => {
+    if (!props.threadId || file?.kind !== "html") {
+      setHtmlPreview(undefined);
+      return;
+    }
+    const threadId = props.threadId;
+    let active = true;
+    let lease: string | undefined;
+    void window.artemis
+      .openWorkspaceHtml(threadId, file.path)
+      .then(({ url }) => {
+        if (!active) {
+          void window.artemis.releaseWorkspaceHtml(threadId, url);
+          return;
+        }
+        lease = url;
+        setHtmlPreview({ label: file.path, url });
+      })
+      .catch((reason) => {
+        if (active) setNavigationError(String(reason));
+      });
+    return () => {
+      active = false;
+      if (lease) void window.artemis.releaseWorkspaceHtml(threadId, lease);
+    };
+  }, [file, props.threadId]);
 
   workspaceDocumentRef.current = workspaceDocument;
 
@@ -188,6 +223,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     const handleDomReady = () => {
       webviewReadyRef.current = true;
       setWebviewReady(true);
+      setContentsId(webview.getWebContentsId());
       syncNavigation();
       if (props.threadId && window.artemis.registerComputerBrowser) {
         void window.artemis
@@ -388,19 +424,28 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
           {error ?? navigationError}
         </BrowserState>
       )}
-      <BrowserViewport
-        className="browser-viewport"
-        label={`${props.title}: ${file?.path ?? props.initialUrl ?? props.addressPlaceholder}`}
+      <BrowserPreviewTools
+        enabled={file?.kind !== "pdf"}
+        threadId={props.threadId}
+        tabId={props.tabId}
+        contentsId={contentsId}
+        locale={props.locale}
+        onEvidence={props.onEvidence}
       >
-        <webview
-          className="browser-frame"
-          partition={BROWSER_SESSION_PARTITION}
-          webpreferences="plugins=yes"
-          ref={webviewRef}
-          src={browserSource}
-          title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
-        />
-      </BrowserViewport>
+        <BrowserViewport
+          className="browser-viewport"
+          label={`${props.title}: ${file?.path ?? props.initialUrl ?? props.addressPlaceholder}`}
+        >
+          <webview
+            className="browser-frame"
+            partition={BROWSER_SESSION_PARTITION}
+            webpreferences="plugins=yes"
+            ref={webviewRef}
+            src={browserSource}
+            title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
+          />
+        </BrowserViewport>
+      </BrowserPreviewTools>
     </BrowserSurface>
   );
 }

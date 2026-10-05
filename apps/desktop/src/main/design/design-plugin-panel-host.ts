@@ -486,6 +486,7 @@ export class DesignPanelHost {
             type?: string;
             text?: string;
             documentId?: string;
+            requestId?: number;
             revision?: string;
             name?: string;
             html?: string;
@@ -604,13 +605,18 @@ export class DesignPanelHost {
           .then((document) => {
             hostPort.postMessage({
               type: "document-html",
+              documentId: data.documentId,
+              requestId: data.requestId,
               html: document?.html ?? "",
+              ...(!document ? { error: "Document not found." } : {}),
               name: document?.name ?? "",
             });
           })
           .catch((error: unknown) => {
             hostPort.postMessage({
               type: "document-html",
+              documentId: data.documentId,
+              requestId: data.requestId,
               html: "",
               name: "",
               error: String(error),

@@ -4639,6 +4639,9 @@ export class ArtemisAgentHost {
       },
     });
 
+    let planUpdateTurn: string | undefined;
+    let consecutivePlanUpdates = 0;
+    let stoppedPlanLoopTurn: string | undefined;
     const updatePlanTool = defineTool({
       name: "update_plan",
       label: "Update task steps",
@@ -4668,6 +4671,21 @@ export class ArtemisAgentHost {
         ),
       }),
       execute: async (_toolCallId, params) => {
+        const hosted = this.requireActiveThread(request.threadId);
+        if (consecutivePlanUpdates >= 8) {
+          stoppedPlanLoopTurn = hosted.currentTurnId;
+          hosted.adapter?.stopAfterTools();
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: "PLAN_UPDATE_LOOP: stopped after eight consecutive plan updates without a task action. The requested task is not complete. Inspect the failed tool call before continuing; do not replay the plan loop.",
+              },
+            ],
+            details: {},
+          };
+        }
         const steps = params.steps.map((item) => ({
           step: item.step.trim(),
           status: item.status,
@@ -4682,7 +4700,7 @@ export class ArtemisAgentHost {
           content: [
             {
               type: "text",
-              text: `Updated ${steps.length} task step${steps.length === 1 ? "" : "s"}.`,
+              text: `Updated ${steps.length} task step${steps.length === 1 ? "" : "s"}. Continue with the next task action; update again only when progress changes.`,
             },
           ],
           details: {
@@ -6657,7 +6675,11 @@ export class ArtemisAgentHost {
       }
       const hosted = this.threads.get(request.threadId);
       const turn = hosted?.currentTurnId;
-      if (hosted && turn && submittedPlanTurn === turn) {
+      if (
+        hosted &&
+        turn &&
+        (submittedPlanTurn === turn || stoppedPlanLoopTurn === turn)
+      ) {
         const queue = session.clearQueue();
         hosted.recoveredQueueMessages.push(
           ...queue.steering,
@@ -6975,6 +6997,29 @@ export class ArtemisAgentHost {
       session.agent.state.tools = hosted.delegatedTools;
     }
     hosted.unsubscribe = session.subscribe((event) => {
+      if (event.type === "tool_execution_start") {
+        if (planUpdateTurn !== hosted.currentTurnId) {
+          planUpdateTurn = hosted.currentTurnId;
+          consecutivePlanUpdates = 0;
+        }
+        consecutivePlanUpdates =
+          event.toolName === "update_plan" ? consecutivePlanUpdates + 1 : 0;
+      }
+      if (
+        event.type === "tool_execution_end" &&
+        event.toolName === "update_plan" &&
+        consecutivePlanUpdates >= 8 &&
+        hosted.currentTurnId
+      ) {
+        stoppedPlanLoopTurn = hosted.currentTurnId;
+        hosted.adapter?.stopAfterTools();
+        this.sink.emit(hosted.threadId, hosted.currentTurnId, {
+          type: "turn.failed",
+          code: "PLAN_UPDATE_LOOP",
+          message:
+            "Stopped repeated plan updates without a task action. The requested task is not complete.",
+        });
+      }
       if (
         hosted.currentTurnId &&
         terminalAgentStopReason(event) &&

@@ -15,13 +15,16 @@ import type { AgentPayload, RunMode } from "@artemis/protocol";
 import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
 
 it.each([
-  { mode: "plan", direct: false },
-  { mode: "work", direct: false },
-  { mode: "codemode", direct: false },
-  { mode: "codemode", direct: true },
+  { mode: "plan", direct: false, scenario: "read" },
+  { mode: "work", direct: false, scenario: "read" },
+  { mode: "codemode", direct: false, scenario: "read" },
+  { mode: "codemode", direct: true, scenario: "read" },
+  { mode: "codemode", direct: false, scenario: "shell" },
+  { mode: "work", direct: false, scenario: "loop" },
+  { mode: "work", direct: false, scenario: "invalid-loop" },
 ] as const)(
-  "enforces $mode tools with direct business call=$direct through the actual Pi loop",
-  async ({ mode, direct }) => {
+  "enforces $mode tools with direct business call=$direct ($scenario) through the actual Pi loop",
+  async ({ mode, direct, scenario }) => {
     const dir = await mkdtemp(join(tmpdir(), "artemis-modes-"));
     const payloads: AgentPayload[] = [];
     const calls: string[] = [];
@@ -42,28 +45,41 @@ it.each([
       .spyOn(ModelRuntime.prototype, "streamSimple")
       .mockImplementation((model, context) => {
         seen.push(getCurrentTools(context.messages).map((t) => t.name));
-        const name =
-          mode === "plan"
+        const name = scenario.endsWith("loop")
+          ? "update_plan"
+          : mode === "plan"
             ? "submit_plan"
             : mode === "codemode" && !direct
               ? "codemode"
               : "read";
         const args =
-          mode === "plan"
-            ? {
-                title: "Full plan",
-                markdown: "Goal, steps, interfaces, acceptance, assumptions.",
-              }
-            : mode === "codemode" && !direct
-              ? { code: 'text(await tools.read({path:"fixture.txt"}));' }
-              : { path: "fixture.txt" };
+          scenario === "invalid-loop"
+            ? { plan: [] }
+            : scenario.endsWith("loop")
+              ? { steps: [{ step: "Read branches", status: "in_progress" }] }
+              : scenario === "shell"
+                ? {
+                    code: `text(await tools.shell(${JSON.stringify({ command: process.platform === "win32" ? "Write-Output 'SCRIPT_RESULT'" : "printf SCRIPT_RESULT", deadline_seconds: 10, model_approval: { risk: "low", explicit_user_request: false, reason: "Read-only test output" } })}));`,
+                  }
+                : mode === "plan"
+                  ? {
+                      title: "Full plan",
+                      markdown:
+                        "Goal, steps, interfaces, acceptance, assumptions.",
+                    }
+                  : mode === "codemode" && !direct
+                    ? { code: 'text(await tools.read({path:"fixture.txt"}));' }
+                    : { path: "fixture.txt" };
         const message: AssistantMessage = {
           role: "assistant",
           api: model.api,
           provider: model.provider,
           model: model.id,
           timestamp: Date.now(),
-          stopReason: request++ === 0 ? "toolUse" : "stop",
+          stopReason:
+            request++ < (scenario.endsWith("loop") ? 12 : 1)
+              ? "toolUse"
+              : "stop",
           content: [],
           usage: {
             input: 1,
@@ -82,7 +98,14 @@ it.each([
         };
         message.content =
           message.stopReason === "toolUse"
-            ? [{ type: "toolCall", id: "call", name, arguments: args }]
+            ? [
+                {
+                  type: "toolCall",
+                  id: `call-${request}`,
+                  name,
+                  arguments: args,
+                },
+              ]
             : [{ type: "text", text: "Done" }];
         const events = createAssistantMessageEventStream();
         events.push({ type: "done", reason: message.stopReason, message });
@@ -130,6 +153,16 @@ it.each([
       if (mode === "plan") {
         expect(calls).toEqual(["plan.submit"]);
         expect(request).toBe(1);
+      } else if (scenario.endsWith("loop")) {
+        expect(request).toBe(8);
+        expect(
+          payloads.some(
+            (p) => p.type === "turn.failed" && p.code === "PLAN_UPDATE_LOOP",
+          ),
+        ).toBe(true);
+        request = 0;
+        await host.prompt("task", "second-turn", "Try again", mode);
+        expect(request).toBe(8);
       } else if (direct) {
         expect(
           payloads.some(
@@ -158,7 +191,7 @@ it.each([
       if (mode === "codemode" && !direct)
         expect(
           payloads.some(
-            (p) => p.type === "tool.started" && p.parentToolCallId === "call",
+            (p) => p.type === "tool.started" && p.parentToolCallId === "call-1",
           ),
         ).toBe(true);
       expect(payloads.some((p) => p.type === "turn.completed")).toBe(true);

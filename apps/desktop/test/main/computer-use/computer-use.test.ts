@@ -524,3 +524,44 @@ describe("Computer Use execution boundaries", () => {
     expect(f.service.status().state).toBe("idle");
   });
 });
+
+it("gates browser diagnostics by Plan, task ownership and user takeover", async () => {
+  const f = fixture();
+  f.driver.debug = vi.fn(async () => ({
+    version: 1,
+    targetId: "browser-1",
+    url: "https://example.test",
+    navigationId: 0,
+    paused: false,
+    viewport: null,
+    entries: [],
+  }));
+  const args = { targetId: "browser-1", command: { action: "snapshot" } };
+  await expect(
+    f.service.call("computer_browser_debug", args, {
+      ...f.context,
+      mode: "plan",
+    }),
+  ).rejects.toThrow(/Work or Codemode/);
+  await f.service.open({ target: "browser" }, f.context);
+  await expect(
+    f.service.call("computer_browser_debug", args, {
+      ...f.context,
+      threadId: "other",
+    }),
+  ).rejects.toThrow(/owned/);
+  expect(f.driver.debug).not.toHaveBeenCalled();
+  await f.service.call("computer_browser_debug", args, f.context);
+  expect(f.driver.debug).toHaveBeenCalledOnce();
+  await expect(
+    f.service.call(
+      "computer_browser_debug",
+      { ...args, command: { action: "devtools" } },
+      f.context,
+    ),
+  ).rejects.toThrow(/unavailable/);
+  f.service.stopThread(f.context.threadId, "User took control");
+  await expect(
+    f.service.call("computer_browser_debug", args, f.context),
+  ).rejects.toThrow();
+});

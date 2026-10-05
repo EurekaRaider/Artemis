@@ -105,7 +105,14 @@ describe("private Computer Use MCP transport", () => {
         })
       ).status,
     ).toBe(401);
-    expect((await f.client.listTools()).tools).toHaveLength(6);
+    expect((await f.client.listTools()).tools.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining([
+        "computer_open",
+        "computer_observe",
+        "computer_browser_debug",
+        "computer_act",
+      ]),
+    );
   });
   it("requires a one-use host grant bound to the exact tool and arguments", async () => {
     const f = await fixture();

@@ -14,6 +14,7 @@ import {
   readDesignDocumentLedger,
   readDesignDocumentVersionBytes,
   resolveDesignDocumentDirectory,
+  requireDesignDocumentId,
 } from "../../../src/main/design/design-plugin-document-files.js";
 
 const roots: string[] = [];
@@ -36,6 +37,43 @@ async function setup() {
 }
 
 describe("host document files remain inside their task", () => {
+  it.each(["seed-customer", "seed-orders"])(
+    "reads legacy %s documents",
+    async (legacyId) => {
+      const { data } = await setup();
+      const dir = join(data, "documents", legacyId);
+      await mkdir(dir);
+      await writeFile(join(dir, version), "legacy design");
+      expect(
+        (await readDesignDocumentVersionBytes(data, dir, version)).toString(),
+      ).toBe("legacy design");
+    },
+  );
+
+  it.each([
+    "../seed-customer",
+    "seed-../customer",
+    "seed-a/b",
+    "seed-a\\b",
+    "seed-",
+    "seed-a.b",
+    "seed-a%2fb",
+    "seed-" + "a".repeat(60),
+  ])("rejects unsafe legacy id %s", (value) => {
+    expect(() => requireDesignDocumentId(value)).toThrow();
+  });
+
+  it("still rejects a legacy document directory link", async () => {
+    const { data, outside } = await setup();
+    await symlink(
+      join(outside, id),
+      join(data, "documents", "seed-customer"),
+      "junction",
+    );
+    await expect(
+      resolveDesignDocumentDirectory(data, "seed-customer"),
+    ).rejects.toThrow(/symbolic link/);
+  });
   it.each(["document", "documents"])(
     "rejects a planted %s directory link for reads and deletion",
     async (kind) => {

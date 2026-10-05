@@ -102,7 +102,7 @@ app
       `document.querySelectorAll(".design-file-card")[0].click()`,
     );
     await win.webContents.executeJavaScript(
-      `window.__fromHost({ type: "document-html", html: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
+      `window.__fromHost({ ...window.__sent.findLast(m => m.type === "read-document-request"), type: "document-html", html: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
     );
     await shot("03-preview-parsed.png");
 

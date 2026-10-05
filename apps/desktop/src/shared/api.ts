@@ -868,6 +868,11 @@ export interface AttachmentImportResult {
 export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
+  browserPreview(
+    threadId: string,
+    contentsId: number,
+    command: import("@artemis/protocol").BrowserPreviewCommand,
+  ): Promise<import("@artemis/protocol").BrowserPreviewSnapshot>;
   registerComputerBrowser(threadId: string, contentsId: number): Promise<void>;
   getComputerState(): Promise<import("@artemis/protocol").ComputerControlState>;
   controlComputer(
@@ -1466,6 +1471,7 @@ export interface ArtemisApi {
 export const IPC = {
   computerRegisterBrowser: "artemis:computer-register-browser",
   computerState: "artemis:computer-state",
+  browserPreview: "artemis:browser-preview",
   computerControl: "artemis:computer-control",
   computerPermissions: "artemis:computer-permissions",
   computerRevokePermission: "artemis:computer-revoke-permission",

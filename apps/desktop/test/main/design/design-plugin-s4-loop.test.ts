@@ -9,7 +9,7 @@
 //     ambiguous find text is refused (no first-match fallback)
 //   - the exported file (host copy) equals the version file byte-for-byte
 
-import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, cp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -298,3 +298,37 @@ describe("S4 handoff idempotency (store-level)", () => {
     store.close();
   });
 });
+
+it.skipIf(process.platform !== "darwin")(
+  "opens and edits legacy seed documents without allowing path traversal",
+  async () => {
+    const created = output(
+      await worker.invoke("create_document", {
+        name: "Legacy fixture",
+        brief: "legacy unique phrase",
+      }),
+    );
+    const docs = join(directory, "scratch", "documents");
+    await cp(
+      join(docs, String(created.documentId)),
+      join(docs, "seed-customer"),
+      { recursive: true },
+    );
+    const versions = output(
+      await worker.invoke("list_versions", { documentId: "seed-customer" }),
+    );
+    expect(versions).toHaveProperty("versions");
+    const edited = await worker.invoke("apply_edit", {
+      documentId: "seed-customer",
+      expectedRevision: created.revision,
+      operationId: "legacy-edit",
+      find: "legacy unique phrase",
+      replace: "legacy updated phrase",
+    });
+    expect(edited.status).toBe("succeeded");
+    const denied = await worker.invoke("list_versions", {
+      documentId: "seed-../../other",
+    });
+    expect(denied.status).not.toBe("succeeded");
+  },
+);

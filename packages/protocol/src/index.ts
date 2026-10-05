@@ -17,3 +17,5 @@ export * from "./computer-use.js";
 export * from "./plans.js";
 
 export * from "./mcp-exposure.js";
+
+export * from "./browser-preview.js";

@@ -688,6 +688,16 @@ const expectedCssRules = new Map([
     },
   ],
   [
+    'normal|[data-artemis-component="select"] [data-part="option"] small',
+    {
+      display: "block",
+      "white-space": "normal",
+      "font-size": "var(--artemis-typography-label-size)",
+      color: "var(--artemis-color-text-secondary)",
+      "line-height": "1.5",
+    },
+  ],
+  [
     'normal|[data-artemis-component="select"] [data-part="option"]:hover, [data-artemis-component="select"] [data-part="option"][data-active="true"]',
     { background: "var(--artemis-color-interaction-hover)" },
   ],

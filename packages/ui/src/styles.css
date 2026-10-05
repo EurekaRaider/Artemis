@@ -5083,4 +5083,12 @@
       var(--artemis-color-surface-base)
     );
   }
+
+  [data-artemis-component="select"] [data-part="option"] small {
+    display: block;
+    white-space: normal;
+    font-size: var(--artemis-typography-label-size);
+    color: var(--artemis-color-text-secondary);
+    line-height: 1.5;
+  }
 }

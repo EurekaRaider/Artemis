@@ -1,3 +1,4 @@
+import { browserPreviewCommandSchema } from "@artemis/protocol";
 import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-dock.js";
 import { createDesktopUpdateService } from "./updates/desktop-update-service.js";
 import { readFileSync as readStartupFile } from "node:fs";
@@ -7921,6 +7922,22 @@ function registerIpc(): void {
       computerUseHost?.registerBrowser(event.sender, threadId, contentsId);
     },
   );
+  ipcMain.handle(
+    IPC.browserPreview,
+    async (event, threadId: string, contentsId: number, input: unknown) => {
+      assertComputerSender(event.sender);
+      if (
+        !store?.getThread(threadId) ||
+        store.getThread(threadId)?.archived ||
+        !Number.isSafeInteger(contentsId) ||
+        !computerUseHost
+      )
+        throw new Error("Invalid browser task.");
+      const command = browserPreviewCommandSchema.parse(input);
+      computerUseHost.registerBrowser(event.sender, threadId, contentsId);
+      return computerUseHost.preview(threadId, contentsId, command);
+    },
+  );
   ipcMain.handle(IPC.computerState, (event) => {
     assertComputerSender(event.sender);
     return computerUseHost?.service.status() ?? { version: 1, state: "idle" };
@@ -13868,6 +13885,7 @@ function isEmbeddedBrowserNavigationAllowed(url: string): boolean {
     return (
       protocol === "http:" ||
       protocol === "https:" ||
+      workspaceHtmlPreview.allowsNavigation(url) ||
       protocol === "data:" ||
       protocol === "blob:" ||
       (protocol === `${WORKSPACE_PDF_SCHEME}:` &&

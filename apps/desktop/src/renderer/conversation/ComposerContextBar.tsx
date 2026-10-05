@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
 import {
   useCallback,
@@ -632,9 +633,21 @@ export function ComposerContextBar({
           disabled={modeActionsDisabled}
           onChange={onModeChange}
           options={[
-            { value: "plan", label: t.plan },
-            { value: "work", label: t.work },
-            { value: "codemode", label: t.codemode },
+            {
+              value: "plan",
+              label: t.plan,
+              description: uiText(locale, "Mode.planDescription"),
+            },
+            {
+              value: "work",
+              label: t.work,
+              description: uiText(locale, "Mode.workDescription"),
+            },
+            {
+              value: "codemode",
+              label: t.codemode,
+              description: uiText(locale, "Mode.codemodeDescription"),
+            },
           ]}
           size="compact"
           value={mode}

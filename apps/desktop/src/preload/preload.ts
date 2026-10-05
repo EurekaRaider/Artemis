@@ -9,6 +9,8 @@ import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
 
 const api: ArtemisApi = {
+  browserPreview: (threadId, contentsId, command) =>
+    ipcRenderer.invoke(IPC.browserPreview, threadId, contentsId, command),
   registerComputerBrowser: (threadId, contentsId) =>
     ipcRenderer.invoke(IPC.computerRegisterBrowser, threadId, contentsId),
   getComputerState: () => ipcRenderer.invoke(IPC.computerState),

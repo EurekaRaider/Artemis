@@ -150,6 +150,10 @@ portEvent.ports = [fakePort];
 window.dispatchEvent(portEvent);
 check("port onmessage 已绑定", typeof fakePort.onmessage === "function");
 function fromHost(msg) {
+  if (msg.type === "document-html") {
+    const request = sent.findLast((m) => m.type === "read-document-request");
+    msg = { ...request, ...msg };
+  }
   fakePort.onmessage({ data: msg });
 }
 
@@ -312,6 +316,7 @@ check("设计文件页签回文件视图", !document.getElementById("dzViewFiles
 document.querySelector('.design-ws-tab[data-dz-file="customer.html"]').click();
 check("文件页签回预览", !document.getElementById("dzViewPreview").hidden);
 
+fromHost({ type: "document-html", html: docHtml, name: "customer.html" });
 console.log("== 6. 预览|代码 ==");
 document.getElementById("dzModeSource").click();
 check("代码模式显示源码", !document.getElementById("dzSource").hidden);
@@ -1199,6 +1204,7 @@ check(
     .srcdoc.includes("<script"),
 );
 check("文字工具存在", !!document.querySelector('[data-dz-dtool="text"]'));
+fromHost({ type: "document-html", html: docHtml, name: "customer.html" });
 // 文档样式与资源策略（P1 新架构）：样式随沙箱帧保留，外部资源剥除
 check(
   "文档样式随沙箱帧保留",

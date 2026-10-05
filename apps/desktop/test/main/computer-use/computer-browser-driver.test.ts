@@ -18,8 +18,12 @@ async function fixture() {
     loadURL: vi.fn(async () => {}),
     invalidate: vi.fn(),
     capturePage: vi.fn(async () => image),
-    debugger: {
+    enableDeviceEmulation: vi.fn(),
+    disableDeviceEmulation: vi.fn(),
+    isDevToolsOpened: () => false,
+    debugger: Object.assign(new EventEmitter(), {
       isAttached: () => true,
+      detach: vi.fn(),
       sendCommand: vi.fn(async (method: string) =>
         method === "Accessibility.getFullAXTree"
           ? {
@@ -40,7 +44,7 @@ async function fixture() {
               },
             },
       ),
-    },
+    }),
   });
   const takeover = vi.fn();
   const driver = new ComputerBrowserDriver(
@@ -55,6 +59,34 @@ async function fixture() {
   );
   return { driver, page, image, target, controller, takeover };
 }
+
+it("keeps manual preview owned by its task and pauses AI before changing the viewport", async () => {
+  const f = await fixture();
+  await expect(
+    f.driver.preview("other", 1, { action: "snapshot" }),
+  ).rejects.toThrow(/owned/);
+  await f.driver.preview("task", 1, {
+    action: "viewport",
+    viewport: { width: 390, height: 844, scale: 0.5 },
+  });
+  expect(f.takeover).toHaveBeenCalledWith("task", "browser:1");
+  f.takeover.mockClear();
+  await f.driver.act(
+    f.target,
+    { type: "click_at", x: 100, y: 200 },
+    f.controller.signal,
+  );
+  expect(f.page.debugger.sendCommand).toHaveBeenCalledWith(
+    "Input.dispatchMouseEvent",
+    expect.objectContaining({ x: 50, y: 100 }),
+  );
+  f.driver.clearThread("task");
+  expect(f.page.listenerCount("before-input-event")).toBe(0);
+  expect(f.page.debugger.listenerCount("message")).toBe(0);
+  await expect(
+    f.driver.preview("task", 1, { action: "snapshot" }),
+  ).rejects.toThrow(/owned/);
+});
 
 it("pauses for active browser input but ignores a released browser during native control", async () => {
   const f = await fixture();

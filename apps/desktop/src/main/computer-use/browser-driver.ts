@@ -1,6 +1,8 @@
+import { BrowserDebugSession } from "./browser-debug-session.js";
+import type { BrowserPreviewCommand } from "@artemis/protocol";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import type { NativeImage, WebContents } from "electron";
+import { nativeImage, type NativeImage, type WebContents } from "electron";
 import type {
   ComputerAction,
   ComputerElement,
@@ -14,6 +16,8 @@ interface BrowserTarget {
   contents: WebContents;
   threadId: string;
   scale: number;
+  debug: BrowserDebugSession;
+  cleanup: () => void;
   nodes: Map<string, number>;
   expectedMouse?: { type: string; x: number; y: number };
 }
@@ -60,15 +64,28 @@ export class ComputerBrowserDriver implements ComputerDriver {
         throw new Error("Browser belongs to another task.");
       return;
     }
-    this.browsers.set(id, { contents, threadId, scale: 1, nodes: new Map() });
+    this.browsers.set(id, {
+      contents,
+      threadId,
+      scale: 1,
+      nodes: new Map(),
+      debug: new BrowserDebugSession(contents, () =>
+        this.takeover(threadId, id),
+      ),
+      cleanup: () => {},
+    });
     contents.once("destroyed", () => {
       this.browsers.delete(id);
       this.takeover(threadId, id);
     });
     // CDP mouse dispatch also emits before-mouse-event. Match only the exact
     // pending synthetic event; other input pauses this target's active control.
-    contents.on("before-input-event", () => this.takeover(threadId, id));
-    contents.on("before-mouse-event", (_event, mouse) => {
+    const input = () => this.takeover(threadId, id);
+    contents.on("before-input-event", input);
+    const mouseInput = (
+      _event: Electron.Event,
+      mouse: Electron.MouseInputEvent,
+    ) => {
       const browser = this.browsers.get(id);
       const expected = browser?.expectedMouse;
       if (
@@ -80,7 +97,12 @@ export class ComputerBrowserDriver implements ComputerDriver {
         delete browser!.expectedMouse;
       } else if (["mouseDown", "mouseWheel"].includes(mouse.type))
         this.takeover(threadId, id);
-    });
+    };
+    contents.on("before-mouse-event", mouseInput);
+    this.browsers.get(id)!.cleanup = () => {
+      contents.removeListener("before-input-event", input);
+      contents.removeListener("before-mouse-event", mouseInput);
+    };
   }
   private description(id: string, browser: BrowserTarget): ComputerTarget {
     return {
@@ -143,8 +165,7 @@ export class ComputerBrowserDriver implements ComputerDriver {
     signal: AbortSignal,
   ): Promise<T> {
     signal.throwIfAborted();
-    const debug = browser.contents.debugger;
-    if (!debug.isAttached()) debug.attach("1.3");
+
     if (method === "Input.dispatchMouseEvent")
       browser.expectedMouse = {
         type:
@@ -158,7 +179,7 @@ export class ComputerBrowserDriver implements ComputerDriver {
       };
     let result: unknown;
     try {
-      result = await debug.sendCommand(method, params);
+      result = await browser.debug.command(method, params, signal);
     } finally {
       if (method === "Input.dispatchMouseEvent") delete browser.expectedMouse;
     }
@@ -170,7 +191,16 @@ export class ComputerBrowserDriver implements ComputerDriver {
       signal.throwIfAborted();
       const { contents } = this.browser(target);
       try {
-        const image = await contents.capturePage();
+        const debug = this.browser(target).debug;
+        const image = debug.snapshot().viewport
+          ? nativeImage.createFromBuffer(
+              Buffer.from(
+                (await debug.execute({ action: "screenshot" }, signal)).image!
+                  .data,
+                "base64",
+              ),
+            )
+          : await contents.capturePage();
         signal.throwIfAborted();
         if (image.isEmpty())
           throw new Error("Browser capture returned an empty image");
@@ -235,7 +265,7 @@ export class ComputerBrowserDriver implements ComputerDriver {
       }
     }
     const url = browser.contents.getURL();
-    if (url !== "about:blank" && !/^https?:\/\//u.test(url))
+    if (url !== "about:blank" && !/^(https?:\/\/|artemis-preview:)/u.test(url))
       throw new Error("This browser document is unavailable to Computer Use.");
     target.url = url;
     target.name = browser.contents.getTitle() || "Artemis Browser";
@@ -307,6 +337,7 @@ export class ComputerBrowserDriver implements ComputerDriver {
       .update(
         JSON.stringify([
           url,
+          browser.debug.snapshot().navigationId,
           viewport,
           elements.map(
             ({ value: _value, valueDigest: _digest, ...element }) => element,
@@ -392,6 +423,9 @@ export class ComputerBrowserDriver implements ComputerDriver {
       x = (model.content[0]! + model.content[4]!) / 2;
       y = (model.content[1]! + model.content[5]!) / 2;
     }
+    const displayScale = browser.debug.snapshot().viewport?.scale ?? 1;
+    x *= displayScale;
+    y *= displayScale;
     await command("Input.dispatchMouseEvent", {
       type: "mousePressed",
       x,
@@ -426,8 +460,46 @@ export class ComputerBrowserDriver implements ComputerDriver {
       await command("Input.insertText", { text: action.text });
     }
   }
-  async release(target: ComputerTarget) {
-    const debug = this.browsers.get(target.id)?.contents.debugger;
-    if (debug?.isAttached()) debug.detach();
+  async preview(
+    threadId: string,
+    contentsId: number,
+    command: BrowserPreviewCommand,
+    signal = new AbortController().signal,
+  ) {
+    const browser = this.browsers.get(`browser:${contentsId}`);
+    if (
+      !browser ||
+      browser.threadId !== threadId ||
+      browser.contents.isDestroyed()
+    )
+      throw new Error("Browser is not owned by this task.");
+    if (["viewport", "inspect", "reload", "devtools"].includes(command.action))
+      this.takeover(threadId, `browser:${contentsId}`);
+    return browser.debug.execute(command, signal);
+  }
+  async debug(
+    target: ComputerTarget,
+    command: BrowserPreviewCommand,
+    signal: AbortSignal,
+  ) {
+    return this.browser(target).debug.execute(command, signal);
+  }
+  clearThread(threadId: string) {
+    for (const [id, browser] of this.browsers)
+      if (browser.threadId === threadId) {
+        browser.cleanup();
+        browser.debug.dispose();
+        this.browsers.delete(id);
+      }
+  }
+  dispose() {
+    for (const browser of this.browsers.values()) {
+      browser.cleanup();
+      browser.debug.dispose();
+    }
+    this.browsers.clear();
+  }
+  async release(_target: ComputerTarget) {
+    // Releasing AI control does not stop user-requested preview diagnostics.
   }
 }

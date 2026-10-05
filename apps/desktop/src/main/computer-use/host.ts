@@ -320,6 +320,13 @@ export class ComputerUseHost {
     this.browser.register(contents, threadId);
     this.waitingBrowsers.get(threadId)?.(contents);
   }
+  preview(
+    threadId: string,
+    contentsId: number,
+    command: import("@artemis/protocol").BrowserPreviewCommand,
+  ) {
+    return this.browser.preview(threadId, contentsId, command);
+  }
   private async authorizeForeground(
     target: ComputerTarget,
     context: ComputerContext,
@@ -401,6 +408,7 @@ export class ComputerUseHost {
       if (key.startsWith(`${threadId}\0`)) this.foregroundChoices.delete(key);
   }
   clearTask(threadId: string, reason = "Task permission revoked") {
+    this.browser.clearThread(threadId);
     this.service.stopThread(threadId, reason);
     this.clearTurn(threadId);
     for (const [id, p] of this.sessionPermissions)
@@ -418,6 +426,7 @@ export class ComputerUseHost {
     this.native.dispose();
   }
   dispose() {
+    this.browser.dispose();
     this.disable("Computer Use disabled");
     this.server.dispose();
   }

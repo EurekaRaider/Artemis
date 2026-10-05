@@ -169,7 +169,9 @@ async function headVersion(documentId) {
 
 // PR#245 P1-4：documentId 一律过形态校验（运行时生成的 uuid：小写十六
 // 进制+连字符），杜绝把 ../ 之类拼进 documents/ 路径。
-const DOCUMENT_ID_PATTERN = /^[0-9a-f][0-9a-f-]{7,63}$/;
+// Match the host compatibility rule; neither form permits path components.
+const DOCUMENT_ID_PATTERN =
+  /^(?:[0-9a-f][0-9a-f-]{7,63}|seed-[a-z0-9][a-z0-9-]{0,58})$/;
 function invalidDocumentId(documentId) {
   return (
     typeof documentId !== "string" || !DOCUMENT_ID_PATTERN.test(documentId)

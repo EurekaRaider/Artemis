@@ -2536,63 +2536,66 @@ export function ResourceCenter({
               />
             }
             className="resource-installed-overview"
-            title={t.manage}
+            title={`${t.manage} · ${t.plugins}`}
           >
             <div className="resource-installed-list">
-              {installedTiles.map((item) => (
-                <ManagementRow
-                  className="resource-installed-row"
-                  title={item.name}
-                  description={item.description}
-                  leading={
-                    <ResourceAvatar
-                      brandColor={item.brandColor}
-                      iconKey={item.iconKey}
-                      iconDataUrl={item.iconDataUrl}
-                      pluginName={item.pluginName}
-                      kind={item.kind}
-                      name={item.name}
-                    />
-                  }
-                  key={item.id}
-                  actions={
-                    <>
-                      <span
-                        className="resource-capability-status"
-                        data-state={
-                          item.needsAttention
-                            ? "warning"
-                            : item.enabled
-                              ? "enabled"
-                              : "disabled"
-                        }
-                      >
-                        {item.status ?? (item.enabled ? t.enabled : t.disabled)}
-                      </span>
-                      <Button
-                        variant="quiet"
-                        className="management-text-action"
-                        disabled={operationPending || Boolean(busyId)}
-                        label={`${item.actionLabel ?? t.configure} ${item.name}`}
-                        onClick={item.configure}
-                      >
-                        {item.actionLabel ?? t.configure}
-                      </Button>
-                      <Switch
-                        checked={item.enabled}
-                        label={`${t.enabled}: ${item.name}`}
-                        labelVisibility="hidden"
-                        disabled={
-                          operationPending || Boolean(busyId) || item.disabled
-                        }
-                        onCheckedChange={(enabled) =>
-                          runResourceOperation(() => item.toggle(enabled))
-                        }
+              {installedTiles
+                .filter((item) => item.kind === "plugin")
+                .map((item) => (
+                  <ManagementRow
+                    className="resource-installed-row"
+                    title={item.name}
+                    description={item.description}
+                    leading={
+                      <ResourceAvatar
+                        brandColor={item.brandColor}
+                        iconKey={item.iconKey}
+                        iconDataUrl={item.iconDataUrl}
+                        pluginName={item.pluginName}
+                        kind={item.kind}
+                        name={item.name}
                       />
-                    </>
-                  }
-                />
-              ))}
+                    }
+                    key={item.id}
+                    actions={
+                      <>
+                        <span
+                          className="resource-capability-status"
+                          data-state={
+                            item.needsAttention
+                              ? "warning"
+                              : item.enabled
+                                ? "enabled"
+                                : "disabled"
+                          }
+                        >
+                          {item.status ??
+                            (item.enabled ? t.enabled : t.disabled)}
+                        </span>
+                        <Button
+                          variant="quiet"
+                          className="management-text-action"
+                          disabled={operationPending || Boolean(busyId)}
+                          label={`${item.actionLabel ?? t.configure} ${item.name}`}
+                          onClick={item.configure}
+                        >
+                          {item.actionLabel ?? t.configure}
+                        </Button>
+                        <Switch
+                          checked={item.enabled}
+                          label={`${t.enabled}: ${item.name}`}
+                          labelVisibility="hidden"
+                          disabled={
+                            operationPending || Boolean(busyId) || item.disabled
+                          }
+                          onCheckedChange={(enabled) =>
+                            runResourceOperation(() => item.toggle(enabled))
+                          }
+                        />
+                      </>
+                    }
+                  />
+                ))}
               {installedTiles.length === 0 && (
                 <span className="resource-empty-inline">{t.noPlugins}</span>
               )}
@@ -2660,7 +2663,7 @@ export function ResourceCenter({
             />
           </>
         }
-        title={t.title}
+        title={t[managementTab]}
       />
 
       <div className="resource-management-toolbar">
@@ -2669,11 +2672,8 @@ export function ResourceCenter({
           disabled={operationPending}
           label={t.manage}
           onValueChange={(tab) => {
-            if (tab === "plugins" && managementTab !== "plugins") {
-              setMode("marketplace");
-              setManagementTab(tab);
-              setMessage(undefined);
-            } else switchManagementTab(tab);
+            if (tab === "plugins") setMode("marketplace");
+            switchManagementTab(tab);
           }}
           options={managementTabOptions.map((option) => ({
             ...option,

@@ -336,7 +336,7 @@ describe("reported screenshot regressions", () => {
     expect(composition).not.toHaveTextContent("缓存写入");
   });
 
-  it("lists every installed capability with a name, status, configuration action and working toggle", async () => {
+  it("keeps MCP resources in the MCP category with working configuration and toggles", async () => {
     const servers: McpServerStatus[] = Array.from(
       { length: 26 },
       (_, index) => ({
@@ -397,28 +397,23 @@ describe("reported screenshot regressions", () => {
       />,
     );
     await act(async () => {});
-    const list = container.querySelector(".resource-installed-list")!;
-    expect(list.querySelectorAll(".resource-installed-row")).toHaveLength(27);
+    const pluginList = container.querySelector(".resource-installed-list")!;
+    expect(pluginList).not.toHaveTextContent("Server 0");
+    expect(pluginList).toHaveTextContent("Shell Executor");
+    await userEvent.click(
+      screen.getByRole("tab", { name: "MCP", exact: true }),
+    );
     expect(
-      within(list as HTMLElement).getByRole("button", {
-        name: "信任 Shell Executor",
-      }),
+      screen.getAllByRole("heading", { name: "MCP", exact: true })[0],
     ).toBeVisible();
-    expect(
-      within(list as HTMLElement).getByRole("switch", {
-        name: "已启用: Shell Executor",
-      }),
-    ).toBeDisabled();
+    const list = container.querySelector(".resource-management-list")!;
     expect(list).toHaveTextContent("Server 25");
-    expect(list).toHaveTextContent("沙盒运行");
+    expect(list).not.toHaveTextContent("Shell Executor");
+    const firstRow = list.querySelector(".resource-management-row")!;
     expect(
-      within(list as HTMLElement).getByRole("button", {
-        name: "配置 Server 0",
-      }),
-    ).toBeVisible();
-    const enabled = within(list as HTMLElement).getByRole("switch", {
-      name: "已启用: Server 0",
-    });
+      within(firstRow as HTMLElement).getAllByRole("button")[0],
+    ).toHaveAccessibleName(/Server 0/);
+    const enabled = within(firstRow as HTMLElement).getByRole("switch");
     await userEvent.click(enabled);
     expect(toggle).toHaveBeenCalledWith("server-0", false);
     expect(enabled).not.toBeChecked();
