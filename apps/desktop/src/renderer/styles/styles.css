@@ -7429,7 +7429,6 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .credential-form,
-.credential-list,
 .mcp-dynamic-list,
 .configuration-import {
   display: flex;
@@ -7449,13 +7448,6 @@ button.sources-panel-entry.attachment:focus-visible {
   font-size: 13px;
   font-weight: 620;
   margin-bottom: 8px;
-}
-
-.settings-subheading {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 500;
-  margin-top: 4px;
 }
 
 .agent-concurrency-status {
@@ -11213,19 +11205,6 @@ kbd {
   max-width: 230px;
 }
 
-.settings-row-wide {
-  flex-wrap: wrap;
-}
-
-.settings-row-wide .settings-row-control {
-  flex-basis: 100%;
-  max-width: none;
-}
-
-.settings-builtin-models > [data-part="header"] {
-  display: none;
-}
-
 .settings-number-field {
   width: 128px;
   max-width: 100%;
@@ -11743,32 +11722,6 @@ kbd {
 .agent-concurrency-hardware dd {
   margin-inline-start: auto;
   text-align: end;
-}
-
-.provider-config-tabs {
-  align-self: flex-start;
-  padding: 2px;
-  gap: 2px;
-  background: var(--management-control-bg);
-  border: 0;
-  border-radius: 8px;
-  margin-bottom: -4px;
-}
-
-.provider-config-tabs [data-part="tab"] {
-  height: 29px;
-  min-height: 29px;
-  min-width: 72px;
-  padding: 5px 12px;
-  border: 0;
-  border-radius: 6px;
-  font-size: 12px;
-  line-height: 17px;
-}
-
-.provider-config-tabs [data-part="tab"][aria-selected="true"] {
-  background: var(--artemis-color-surface-base);
-  color: var(--artemis-color-text-primary);
 }
 
 .settings-tabs [data-part="icon"] svg {

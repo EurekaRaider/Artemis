@@ -639,6 +639,33 @@
       "important": false,
       "owner": "Desktop composer menu placement",
       "reason": "Composer menus open upward above the trigger; the shared component defaults to downward placement."
+    },
+    {
+      "atRules": [],
+      "selector": ".provider-login-actions > [data-artemis-component=\"button\"], .added-model-editor-actions > [data-artemis-component=\"button\"]",
+      "property": "padding-inline",
+      "value": "16px",
+      "important": false,
+      "owner": "Desktop provider forms",
+      "reason": "Preserve readable action padding for credential and inline model editors."
+    },
+    {
+      "atRules": [],
+      "selector": ".browser-preview-main-toolbar [data-artemis-component=\"icon-button\"]",
+      "property": "border-radius",
+      "value": "6px",
+      "important": false,
+      "owner": "Desktop responsive browser toolbar",
+      "reason": "Keep compact 28px preview controls consistent with the toolbar geometry."
+    },
+    {
+      "atRules": [],
+      "selector": ".browser-preview-dimensions [data-artemis-component=\"text-field\"]",
+      "property": "gap",
+      "value": "5px",
+      "important": false,
+      "owner": "Desktop responsive browser dimensions",
+      "reason": "Preserve compact label spacing in the inline viewport dimension controls."
     }
   ]
 }
