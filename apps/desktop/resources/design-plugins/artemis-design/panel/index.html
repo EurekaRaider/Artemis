@@ -364,6 +364,149 @@
         display: flex;
         flex-direction: column;
       }
+      /* 空态：主内容区正中（仅完全无文件时出现） */
+      .dz-start-empty {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+      }
+      .dz-start-title {
+        margin: 0;
+        font-size: 15px;
+        color: var(--artemis-color-text-secondary);
+      }
+      .dz-start-empty[hidden] {
+        display: none;
+      }
+      /* 图片创作视图：铺满预览舞台，图片 contain 居中；选区半透明蓝框 */
+      .dz-image-view {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--artemis-color-surface-raised);
+      }
+      .dz-image-mode #dzStage,
+      .dz-image-mode #dzDocFrame,
+      .dz-image-mode .dz-toolbar {
+        display: none;
+      }
+      .dz-image-view {
+        z-index: 2;
+      }
+      .dz-image-view[hidden] {
+        display: none;
+      }
+      .dz-image-stage {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        cursor: crosshair;
+      }
+      .dz-image-stage img {
+        max-inline-size: 100%;
+        max-block-size: 100%;
+        object-fit: contain;
+        user-select: none;
+      }
+      .dz-image-stage::-webkit-image-drag {
+        display: none;
+      }
+      #dzImageSelRect {
+        position: absolute;
+        border: 1.5px solid var(--artemis-color-focus-ring, #4a5568);
+        background: color-mix(
+          in srgb,
+          var(--artemis-color-focus-ring, #4a5568) 12%,
+          transparent
+        );
+        pointer-events: none;
+      }
+      .dz-image-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        border-block-start: 1px solid var(--border-soft);
+        background: var(--surface);
+      }
+      .dz-image-actions .btn-quiet {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 450;
+        white-space: nowrap;
+      }
+      .dz-image-prompt {
+        flex: 1;
+        min-width: 0;
+        height: 34px;
+        font: inherit;
+        font-size: 12px;
+        padding: 0 11px;
+        color: var(--text);
+        background: var(--surface-2);
+        border: 1px solid var(--border-soft);
+        border-radius: 9px;
+      }
+      .dz-image-prompt::placeholder {
+        color: var(--text-3);
+      }
+      .dz-image-send {
+        flex: none;
+        height: 34px;
+        padding: 0 11px;
+        gap: 7px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-3);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition:
+          background var(--t-quick),
+          border-color var(--t-quick);
+      }
+      .dz-image-send:hover {
+        background: var(--selected);
+        border-color: var(--text-3);
+        filter: none;
+      }
+      .dz-image-send:active {
+        background: var(--surface-2);
+      }
+      .dz-image-send:focus-visible,
+      .dz-image-prompt:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+      @media (max-width: 440px) {
+        .dz-image-actions {
+          flex-wrap: wrap;
+          padding: 10px;
+        }
+        .dz-image-prompt {
+          order: -1;
+          flex-basis: 100%;
+        }
+        .dz-image-send {
+          margin-inline-start: auto;
+        }
+      }
+      /* 图片预览卡缩略图：直接把 dataURL 画成背景 */
+      .dz-image-thumb {
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+      }
       /* 分类条：胶囊底 + 内嵌胶囊 tab 的分段控件（对齐截图形态）。
    分类过多时整体横向滚动，两端出左右箭头（OD df-cats 同款） */
       .design-cats {
@@ -2398,48 +2541,9 @@
             <path d="M5 10h14M10 5v14"></path></svg
           ><span class="design-ws-label">设计文件</span>
         </button>
-        <!-- 文件 tab 全动态：dzEnsureFileTab 按 open 的文档创建/复用，插入在 .dz-plus 之前 -->
-        <div class="dz-plus">
-          <button
-            aria-label="打开标签页"
-            aria-expanded="false"
-            class="design-ws-add"
-            data-tip="打开标签页"
-            id="dzPlusBtn"
-            title="打开标签页"
-            type="button"
-          >
-            <svg
-              fill="none"
-              height="13"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-width="1.7"
-              viewbox="0 0 24 24"
-              width="13"
-            >
-              <path d="M12 5v14M5 12h14"></path>
-            </svg>
-          </button>
-          <div
-            class="dz-menu dz-plus-menu"
-            hidden=""
-            id="dzPlusMenu"
-            role="menu"
-          >
-            <button
-              class="dz-menu-item"
-              data-dz-open="files"
-              role="menuitem"
-              type="button"
-            >
-              设计文件
-            </button>
-            <!-- 文档项动态：dzRenderFiles 按快照重建。OD 文件面板无手动刷新
-     （靠 file-changed 自动推送），我们的等价物是 onArtifactWrite
-     → pushDesignSnapshot，故不设刷新入口。 -->
-          </div>
-        </div>
+        <!-- 文件 tab 全动态：dzEnsureFileTab 按 open 的文档创建/复用，追加在
+     固定「设计文件」tab 之后。原「+」菜单只重复「设计文件」入口，无信息量，
+     已移除；打开文件走总览卡片。 -->
         <span class="sp"></span>
         <div class="design-ws-actions">
           <div class="design-ws-present">
@@ -2562,19 +2666,9 @@
       </div>
       <!-- 文件浏览视图（原型 design-files） -->
       <div class="design-files" id="dzViewFiles">
-        <div
-          id="dzStart"
-          style="
-            padding: 24px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-          "
-        >
-          <span id="dzStartHint"
-            >还没有设计。描述你想做的页面，开始第一份设计。</span
-          >
+        <!-- 空态（仅当没有任何设计文档与项目文件时显示，主区居中） -->
+        <div id="dzStart" class="dz-start-empty" hidden>
+          <p class="dz-start-title">开始您的创作之旅！</p>
           <button type="button" class="btn btn-primary" id="dzStartBtn">
             开始设计
           </button>
@@ -3241,6 +3335,46 @@
             src="about:blank"
             title="项目文件预览"
           ></iframe>
+          <!-- 图片创作视图：图片 + 框选区域 + 提示词行（dz-project-mode 同层） -->
+          <div class="dz-image-view" hidden="" id="dzImageView">
+            <div class="dz-image-stage" id="dzImageStage">
+              <img alt="" draggable="false" id="dzImageEl" />
+              <div hidden="" id="dzImageSelRect"></div>
+            </div>
+            <div class="dz-image-actions">
+              <button class="btn btn-quiet" id="dzImageSelClear" type="button">
+                清除选区
+              </button>
+              <input
+                aria-label="图片修改提示词"
+                class="dz-image-prompt"
+                id="dzImagePromptInput"
+                placeholder="描述这张图的修改…"
+                type="text"
+              />
+              <button
+                class="btn dz-image-send"
+                id="dzImageSend"
+                type="button"
+                title="将图片和修改要求加入聊天输入框"
+              >
+                <span>加入输入框</span>
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M7 17 17 7M7 7h10v10" />
+                </svg>
+              </button>
+            </div>
+          </div>
           <div class="dz-stage" id="dzStage">
             <div class="design-mock" id="dzMockDesktop">
               <div class="mock-empty">尚无文档</div>
@@ -3850,6 +3984,10 @@
           }
           function dzShow(view, file, opts) {
             var files = view === "files";
+            dzViewPreview.classList.remove("dz-image-mode");
+            $("#dzImageView").hidden = true;
+            dzImageSelection = null;
+            $("#dzImageSelRect").hidden = true;
             dzCloseMenus();
             $("#dzHistory").hidden = true;
             dzViewFiles.hidden = !files;
@@ -3911,11 +4049,12 @@
               '<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg>' +
               '<span class="design-ws-label"></span>' +
               '<span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>';
-            tab.querySelector(".design-ws-label").textContent = file;
-            var plusWrap = $(".dz-plus");
-            if (plusWrap && plusWrap.parentElement === dzTabsBar)
-              dzTabsBar.insertBefore(tab, plusWrap);
-            else dzTabsBar.appendChild(tab);
+            tab.querySelector(".design-ws-label").textContent = file.startsWith(
+              "image-view:",
+            )
+              ? title
+              : file;
+            dzTabsBar.insertBefore(tab, dzTabsBar.querySelector(".sp"));
             return tab;
           }
           /* 项目文件路径判定（tab 点击恢复用）：在最近一次快照的项目文件清单里 */
@@ -3952,7 +4091,9 @@
                   var nextName = remaining[0].dataset.dzFile;
 
                   var nextDoc = dzDocByName(nextName);
-                  if (nextDoc) {
+                  if (nextName.startsWith("image-view:")) {
+                    dzOpenImage({ path: nextName.slice(11) });
+                  } else if (nextDoc) {
                     dzProjectView = null; // 文档 tab 退出项目只读态
                     dzOpenDocument(nextDoc);
                   } else if (dzIsProjectFile(nextName)) {
@@ -3963,6 +4104,10 @@
               return;
             }
 
+            if (tab.dataset.dzFile.startsWith("image-view:")) {
+              dzOpenImage({ path: tab.dataset.dzFile.slice(11) });
+              return;
+            }
             var doc = dzDocByName(tab.dataset.dzFile);
             if (doc) {
               dzProjectView = null; // 文档 tab 退出项目只读态
@@ -3980,45 +4125,18 @@
      分类才出胶囊（OD availableTabs：空类没有 tab），顺序即 OD 的
      SECTION_ORDER，默认落在「页面」。OD 的「文件夹」来自真实目录列表，
      我们的数据模型没有目录层级，不设该类。 */
+          /* 保守白名单：项目扫描只收 页面+图片（宿主 scanProjectDesignFiles
+     同步此表），设计文档（runtime 产物）不受限、始终按名归类。 */
           var DZ_SECTION_ORDER = [
             ["html", "页面", "HTML 页面"],
-            ["stylesheet", "样式表", "样式表"],
-            ["code", "脚本", "脚本"],
-            ["document", "文档", "文档"],
-            ["text", "文本", "文本"],
             ["image", "图片", "图片"],
-            ["sketch", "草图", "草图"],
-            ["pdf", "PDF", "PDF"],
-            ["presentation", "演示文稿", "演示文稿"],
-            ["spreadsheet", "电子表格", "电子表格"],
-            ["video", "视频", "视频"],
-            ["audio", "音频", "音频"],
             ["binary", "其它", "文件"],
           ];
           function dzKindFor(name) {
             var n = String(name || "");
-            if (/\.sketch\.json$/i.test(n)) return "sketch";
             var m = /\.([a-z0-9]+)$/i.exec(n);
             var ext = m ? m[1].toLowerCase() : "";
             if (ext === "html" || ext === "htm") return "html";
-            if (
-              ext === "css" ||
-              ext === "scss" ||
-              ext === "sass" ||
-              ext === "less"
-            )
-              return "stylesheet";
-            if (
-              ext === "js" ||
-              ext === "mjs" ||
-              ext === "cjs" ||
-              ext === "ts" ||
-              ext === "tsx" ||
-              ext === "json" ||
-              ext === "py"
-            )
-              return "code";
-            if (ext === "svg") return "sketch";
             if (
               ext === "png" ||
               ext === "jpg" ||
@@ -4026,17 +4144,8 @@
               ext === "gif" ||
               ext === "webp" ||
               ext === "avif"
-            ) {
-              return /^sketch-/i.test(n) ? "sketch" : "image";
-            }
-            if (ext === "mp4" || ext === "mov" || ext === "webm")
-              return "video";
-            if (ext === "mp3" || ext === "wav" || ext === "m4a") return "audio";
-            if (ext === "md" || ext === "txt") return "text";
-            if (ext === "pdf") return "pdf";
-            if (ext === "docx") return "document";
-            if (ext === "pptx") return "presentation";
-            if (ext === "xlsx") return "spreadsheet";
+            )
+              return "image";
             return "binary";
           }
           function dzSectionMeta(kind) {
@@ -4070,6 +4179,9 @@
      根级。OD 的文件夹来自真实目录，我们按名字前缀派生，语义一致：
      进入文件夹后路径相对显示，可逐级返回。 */
           var dzCurrentFolder = null; // null=根级；"pages" 或 "pages/sub"
+          var dzActiveSection = null; // 用户点选的分类；null=跟随默认
+          var dzLastImageDir = null; // 图片创作目录（宿主记住的绝对路径）
+          var dzLastImages = []; // 该目录下的图片清单 [{path,bytes,updatedAt}]
           function dzFolderEntries(docs, prefix) {
             var map = {};
             docs.forEach(function (d) {
@@ -4282,7 +4394,11 @@
             var sig =
               dzCurrentFolder +
               "\u0000" +
-              dzSnapshotSig(documents || [], projectFiles || []);
+              dzSnapshotSig(documents || [], projectFiles || []) +
+              "\u0000" +
+              dzSnapshotSig([], dzLastImages) +
+              "\u0000" +
+              String(dzLastImageDir || "");
             if (
               sig === dzLastSnapshotSig &&
               $("#dzCards").childElementCount > 0
@@ -4299,10 +4415,13 @@
             projectFiles = (projectFiles || []).filter(function (f) {
               return f && typeof f.path === "string" && f.path;
             });
-            $("#dzStartHint").textContent =
-              documents.length || projectFiles.length
-                ? "继续创建设计，或打开已有页面。"
-                : "还没有设计。描述你想做的页面，开始第一份设计。";
+            // 空态语义：仅当设计文档与项目文件全空时显示居中引导；
+            // 有任何内容时隐藏空态、正常渲染胶囊与卡片。
+            var hasAny =
+              documents.length > 0 ||
+              projectFiles.length > 0 ||
+              dzLastImages.length > 0;
+            $("#dzStart").hidden = hasAny;
             dzLastDocs = documents;
             dzLastProjectFiles = projectFiles;
             // 当前文件夹被清空时回根级（设计文档与项目文件一并判断）
@@ -4329,12 +4448,7 @@
                 ? doc.name.slice(dzCurrentFolder.length + 1)
                 : doc.name;
             };
-            // plus 菜单文档项随快照重建（保留「设计文件」项）
-            $$("#dzPlusMenu .dz-menu-item[data-dz-open]").forEach(
-              function (item) {
-                if (item.dataset.dzOpen !== "files") item.remove();
-              },
-            );
+            // 「+」菜单已移除（只重复「设计文件」入口）；打开入口=总览卡片。
             // 归桶 + 文件夹：OD availableTabs 语义，空类不出胶囊；文件夹在最前。
             // 项目工作区文件并入同类计数（渲染为只读行）。
             var buckets = {};
@@ -4362,15 +4476,45 @@
                 }).length;
               if (count) tabs.push([def[0], def[1], count]);
             });
+            // 图片创作目录的图片并入「图片」胶囊计数（渲染为创作卡）。
+            var imageCount = dzCurrentFolder ? 0 : dzLastImages.length;
+            if (!dzCurrentFolder) {
+              var existing = tabs.find(function (tab) {
+                return tab[0] === "image";
+              });
+              if (existing) existing[2] += imageCount;
+              else tabs.push(["image", "图片", imageCount]);
+              // 保序：图片胶囊应在页面之后（SECTION_ORDER 语义）
+              tabs.sort(function (a, b) {
+                return (
+                  DZ_SECTION_ORDER.findIndex(function (d) {
+                    return d[0] === a[0];
+                  }) -
+                  DZ_SECTION_ORDER.findIndex(function (d) {
+                    return d[0] === b[0];
+                  })
+                );
+              });
+            }
+            /* 激活分类记忆：下钻/返回/快照重渲染不再被强制拽回默认页。
+     优先级：用户上次选的（仍存在）> 默认（有页面用页面，否则第一个
+     非空胶囊，含「文件夹」）。 */
+            var available = {};
+            tabs.forEach(function (tab) {
+              available[tab[0]] = true;
+            });
+            if (dzActiveSection && !available[dzActiveSection])
+              dzActiveSection = null;
             var defaultKey =
-              (buckets.html && buckets.html.length) ||
+              dzActiveSection ||
+              ((buckets.html && buckets.html.length) ||
               projectRows.some(function (f) {
                 return dzKindFor(f.name) === "html";
               })
                 ? "html"
                 : tabs.length
                   ? tabs[0][0]
-                  : null;
+                  : null);
             function dzApplyFilter(key) {
               var shown = 0;
               $$("#dzCards .design-file-card, #dzCards .dz-file-row").forEach(
@@ -4395,6 +4539,20 @@
                 : "← 全部文件";
               back.addEventListener("click", function () {
                 dzCurrentFolder = parent || null;
+                // 返回后回到「文件夹」胶囊：父层仍可能有下级目录；
+                // 父层没有目录时再交给默认选择。
+                var parentEntries = dzFolderEntries(
+                  dzInFolder(dzLastDocs, parent || null).concat(
+                    dzInFolder(
+                      (dzLastProjectFiles || []).map(function (f) {
+                        return { name: f.path };
+                      }),
+                      parent || null,
+                    ),
+                  ),
+                  parent || null,
+                );
+                dzActiveSection = parentEntries.length ? "folders" : null;
                 dzRenderFiles(dzLastDocs, dzLastProjectFiles);
               });
               cats.appendChild(back);
@@ -4410,6 +4568,7 @@
               count.textContent = String(tab[2]);
               b.appendChild(count);
               b.addEventListener("click", function () {
+                dzActiveSection = tab[0];
                 $$(".design-cat").forEach(function (o) {
                   o.classList.toggle("active", o === b);
                 });
@@ -4473,10 +4632,11 @@
               row.innerHTML =
                 '<span aria-hidden="true" class="dz-row-icon"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg></span>' +
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
-                folder.name +
+                "" +
                 '</span><span class="dz-row-sub">' +
                 folder.count +
                 " 个文件</span></span>";
+              row.querySelector(".dz-row-name").textContent = folder.name;
               row.addEventListener("click", function () {
                 dzCurrentFolder = dzCurrentFolder
                   ? dzCurrentFolder + "/" + folder.name
@@ -4554,22 +4714,6 @@
                 });
                 cards.appendChild(row);
               }
-              // plus 菜单同步一份文档项（与卡片同一打开入口）
-              var plusItem = document.createElement("button");
-              plusItem.className = "dz-menu-item";
-              plusItem.type = "button";
-              plusItem.setAttribute("role", "menuitem");
-              plusItem.setAttribute("data-dz-open", doc.name);
-              plusItem.setAttribute(
-                "data-dz-title",
-                name.replace(/\.html?$/, ""),
-              );
-              plusItem.textContent = name;
-              $("#dzPlusMenu").appendChild(plusItem);
-              plusItem.addEventListener("click", function () {
-                dzCloseMenus();
-                dzOpenDocument(doc, !isPage);
-              });
             });
             /* 项目工作区文件：OD renderPageCard 语义——HTML 页面与设计文档同卡呈现
        （缩略图网格，artemis-preview 帧），其余类别保持只读行（行尾标「项目」） */
@@ -4588,11 +4732,12 @@
                 card.innerHTML =
                   '<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>' +
                   '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name">' +
-                  name +
+                  "" +
                   '</span><span class="design-file-sub">' +
                   meta[2] +
                   (kb ? " · " + kb : "") +
                   ' · <span class="dz-project-badge">项目</span></span></span></span>';
+                card.querySelector(".design-file-name").textContent = name;
                 card.addEventListener("click", function () {
                   dzOpenProjectFile(file.name);
                 });
@@ -4610,17 +4755,243 @@
                 dzExtLabel(file.name) +
                 "</i></span>" +
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
-                name +
+                "" +
                 '</span><span class="dz-row-sub">' +
                 meta[2] +
                 (kb ? " · " + kb : "") +
                 " · 项目</span></span>";
+              row.querySelector(".dz-row-name").textContent = name;
               row.addEventListener("click", function () {
                 dzOpenProjectFile(file.name);
               });
               cards.appendChild(row);
             });
+            /* 图片创作卡：指定目录后展示其中图片（预览卡）；目录未指定时
+       出一张引导卡（点击选择并记住目录）。仅根级显示引导卡。 */
+            if (dzLastImageDir && !dzCurrentFolder) {
+              dzLastImages.forEach(function (img) {
+                var name = img.path;
+                var kb =
+                  img.bytes > 0 ? (img.bytes / 1024).toFixed(1) + " KiB" : "";
+                var card = document.createElement("button");
+                card.className = "design-file-card dz-image-card";
+                card.type = "button";
+                card.setAttribute("data-dz-cat", "image");
+                card.setAttribute("data-dz-image-path", img.path);
+                card.innerHTML =
+                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb"></span>' +
+                  '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name"></span><span class="design-file-sub"></span></span></span>';
+                card.querySelector(".dz-image-thumb").dataset.dzImage =
+                  img.path;
+                card.querySelector(".design-file-name").textContent = name;
+                card.querySelector(".design-file-sub").textContent =
+                  "图片" + (kb ? " · " + kb : "");
+                card.addEventListener("click", function () {
+                  dzOpenImage(img);
+                });
+                cards.appendChild(card);
+                dzLoadImageThumb(
+                  img.path,
+                  card.querySelector(".dz-image-thumb"),
+                );
+              });
+            }
+            if (!dzCurrentFolder) {
+              var guide = document.createElement("button");
+              guide.className = "dz-file-row dz-image-guide";
+              guide.type = "button";
+              guide.setAttribute("data-dz-cat", "image");
+              guide.innerHTML =
+                '<span aria-hidden="true" class="dz-row-icon"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg></span>' +
+                '<span class="dz-row-copy"><span class="dz-row-name">指定图片文件夹</span><span class="dz-row-sub">选择项目或本机文件夹，开始图片创作</span></span>';
+              guide.addEventListener("click", function () {
+                dzPickImageFolder();
+              });
+              cards.appendChild(guide);
+            }
             dzApplyFilter(defaultKey || "__none__");
+          }
+
+          /* ============ 图片创作 ============
+     三态：①未指定目录→引导卡；②目录内无图→空预览卡；③有图→预览卡
+     网格。点开图片进入创作视图：支持框选区域 + 提示词，发送到 composer
+     （提示词自动附带该图作为附件 + 区域裁剪信息），复用批注 composer
+     通路。目录选择经宿主 IPC 持久记住。 */
+          function dzPickImageFolder() {
+            if (!hostPort) return dzToast("设计面板尚未连接，请稍后重试");
+            hostPort.postMessage({ type: "pick-image-folder-request" });
+          }
+          function dzLoadImageThumb(path, holder) {
+            if (!holder || !hostPort) return;
+            hostPort.postMessage({
+              type: "read-image-request",
+              path: "image-dir:" + path,
+            });
+          }
+          function dzOpenImage(img) {
+            dzCloseProjectView();
+            dzProjectView = { path: "image-view:" + img.path };
+            dzEnsureFileTab("image-view:" + img.path, img.path);
+            dzShow("preview", "image-view:" + img.path, { keepProject: true });
+            dzPostActiveDocument(null);
+            dzViewPreview.classList.add("dz-image-mode");
+            var view = document.querySelector(".design-preview-view");
+            if (view) view.classList.add("dz-project-mode");
+            var frame = $("#dzProjectFrame");
+            if (frame) {
+              frame.hidden = true;
+              var view = $("#dzImageView");
+              var el = $("#dzImageEl");
+              view.hidden = false;
+              el.dataset.dzImagePath = img.path;
+              el.removeAttribute("src");
+              hostPort.postMessage({
+                type: "read-image-request",
+                path: "image-view:" + img.path,
+              });
+            }
+          }
+          /* 图片创作 composer：区域（可选）+ 提示词 + 该图 dataURL 附件 →
+     candidate-prompt（与批注附图同一通路，宿主 sanitizeCandidateImages
+     白名单校验）。图片 dataURL 由 read-image 请求缓存。 */
+          var dzImageSelection = null; // {x,y,w,h} 相对自然尺寸的比例
+          var dzImageDataUrls = {}; // path → dataURL（缩略图/视图共用缓存）
+          /* 框选：pointer 事件在 .dz-image-stage 上画矩形（相对图片显示区
+     换算成自然尺寸比例）。 */
+          (function () {
+            var stage = $("#dzImageStage");
+            var rect = $("#dzImageSelRect");
+            var img = $("#dzImageEl");
+            var drag = null;
+            function relRect() {
+              var ir = img.getBoundingClientRect();
+              var sr = stage.getBoundingClientRect();
+              return {
+                il: ir.left,
+                it: ir.top,
+                iw: ir.width,
+                ih: ir.height,
+                sl: sr.left,
+                st: sr.top,
+              };
+            }
+            stage.addEventListener("pointerdown", function (e) {
+              if (img.hidden || !img.naturalWidth) return;
+              var r = relRect();
+              if (
+                e.clientX < r.il ||
+                e.clientY < r.it ||
+                e.clientX > r.il + r.iw ||
+                e.clientY > r.it + r.ih
+              )
+                return;
+              dzImageSelection = null;
+              rect.hidden = true;
+              drag = { sx: e.clientX, sy: e.clientY };
+              stage.setPointerCapture(e.pointerId);
+            });
+            stage.addEventListener("pointermove", function (e) {
+              if (!drag) return;
+              var r = relRect();
+              var x1 = Math.max(r.il, Math.min(drag.sx, r.il + r.iw));
+              var y1 = Math.max(r.it, Math.min(drag.sy, r.it + r.ih));
+              var x2 = Math.max(r.il, Math.min(e.clientX, r.il + r.iw));
+              var y2 = Math.max(r.it, Math.min(e.clientY, r.it + r.ih));
+              var box = {
+                left: Math.min(x1, x2) - r.sl,
+                top: Math.min(y1, y2) - r.st,
+                width: Math.abs(x2 - x1),
+                height: Math.abs(y2 - y1),
+              };
+              rect.style.left = box.left + "px";
+              rect.style.top = box.top + "px";
+              rect.style.width = box.width + "px";
+              rect.style.height = box.height + "px";
+              rect.hidden = false;
+              if (img.naturalWidth && box.width > 2 && box.height > 2) {
+                dzImageSelection = {
+                  x: (Math.min(x1, x2) - r.il) / r.iw,
+                  y: (Math.min(y1, y2) - r.it) / r.ih,
+                  w: box.width / r.iw,
+                  h: box.height / r.ih,
+                };
+              }
+            });
+            function endDrag() {
+              drag = null;
+            }
+            stage.addEventListener("pointerup", endDrag);
+            stage.addEventListener("pointercancel", endDrag);
+            $("#dzImageSelClear").addEventListener("click", function () {
+              dzImageSelection = null;
+              rect.hidden = true;
+            });
+            $("#dzImageSend").addEventListener("click", function () {
+              var path = $("#dzImageEl").dataset.dzImagePath || "";
+              if (!path) return dzToast("未打开图片");
+              dzSendImagePrompt(path, dzImageSelection);
+            });
+            $("#dzImagePromptInput").addEventListener("keydown", function (e) {
+              if (e.key !== "Enter" || e.isComposing) return;
+              e.preventDefault();
+              var path = $("#dzImageEl").dataset.dzImagePath || "";
+              if (!path) return dzToast("未打开图片");
+              dzSendImagePrompt(path, dzImageSelection);
+            });
+          })();
+
+          function dzSendImagePrompt(imagePath, selection) {
+            var input = $("#dzImagePromptInput");
+            var text = ((input && input.value) || "").trim();
+            if (!text) return dzToast("请先输入提示词");
+            var spec = selection
+              ? "（修改区域 x:" +
+                Math.round(selection.x * 100) +
+                "%-" +
+                Math.round((selection.x + selection.w) * 100) +
+                "%，y:" +
+                Math.round(selection.y * 100) +
+                "%-" +
+                Math.round((selection.y + selection.h) * 100) +
+                "%）"
+              : "";
+            var payload = {
+              autoSend: false,
+              text: "图片修改：" + text + spec,
+            };
+            var dataUrl = dzImageDataUrls[imagePath];
+            if (!dataUrl) return dzToast("图片尚未加载或无法读取，请重试");
+            if (dataUrl.startsWith("data:image/avif;")) {
+              var image = $("#dzImageEl");
+              if (!image.complete || !image.naturalWidth)
+                return dzToast("图片尚未加载，请重试");
+              var canvas = document.createElement("canvas");
+              var scale = Math.min(
+                1,
+                4096 / Math.max(image.naturalWidth, image.naturalHeight),
+              );
+              canvas.width = Math.max(
+                1,
+                Math.round(image.naturalWidth * scale),
+              );
+              canvas.height = Math.max(
+                1,
+                Math.round(image.naturalHeight * scale),
+              );
+              canvas
+                .getContext("2d")
+                .drawImage(image, 0, 0, canvas.width, canvas.height);
+              dataUrl = canvas.toDataURL("image/png");
+            }
+            if (dataUrl.length > 10 * 1024 * 1024)
+              return dzToast("图片过大，请缩小后重试");
+            payload.images = [dataUrl];
+            dzPostCandidate(payload);
+            if (input) input.value = "";
+            dzImageSelection = null;
+            var box = $("#dzImageSelRect");
+            if (box) box.hidden = true;
+            dzToast("图片修改提示已加入输入框");
           }
 
           /* 项目文件预览：HTML 页面渲染进沙箱项目帧（#dzProjectFrame，宿主已把
@@ -4640,7 +5011,7 @@
             var view = document.querySelector(".design-preview-view");
             if (view) view.classList.add("dz-project-mode");
             var frame = $("#dzProjectFrame");
-            if (!/\.html?$/i.test(path)) {
+            if (!/\.(html?|png|jpe?g|gif|webp|avif)$/i.test(path)) {
               // 非 HTML 没有可视化舞台：直接落源码模式（OD 非页面文件同语义）
               frame.hidden = true;
               dzProjectView.sourceLoaded = true;
@@ -7175,7 +7546,6 @@
           /* ============ 导出 / 新建 / 项目菜单 ============ */
           [
             ["#dzExportBtn", "#dzExportMenu"],
-            ["#dzPlusBtn", "#dzPlusMenu"],
             ["#dzPresentBtn", "#dzPresentMenu"],
           ].forEach(function (pair) {
             $(pair[0]).addEventListener("click", function (e) {
@@ -7207,21 +7577,6 @@
               $("#dzShotBtn").click();
             }
           });
-          $$("#dzPlusMenu .dz-menu-item").forEach(function (item) {
-            item.addEventListener("click", function () {
-              dzCloseMenus();
-              if (item.dataset.dzOpen === "files") dzShow("files");
-              else {
-                var doc =
-                  currentDocument &&
-                  currentDocument.name === item.dataset.dzOpen
-                    ? currentDocument
-                    : { name: item.dataset.dzOpen };
-                dzOpenDocument(doc);
-              }
-            });
-          });
-
           /* ============ 全局点外收起 ============ */
           document.addEventListener("click", function (e) {
             /* 注释弹窗点外主动关闭（composer/评论面板内点击除外；
@@ -7277,6 +7632,15 @@
                   data.snapshot.canOpenProject !== true;
                 var docs = data.snapshot.documents || [];
                 var projectFiles = data.snapshot.projectFiles || [];
+                if (
+                  dzLastImageDir !== (data.snapshot.imageDir || null) ||
+                  dzSnapshotSig([], dzLastImages) !==
+                    dzSnapshotSig([], data.snapshot.images || [])
+                ) {
+                  dzImageDataUrls = {};
+                }
+                dzLastImageDir = data.snapshot.imageDir || null;
+                dzLastImages = data.snapshot.images || [];
                 // 保留用户已打开的文档（AI 后台改其他文档时不抢焦点）；
                 // 打开的文档已不在快照里（被删）才回落到最后一份。
                 var byId = {};
@@ -7322,6 +7686,34 @@
                     pendingDocRefresh = true;
                   }
                 }
+              }
+              if (data.type === "read-image-result" && data.path) {
+                var key = String(data.path).replace(/^image-(?:dir|view):/, "");
+                if (data.dataUrl) {
+                  dzImageDataUrls[key] = data.dataUrl;
+                  $$(".dz-image-thumb").forEach(function (thumb) {
+                    if (thumb.dataset.dzImage === key)
+                      thumb.style.backgroundImage =
+                        'url("' + data.dataUrl + '")';
+                  });
+                  var openEl = $("#dzImageEl");
+                  if (
+                    !$("#dzImageView").hidden &&
+                    openEl.dataset.dzImagePath === key
+                  ) {
+                    openEl.src = data.dataUrl;
+                    dzImageSelection = null;
+                    $("#dzImageSelRect").hidden = true;
+                  }
+                }
+                return;
+              }
+              if (data.type === "pick-image-folder-result") {
+                if (data.error) dzToast(data.error);
+                else if (data.imageDir) dzToast("图片文件夹已记住");
+                if (hostPort)
+                  hostPort.postMessage({ type: "snapshot-request" });
+                return;
               }
               if (data.type === "document-html") {
                 if (
@@ -7391,7 +7783,7 @@
                 if (!dzProjectView || dzProjectView.path !== data.name) return;
                 var view = document.querySelector(".design-preview-view");
                 if (view) view.classList.add("dz-project-mode");
-                if (/\.html?$/i.test(data.name)) {
+                if (/\.(html?|png|jpe?g|gif|webp|avif)$/i.test(data.name)) {
                   // 项目 HTML：srcdoc 沙箱 iframe（页面脚本/CDN 可执行，opaque
                   // origin 碰不到面板/宿主）+ 注入批注桥上报 hover/拾取（OD 同构）
                   dzMountProjectFrame(data.content, data.name, data.baseUrl);

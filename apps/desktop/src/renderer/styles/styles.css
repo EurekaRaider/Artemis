@@ -1475,7 +1475,6 @@ button.environment-activity-row:focus-visible {
 .environment-check-list > div > span:nth-child(2),
 .environment-row-copy,
 .environment-activity-row > span:nth-child(2),
-.resource-runtime-banner > [data-part="content"] > div,
 .plugin-market-copy,
 .resource-discovery-row > span {
   display: flex;
@@ -8060,26 +8059,6 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 0 0 auto;
 }
 
-.resource-runtime-banner > [data-part="content"] {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  justify-content: space-between;
-}
-
-.resource-runtime-banner strong {
-  font-size: 10.5px;
-  font-weight: 600;
-}
-
-.resource-runtime-banner small {
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.45;
-  margin-top: 3px;
-}
-
 .plugin-market-groups {
   display: flex;
   flex-direction: column;
@@ -12223,8 +12202,19 @@ kbd {
 }
 
 /* 名称下方的来源市场徽章，与 .plugin-market-source 同一视觉语言。 */
+/* 已安装插件的版本小字（名称后 v+版本）：弱于标题一档，等宽数字。 */
+.plugin-market-card-vn {
+  margin-inline-start: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--artemis-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .plugin-market-card-source {
   display: block;
+  min-inline-size: 0;
   max-inline-size: 100%;
   font-size: 10px;
   line-height: 1.6;
@@ -12239,6 +12229,7 @@ kbd {
 
 .plugin-market-card-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
@@ -12265,6 +12256,14 @@ kbd {
 
 .plugin-market-remove-action {
   --plugin-action-icon-color: light-dark(#d82e4d, #ff7489);
+}
+
+.plugin-market-remove-action [data-artemis-component="icon"] {
+  color: var(--plugin-action-icon-color);
+}
+
+.plugin-market-remove-action [data-artemis-icon] {
+  stroke-width: 2.25;
 }
 
 .plugin-market-card

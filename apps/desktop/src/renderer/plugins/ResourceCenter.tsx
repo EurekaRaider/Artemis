@@ -244,6 +244,7 @@ export function ResourceCenter({
   // 设计插件卡（随应用提供的插件，todo ⑤→④）：状态轮询 + 管理弹窗。
   const [designPackStatus, setDesignPackStatus] =
     useState<CapabilityPackStatus>();
+  const designPackInstalled = Boolean(designPackStatus?.versions.length);
   const [designPackOpen, setDesignPackOpen] = useState(false);
   const [pluginUninstallDraft, setPluginUninstallDraft] =
     useState<InstalledArtemisPlugin>();
@@ -1828,6 +1829,11 @@ export function ResourceCenter({
                 : locale === "zh-TW"
                   ? "Office 套件"
                   : "Office"}
+              {status?.activeVersion && (
+                <span className="plugin-market-card-vn">
+                  v{status.activeVersion}
+                </span>
+              )}
             </strong>
             <small className="plugin-market-card-source">
               {t.marketplaceSource}: {t.bundledPlugins}
@@ -1870,12 +1876,7 @@ export function ResourceCenter({
                 )}
                 <Button
                   variant="secondary"
-                  onClick={() => setOfficeCapabilityOpen(true)}
-                >
-                  {office.manage}
-                </Button>
-                <Button
-                  variant="secondary"
+                  className="management-destructive-action plugin-market-remove-action"
                   icon={<TrashIcon />}
                   disabled={status?.versions.some(
                     (version) => version.active && version.inUse,
@@ -1931,12 +1932,26 @@ export function ResourceCenter({
             }
           />
           <div className="plugin-market-card-titles">
-            <strong>
+            <strong
+              title={`${
+                locale === "zh-TW"
+                  ? "設計"
+                  : locale === "zh-CN"
+                    ? "设计"
+                    : "Design"
+              } v${designPackStatus?.activeVersion ?? ""}`}
+            >
               {locale === "zh-TW"
                 ? "設計"
                 : locale === "zh-CN"
                   ? "设计"
                   : "Design"}
+              {/* 与通用卡一致：已安装时在名称后跟小号 v+版本号。 */}
+              {designPackInstalled && designPackStatus?.activeVersion && (
+                <span className="plugin-market-card-vn">
+                  v{designPackStatus.activeVersion}
+                </span>
+              )}
             </strong>
             <small className="plugin-market-card-source">
               {t.marketplaceSource}: {t.bundledPlugins}
@@ -2112,7 +2127,17 @@ export function ResourceCenter({
             name={plugin.name}
           />
           <div className="plugin-market-card-titles">
-            <strong title={displayName}>{displayName}</strong>
+            <strong
+              title={`${displayName} v${installedPlugin?.version ?? plugin.version}`}
+            >
+              {displayName}
+              {/* 已安装的插件在名称后跟小号 v+版本号。 */}
+              {installed && (
+                <span className="plugin-market-card-vn">
+                  v{installedPlugin?.version ?? plugin.version}
+                </span>
+              )}
+            </strong>
             <small
               className="plugin-market-card-source"
               title={`${t.marketplaceSource}: ${sourceLabel}`}
@@ -2691,6 +2716,9 @@ export function ResourceCenter({
             </InlineNotice>
           )}
 
+          {/* 第三方提示在来源 tab 条之上（先讲清风险再选来源）。 */}
+          <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
+
           <MarketplaceTabs
             disabled={operationPending}
             label={t.marketplaces}
@@ -2701,8 +2729,6 @@ export function ResourceCenter({
             size="compact"
             value={activeMarketplaceTabOption.value}
           />
-
-          <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
 
           {marketplaceTabOptions
             .filter(

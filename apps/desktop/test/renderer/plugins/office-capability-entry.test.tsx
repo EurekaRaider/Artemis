@@ -160,7 +160,7 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     name: "管理 Office 套件",
     exact: true,
   });
-  expect(manage).toHaveLength(4);
+  expect(manage).toHaveLength(3);
   fireEvent.click(manage[0]!);
   const panel = await screen.findByRole("dialog", { name: "管理 Office 套件" });
   fireEvent.click(
@@ -194,7 +194,7 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
   await waitFor(() =>
     expect(
       screen.getAllByRole("button", { name: "管理 Office 套件", exact: true }),
-    ).toHaveLength(4),
+    ).toHaveLength(3),
   );
   mounted.unmount();
   status.mockClear();
@@ -209,6 +209,6 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
   await waitFor(() =>
     expect(
       screen.getAllByRole("button", { name: "管理 Office 套件", exact: true }),
-    ).toHaveLength(4),
+    ).toHaveLength(3),
   );
 });

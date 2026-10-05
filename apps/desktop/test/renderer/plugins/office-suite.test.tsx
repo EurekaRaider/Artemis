@@ -111,11 +111,15 @@ it("offers one Office installation, hides legacy basic plugins, and refreshes af
   expect(screen.queryByText("安装所需文档插件")).toBeNull();
   fireEvent.click(card.getByRole("button", { name: "安装" }));
   await waitFor(() => expect(install).toHaveBeenCalledOnce());
-  expect(
-    await card.findByRole("button", { name: "管理 Office 套件" }),
-  ).toBeVisible();
+  expect(await card.findByRole("button", { name: "卸载" })).toBeVisible();
+  expect(card.queryByRole("button", { name: "管理 Office 套件" })).toBeNull();
+  expect(card.getByText("v1.0.0")).toBeVisible();
+  expect(card.getByRole("button", { name: "卸载" })).toHaveClass(
+    "plugin-market-remove-action",
+  );
   fireEvent.click(card.getByRole("button", { name: "卸载" }));
   await waitFor(() => expect(uninstall).toHaveBeenCalledWith("1.0.0"));
   expect(await card.findByRole("button", { name: "安装" })).toBeVisible();
+  expect(card.queryByText("v1.0.0")).toBeNull();
   expect(basicInstall).not.toHaveBeenCalled();
 });

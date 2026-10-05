@@ -9,7 +9,7 @@
 //     6MiB、visited 防环。
 
 import { constants as fsConstants } from "node:fs";
-import { open, realpath } from "node:fs/promises";
+import { open, readdir, realpath, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 
 /** 项目图片资产（dataURL 内联）的 MIME 表。 */
@@ -285,6 +285,15 @@ export async function readProjectFileForPreview(input: {
     requestedPath.startsWith("/")
   )
     throw new ProjectFileReadError("Invalid project file path.");
+  if (DESIGN_SCAN_IMAGE_EXTENSIONS.has(extname(requestedPath).toLowerCase())) {
+    const dataUrl = await readDesignImage(input.workspacePath, requestedPath);
+    if (!dataUrl)
+      throw new ProjectFileReadError("Project image is unreadable or unsafe.");
+    return {
+      name: requestedPath,
+      content: `<html><body style="margin:0;display:grid;place-items:center;height:100vh"><img style="max-width:100%;max-height:100vh" src="${dataUrl}"></body></html>`,
+    };
+  }
   if (!DESIGN_PROJECT_TEXT_EXTENSIONS.test(requestedPath))
     throw new ProjectFileReadError("此项目文件类型暂不支持预览。");
   const absolute = join(input.workspacePath, requestedPath);
@@ -321,4 +330,100 @@ export async function readProjectFileForPreview(input: {
       )
     : content;
   return { name: requestedPath, content: inlined };
+}
+
+/** 项目文件扫描（面板「设计文件」总览）：保守白名单——只收 设计页面
+ * （html/htm）与图片（png/jpg/jpeg/gif/webp/avif），与面板胶囊的两类
+ * 一致。广度优先浅层优先，深度 ≤4、总量 ≤120；跳过点开头/符号链接/
+ * 依赖与构建产物目录；拒绝符号链接（与读取管线的安全模型一致）。 */
+export const DESIGN_SCAN_IMAGE_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".avif",
+]);
+
+const DESIGN_SCAN_IGNORED_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "dist-electron",
+  "dist-renderer",
+  "build",
+  "out",
+  "coverage",
+  "vendor",
+  "__pycache__",
+  ".cache",
+  ".next",
+  ".output",
+  "target",
+  "artifacts",
+  ".zcode",
+]);
+
+export async function scanProjectDesignFiles(
+  workspacePath: string,
+  imagesOnly = false,
+): Promise<Array<{ path: string; bytes: number; updatedAt: string }>> {
+  const files: Array<{ path: string; bytes: number; updatedAt: string }> = [];
+  let level: Array<{ dir: string; prefix: string }> = [
+    { dir: workspacePath, prefix: "" },
+  ];
+  for (let depth = 0; level.length > 0 && files.length < 120; depth += 1) {
+    if (depth > 4) break;
+    const next: Array<{ dir: string; prefix: string }> = [];
+    for (const { dir, prefix } of level) {
+      if (files.length >= 120) break;
+      const entries = (
+        await readdir(dir, { withFileTypes: true }).catch(() => [])
+      ).sort((a, b) => a.name.localeCompare(b.name));
+      for (const entry of entries) {
+        if (files.length >= 120) break;
+        if (entry.name.startsWith(".")) continue;
+        const absolute = join(dir, entry.name);
+        const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) {
+          if (DESIGN_SCAN_IGNORED_DIRS.has(entry.name)) continue;
+          next.push({ dir: absolute, prefix: path });
+          continue;
+        }
+        if (!entry.isFile()) continue;
+        const ext = extname(entry.name).toLowerCase();
+        if (
+          (imagesOnly || (ext !== ".html" && ext !== ".htm")) &&
+          !DESIGN_SCAN_IMAGE_EXTENSIONS.has(ext)
+        )
+          continue;
+        const info = await stat(absolute).catch(() => undefined);
+        if (!info || !info.isFile()) continue;
+        files.push({
+          path,
+          bytes: info.size,
+          updatedAt: info.mtime.toISOString(),
+        });
+      }
+    }
+    level = next;
+  }
+  return files;
+}
+
+/** Read a selected image directory through the same bounded, rechecked pipeline as previews. */
+export async function readDesignImage(
+  directory: string,
+  requestPath: string,
+): Promise<string | undefined> {
+  const relative = requestPath.replace(/^image-(?:dir|view):/, "");
+  if (!DESIGN_SCAN_IMAGE_EXTENSIONS.has(extname(relative).toLowerCase()))
+    return undefined;
+  const root = await realpath(directory).catch(() => undefined);
+  if (!root) return undefined;
+  const target = resolve(root, relative);
+  const read = await readWorkspaceFileBytes(root, target, 2 * 1024 * 1024);
+  if (!read) return undefined;
+  return `data:${DESIGN_IMAGE_MIME[extname(relative).toLowerCase()]};base64,${read.bytes.toString("base64")}`;
 }
