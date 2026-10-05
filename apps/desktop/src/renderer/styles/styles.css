@@ -1475,7 +1475,6 @@ button.environment-activity-row:focus-visible {
 .environment-check-list > div > span:nth-child(2),
 .environment-row-copy,
 .environment-activity-row > span:nth-child(2),
-.resource-runtime-banner > [data-part="content"] > div,
 .plugin-market-copy,
 .resource-discovery-row > span {
   display: flex;
@@ -8058,26 +8057,6 @@ button.sources-panel-entry.attachment:focus-visible {
 
 .resource-tab-scroll {
   flex: 0 0 auto;
-}
-
-.resource-runtime-banner > [data-part="content"] {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  justify-content: space-between;
-}
-
-.resource-runtime-banner strong {
-  font-size: 10.5px;
-  font-weight: 600;
-}
-
-.resource-runtime-banner small {
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.45;
-  margin-top: 3px;
 }
 
 .plugin-market-groups {
