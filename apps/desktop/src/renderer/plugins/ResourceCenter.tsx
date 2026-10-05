@@ -225,6 +225,9 @@ export function ResourceCenter({
   const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
   const [pluginInstallDraft, setPluginInstallDraft] =
     useState<ArtemisPluginPreview>();
+  const [officePackStatus, setOfficePackStatus] =
+    useState<CapabilityPackStatus>();
+  const [officeUpdating, setOfficeUpdating] = useState(false);
   const [officeCapabilityActive, setOfficeCapabilityActive] = useState(false);
   const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
   const [officeCapabilityInstalled, setOfficeCapabilityInstalled] =
@@ -277,13 +280,13 @@ export function ResourceCenter({
   );
 
   useEffect(() => {
-    if (!hasOfficePlugins) return;
     let active = true;
     const refresh = () =>
       void window.artemis
-        .officeCapabilityStatus()
+        .officeCapabilityStatus?.()
         .then((status) => {
           if (active) {
+            setOfficePackStatus(status);
             setOfficeCapabilityInstalled(status.versions.length > 0);
             setOfficeCapabilityActive(Boolean(status.activeVersion));
           }
@@ -292,12 +295,43 @@ export function ResourceCenter({
           if (active) setMessage(String(error));
         });
     refresh();
+    const timer = officeUpdating ? setInterval(refresh, 1000) : undefined;
     window.addEventListener("focus", refresh);
     return () => {
       active = false;
+      clearInterval(timer);
       window.removeEventListener("focus", refresh);
     };
-  }, [hasOfficePlugins, officeCapabilityOpen]);
+  }, [hasOfficePlugins, officeCapabilityOpen, officeUpdating]);
+
+  useEffect(() => {
+    let active = true;
+    void window.artemis
+      .checkOfficeCapabilityUpdates?.()
+      .then(() => window.artemis.officeCapabilityStatus())
+      .then((status) => {
+        if (active) setOfficePackStatus(status);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Check the signed catalog each time the store opens; polling only reads status.
+  useEffect(() => {
+    let active = true;
+    void window.artemis
+      .checkDesignCapabilityUpdates?.()
+      .then(() => window.artemis.designCapabilityStatus())
+      .then((status) => {
+        if (active) setDesignPackStatus(status);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // 设计插件状态轮询：轻量本地 IPC，跟随窗口焦点刷新。
   useEffect(() => {
@@ -1786,10 +1820,22 @@ export function ResourceCenter({
             brandColor="#6d5ae6"
             iconDataUrl={designPluginIcon}
             kind="plugin"
-            name={locale.startsWith("zh") ? "设计插件" : "Design"}
+            name={
+              locale === "zh-TW"
+                ? "設計"
+                : locale === "zh-CN"
+                  ? "设计"
+                  : "Design"
+            }
           />
           <div className="plugin-market-card-titles">
-            <strong>{locale.startsWith("zh") ? "设计插件" : "Design"}</strong>
+            <strong>
+              {locale === "zh-TW"
+                ? "設計"
+                : locale === "zh-CN"
+                  ? "设计"
+                  : "Design"}
+            </strong>
             <small className="plugin-market-card-source">
               {t.marketplaceSource}: {t.bundledPlugins}
             </small>
@@ -1827,7 +1873,8 @@ export function ResourceCenter({
               <>
                 {status?.updateVersion ? (
                   <Button
-                    variant="primary"
+                    className="plugin-market-update-action"
+                    variant="secondary"
                     size="compact"
                     onClick={() =>
                       void window.artemis
@@ -2007,9 +2054,53 @@ export function ResourceCenter({
             )}
             {installed && installedPlugin ? (
               <>
+                {hasOfficeCapability &&
+                  (officePackStatus?.updateVersion || officeUpdating) && (
+                    <>
+                      {officeUpdating && (
+                        <progress
+                          aria-label={office.working}
+                          max={officePackStatus?.totalBytes || 1}
+                          value={officePackStatus?.downloadedBytes}
+                          style={{ width: 100 }}
+                        />
+                      )}
+                      <Button
+                        className="plugin-market-update-action"
+                        variant="secondary"
+                        size="compact"
+                        disabled={
+                          operationPending ||
+                          Boolean(
+                            officePackStatus &&
+                            officePackStatus.phase !== "idle",
+                          )
+                        }
+                        onClick={() =>
+                          runResourceOperation(async () => {
+                            setMessage(undefined);
+                            setOfficeUpdating(true);
+                            try {
+                              await window.artemis.installOfficeCapability();
+                            } finally {
+                              setOfficeUpdating(false);
+                            }
+                          })
+                        }
+                      >
+                        {officeUpdating
+                          ? office.working
+                          : office.updateNow.replace(
+                              "{version}",
+                              officePackStatus!.updateVersion!,
+                            )}
+                      </Button>
+                    </>
+                  )}
                 {hasOfficeCapability ? (
                   <Button
                     className="plugin-market-configure-action"
+                    disabled={officeUpdating}
                     icon={
                       <ArtemisIcon
                         name={
@@ -2443,6 +2534,60 @@ export function ResourceCenter({
           aria-labelledby="resource-management-tab-plugins"
         >
           {renderProgressAndMessage()}
+          {officePackStatus?.updateVersion && (
+            <InlineNotice tone="info">
+              Office:{" "}
+              {office.updateAvailable.replace(
+                "{version}",
+                officePackStatus.updateVersion,
+              )}
+              <Button
+                className="plugin-market-update-action"
+                variant="secondary"
+                size="compact"
+                onClick={() => setOfficeCapabilityOpen(true)}
+              >
+                {office.updateNow.replace(
+                  "{version}",
+                  officePackStatus.updateVersion,
+                )}
+              </Button>
+            </InlineNotice>
+          )}
+          {officePackStatus?.updateCheck === "error" && (
+            <InlineNotice tone="warning">
+              Office: {office.checkFailed}
+            </InlineNotice>
+          )}
+          {designPackStatus?.updateVersion && (
+            <InlineNotice tone="info">
+              {locale === "zh-TW"
+                ? "設計："
+                : locale === "zh-CN"
+                  ? "设计："
+                  : "Design: "}
+              {designPackCopy(locale).updateAvailable.replace(
+                "{version}",
+                designPackStatus.updateVersion,
+              )}
+              <Button
+                className="plugin-market-update-action"
+                variant="secondary"
+                size="compact"
+                onClick={() => setDesignPackOpen(true)}
+              >
+                {designPackCopy(locale).updateNow.replace(
+                  "{version}",
+                  designPackStatus.updateVersion,
+                )}
+              </Button>
+            </InlineNotice>
+          )}
+          {designPackStatus?.updateCheck === "error" && (
+            <InlineNotice tone="warning">
+              {designPackCopy(locale).checkFailed}
+            </InlineNotice>
+          )}
 
           <MarketplaceTabs
             disabled={operationPending}

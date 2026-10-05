@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ArtifactEvent } from "@artemis/protocol";
 import { rcompare } from "semver";
+import { updateCapabilityPackForHostUpgrade } from "../capabilities/capability-pack-host-upgrade.js";
 import { CapabilityPackService } from "../capabilities/capability-pack-service.js";
 import { OfficeSessionService } from "./office-session-service.js";
 import { UnoOfficeEngine, verifyOfficeNative } from "./office-uno-engine.js";
@@ -70,5 +71,15 @@ export async function createOfficeWorkbench(options: {
     // Enable only after the native round-trip matrix accepts an explicit support policy.
     canSaveOriginal: async () => false,
   });
+  try {
+    await updateCapabilityPackForHostUpgrade(
+      { packs, updates },
+      options.userData,
+      options.hostVersion,
+      "office-core",
+    );
+  } catch (error) {
+    console.error("[office] automatic update failed", error);
+  }
   return { packs, sessions, catalog, updates, status };
 }

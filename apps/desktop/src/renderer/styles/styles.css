@@ -12308,8 +12308,13 @@ kbd {
   gap: var(--artemis-space-1);
   min-inline-size: 0;
   padding: var(--artemis-space-1) var(--artemis-space-2);
-  border: var(--artemis-border-width-default) solid var(--border-soft);
   border-radius: 0;
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"]
+  [data-artemis-component="button"]:not(.plugin-market-update-action) {
+  border: var(--artemis-border-width-default) solid var(--border-soft);
   background: var(--management-control-bg);
   color: var(--artemis-color-text-primary);
 }
@@ -12352,7 +12357,9 @@ kbd {
 
 .plugin-market-card
   .plugin-market-card-actions[data-installed="true"]
-  [data-artemis-component="button"]:hover:not(:disabled) {
+  [data-artemis-component="button"]:not(.plugin-market-update-action):hover:not(
+    :disabled
+  ) {
   border-color: var(--border);
   background: var(--artemis-color-surface-sunken);
 }

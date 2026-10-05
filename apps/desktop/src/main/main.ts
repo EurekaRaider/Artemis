@@ -11538,6 +11538,8 @@ function registerIpc(): void {
           });
         }
       }
+      // New design tasks must bind to the revision just installed as well.
+      designPackSyncedRevision = result;
       return result;
     } catch (error) {
       console.error("[design-pack] revision sync failed", error);
@@ -11559,6 +11561,13 @@ function registerIpc(): void {
     designPackSyncedRevision = await syncDesignPackRevision();
     return designPackSyncedRevision;
   };
+  void getOfficeWorkbench().catch((error) =>
+    console.error("[office] startup reconciliation failed", error),
+  );
+  // Reconcile an upgraded host even when the user never opens the store.
+  void ensureDesignPackSynced().catch((error) =>
+    console.error("[design-pack] startup reconciliation failed", error),
+  );
   ipcMain.handle(IPC.designCapabilityStatus, async () => {
     await ensureDesignPackSynced();
     return (await getDesignPackRuntime()).status();

@@ -131,7 +131,7 @@ export interface DesignPackSettingsCopy {
 
 const settingsCopy: Partial<Record<AppLocale, DesignPackSettingsCopy>> = {
   en: {
-    title: "Design plugin",
+    title: "Design",
     statusNone: "Off — design mode is hidden.",
     statusInstalled: "On — design mode is available.",
     statusUpdate: "On — version {version} is available.",
@@ -139,7 +139,7 @@ const settingsCopy: Partial<Record<AppLocale, DesignPackSettingsCopy>> = {
     hint: "Downloading uses the same verified channel as the Office pack.",
   },
   "zh-CN": {
-    title: "设计插件",
+    title: "设计",
     statusNone: "关 —— 设计模式隐藏。",
     statusInstalled: "开 —— 设计模式可用。",
     statusUpdate: "开 —— 有新版本 {version} 可更新。",
@@ -147,7 +147,7 @@ const settingsCopy: Partial<Record<AppLocale, DesignPackSettingsCopy>> = {
     hint: "下载使用与 Office 能力包相同的签名渠道。",
   },
   "zh-TW": {
-    title: "設計外掛",
+    title: "設計",
     statusNone: "關 —— 設計模式隱藏。",
     statusInstalled: "開 —— 設計模式可用。",
     statusUpdate: "開 —— 有新版本 {version} 可更新。",

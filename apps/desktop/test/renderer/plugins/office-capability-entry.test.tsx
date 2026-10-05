@@ -47,8 +47,20 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     ],
   }));
   let installed = true;
+  let updateVersion: string | undefined = "1.1.0";
+  let finishUpdate: (() => void) | undefined;
+  const install = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finishUpdate = () => {
+          updateVersion = undefined;
+          resolve();
+        };
+      }),
+  );
   const status = vi.fn(async () => ({
     id: "office-core",
+    updateVersion,
     phase: "idle",
     downloadedBytes: 0,
     totalBytes: 0,
@@ -86,6 +98,7 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     }),
     onResourceInstallProgress: () => () => {},
     officeCapabilityStatus: status,
+    installOfficeCapability: install,
     importOfficeCapability: async () => {
       installed = true;
     },
@@ -101,6 +114,44 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     />,
   );
   await waitFor(() => expect(status).toHaveBeenCalled());
+  const cardActions = () =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-office="true"]'));
+  await waitFor(() => expect(cardActions()).toHaveLength(3));
+  for (const card of cardActions()) {
+    expect(
+      within(card).getByRole("button", { name: "更新到 1.1.0" }),
+    ).toBeVisible();
+  }
+  install.mockRejectedValueOnce(new Error("Download failed"));
+  fireEvent.click(
+    within(cardActions()[0]!).getByRole("button", { name: "更新到 1.1.0" }),
+  );
+  expect(await screen.findByText("Download failed")).toBeVisible();
+  await waitFor(() =>
+    expect(
+      within(cardActions()[0]!).getByRole("button", { name: "更新到 1.1.0" }),
+    ).toBeEnabled(),
+  );
+  fireEvent.click(
+    within(cardActions()[0]!).getByRole("button", { name: "更新到 1.1.0" }),
+  );
+  expect(install).toHaveBeenCalledTimes(2);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  for (const card of cardActions()) {
+    expect(within(card).getByRole("progressbar")).toBeVisible();
+    expect(
+      within(card).getByRole("button", { name: "正在安装…" }),
+    ).toBeDisabled();
+  }
+  finishUpdate!();
+  await waitFor(() => {
+    for (const card of cardActions()) {
+      expect(
+        within(card).queryByRole("button", { name: "更新到 1.1.0" }),
+      ).toBeNull();
+      expect(within(card).queryByRole("progressbar")).toBeNull();
+    }
+  });
   const manage = await screen.findAllByRole("button", {
     name: "管理 Office 配置",
     exact: true,
