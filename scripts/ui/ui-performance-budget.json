@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 500000,
+      "desktopCssBytes": 600000,
       "desktopJsBytes": 10000000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -265,6 +265,16 @@
       "desktopJsMaximumBytes": 10000000,
       "measuredDesktopLargestJsBytes": 1878203,
       "reason": "Timeline Mermaid diagrams and KaTeX formulas add lazily loaded renderers and diagram layouts. Baseline and candidate use the same installed dependencies, shared UI builds and production Vite pipeline; baseline desktop sources are from baseHead. Total JavaScript counts every optional diagram chunk, including ELK and Cytoscape, even when it is not loaded at startup. Set a 10000000-byte hard cap with approximately 2% measured headroom. The largest-chunk, CSS, shared UI, gallery, startup and workload gates remain unchanged."
+    },
+    {
+      "date": "2026-10-05",
+      "measurementHead": "180a5ebb4b750003bd620aa4a079c76b99e00ae2",
+      "measuredDesktopCssBytes": 517436,
+      "previousDesktopCssMaximumBytes": 500000,
+      "desktopCssMaximumBytes": 600000,
+      "reason": "User explicitly raised the desktop CSS budget to 600000 bytes for v1.7.1 and requested optimization. The production build at measurementHead was 575016 bytes; emitting provider artwork as shared local assets reduces CSS to 517436 bytes without changing the interface. JavaScript, shared UI, gallery, startup and workload budgets are unchanged.",
+      "baseDesktopCssBytes": 575016,
+      "desktopCssReductionBytes": 57580
     }
   ],
   "startupBudgetRevisions": [

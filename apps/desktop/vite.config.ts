@@ -9,6 +9,12 @@ export default defineConfig({
   plugins: [react(), desktopCssOptimization()],
   base: "./",
   build: {
+    assetsInlineLimit(filePath) {
+      // Keep provider artwork out of CSS and share one emitted asset per icon.
+      if (filePath.replaceAll("\\", "/").includes("/settings/assets/"))
+        return false;
+      return undefined;
+    },
     outDir: "dist-renderer",
     emptyOutDir: true,
     rollupOptions: {
