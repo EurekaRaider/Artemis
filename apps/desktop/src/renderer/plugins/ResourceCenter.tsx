@@ -1829,6 +1829,11 @@ export function ResourceCenter({
                 : locale === "zh-TW"
                   ? "Office 套件"
                   : "Office"}
+              {status?.activeVersion && (
+                <span className="plugin-market-card-vn">
+                  v{status.activeVersion}
+                </span>
+              )}
             </strong>
             <small className="plugin-market-card-source">
               {t.marketplaceSource}: {t.bundledPlugins}
@@ -1877,6 +1882,7 @@ export function ResourceCenter({
                 </Button>
                 <Button
                   variant="secondary"
+                  className="management-destructive-action plugin-market-remove-action"
                   icon={<TrashIcon />}
                   disabled={status?.versions.some(
                     (version) => version.active && version.inUse,

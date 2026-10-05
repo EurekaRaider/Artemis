@@ -12278,6 +12278,14 @@ kbd {
   --plugin-action-icon-color: light-dark(#d82e4d, #ff7489);
 }
 
+.plugin-market-remove-action [data-artemis-component="icon"] {
+  color: var(--plugin-action-icon-color);
+}
+
+.plugin-market-remove-action [data-artemis-icon] {
+  stroke-width: 2.25;
+}
+
 .plugin-market-card
   .plugin-market-card-actions[data-installed="true"]
   [data-artemis-component="button"] {

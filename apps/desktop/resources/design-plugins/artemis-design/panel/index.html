@@ -433,19 +433,73 @@
       .dz-image-actions {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border-block-start: 1px solid var(--artemis-color-border-subtle);
+        gap: 8px;
+        padding: 12px 16px;
+        border-block-start: 1px solid var(--border-soft);
+        background: var(--surface);
+      }
+      .dz-image-actions .btn-quiet {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 450;
+        white-space: nowrap;
       }
       .dz-image-prompt {
         flex: 1;
         min-width: 0;
-        font-size: 13px;
-        padding: 7px 10px;
-        color: var(--artemis-color-text-primary);
-        background: var(--artemis-color-surface);
-        border: 1px solid var(--artemis-color-border-default);
-        border-radius: 8px;
+        height: 34px;
+        font: inherit;
+        font-size: 12px;
+        padding: 0 11px;
+        color: var(--text);
+        background: var(--surface-2);
+        border: 1px solid var(--border-soft);
+        border-radius: 9px;
+      }
+      .dz-image-prompt::placeholder {
+        color: var(--text-3);
+      }
+      .dz-image-send {
+        flex: none;
+        height: 34px;
+        padding: 0 11px;
+        gap: 7px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-3);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition:
+          background var(--t-quick),
+          border-color var(--t-quick);
+      }
+      .dz-image-send:hover {
+        background: var(--selected);
+        border-color: var(--text-3);
+        filter: none;
+      }
+      .dz-image-send:active {
+        background: var(--surface-2);
+      }
+      .dz-image-send:focus-visible,
+      .dz-image-prompt:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+      @media (max-width: 440px) {
+        .dz-image-actions {
+          flex-wrap: wrap;
+          padding: 10px;
+        }
+        .dz-image-prompt {
+          order: -1;
+          flex-basis: 100%;
+        }
+        .dz-image-send {
+          margin-inline-start: auto;
+        }
       }
       /* 图片预览卡缩略图：直接把 dataURL 画成背景 */
       .dz-image-thumb {
@@ -3298,8 +3352,26 @@
                 placeholder="描述这张图的修改…"
                 type="text"
               />
-              <button class="btn btn-primary" id="dzImageSend" type="button">
-                发送到输入框
+              <button
+                class="btn dz-image-send"
+                id="dzImageSend"
+                type="button"
+                title="将图片和修改要求加入聊天输入框"
+              >
+                <span>加入输入框</span>
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M7 17 17 7M7 7h10v10" />
+                </svg>
               </button>
             </div>
           </div>
