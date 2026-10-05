@@ -1437,6 +1437,32 @@ check(
     "replacement.png",
 );
 
+fromHost({
+  type: "snapshot",
+  snapshot: {
+    documents: [],
+    projectFiles: [
+      { path: '<b data-folder-injected="yes">/page.html', bytes: 1 },
+    ],
+    images: [],
+  },
+});
+check(
+  "扫描目录名称按纯文本显示",
+  document.querySelector(".dz-dir-row .dz-row-name")?.textContent ===
+    '<b data-folder-injected="yes">',
+);
+check(
+  "扫描目录名称不生成 HTML",
+  !document.querySelector("[data-folder-injected]"),
+);
+document.querySelector(".dz-dir-row")?.click();
+document.querySelector(".dz-cat-back")?.click();
+check(
+  "项目目录返回不读取缺失 name 字段",
+  Boolean(document.querySelector(".dz-dir-row")),
+);
+
 console.log("== 20. 错误汇总 ==");
 check("全程无未捕获 JS 错误", pageErrors.length === 0, pageErrors.join("; "));
 

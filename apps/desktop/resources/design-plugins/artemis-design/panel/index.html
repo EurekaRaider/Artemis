@@ -4632,10 +4632,11 @@
               row.innerHTML =
                 '<span aria-hidden="true" class="dz-row-icon"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg></span>' +
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
-                folder.name +
+                "" +
                 '</span><span class="dz-row-sub">' +
                 folder.count +
                 " 个文件</span></span>";
+              row.querySelector(".dz-row-name").textContent = folder.name;
               row.addEventListener("click", function () {
                 dzCurrentFolder = dzCurrentFolder
                   ? dzCurrentFolder + "/" + folder.name
