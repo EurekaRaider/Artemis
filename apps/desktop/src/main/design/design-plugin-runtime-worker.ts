@@ -296,6 +296,9 @@ export class PluginRuntimeWorker {
           // Resolve the trusted entry on the host. AppContainer need not
           // read metadata from every ancestor of an already canonical path.
           args: [
+            // AppContainer denies Electron's NUL-device initialization; use
+            // the inherited protocol pipes without changing sandbox policy.
+            ...(process.versions.electron ? ["--no-stdio-init"] : []),
             "--preserve-symlinks",
             "--preserve-symlinks-main",
             "--entry-url",

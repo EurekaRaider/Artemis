@@ -82,7 +82,7 @@ try {
       args: [join(workspacePath, "inside")],
       cwd: workspacePath,
     },
-    { workspacePath, mode: "execute", network: "deny" },
+    { workspacePath, mode: "work", network: "deny" },
   );
   run(insideLaunch.executable, insideLaunch.args, { cwd: insideLaunch.cwd });
 
@@ -92,7 +92,7 @@ try {
       args: [join(homedir(), ".artemis-sandbox-escape")],
       cwd: workspacePath,
     },
-    { workspacePath, mode: "execute", network: "deny" },
+    { workspacePath, mode: "work", network: "deny" },
   );
   const outsideResult = spawnSync(
     outsideLaunch.executable,
@@ -115,7 +115,7 @@ try {
       args: ["--max-time", "5", "https://example.com"],
       cwd: workspacePath,
     },
-    { workspacePath, mode: "execute", network: "deny" },
+    { workspacePath, mode: "work", network: "deny" },
   );
   const networkResult = spawnSync(
     networkLaunch.executable,
@@ -135,7 +135,7 @@ try {
       args: ["-lc", "printf ARTEMIS_PTY_OK"],
       cwd: workspacePath,
     },
-    { workspacePath, mode: "execute", network: "deny" },
+    { workspacePath, mode: "work", network: "deny" },
   );
   await ensureNodePtySpawnHelpersExecutable(
     dirname(dirname(require.resolve("node-pty"))),
