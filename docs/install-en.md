@@ -4,7 +4,7 @@
 
 ## Choose a package
 
-Only Windows x64 and macOS arm64 are supported. Official assets are available from [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases). No registration code or device activation is required.
+Only Windows x64 and macOS arm64 are supported. Official assets are available from [Artemis](https://github.com/EurekaRaider/Artemis/releases). No registration code or device activation is required.
 
 ## macOS arm64
 

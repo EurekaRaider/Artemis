@@ -1,4 +1,7 @@
-import { WORKSPACE_HTML_SIZE_MESSAGE } from "../../shared/workspace-html-size.js";
+import {
+  WORKSPACE_HTML_SIZE_MESSAGE,
+  WORKSPACE_HTML_WHEEL_MESSAGE,
+} from "../../shared/workspace-html-size.js";
 
 /** Reports layout only; the opaque frame still has no application or filesystem bridge. */
 export function workspaceHtmlSizeScript(url: string): string {
@@ -40,6 +43,22 @@ export function workspaceHtmlSizeScript(url: string): string {
       }
     };
     const changed = () => { contentChanged = true; schedule(); };
+    // Wheel events do not cross an opaque iframe. Keep inner scrolling when
+    // possible, then hand the remaining gesture back to the timeline.
+    addEventListener("wheel", (event) => {
+      if (parent === window || event.ctrlKey || !event.deltaY) return;
+      for (const node of event.composedPath()) {
+        if (!(node instanceof Element)) continue;
+        const style = getComputedStyle(node);
+        if (!/(auto|scroll)/.test(style.overflowY) && node !== document.scrollingElement) continue;
+        if (event.deltaY < 0 ? node.scrollTop > 0 :
+            node.scrollTop + node.clientHeight < node.scrollHeight - 1) return;
+      }
+      const deltaY = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1);
+      event.preventDefault();
+      parent.postMessage({ type: ${JSON.stringify(WORKSPACE_HTML_WHEEL_MESSAGE)},
+        version: 1, url, deltaY }, "*");
+    }, { passive: false });
     const start = () => {
       new ResizeObserver(schedule).observe(document.body);
       new MutationObserver(changed).observe(document.body, {

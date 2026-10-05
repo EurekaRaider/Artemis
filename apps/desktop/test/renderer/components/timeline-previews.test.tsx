@@ -362,3 +362,62 @@ it("classifies local previews without admitting external protocols", () => {
   ])
     expect(timelineFileKind(path)).toBeUndefined();
 });
+
+it("forwards validated frame wheel messages to the timeline scroll container", async () => {
+  api();
+  const userWheel = vi.fn((event) => ({
+    deltaY: event.deltaY,
+    scrollTop: event.currentTarget.scrollTop,
+  }));
+  const { container } = render(
+    <div
+      style={{ overflowY: "auto" }}
+      data-testid="timeline-scroll"
+      onWheel={userWheel}
+    >
+      <MarkdownContent text="[Demo](index.html)" videoThreadId="task" />
+    </div>,
+  );
+  await waitFor(() =>
+    expect(container.querySelector("iframe")).toHaveAttribute("src"),
+  );
+  const frame = container.querySelector("iframe")!;
+  const scroll = screen.getByTestId("timeline-scroll");
+  Object.defineProperties(scroll, {
+    scrollHeight: { value: 2000 },
+    clientHeight: { value: 400 },
+  });
+  scroll.scrollTop = 500;
+  const report = (
+    deltaY: unknown,
+    source = frame.contentWindow,
+    url = frame.src,
+  ) =>
+    fireEvent(
+      window,
+      new MessageEvent("message", {
+        source,
+        data: {
+          type: "artemis:html-wheel",
+          version: 1,
+          url,
+          deltaY,
+        },
+      }),
+    );
+  report(-120);
+  expect(scroll.scrollTop).toBe(380);
+  expect(userWheel).toHaveBeenCalledOnce();
+  expect(userWheel.mock.results[0].value).toEqual({
+    deltaY: -120,
+    scrollTop: 500,
+  });
+  report(100);
+  expect(scroll.scrollTop).toBe(480);
+  report(10, window);
+  report(10, frame.contentWindow, "artemis-preview://other/index.html");
+  report(Infinity);
+  report("100");
+  expect(scroll.scrollTop).toBe(480);
+  expect(userWheel).toHaveBeenCalledTimes(2);
+});

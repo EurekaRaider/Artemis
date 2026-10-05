@@ -48,7 +48,7 @@ export async function verifyOfficeNative(
       throw new Error(
         "Office runtime signing identity or Hardened Runtime mismatch",
       );
-    await runFile("/usr/sbin/spctl", ["--assess", "--type", "work", app], {
+    await runFile("/usr/sbin/spctl", ["--assess", "--type", "execute", app], {
       timeout: 60_000,
     });
     return;

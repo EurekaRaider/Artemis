@@ -1,5 +1,5 @@
 import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
-// 真实渲染验证：Electron 无头加载设计面板，注入测试文档，
+// 真实渲染验证：Electron 加载设计面板，注入测试文档，
 // 截图文件视图/预览视图/注释模式，并在页面里执行真实交互读回状态。
 import { app, BrowserWindow } from "electron";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -57,14 +57,13 @@ app
     const win = new BrowserWindow({
       width: 1180,
       height: 860,
-      show: false,
-      webPreferences: { offscreen: true },
+      show: true,
     });
 
     const results = [];
     const shot = (name) =>
       new Promise((resolve) => {
-        // offscreen 渲染需要一帧
+        // 等待渲染完成
         setTimeout(async () => {
           const image = await win.webContents.capturePage();
           writeFileSync(join(outDir, name), image.toPNG());
@@ -75,6 +74,47 @@ app
 
     await win.loadURL(panelUrl);
     await shot("01-files-view.png");
+    for (const width of [1180, 420]) {
+      win.setSize(width, 860);
+      for (const id of [
+        "dzTabFiles",
+        "dzPlusBtn",
+        "dzPresentBtn",
+        "dzHistoryBtn",
+        "dzExportBtn",
+      ]) {
+        const point = await win.webContents.executeJavaScript(
+          `(()=>{const r=document.getElementById('${id}').getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`,
+        );
+        win.webContents.sendInputEvent({ type: "mouseMove", ...point });
+        await new Promise((resolve) => setTimeout(resolve, 550));
+        const tip = await win.webContents.executeJavaScript(
+          `(()=>{const e=document.getElementById('${id}'),s=getComputedStyle(e,'::after');return {text:s.content,opacity:s.opacity,hovered:e.matches(':hover')}})()`,
+        );
+        assert(
+          tip.hovered && tip.opacity === "1" && tip.text.length > 2,
+          JSON.stringify({ id, width, tip }),
+        );
+        await shot(`tooltip-${width}-${id}.png`);
+        win.webContents.sendInputEvent({ type: "mouseMove", x: 1, y: 100 });
+        win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Tab" });
+        win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Tab" });
+        await win.webContents.executeJavaScript(
+          `document.getElementById('${id}').focus()`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 550));
+        assert.equal(
+          await win.webContents.executeJavaScript(
+            `getComputedStyle(document.getElementById('${id}'),'::after').opacity`,
+          ),
+          "1",
+        );
+        await win.webContents.executeJavaScript(
+          `document.activeElement.blur()`,
+        );
+      }
+    }
+    win.setSize(1180, 860);
 
     // 注入快照 + 文档（模拟宿主 port 下行）
     await win.webContents.executeJavaScript(`

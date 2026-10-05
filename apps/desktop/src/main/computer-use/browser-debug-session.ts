@@ -30,6 +30,7 @@ export function diagnosticText(value: string): string {
 
 /** The one debugger connection shared by preview and Computer Use. */
 export class BrowserDebugSession {
+  private readonly debug: WebContents["debugger"];
   private viewport: BrowserViewport | null = null;
   private entries: BrowserDiagnostic[] = [];
   private sequence = 0;
@@ -45,8 +46,9 @@ export class BrowserDebugSession {
     readonly contents: WebContents,
     private readonly pause: () => void,
   ) {
-    contents.debugger.on("message", this.message);
-    contents.debugger.on("detach", this.detached);
+    this.debug = contents.debugger;
+    this.debug.on("message", this.message);
+    this.debug.on("detach", this.detached);
     contents.on("did-start-navigation", this.navigation);
     contents.on("did-finish-load", this.restoreViewport);
     contents.on("devtools-opened", this.devtoolsOpened);
@@ -94,8 +96,8 @@ export class BrowserDebugSession {
   readonly dispose = () => {
     if (this.disposed) return;
     this.disposed = true;
-    this.contents.debugger.removeListener("message", this.message);
-    this.contents.debugger.removeListener("detach", this.detached);
+    this.debug.removeListener("message", this.message);
+    this.debug.removeListener("detach", this.detached);
     this.contents.removeListener("did-start-navigation", this.navigation);
     this.contents.removeListener("did-finish-load", this.restoreViewport);
     this.contents.removeListener("devtools-opened", this.devtoolsOpened);
@@ -181,6 +183,23 @@ export class BrowserDebugSession {
   ) => {
     if (this.disposed || this.manual) return;
     if (method === "Runtime.consoleAPICalled") {
+      const args = (params.args ?? []).map(
+        (arg: { type: string; value?: unknown }) =>
+          ["string", "number", "boolean"].includes(arg.type)
+            ? String(arg.value)
+            : `[${arg.type}]`,
+      );
+      // Console CSS directives consume an argument but are not message text.
+      let argument = 1;
+      const formatted = (args[0] ?? "").replace(
+        /%[%csdifOo]/g,
+        (token: string) => {
+          if (token === "%%") return "%";
+          if (argument >= args.length) return token;
+          const value = args[argument++];
+          return token === "%c" ? "" : value;
+        },
+      );
       this.add({
         source: "console",
         level:
@@ -189,13 +208,7 @@ export class BrowserDebugSession {
             : params.type === "warning"
               ? "warning"
               : "info",
-        text: (params.args ?? [])
-          .map((arg: { type: string; value?: unknown }) =>
-            ["string", "number", "boolean"].includes(arg.type)
-              ? String(arg.value)
-              : `[${arg.type}]`,
-          )
-          .join(" "),
+        text: [formatted, ...args.slice(argument)].join(" "),
       });
     } else if (method === "Runtime.exceptionThrown") {
       const detail = params.exceptionDetails;

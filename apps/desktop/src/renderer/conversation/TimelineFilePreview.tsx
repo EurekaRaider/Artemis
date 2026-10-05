@@ -4,6 +4,7 @@ import { WORKSPACE_HTML_SCHEME } from "../../shared/timeline-preview.js";
 import {
   WORKSPACE_HTML_MAX_HEIGHT,
   WORKSPACE_HTML_SIZE_MESSAGE,
+  WORKSPACE_HTML_WHEEL_MESSAGE,
 } from "../../shared/workspace-html-size.js";
 import { timelinePreviewCopy } from "./timeline-preview-copy.js";
 import { usePreviewVisible } from "./use-preview-visible.js";
@@ -106,9 +107,34 @@ export function TimelineHtmlPreview({
         !frameRef.current ||
         event.source !== frameRef.current.contentWindow ||
         !data ||
-        data.type !== WORKSPACE_HTML_SIZE_MESSAGE ||
         data.version !== 1 ||
-        data.url !== url ||
+        data.url !== url
+      )
+        return;
+      if (data.type === WORKSPACE_HTML_WHEEL_MESSAGE) {
+        if (typeof data.deltaY !== "number" || !Number.isFinite(data.deltaY))
+          return;
+        let parent = frameRef.current.parentElement;
+        while (parent) {
+          if (
+            /(auto|scroll)/.test(getComputedStyle(parent).overflowY) &&
+            parent.scrollHeight > parent.clientHeight
+          ) {
+            const deltaY = Math.max(-2000, Math.min(2000, data.deltaY));
+            // Let the timeline recognize user intent before its scroll handler
+            // runs; otherwise automatic bottom-following remains enabled.
+            frameRef.current.dispatchEvent(
+              new WheelEvent("wheel", { bubbles: true, deltaY }),
+            );
+            parent.scrollTop += deltaY;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        return;
+      }
+      if (
+        data.type !== WORKSPACE_HTML_SIZE_MESSAGE ||
         typeof data.height !== "number" ||
         !Number.isFinite(data.height) ||
         data.height <= 0

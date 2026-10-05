@@ -3,7 +3,7 @@ import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { verifyUpdateIndex } from "../../apps/desktop/src/main/updates/signed-update-index.ts";
-const repository = "EurekaRaider/ArtemisRelease";
+const repository = "EurekaRaider/Artemis";
 const tag = "windows-x64-stable";
 const filename = "windows-x64-update.json";
 const input = process.argv[2];

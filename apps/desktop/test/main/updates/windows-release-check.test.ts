@@ -38,9 +38,11 @@ it("uses the signed Windows channel independently of GitHub latest and keeps ZIP
   ).toEqual({
     version: "1.10.0",
     downloadUrl:
-      "https://github.com/EurekaRaider/ArtemisRelease/releases/download/v1.10.0/Artemis-Windows-x64-1.10.0.zip",
+      "https://github.com/EurekaRaider/Artemis/releases/download/v1.10.0/Artemis-Windows-x64-1.10.0.zip",
   });
-  expect(fetcher.mock.calls[0]?.[0]).toContain("windows-x64-stable");
+  expect(fetcher.mock.calls[0]?.[0]).toBe(
+    "https://github.com/EurekaRaider/Artemis/releases/download/windows-x64-stable/windows-x64-update.json",
+  );
   expect(
     await checkWindowsRelease("1.10.0", undefined, undefined, fetcher, keys),
   ).toBeUndefined();

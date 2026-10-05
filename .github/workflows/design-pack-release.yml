@@ -16,6 +16,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    permissions:
+      contents: write
     runs-on: macos-15
     timeout-minutes: 20
     steps:
@@ -41,22 +43,22 @@ jobs:
           node scripts/design-pack/build-design-pack.mjs --version "$VERSION"
       - name: Refuse to republish an immutable version
         env:
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$DESIGN_VERSION"
           VERSION="${VERSION#artemis-design-v}"
-          if gh release view "artemis-design-v$VERSION" --repo EurekaRaider/ArtemisRelease >/dev/null 2>&1; then
+          if gh release view "artemis-design-v$VERSION" --repo EurekaRaider/Artemis >/dev/null 2>&1; then
             echo "::error::artemis-design-v$VERSION is already published; capability versions are immutable."
             exit 1
           fi
       - name: Publish archives, manifests and catalog to the release host
         env:
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="$DESIGN_VERSION"
           VERSION="${VERSION#artemis-design-v}"
           gh release create "artemis-design-v$VERSION" \
-            --repo EurekaRaider/ArtemisRelease \
+            --repo EurekaRaider/Artemis \
             --title "artemis-design v$VERSION" --latest=false \
             --notes "Design plugin capability pack $VERSION (signed)." \
             "artifacts/design-pack/$VERSION/artemis-design-darwin-arm64.zip" \

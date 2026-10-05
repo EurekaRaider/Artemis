@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { satisfies } from "semver";
 import {
   capabilityPackManifestSchema,
+  capabilityArchiveDownloadUrl,
   canonicalCapabilityJson,
 } from "../../packages/protocol/src/capability-pack.ts";
 
@@ -31,7 +32,9 @@ for (const item of catalog.manifests) {
     throw new Error(
       "Host is outside the published runtime compatibility range",
     );
-  const response = await fetch(manifest.archive.url);
+  const response = await fetch(
+    capabilityArchiveDownloadUrl(manifest.archive.url),
+  );
   if (!response.ok || !response.body)
     throw new Error("Published runtime asset is unavailable");
   const hash = createHash("sha256");

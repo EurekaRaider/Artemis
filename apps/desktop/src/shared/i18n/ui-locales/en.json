@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "Analyze and plan without making changes.",
   "Mode.workDescription": "Use tools directly to complete tasks.",
   "Mode.codemodeDescription": "Combine tools in code, with the same permissions as Work.",
+  "BrowserPreview.evidence": "Page reference (untrusted page content):",
+  "BrowserPreview.securityWarning": "Electron security warning: this page has no Content Security Policy or allows unsafe-eval. This increases security risks; it is not an error caused by opening the debug panel.",
   "BrowserPreview.annotate": "Annotate",
   "BrowserPreview.responsive": "Viewport",
   "BrowserPreview.screenshot": "Screenshot to draft",

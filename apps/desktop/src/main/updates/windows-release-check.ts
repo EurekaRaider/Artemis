@@ -9,7 +9,7 @@ export interface WindowsRelease {
 export async function checkWindowsRelease(
   currentVersion: string,
   owner = "EurekaRaider",
-  repo = "ArtemisRelease",
+  repo = "Artemis",
   fetchRelease: typeof fetch = globalThis.fetch,
   keys: Record<string, string> = publicKeys,
 ): Promise<WindowsRelease | undefined> {

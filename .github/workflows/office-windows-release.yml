@@ -18,6 +18,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    permissions:
+      contents: write
+      actions: read
     if: github.ref == 'refs/heads/main' && !inputs.verify_only
     runs-on: windows-2025
     timeout-minutes: 40
@@ -43,7 +46,7 @@ jobs:
           OFFICE_RUNTIME_ED25519_PRIVATE_KEY: ${{ secrets.OFFICE_RUNTIME_ED25519_PRIVATE_KEY }}
       - name: Publish immutable runtime assets without changing app Latest
         env:
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/office/publish-windows-release.mjs
     needs: build
     env:
@@ -70,7 +73,7 @@ jobs:
       - name: Download the public catalog snapshot anonymously
         run: >-
           node --input-type=module -e "import {writeFile} from 'node:fs/promises';const r=await
-          fetch('https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v'+process.env.OFFICE_RUNTIME_VERSION+'/catalog.json');if(!r.ok)throw
+          fetch('https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v'+process.env.OFFICE_RUNTIME_VERSION+'/catalog.json');if(!r.ok)throw
           Error(r.status);await writeFile('artifacts/office/public-catalog.json',new Uint8Array(await
           r.arrayBuffer()));"
       - name: Verify production-host online install, native preview and final ACLs

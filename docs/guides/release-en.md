@@ -12,9 +12,9 @@ macOS builds are signed first and handed to the notarization job through a short
 
 Windows produces a per-user NSIS installer and a manual ZIP. NSIS does not request elevation. Releases require `ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`; public keys live in `apps/desktop/resources/update-public-keys.json`. The signed index binds platform, architecture, version, increasing sequence and EXE/ZIP hashes. `ARTEMIS_UPDATE_SEQUENCE` comes from the Release workflow run number. Confirm it cannot decrease before recreating the workflow or moving the repository.
 
-Final assets remain published to the public `EurekaRaider/ArtemisRelease` repository. The publisher verifies all asset digests and reads uploaded results back before making the release public. It then updates the signed index in the separate `windows-x64-stable` Release and downloads it for a byte comparison. Do not determine Windows update availability from whether GitHub's latest Release contains Windows assets.
+Final assets are published to the public `EurekaRaider/Artemis` repository. The publisher verifies all asset digests and reads uploaded results back before making the release public. It then updates the signed index in the separate `windows-x64-stable` Release and downloads it for a byte comparison. Do not determine Windows update availability from whether GitHub's latest Release contains Windows assets.
 
-Required secrets: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, `ARTEMIS_RELEASE_TOKEN` and `ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`. Release credentials do not bypass source-repository main-branch rules.
+Required secrets: `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` and `ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`. Release uploads use the repository `GITHUB_TOKEN` with `contents: write` limited to the publishing job. Release credentials do not bypass source-repository main-branch rules.
 
 ## Windows recovery and key rotation
 
@@ -29,6 +29,10 @@ Rotate keys across two releases: first sign a client containing the new public k
 Office uses fixed versions and SHA-256 digests from `scripts/office/sources.json` and can build from public upstream sources with an empty cache. After ordinary-user installation and preview checks, the candidate package passes to the publish job as an artifact of the same run. A Windows Office release requires a new immutable version number.
 
 Design packs are built only for darwin-arm64 and win32-x64. Release credentials exist only in trusted publishing jobs. Office and Design catalog changes create PRs; clients discover new capability packs after maintainer review and merge. Automation does not write directly to main.
+
+Office and Design catalog PRs still use `ARTEMIS_RELEASE_TOKEN`, which must have Contents and Pull requests write access to `EurekaRaider/Artemis`. The catalog paths are `apps/desktop/resources/office-runtime/catalog.json` and `apps/desktop/resources/design-plugins/catalog.json` on main.
+
+Existing signed Office manifests retain their original URL bytes to preserve signatures. After signature verification, the downloader maps the exact legacy release prefix to Artemis; archive sizes and SHA-256 checks remain mandatory. Copy the immutable runtime assets to the same tags in Artemis before shipping a client using the new source, and keep capability releases marked `--latest=false`. New manifests are signed with Artemis URLs. Older clients keep their embedded update source, so retain the old releases and provide a migration release there if automatic transition is required.
 
 ## Acceptance evidence
 

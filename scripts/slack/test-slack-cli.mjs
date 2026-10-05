@@ -424,7 +424,7 @@ test("release uploads resume verified assets without replacing complete files", 
             "v1.6.15",
             "release-assets/package.zip",
             "--repo",
-            "EurekaRaider/ArtemisRelease",
+            "EurekaRaider/Artemis",
           ]);
           uploads.push(args);
           assert.equal(assets.length, 0);

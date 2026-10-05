@@ -73,7 +73,7 @@ await writeFile(
       CSC_NAME: identity.replace(/^Developer ID Application: /u, ""),
       APPLE_KEYCHAIN_PROFILE: profile,
       ARTEMIS_UPDATE_OWNER: "EurekaRaider",
-      ARTEMIS_UPDATE_REPO: "ArtemisRelease",
+      ARTEMIS_UPDATE_REPO: "Artemis",
     },
     null,
     2,

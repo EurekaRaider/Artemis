@@ -18,13 +18,22 @@ interface TrackedView {
   removed: number;
 }
 
-const tracked = vi.hoisted(() => ({ views: [] as TrackedView[] }));
+const tracked = vi.hoisted(() => ({
+  views: [] as TrackedView[],
+  ports: [] as any[],
+}));
 
 vi.mock("electron", () => {
   class FakePort {
-    on() {}
+    listener: any;
+    constructor() {
+      tracked.ports.push(this);
+    }
+    on(_event: string, listener: any) {
+      this.listener = listener;
+    }
     start() {}
-    postMessage() {}
+    postMessage = vi.fn();
     close() {}
   }
   class FakeView {
@@ -97,6 +106,7 @@ function freshHost() {
 
 beforeEach(() => {
   tracked.views.length = 0;
+  tracked.ports.length = 0;
 });
 
 describe("DesignPanelHost geometry lifecycle", () => {
@@ -204,4 +214,28 @@ describe("sanitizeCandidateImages (panel attach channel)", () => {
     const oversized = `data:image/png;base64,${"A".repeat(10 * 1024 * 1024 + 5)}`;
     expect(sanitizeCandidateImages([oversized])).toBeUndefined();
   });
+});
+
+it("routes explicit project selection and returns cancellation and errors to the panel", async () => {
+  const host = freshHost();
+  const openProjectFile = vi
+    .fn()
+    .mockResolvedValueOnce({ path: "design/index.html" })
+    .mockResolvedValueOnce({})
+    .mockRejectedValueOnce(new Error("Outside workspace"));
+  host.setRequestHandlers({ openProjectFile } as any);
+  await host.ensurePanel(makeWindow(), "selection-task", "workspace");
+  const port = tracked.ports[0];
+  expect(openProjectFile).not.toHaveBeenCalled();
+  for (const expected of [
+    { type: "open-project-file-result", path: "design/index.html" },
+    { type: "open-project-file-result" },
+    { type: "open-project-file-result", error: "Error: Outside workspace" },
+  ]) {
+    port.listener({ data: { type: "open-project-file-request" } });
+    await vi.waitFor(() =>
+      expect(port.postMessage).toHaveBeenLastCalledWith(expected),
+    );
+  }
+  expect(openProjectFile).toHaveBeenCalledWith({ threadId: "selection-task" });
 });

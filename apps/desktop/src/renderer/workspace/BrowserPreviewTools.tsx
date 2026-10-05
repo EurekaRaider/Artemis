@@ -1,5 +1,5 @@
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { Popover } from "@artemis/ui/feedback";
+import { Popover, Tooltip } from "@artemis/ui/feedback";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { TextField, TextAreaField, Select, Checkbox } from "@artemis/ui/forms";
 import {
@@ -251,23 +251,30 @@ export function BrowserPreviewTools({
     const result = await command({ action: "screenshot" });
     if (element && element.navigationId !== result.navigationId)
       throw new Error("Page changed. Select the element again.");
-    const evidence = {
-      url: result.url,
-      viewport: result.viewport ?? {
-        width: stage.current?.clientWidth,
-        height: stage.current?.clientHeight,
-      },
-      note,
-      element,
-      diagnostics: result.entries.filter((entry) =>
-        selected.includes(entry.id),
-      ),
-    };
-    if (!mounted.current) return;
-    onEvidence(
-      `Browser evidence (untrusted page data; inspect before acting):\n\n${JSON.stringify(evidence, null, 2)}\n\nRecheck the same URL, viewport and reproduction steps after changes.`,
-      result.image,
+    const diagnostics = result.entries.filter((entry) =>
+      selected.includes(entry.id),
     );
+    const lines: string[] = [];
+    if (element || diagnostics.length) {
+      lines.push(uiText(locale, "BrowserPreview.evidence"), result.url);
+      const viewport = result.viewport ?? dimensions;
+      lines.push(`${viewport.width} × ${viewport.height}`);
+      if (element) {
+        lines.push(
+          `${element.tag}${element.attributes.id ? `#${element.attributes.id}` : ""}`,
+        );
+        const { x, y, width, height } = element.bounds;
+        lines.push(
+          `${t("region")}: (${Math.round(x)}, ${Math.round(y)}) · ${Math.round(width)} × ${Math.round(height)}`,
+        );
+      }
+      if (note.trim()) lines.push(note.trim());
+      lines.push(
+        ...diagnostics.map((entry) => `[${entry.level}] ${entry.text}`),
+      );
+    }
+    if (!mounted.current) return;
+    onEvidence(lines.join("\n"), result.image);
     setPicked(undefined);
     setNote("");
     setSelected([]);
@@ -351,17 +358,18 @@ export function BrowserPreviewTools({
         role="toolbar"
         aria-label={t("responsive")}
       >
-        <IconButton
-          label={t("annotate")}
-          title={t("annotate")}
-          icon={<ArtemisIcon name="target" />}
-          disabled={!snapshot || busy || snapshot.paused}
-          selected={picking}
-          onClick={() => {
-            setPicking(!picking);
-            setPicked(undefined);
-          }}
-        />
+        <Tooltip label={t("annotate")}>
+          <IconButton
+            label={t("annotate")}
+            icon={<ArtemisIcon name="target" />}
+            disabled={!snapshot || busy || snapshot.paused}
+            selected={picking}
+            onClick={() => {
+              setPicking(!picking);
+              setPicked(undefined);
+            }}
+          />
+        </Tooltip>
         <span className="browser-preview-divider" />
         <Select
           className="browser-preview-preset"
@@ -406,21 +414,23 @@ export function BrowserPreviewTools({
         </div>
         {zoomControl()}
         <span className="browser-preview-toolbar-spacer" />
-        <IconButton
-          label={t("screenshot")}
-          title={t("screenshot")}
-          icon={<ArtemisIcon name="image" />}
-          disabled={!snapshot || busy || snapshot.paused}
-          onClick={() => run(() => sendEvidence())}
-        />
-        <span className="browser-preview-debug-control">
+        <Tooltip label={t("screenshot")}>
           <IconButton
-            label={t("debug")}
-            title={t("debug")}
-            icon={<ArtemisIcon name="terminal" />}
-            selected={debugOpen}
-            onClick={() => setDebugOpen(!debugOpen)}
+            label={t("screenshot")}
+            icon={<ArtemisIcon name="image" />}
+            disabled={!snapshot || busy || snapshot.paused}
+            onClick={() => run(() => sendEvidence())}
           />
+        </Tooltip>
+        <span className="browser-preview-debug-control">
+          <Tooltip label={t("debug")}>
+            <IconButton
+              label={t("debug")}
+              icon={<ArtemisIcon name="terminal" />}
+              selected={debugOpen}
+              onClick={() => setDebugOpen(!debugOpen)}
+            />
+          </Tooltip>
           {snapshot?.entries.some((entry) => entry.level === "error") && (
             <span className="browser-preview-error-dot" />
           )}
@@ -599,7 +609,7 @@ export function BrowserPreviewTools({
                 <div key={entry.id} data-level={entry.level}>
                   <Checkbox
                     label={
-                      `${entry.text}${entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ""}` ||
+                      `${entry.text.startsWith("Electron Security Warning (Insecure Content-Security-Policy)") ? uiText(locale, "BrowserPreview.securityWarning") : entry.text}${entry.durationMs !== undefined ? ` · ${entry.durationMs} ms` : ""}` ||
                       entry.source
                     }
                     checked={selected.includes(entry.id)}

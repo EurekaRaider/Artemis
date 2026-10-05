@@ -858,10 +858,13 @@
       }
       /* 工具条两端的按钮：tooltip 默认居中会越出面板边缘（刷新贴左分割线、
    更多贴窗口右缘），改为朝面板内侧对齐 */
+      #dzTabFiles[data-tip]::after,
       #dzReload[data-tip]::after {
         left: 0;
         transform: none;
       }
+      #dzExportBtn[data-tip]::after,
+      #dzHistoryBtn[data-tip]::after,
       #dzMoreBtn[data-tip]::after {
         left: auto;
         right: 0;
@@ -2375,6 +2378,7 @@
           aria-selected="true"
           class="design-ws-tab active"
           data-dz-view="files"
+          data-tip="查看设计文件"
           id="dzTabFiles"
           role="tab"
           type="button"
@@ -2397,11 +2401,12 @@
         <!-- 文件 tab 全动态：dzEnsureFileTab 按 open 的文档创建/复用，插入在 .dz-plus 之前 -->
         <div class="dz-plus">
           <button
-            aria-label="新建标签页"
+            aria-label="打开标签页"
             aria-expanded="false"
             class="design-ws-add"
+            data-tip="打开标签页"
             id="dzPlusBtn"
-            title="新建标签页"
+            title="打开标签页"
             type="button"
           >
             <svg
@@ -2443,6 +2448,7 @@
               aria-haspopup="menu"
               aria-label="演示"
               class="design-ws-iconbtn"
+              data-tip="演示"
               id="dzPresentBtn"
               title="演示"
               type="button"
@@ -2500,6 +2506,7 @@
           <button
             aria-label="版本历史"
             class="design-ws-iconbtn"
+            data-tip="版本历史"
             id="dzHistoryBtn"
             title="版本历史"
             type="button"
@@ -2521,6 +2528,7 @@
           <div class="dz-export">
             <button
               class="btn btn-primary design-ws-export"
+              data-tip="导出"
               id="dzExportBtn"
               type="button"
             >
@@ -2554,6 +2562,31 @@
       </div>
       <!-- 文件浏览视图（原型 design-files） -->
       <div class="design-files" id="dzViewFiles">
+        <div
+          id="dzStart"
+          style="
+            padding: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+          "
+        >
+          <span id="dzStartHint"
+            >还没有设计。描述你想做的页面，开始第一份设计。</span
+          >
+          <button type="button" class="btn btn-primary" id="dzStartBtn">
+            开始设计
+          </button>
+          <button
+            type="button"
+            class="btn btn-quiet"
+            id="dzOpenProjectBtn"
+            hidden
+          >
+            从项目打开
+          </button>
+        </div>
         <div class="design-cats" id="dzCats"></div>
         <div class="design-cards" id="dzCards"></div>
         <p class="dz-empty" hidden="" id="dzCatEmpty">这个分类还没有内容</p>
@@ -3741,6 +3774,8 @@
 
           /* ============ 数据链路 ============ */
           var hostPort = null;
+          var pendingNewDesign = false;
+          var knownDesignIds = new Set();
           var currentDocument = null; // { documentId, name, headRevision, versionCount }
           var lastDocumentHtml = "";
           var documentRequestId = 0;
@@ -3748,6 +3783,39 @@
           var lastVersions = [];
           var openFiles = []; // 当前打开的文件页签（从宿主快照生成）
 
+          ["#dzToast", "#dzHistory", "#dzConfirm"].forEach(function (selector) {
+            dzPanel.appendChild($(selector));
+          });
+          function dzSyncActions() {
+            var ready = !!(
+              hostPort &&
+              currentDocument &&
+              documentLoaded &&
+              !dzProjectView &&
+              dzViewFiles.hidden
+            );
+            ["#dzExportBtn", "#dzHistoryBtn", "#dzPresentBtn"].forEach(
+              function (selector) {
+                $(selector).disabled = !ready;
+                $(selector).title = ready
+                  ? $(selector).dataset.tip
+                  : "请先打开并加载设计文档";
+              },
+            );
+          }
+          $("#dzStartBtn").addEventListener("click", function () {
+            if (!hostPort) return dzToast("设计面板尚未连接，请稍后重试");
+            pendingNewDesign = true;
+            dzPostCandidate({
+              autoSend: false,
+              text: "请使用设计工具创建一份可预览的设计文档。我的需求是：",
+            });
+            dzToast("需求草稿已加入聊天输入框，请补充需求后发送");
+          });
+          $("#dzOpenProjectBtn").addEventListener("click", function () {
+            if (!hostPort) return dzToast("设计面板尚未连接，请稍后重试");
+            hostPort.postMessage({ type: "open-project-file-request" });
+          });
           function dzToast(message) {
             var toast = $("#dzToast");
             toast.textContent = message;
@@ -3782,8 +3850,11 @@
           }
           function dzShow(view, file, opts) {
             var files = view === "files";
+            dzCloseMenus();
+            $("#dzHistory").hidden = true;
             dzViewFiles.hidden = !files;
             dzViewPreview.hidden = files;
+            dzSyncActions();
             dzFilesTab.classList.toggle("active", files);
             dzFilesTab.setAttribute("aria-selected", String(files));
             dzFileTabs().forEach(function (t) {
@@ -4228,6 +4299,10 @@
             projectFiles = (projectFiles || []).filter(function (f) {
               return f && typeof f.path === "string" && f.path;
             });
+            $("#dzStartHint").textContent =
+              documents.length || projectFiles.length
+                ? "继续创建设计，或打开已有页面。"
+                : "还没有设计。描述你想做的页面，开始第一份设计。";
             dzLastDocs = documents;
             dzLastProjectFiles = projectFiles;
             // 当前文件夹被清空时回根级（设计文档与项目文件一并判断）
@@ -4305,7 +4380,8 @@
                   if (match) shown += 1;
                 },
               );
-              $("#dzCatEmpty").hidden = shown > 0;
+              $("#dzCatEmpty").hidden =
+                shown > 0 || (!documents.length && !projectFiles.length);
             }
             var seg = document.createElement("div");
             seg.className = "dz-seg";
@@ -4799,6 +4875,7 @@
             }
             lastDocumentHtml = html;
             documentLoaded = true;
+            dzSyncActions();
             // 同 URL srcdoc 不重载：先摘属性再赋值强制刷新
             frame.removeAttribute("srcdoc");
             // eslint-disable-next-line no-unsanitized/property
@@ -5089,7 +5166,12 @@
                       revision: doc.headRevision,
                     });
                     dzToast("已请求导出 " + doc.name);
-                  } else dzToast("导出需要宿主连接");
+                  } else
+                    dzToast(
+                      currentDocument
+                        ? "导出需要宿主连接"
+                        : "请先打开要导出的文档",
+                    );
                 }
                 /* 下载与导出同路：宿主弹保存对话框由用户选目的地（真实下载）。 */
                 else {
@@ -5131,6 +5213,7 @@
           function dzLoadDocument(doc) {
             currentDocument = doc;
             documentLoaded = false;
+            dzSyncActions();
             lastDocumentHtml = "";
             dzPostActiveDocument(null);
             dzUnmountDocumentFrame();
@@ -5220,6 +5303,7 @@
           function dzRenderDocument(html, name, subtitle) {
             lastDocumentHtml = html;
             documentLoaded = true;
+            dzSyncActions();
             // 页签联动：当前文档必有 tab（快照首载/恢复路径不经卡片点击，这里兜底）
             var tabName = (currentDocument && currentDocument.name) || name;
             if (tabName)
@@ -7115,7 +7199,10 @@
                   revision: currentDocument.headRevision,
                 });
                 dzToast("已请求宿主导出");
-              } else dzToast("导出需要宿主连接");
+              } else
+                dzToast(
+                  currentDocument ? "导出需要宿主连接" : "请先打开要导出的文档",
+                );
             } else if (item.dataset.dzExport === "shot") {
               $("#dzShotBtn").click();
             }
@@ -7181,7 +7268,13 @@
           function bindPortListener(port) {
             port.addEventListener("message", function (event) {
               var data = event.data || {};
+              if (data.type === "open-project-file-result") {
+                if (data.error) dzToast(data.error);
+                else if (data.path) dzOpenProjectFile(data.path);
+              }
               if (data.type === "snapshot" && data.snapshot) {
+                $("#dzOpenProjectBtn").hidden =
+                  data.snapshot.canOpenProject !== true;
                 var docs = data.snapshot.documents || [];
                 var projectFiles = data.snapshot.projectFiles || [];
                 // 保留用户已打开的文档（AI 后台改其他文档时不抢焦点）；
@@ -7195,7 +7288,22 @@
                 } else {
                   currentDocument = docs.length ? docs[docs.length - 1] : null;
                 }
+                var newDesign = docs.find(function (doc) {
+                  return doc && !knownDesignIds.has(doc.documentId);
+                });
+                knownDesignIds = new Set(
+                  docs.map(function (doc) {
+                    return doc.documentId;
+                  }),
+                );
                 dzRenderFiles(docs, projectFiles);
+                if (pendingNewDesign && newDesign) {
+                  pendingNewDesign = false;
+                  dzOpenDocument(newDesign);
+                  if (hostPort) hostPort.postMessage({ type: "snapshot-ack" });
+                  return;
+                }
+                dzSyncActions();
                 // ack：宿主据此取消 3s 补推（首渲染确认，兜底只兜真丢失）
                 if (hostPort) hostPort.postMessage({ type: "snapshot-ack" });
                 // 历史面板开着 → 版本列表同步刷新（恢复/修改后「当前」标记跟着走）
@@ -7205,7 +7313,7 @@
                     documentId: currentDocument.documentId,
                   });
                 }
-                if (currentDocument) {
+                if (currentDocument && !dzProjectView) {
                   if ($("#dzNoteComposer").hidden) {
                     pendingDocRefresh = false;
                     dzLoadDocument(currentDocument);
@@ -7225,6 +7333,7 @@
                   return;
                 if (data.error || typeof data.html !== "string") {
                   documentLoaded = false;
+                  dzSyncActions();
                   lastDocumentHtml = "";
                   dzUnmountDocumentFrame();
                   dzSource.replaceChildren();
@@ -7441,6 +7550,7 @@
               return;
             }
           });
+          dzSyncActions();
           window.addEventListener("artemis:port", function (event) {
             hostPort = event.ports && event.ports[0] ? event.ports[0] : null;
             if (hostPort) {

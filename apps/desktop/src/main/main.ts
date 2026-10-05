@@ -10677,25 +10677,11 @@ function registerIpc(): void {
     const project = thread?.projectId
       ? store?.getProject(thread.projectId)
       : undefined;
-    // 项目会话：扫描项目工作区文件（只读清单，不进线程数据店），面板在
-    // 文件归类里与设计文档并列展示。上限 400 个文件 / 4 层深，忽略依赖与
-    // 构建产物目录。
-    let projectFiles: Array<{
-      path: string;
-      bytes: number;
-      updatedAt: string;
-    }> = [];
-    if (thread?.projectId) {
-      try {
-        const workspace = await resolveThreadWorkspace(thread);
-        projectFiles = await scanProjectDesignFiles(workspace.workspacePath);
-      } catch (error) {
-        console.error("[design-panel] project scan failed", error);
-      }
-    }
+    const projectFiles = selectedDesignProjectFiles.get(threadId) ?? [];
     designPanelHost.pushSnapshot(threadId, panelId, {
       documents,
       projectFiles,
+      canOpenProject: Boolean(thread?.projectId),
       projectName: project?.name ?? "设计任务",
     });
     return true;
@@ -10798,65 +10784,11 @@ function registerIpc(): void {
   // P1-3：项目文件读取管线已抽出为 design-plugin-project-files.ts
   //（readProjectFileForPreview），见其内注释的安全模型。
 
-  const DESIGN_SCAN_IGNORED_DIRS = new Set([
-    "node_modules",
-    ".git",
-    "dist",
-    "dist-electron",
-    "dist-renderer",
-    "build",
-    "out",
-    "coverage",
-    "vendor",
-    "__pycache__",
-    ".cache",
-    ".next",
-    ".output",
-    "target",
-    "artifacts",
-    ".zcode",
-  ]);
-  async function scanProjectDesignFiles(
-    workspacePath: string,
-  ): Promise<Array<{ path: string; bytes: number; updatedAt: string }>> {
-    // 广度优先：浅层文件先收录（归类概览不被深层目录挤占）。
-    const files: Array<{ path: string; bytes: number; updatedAt: string }> = [];
-    let level: Array<{ dir: string; prefix: string }> = [
-      { dir: workspacePath, prefix: "" },
-    ];
-    for (let depth = 0; level.length > 0 && files.length < 400; depth += 1) {
-      if (depth > 4) break;
-      const next: Array<{ dir: string; prefix: string }> = [];
-      for (const { dir, prefix } of level) {
-        if (files.length >= 400) break;
-        const entries = (
-          await readdir(dir, { withFileTypes: true }).catch(() => [])
-        ).sort((a, b) => a.name.localeCompare(b.name));
-        for (const entry of entries) {
-          if (files.length >= 400) break;
-          if (entry.name.startsWith(".")) continue;
-          const absolute = join(dir, entry.name);
-          const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-          if (entry.isSymbolicLink()) continue;
-          if (entry.isDirectory()) {
-            if (DESIGN_SCAN_IGNORED_DIRS.has(entry.name)) continue;
-            next.push({ dir: absolute, prefix: path });
-            continue;
-          }
-          if (!entry.isFile()) continue;
-          const info = await stat(absolute).catch(() => undefined);
-          if (!info || !info.isFile()) continue;
-          files.push({
-            path,
-            bytes: info.size,
-            updatedAt: info.mtime.toISOString(),
-          });
-        }
-      }
-      level = next;
-    }
-    return files;
-  }
+  // Only files explicitly selected for this task belong in the design panel.
+  const selectedDesignProjectFiles = new Map<
+    string,
+    Array<{ path: string; bytes: number; updatedAt: string }>
+  >();
 
   // 面板就绪后主动拉完整快照：首开的 host push 可能早于 port 握手而丢失
   //（白屏无卡片），面板发 snapshot-request 时补推。
@@ -10911,6 +10843,37 @@ function registerIpc(): void {
   designPanelHost?.setRequestHandlers({
     /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
      * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
+    openProjectFile: async ({ threadId }) => {
+      const thread = store?.getThread(threadId);
+      if (!thread?.projectId || !mainWindow)
+        throw new Error("请先打开项目任务");
+      const workspace = await resolveThreadWorkspace(thread);
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: "从项目打开设计页面",
+        defaultPath: workspace.workspacePath,
+        properties: ["openFile"],
+        filters: [{ name: "HTML 页面", extensions: ["html", "htm"] }],
+      });
+      if (result.canceled || !result.filePaths[0]) return {};
+      const path = relative(
+        workspace.workspacePath,
+        result.filePaths[0],
+      ).replaceAll("\\", "/");
+      if (!/\.html?$/i.test(path)) throw new Error("请选择 HTML 页面");
+      // Reuse the preview reader's containment and symlink checks before listing.
+      await readProjectFileForPreview({
+        workspacePath: workspace.workspacePath,
+        requestedPath: path,
+      });
+      const info = await stat(result.filePaths[0]);
+      const files = selectedDesignProjectFiles.get(threadId) ?? [];
+      selectedDesignProjectFiles.set(threadId, [
+        ...files.filter((file) => file.path !== path),
+        { path, bytes: info.size, updatedAt: info.mtime.toISOString() },
+      ]);
+      await pushDesignSnapshot(threadId, "workspace");
+      return { path };
+    },
     readProjectFile: async (input) => {
       if (!store) throw new Error("Application store is not ready.");
       const thread = store.getThread(input.threadId);
@@ -11082,6 +11045,8 @@ function registerIpc(): void {
         : undefined;
       return {
         documents,
+        projectFiles: selectedDesignProjectFiles.get(input.threadId) ?? [],
+        canOpenProject: Boolean(thread?.projectId),
         projectName: project?.name ?? "设计任务",
       };
     },
@@ -23706,7 +23671,13 @@ app
       WORKSPACE_HTML_SCHEME,
       (request) => workspaceHtmlPreview.respond(request),
     );
-    // Browser previews use a separate partition and cannot access this protocol.
+    // The right-panel webview needs the same revocable, sandboxed HTML handler.
+    electronSession
+      .fromPartition(BROWSER_SESSION_PARTITION)
+      .protocol.handle(WORKSPACE_HTML_SCHEME, (request) =>
+        workspaceHtmlPreview.respond(request),
+      );
+    // Media playback remains available only to timeline frames.
     electronSession.defaultSession.protocol.handle(
       WORKSPACE_VIDEO_SCHEME,
       (request) => workspaceVideoPreview.respond(request),

@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "التحليل والتخطيط دون إجراء تغييرات.",
   "Mode.workDescription": "استخدام الأدوات مباشرة لإنجاز المهام.",
   "Mode.codemodeDescription": "دمج الأدوات عبر الشيفرة، بنفس صلاحيات Work.",
+  "BrowserPreview.evidence": "مرجع الصفحة (محتوى غير موثوق):",
+  "BrowserPreview.securityWarning": "تحذير أمان Electron: لا تحتوي هذه الصفحة على CSP أو تسمح بـ unsafe-eval، مما يزيد المخاطر الأمنية. هذا ليس خطأ ناتجًا عن فتح لوحة تصحيح الأخطاء.",
   "BrowserPreview.annotate": "تعليق",
   "BrowserPreview.responsive": "أبعاد العرض",
   "BrowserPreview.screenshot": "لقطة إلى المسودة",

@@ -107413,5 +107413,5 @@
       }
     }
   ],
-  "updateUrl": "https://raw.githubusercontent.com/EurekaRaider/ArtemisRelease/main/office-runtime/catalog.json"
+  "updateUrl": "https://raw.githubusercontent.com/EurekaRaider/Artemis/main/apps/desktop/resources/office-runtime/catalog.json"
 }

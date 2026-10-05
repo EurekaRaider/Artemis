@@ -187,6 +187,7 @@ function sanitizeAnnotations(
 
 /** S4 host-side actions a panel may REQUEST over the port (never run). */
 export interface PanelRequestHandlers {
+  openProjectFile?(input: { threadId: string }): Promise<{ path?: string }>;
   /** 项目工作区文件只读读取（预览用；路径由宿主封死在工作区内）。 */
   readProjectFile(input: {
     threadId: string;
@@ -533,6 +534,27 @@ export class DesignPanelHost {
           `[design-panel] snapshot-request from ${threadId}/${panelId}`,
         );
         this.snapshotSink?.({ threadId, panelId });
+        return;
+      }
+      if (data?.type === "open-project-file-request") {
+        void (async () => {
+          try {
+            if (!this.requestHandlers?.openProjectFile)
+              throw new Error("从项目打开暂不可用");
+            const result = await this.requestHandlers.openProjectFile({
+              threadId,
+            });
+            hostPort.postMessage({
+              type: "open-project-file-result",
+              ...result,
+            });
+          } catch (error) {
+            hostPort.postMessage({
+              type: "open-project-file-result",
+              error: String(error),
+            });
+          }
+        })();
         return;
       }
       if (data?.type === "read-project-file-request" && data.path) {

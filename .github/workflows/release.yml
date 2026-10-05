@@ -49,7 +49,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
-          ARTEMIS_UPDATE_REPO: ArtemisRelease
+          ARTEMIS_UPDATE_REPO: Artemis
     if: github.ref == 'refs/heads/main'
   ci:
     name: Release CI
@@ -92,7 +92,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
-          ARTEMIS_UPDATE_REPO: ArtemisRelease
+          ARTEMIS_UPDATE_REPO: Artemis
       - name: Archive signed app and native verification modules
         run: >-
           tar -czf signed-macos-arm64.tar.gz apps/desktop/release/mac-arm64 packages/platform/dist
@@ -135,7 +135,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
-          ARTEMIS_UPDATE_REPO: ArtemisRelease
+          ARTEMIS_UPDATE_REPO: Artemis
       - name: Verify signature, notarization, native PTY, Seatbelt and rollback
         run: npm run verify:mac-native -w @artemis/desktop
       - name: Verify final DMG and ZIP applications
@@ -237,12 +237,12 @@ jobs:
           retention-days: 7
           if-no-files-found: error
   publish:
-    name: Publish client artifacts to ArtemisRelease
+    name: Publish client artifacts to Artemis
     needs:
       - package-macos
       - package-windows
     permissions:
-      contents: read
+      contents: write
       actions: read
     runs-on: macos-15
     timeout-minutes: 180
@@ -269,7 +269,7 @@ jobs:
           node scripts/release/collect-release-assets.mjs "${args[@]}"
       - name: Publish verified client packages
         env:
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
           RELEASE_SHA: ${{ github.sha }}
@@ -287,13 +287,13 @@ jobs:
 
           printf '\nSource commit / 源码提交：`%s`.\n' "$RELEASE_SHA" >> "$RUNNER_TEMP/artemis-release-notes.md"
 
-          target_repo=EurekaRaider/ArtemisRelease
+          target_repo=EurekaRaider/Artemis
 
           existing="$(retry gh release view "$RELEASE_TAG" --repo "$target_repo" --json isDraft --jq .isDraft
           2>/dev/null || true)"
 
           if [[ -z "$existing" ]]; then
-            retry gh release create "$RELEASE_TAG" --repo "$target_repo" --title "Artemis $RELEASE_TAG" --draft --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
+            retry gh release create "$RELEASE_TAG" --repo "$target_repo" --title "Artemis $RELEASE_TAG" --target "$RELEASE_SHA" --draft --notes-file "$RUNNER_TEMP/artemis-release-notes.md"
           elif [[ "$existing" != true ]]; then
             echo "Refusing to overwrite an existing public release." >&2
             exit 1
@@ -313,7 +313,7 @@ jobs:
 
           import { setTimeout } from 'node:timers/promises';
 
-          const repository = 'EurekaRaider/ArtemisRelease';
+          const repository = 'EurekaRaider/Artemis';
 
           const tag = process.env.RELEASE_TAG;
 
@@ -379,5 +379,5 @@ jobs:
           "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
       - name: Advance signed Windows platform channel and verify readback
         env:
-          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: node scripts/release/publish-windows-update-channel.mjs release-assets

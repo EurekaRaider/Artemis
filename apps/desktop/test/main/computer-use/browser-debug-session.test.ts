@@ -148,3 +148,40 @@ it("pauses shared CDP control for DevTools and never replays actions on reconnec
   ).rejects.toThrow(/Page changed/);
   f.session.dispose();
 });
+
+it("cleans up after the native WebContents getter becomes unavailable", () => {
+  const f = fixture();
+  f.page.isDestroyed = () => true;
+  Object.defineProperty(f.page, "debugger", {
+    get() {
+      throw new TypeError("Object has been destroyed");
+    },
+  });
+  expect(() => f.page.emit("destroyed")).not.toThrow();
+  expect(f.debug.listenerCount("message")).toBe(0);
+  expect(f.debug.listenerCount("detach")).toBe(0);
+  expect(() => f.session.dispose()).not.toThrow();
+});
+
+it("renders console formatting without CSS arguments and preserves warnings", () => {
+  const f = fixture();
+  const emit = (values: string[], type = "warning") =>
+    f.debug.emit("message", {}, "Runtime.consoleAPICalled", {
+      type,
+      args: values.map((value) => ({ type: "string", value })),
+    });
+  emit([
+    "%cElectron Security Warning (Insecure Content-Security-Policy)",
+    "font-weight: bold;",
+    "unsafe-eval",
+  ]);
+  emit(["%cHello %s%c!", "color:red", "world", "color:blue"]);
+  emit(["literal %%c", "keep this"]);
+  expect(f.session.snapshot().entries.map((entry) => entry.text)).toEqual([
+    "Electron Security Warning (Insecure Content-Security-Policy) unsafe-eval",
+    "Hello world!",
+    "literal %c keep this",
+  ]);
+  expect(f.session.snapshot().entries[0]?.level).toBe("warning");
+  f.session.dispose();
+});

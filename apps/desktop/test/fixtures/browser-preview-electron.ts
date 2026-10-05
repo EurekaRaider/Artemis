@@ -104,6 +104,38 @@ async function main() {
   await wait(
     `!![...document.querySelectorAll('.browser-preview-toolbar button')].find(b=>b.getAttribute('aria-label')==='批注' && !b.disabled)`,
   );
+  async function checkTooltips(width: number) {
+    window.setSize(width, 900);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    for (const label of ["批注", "截图到草稿", "调试"]) {
+      const selector = `.browser-preview-main-toolbar button[aria-label="${label}"]`;
+      const point = await js<{ x: number; y: number }>(
+        `(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:Math.round(r.x+r.width/2),y:Math.round(r.y+r.height/2)}})()`,
+      );
+      window.webContents.sendInputEvent({ type: "mouseMove", ...point });
+      await wait(
+        `!![...document.querySelectorAll('[role="tooltip"]')].find(el=>el.textContent===${JSON.stringify(label)} && getComputedStyle(el).visibility==='visible')`,
+      );
+      assert(
+        await js(
+          `(()=>{const r=document.querySelector('[role="tooltip"]').getBoundingClientRect();return r.left>=0 && r.right<=innerWidth && r.top>=0})()`,
+        ),
+        "tooltip fits window",
+      );
+      await writeFile(
+        join(output, `tooltip-${width}-${label}.png`),
+        (await window.webContents.capturePage()).toPNG(),
+      );
+      window.webContents.sendInputEvent({ type: "mouseMove", x: 1, y: 1 });
+      await js(`document.querySelector(${JSON.stringify(selector)}).focus()`);
+      await wait(`!!document.querySelector('[role="tooltip"]')`);
+      await js(`document.activeElement.blur()`);
+      await wait(`!document.querySelector('[role="tooltip"]')`);
+    }
+  }
+  await checkTooltips(1180);
+  await checkTooltips(420);
+  window.setSize(1180, 900);
   const contentsId = await js<number>(
     `document.querySelector('webview').getWebContentsId()`,
   );
@@ -134,6 +166,27 @@ async function main() {
   assert(!JSON.stringify(logs).includes("hidden"));
   assert(!JSON.stringify(logs).includes("private"));
 
+  await click("调试");
+  await wait(`!!document.querySelector('.browser-preview-log')`);
+  assert(
+    !(await js(
+      `document.querySelector('.browser-preview-log').textContent.includes('font-weight: bold')`,
+    )),
+  );
+  await click("截图到草稿");
+  await wait(`document.body.dataset.hasImage==='true'`);
+  assert.equal(
+    await js(
+      `document.querySelector('textarea[aria-label="Chat draft"]').value`,
+    ),
+    "",
+    "plain screenshot adds only the attachment",
+  );
+  await writeFile(
+    join(output, "screenshot-draft.png"),
+    (await window.webContents.capturePage()).toPNG(),
+  );
+  await click("调试");
   await preset("1440 × 1100");
   await wait(`document.querySelector('.browser-preview-resize') !== null`);
   await new Promise((resolve) => setTimeout(resolve, 400));
@@ -164,6 +217,7 @@ async function main() {
     beforeAiClick,
     "AI synthetic click does not trigger user takeover",
   );
+  await wait(`document.querySelector('webview').getTitle() === "Clicked"`);
   assert.equal(guest.getTitle(), "Clicked");
   await preset("390 × 844");
   await new Promise((resolve) => setTimeout(resolve, 400));
@@ -188,12 +242,14 @@ async function main() {
     /BUTTON/,
   );
   await click("加入草稿");
-  await wait(`document.body.dataset.hasImage==='true'`);
+  await wait(
+    `document.querySelector('textarea[aria-label="Chat draft"]').value.includes('BUTTON#save')`,
+  );
   assert.match(
     await js(
       `document.querySelector('textarea[aria-label="Chat draft"]').value`,
     ),
-    /"tag": "BUTTON"/,
+    /BUTTON#save/,
   );
   await writeFile(
     join(output, "browser-narrow.png"),
@@ -350,6 +406,7 @@ async function main() {
         screenshots: true,
         viewport: verified.viewport,
         checks: [
+          "hover and keyboard tooltips at 1180 and 420 pixels",
           "1440 and 390 CSS layouts",
           "unscaled screenshot",
           "AI element click",

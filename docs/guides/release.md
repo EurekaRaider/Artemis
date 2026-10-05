@@ -12,9 +12,9 @@ macOS 先签名，再通过短期 Actions artifact 交给公证任务；公证�
 
 Windows 生成当前用户级 NSIS 安装包和手动 ZIP。NSIS 不请求提权。发布必须配置 `ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`，公钥在 `apps/desktop/resources/update-public-keys.json`。签名索引绑定平台、架构、版本、递增序号和 EXE/ZIP 哈希。`ARTEMIS_UPDATE_SEQUENCE` 来自 Release 工作流 run number；重建工作流或迁移仓库前确认序号不会倒退。
 
-最终附件继续发布到公共 `EurekaRaider/ArtemisRelease`。发布器先检查所有附件摘要并回读上传结果，再公开版本。之后更新独立 `windows-x64-stable` Release 中的签名索引，并下载比对字节。不要用 GitHub 最新 Release 是否含 Windows 附件来判断 Windows 更新。
+最终附件发布到公共 `EurekaRaider/Artemis`。发布器先检查所有附件摘要并回读上传结果，再公开版本。之后更新独立 `windows-x64-stable` Release 中的签名索引，并下载比对字节。不要用 GitHub 最新 Release 是否含 Windows 附件来判断 Windows 更新。
 
-必要 Secret：`CSC_LINK`、`CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`、`ARTEMIS_RELEASE_TOKEN`、`ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`。发布凭据不获得源码 main 规则绕过权限。
+必要 Secret：`CSC_LINK`、`CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`、`ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`。附件发布使用本仓库 `GITHUB_TOKEN`，仅发布作业授予 `contents: write`。发布凭据不获得源码 main 规则绕过权限。
 
 ## Windows 恢复与轮换
 
@@ -29,6 +29,10 @@ Windows 生成当前用户级 NSIS 安装包和手动 ZIP。NSIS 不请求提权
 Office 使用 `scripts/office/sources.json` 中的固定版本与 SHA-256；空缓存也能从公开上游构建。候选包通过普通用户安装和预览检查后，作为同次运行的 artifact 传给发布任务。Windows Office 发布要求输入新的不可变版本号。
 
 Design 包仅生成 darwin-arm64 和 win32-x64。发布凭据只出现在受信任发布作业。Office 和 Design 目录变更生成 PR，维护者审查合并后客户端才能从目录发现新增能力包；自动化不直接写 main。
+
+Office 和 Design 目录 PR 仍使用 `ARTEMIS_RELEASE_TOKEN`，该令牌需拥有 `EurekaRaider/Artemis` 的 Contents 和 Pull requests 写权限。目录路径为 main 分支上的 `apps/desktop/resources/office-runtime/catalog.json` 和 `apps/desktop/resources/design-plugins/catalog.json`。
+
+已有 Office 签名清单保留原始 URL 字节以维持签名有效；下载器在验签后将精确匹配的旧 Release 前缀映射到 Artemis，仍强制校验附件大小与 SHA-256。在发布使用新源的客户端前，应将不可变 runtime 附件复制到 Artemis 的同名 tag，并保持能力包 Release 的 `--latest=false`。新清单直接使用 Artemis URL 签名。旧客户端仍使用内置的旧更新源，因此应保留旧 Releases；如需自动过渡，还需在旧源发布迁移版本。
 
 ## 验收证据
 

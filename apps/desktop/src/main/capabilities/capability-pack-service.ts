@@ -15,6 +15,7 @@ import { pipeline } from "node:stream/promises";
 import { satisfies, validRange } from "semver";
 import {
   canonicalCapabilityJson,
+  capabilityArchiveDownloadUrl,
   capabilityPackManifestSchema,
   type CapabilityPackManifest,
   type CapabilityPackStatus,
@@ -503,7 +504,7 @@ export class CapabilityPackService {
       } else {
         await this.progress("downloading");
         const response = await (this.options.fetch ?? fetch)(
-          manifest.archive.url,
+          capabilityArchiveDownloadUrl(manifest.archive.url),
           { signal, redirect: "follow" },
         );
         if (

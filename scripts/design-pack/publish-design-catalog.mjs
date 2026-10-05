@@ -16,13 +16,13 @@ import { proposeCatalog } from "../ui/catalog-pull-request.mjs";
 //
 // usage: publish-design-catalog.mjs <artifacts-design-pack-dir>
 //   reads <dir>/<version>/catalog.json for the newest version directory.
-// Requires GH_TOKEN with Contents:write on EurekaRaider/ArtemisRelease.
+// Requires GH_TOKEN with Contents:write on EurekaRaider/Artemis.
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const REPO = "EurekaRaider/ArtemisRelease";
-const CATALOG_PATH = "artemis-design/catalog.json";
+const REPO = "EurekaRaider/Artemis";
+const CATALOG_PATH = "apps/desktop/resources/design-plugins/catalog.json";
 
 /** Catalog identity of a manifest: platform and architecture are part of the
  * key, so one version's darwin-arm64 and win32-x64 manifests coexist. */
@@ -101,7 +101,10 @@ async function main() {
     throw new Error(`Catalog fetch failed: ${currentResponse.status}`);
   }
 
-  const merged = mergeDesignCatalogs(hosted, next);
+  const merged = {
+    ...mergeDesignCatalogs(hosted, next),
+    updateUrl: `https://raw.githubusercontent.com/${REPO}/main/${CATALOG_PATH}`,
+  };
   await proposeCatalog({
     repository: REPO,
     path: CATALOG_PATH,

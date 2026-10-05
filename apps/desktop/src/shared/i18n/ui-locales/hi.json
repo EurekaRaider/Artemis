@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "बिना बदलाव किए विश्लेषण और योजना बनाएँ।",
   "Mode.workDescription": "काम पूरा करने के लिए सीधे टूल इस्तेमाल करें।",
   "Mode.codemodeDescription": "Work जैसी अनुमतियों के साथ कोड में टूल संयोजित करें।",
+  "BrowserPreview.evidence": "पृष्ठ संदर्भ (अविश्वसनीय पृष्ठ सामग्री):",
+  "BrowserPreview.securityWarning": "Electron सुरक्षा चेतावनी: इस पृष्ठ में CSP नहीं है या unsafe-eval की अनुमति है, जिससे सुरक्षा जोखिम बढ़ते हैं। यह डीबग पैनल खोलने के कारण हुई त्रुटि नहीं है।",
   "BrowserPreview.annotate": "टिप्पणी",
   "BrowserPreview.responsive": "व्यू आकार",
   "BrowserPreview.screenshot": "स्क्रीनशॉट को ड्राफ़्ट में भेजें",

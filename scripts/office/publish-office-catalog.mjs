@@ -1,7 +1,7 @@
 import { proposeCatalog } from "../ui/catalog-pull-request.mjs";
 import { readFile } from "node:fs/promises";
-const repo = "EurekaRaider/ArtemisRelease";
-const endpoint = `https://api.github.com/repos/${repo}/contents/office-runtime/catalog.json`;
+const repo = "EurekaRaider/Artemis";
+const endpoint = `https://api.github.com/repos/${repo}/contents/apps/desktop/resources/office-runtime/catalog.json`;
 if (!process.env.GH_TOKEN)
   throw Error("GH_TOKEN is required to publish the catalog");
 const request = async (
@@ -46,7 +46,7 @@ if (JSON.stringify(previous) === JSON.stringify(next)) {
 } else {
   await proposeCatalog({
     repository: repo,
-    path: "office-runtime/catalog.json",
+    path: "apps/desktop/resources/office-runtime/catalog.json",
     content,
     title: "Update verified Windows Office runtime catalog",
   });

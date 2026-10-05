@@ -181,7 +181,9 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       .openWorkspaceHtml(threadId, file.path)
       .then(({ url }) => {
         if (!active) {
-          void window.artemis.releaseWorkspaceHtml(threadId, url);
+          void window.artemis
+            .releaseWorkspaceHtml(threadId, url)
+            .catch(() => {});
           return;
         }
         lease = url;
@@ -192,7 +194,10 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       });
     return () => {
       active = false;
-      if (lease) void window.artemis.releaseWorkspaceHtml(threadId, lease);
+      if (lease)
+        void window.artemis
+          .releaseWorkspaceHtml(threadId, lease)
+          .catch(() => {});
     };
   }, [file, props.threadId]);
 
@@ -311,7 +316,10 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
     const webview = webviewRef.current;
     if (!webview || !webviewReadyRef.current) return;
     try {
-      const url = normalizeBrowserAddress(address, props.locale);
+      const url =
+        workspaceDocument && address.trim() === workspaceDocument.label
+          ? workspaceDocument.url
+          : normalizeBrowserAddress(address, props.locale);
       setNavigationError(undefined);
       void webview.loadURL(url).catch((reason) => {
         setNavigationError(

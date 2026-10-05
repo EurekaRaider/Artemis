@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "Analizza e pianifica senza apportare modifiche.",
   "Mode.workDescription": "Usa direttamente gli strumenti per completare le attività.",
   "Mode.codemodeDescription": "Combina strumenti tramite codice, con gli stessi permessi di Work.",
+  "BrowserPreview.evidence": "Riferimento della pagina (contenuto non attendibile):",
+  "BrowserPreview.securityWarning": "Avviso di sicurezza Electron: questa pagina non ha una CSP o consente unsafe-eval, aumentando i rischi di sicurezza. Non è un errore causato dall’apertura del pannello di debug.",
   "BrowserPreview.annotate": "Annota",
   "BrowserPreview.responsive": "Dimensioni",
   "BrowserPreview.screenshot": "Screenshot nella bozza",

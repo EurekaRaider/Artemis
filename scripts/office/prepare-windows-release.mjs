@@ -57,7 +57,7 @@ if (
 const { signature: _signature, ...unsigned } = input;
 unsigned.version = version;
 unsigned.hostRange = ">=1.6.9 <2.0.0";
-unsigned.archive.url = `https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v${version}/office-core-win32-x64-${version}.zip`;
+unsigned.archive.url = `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/office-core-win32-x64-${version}.zip`;
 const manifest = capabilityPackManifestSchema.parse({
   ...unsigned,
   signature: {

@@ -1914,7 +1914,7 @@ describe("ArtemisPluginService", () => {
       expect(skillSource).toContain("`office_document`");
       if (plugin.name !== "pdf")
         expect(skillSource).toContain(
-          "https://github.com/EurekaRaider/ArtemisRelease/releases",
+          "https://github.com/EurekaRaider/Artemis/releases",
         );
       expect(skillSource).toContain(
         "Do not call `load_workspace_dependencies`",

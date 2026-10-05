@@ -4,7 +4,7 @@
 
 ## 选择安装包
 
-仅支持 Windows x64 和 macOS arm64。正式附件位于 [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases)。无需注册码或设备激活。
+仅支持 Windows x64 和 macOS arm64。正式附件位于 [Artemis](https://github.com/EurekaRaider/Artemis/releases)。无需注册码或设备激活。
 
 ## macOS arm64
 

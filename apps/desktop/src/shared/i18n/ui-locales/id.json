@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "Analisis dan rencanakan tanpa membuat perubahan.",
   "Mode.workDescription": "Gunakan alat secara langsung untuk menyelesaikan tugas.",
   "Mode.codemodeDescription": "Gabungkan alat melalui kode, dengan izin yang sama seperti Work.",
+  "BrowserPreview.evidence": "Referensi halaman (konten tidak tepercaya):",
+  "BrowserPreview.securityWarning": "Peringatan keamanan Electron: halaman ini tidak memiliki CSP atau mengizinkan unsafe-eval, sehingga meningkatkan risiko keamanan. Ini bukan kesalahan akibat membuka panel debug.",
   "BrowserPreview.annotate": "Anotasi",
   "BrowserPreview.responsive": "Ukuran tampilan",
   "BrowserPreview.screenshot": "Tangkapan ke draf",

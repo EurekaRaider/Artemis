@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { capabilityArchiveDownloadUrl } from "@artemis/protocol";
 import {
   OfficeCapabilityUpdates,
   type OfficeRuntimeCatalog,
@@ -46,6 +47,12 @@ describe("published Office runtime discovery", () => {
       });
       expect(manifest?.archive.url).toBe(
         `https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v${version}/office-core-${platform}-${arch}-${version}.zip`,
+      );
+      expect(capabilityArchiveDownloadUrl(manifest!.archive.url)).toBe(
+        `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/office-core-${platform}-${arch}-${version}.zip`,
+      );
+      expect(catalog.updateUrl).toBe(
+        "https://raw.githubusercontent.com/EurekaRaider/Artemis/main/apps/desktop/resources/office-runtime/catalog.json",
       );
       expect(updates.status()).toMatchObject({
         availableVersion: version,

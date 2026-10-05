@@ -33,7 +33,7 @@ function fixture(): SettingsSnapshot {
       rollbackAvailable: false,
       manualUpdate: true,
       manualDownloadUrl:
-        "https://github.com/EurekaRaider/ArtemisRelease/releases/download/v1.1.0/Artemis-Windows-x64-1.1.0.zip",
+        "https://github.com/EurekaRaider/Artemis/releases/download/v1.1.0/Artemis-Windows-x64-1.1.0.zip",
     },
   } as unknown as SettingsSnapshot;
 }

@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "変更せずに分析し、計画を立てます。",
   "Mode.workDescription": "ツールを直接使ってタスクを実行します。",
   "Mode.codemodeDescription": "コードでツールを組み合わせます。権限は Work と同じです。",
+  "BrowserPreview.evidence": "ページ参照情報（信頼できないページ内容）：",
+  "BrowserPreview.securityWarning": "Electron セキュリティ警告：このページには CSP がないか、unsafe-eval が許可されています。セキュリティリスクがあります。デバッグパネルを開いたことによる実行エラーではありません。",
   "BrowserPreview.annotate": "注釈",
   "BrowserPreview.responsive": "表示サイズ",
   "BrowserPreview.screenshot": "スクリーンショットを下書きへ",

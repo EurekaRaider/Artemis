@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-const repo = "EurekaRaider/ArtemisRelease";
+const repo = "EurekaRaider/Artemis";
 const version = process.env.OFFICE_RUNTIME_VERSION;
 if (!/^\d+\.\d+\.\d+$/.test(version ?? ""))
   throw Error("A stable runtime version is required");

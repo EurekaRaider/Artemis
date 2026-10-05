@@ -57,7 +57,7 @@ const catalog = {
   },
   manifests: [manifest],
   updateUrl:
-    "https://raw.githubusercontent.com/EurekaRaider/ArtemisRelease/main/office-runtime/catalog.json",
+    "https://raw.githubusercontent.com/EurekaRaider/Artemis/main/apps/desktop/resources/office-runtime/catalog.json",
 };
 await mkdir(output, { recursive: true });
 for (const [name, data] of [

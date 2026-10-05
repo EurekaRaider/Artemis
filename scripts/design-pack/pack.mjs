@@ -143,7 +143,7 @@ export function treeDigest(files) {
 }
 
 const RELEASE_BASE =
-  "https://github.com/EurekaRaider/ArtemisRelease/releases/download";
+  "https://github.com/EurekaRaider/Artemis/releases/download";
 
 /** One unsigned manifest per platform; the archive itself is platform-free. */
 export function unsignedManifests({

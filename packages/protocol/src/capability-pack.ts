@@ -91,7 +91,7 @@ const officeCapabilityPackManifestSchema = z
           .string()
           .url()
           .refine((value) =>
-            /^https:\/\/github\.com\/EurekaRaider\/ArtemisRelease\/releases\/download\/office-runtime-v\d+\.\d+\.\d+\/[^/?#]+\.zip$/u.test(
+            /^https:\/\/github\.com\/EurekaRaider\/Artemis(?:Release)?\/releases\/download\/office-runtime-v\d+\.\d+\.\d+\/[^/?#]+\.zip$/u.test(
               value,
             ),
           ),
@@ -166,8 +166,18 @@ const officeCapabilityPackManifestSchema = z
     }
   });
 
-const softwareReleaseHost =
+const legacyReleaseHost =
   "https://github.com/EurekaRaider/ArtemisRelease/releases/download/";
+
+/** Preserve signed legacy manifests; only the archive transport moves repositories. */
+export function capabilityArchiveDownloadUrl(url: string): string {
+  return url.startsWith(legacyReleaseHost)
+    ? softwareReleaseHost + url.slice(legacyReleaseHost.length)
+    : url;
+}
+
+const softwareReleaseHost =
+  "https://github.com/EurekaRaider/Artemis/releases/download/";
 
 /**
  * Software-only packs (no native engine, e.g. plugin packages). Same trust
@@ -191,7 +201,11 @@ const softwareCapabilityPackManifestSchema = z
         url: z
           .string()
           .url()
-          .refine((value) => value.startsWith(softwareReleaseHost)),
+          .refine(
+            (value) =>
+              value.startsWith(softwareReleaseHost) ||
+              value.startsWith(legacyReleaseHost),
+          ),
         sha256: digest,
         downloadBytes: z.number().int().positive().max(1_073_741_824),
         unpackedBytes: z.number().int().positive().max(3_221_225_472),

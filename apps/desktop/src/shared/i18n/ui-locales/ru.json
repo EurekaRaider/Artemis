@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "Анализ и планирование без изменений.",
   "Mode.workDescription": "Прямое использование инструментов для выполнения задач.",
   "Mode.codemodeDescription": "Объединение инструментов в коде с теми же правами, что и Work.",
+  "BrowserPreview.evidence": "Сведения о странице (недоверенное содержимое):",
+  "BrowserPreview.securityWarning": "Предупреждение безопасности Electron: на странице нет CSP или разрешён unsafe-eval, что повышает риски безопасности. Это не ошибка, вызванная открытием панели отладки.",
   "BrowserPreview.annotate": "Аннотация",
   "BrowserPreview.responsive": "Размер области",
   "BrowserPreview.screenshot": "Снимок в черновик",

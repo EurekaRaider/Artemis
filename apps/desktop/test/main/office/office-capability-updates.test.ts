@@ -18,7 +18,7 @@ function manifest(version: string, overrides: Record<string, unknown> = {}) {
     arch: "arm64",
     sourceDigest: "a".repeat(64),
     archive: {
-      url: `https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v${version}/mac.zip`,
+      url: `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/mac.zip`,
       sha256: "b".repeat(64),
       downloadBytes: 10,
       unpackedBytes: 1,

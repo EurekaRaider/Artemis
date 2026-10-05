@@ -59,8 +59,8 @@ Arabic RTL, with light and dark themes.
 ## Quick start
 
 > Artemis is MIT-licensed and starts without activation or device registration.
-> Supported targets are Windows x64 and macOS arm64. Downloads remain at
-> [ArtemisRelease](https://github.com/EurekaRaider/ArtemisRelease/releases).
+> Supported targets are Windows x64 and macOS arm64. Downloads are available at
+> [Artemis](https://github.com/EurekaRaider/Artemis/releases).
 > See [installation](docs/install.md) and [contribution rules](CONTRIBUTING.md).
 
 ### Run from source
@@ -379,7 +379,7 @@ release secrets. Native checks and actual installation evidence remain separate.
 | macOS arm64 | `npm run package:mac` | DMG and ZIP |
 
 The Release workflow signs and notarizes macOS packages, verifies Windows
-artifacts, checks the final attachment allowlist and publishes to ArtemisRelease.
+artifacts, checks the final attachment allowlist and publishes to Artemis.
 Intermediate signed macOS apps use short-lived Actions artifacts.
 See the [release guide](docs/guides/release.md) for credentials and acceptance.
 

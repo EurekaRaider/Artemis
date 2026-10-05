@@ -18,7 +18,12 @@ const next = {
   manifests: [mac, { platform: "win32", arch: "x64", version: "1.0.1" }],
 };
 
-function publish(before: unknown, after: unknown, mismatch = false) {
+function publish(
+  before: unknown,
+  after: unknown,
+  mismatch = false,
+  large = false,
+) {
   const directory = mkdtempSync(join(tmpdir(), "office-catalog-publisher-"));
   const input = join(directory, "catalog.json");
   const requests = join(directory, "requests.json");
@@ -34,7 +39,7 @@ const requests=[];
 globalThis.fetch=async (url, options)=>{
   assert.equal(options.headers.Authorization,'Bearer fixture-token');
   const method=options.method ?? 'GET';
-  const endpoint=new URL(url).pathname.split('/ArtemisRelease/')[1];
+  const endpoint=new URL(url).pathname.split('/Artemis/')[1];
   requests.push(method);
   writeFileSync(${JSON.stringify(requests)},JSON.stringify(requests));
   if(endpoint.startsWith('git/matching-refs/')) return Response.json([]);
@@ -44,8 +49,8 @@ globalThis.fetch=async (url, options)=>{
     assert.ok(JSON.parse(options.body).ref.startsWith('refs/heads/codex/catalog-'));
     return Response.json({});
   }
-  if(endpoint==='pulls') return Response.json(method==='POST' ? {html_url:'https://github.com/EurekaRaider/ArtemisRelease/pull/123'} : []);
-  assert.equal(endpoint,'contents/office-runtime/catalog.json');
+  if(endpoint==='pulls') return Response.json(method==='POST' ? {html_url:'https://github.com/EurekaRaider/Artemis/pull/123'} : []);
+  assert.equal(endpoint,'contents/apps/desktop/resources/office-runtime/catalog.json');
   if(method==='PUT'){
     const body=JSON.parse(options.body);
     assert.equal(body.sha,'current-sha');
@@ -53,7 +58,8 @@ globalThis.fetch=async (url, options)=>{
     stored=JSON.parse(Buffer.from(body.content,'base64').toString());
     return Response.json({});
   }
-  if(options.headers.Accept==='application/vnd.github.raw+json') return Response.json(stored);
+  if(options.headers.Accept==='application/vnd.github.raw+json') return Response.json(${mismatch} && requests.includes('PUT') ? {} : stored);
+  if(${large}) return Response.json({sha:'current-sha',content:'',encoding:'none'});
   return Response.json({sha:'current-sha',content:Buffer.from(JSON.stringify(${mismatch} && requests.includes('PUT') ? {} : stored)).toString('base64')});
 };`,
   );
@@ -101,6 +107,13 @@ describe("Office catalog publisher", () => {
     ]);
     expect(result.output).toContain("Catalog review:");
     expect(publish(next, next).requests).toEqual(["GET", "GET"]);
+  });
+
+  it("publishes a catalog whose Contents API response omits inline content", () => {
+    expect(publish(previous, next, false, true).error).toBe("");
+    expect(publish(previous, next, true, true).error).toContain(
+      "readback mismatch",
+    );
   });
 
   it("rejects changed trust roots or removed platforms before writing", () => {

@@ -145,7 +145,7 @@ for (const version of ["1.0.0", "1.0.1"]) {
     ...common,
     version,
     archive: {
-      url: `https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v${version}/office-core-win32-x64.zip`,
+      url: `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/office-core-win32-x64.zip`,
       sha256: await hash(archivePath),
       downloadBytes: (await stat(archivePath)).size,
       unpackedBytes: files.reduce((total, file) => total + file.bytes, 0),

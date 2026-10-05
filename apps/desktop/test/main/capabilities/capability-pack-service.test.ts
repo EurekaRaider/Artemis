@@ -80,7 +80,7 @@ function signed(
     arch: "arm64",
     sourceDigest: sha("source"),
     archive: {
-      url: `https://github.com/EurekaRaider/ArtemisRelease/releases/download/office-runtime-v${version}/mac.zip`,
+      url: `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/mac.zip`,
       sha256: sha(archive),
       downloadBytes: archive.length,
       unpackedBytes: Buffer.byteLength("native test fixture"),
@@ -147,6 +147,27 @@ function offlinePack(manifest: unknown, archive = zip()): Buffer {
 }
 
 describe("host capability packs", () => {
+  it.each(["Artemis", "ArtemisRelease"])(
+    "downloads a signed %s manifest from Artemis without changing its signature",
+    async (repository) => {
+      const f = await fixture();
+      const manifest = signed(zip(), {
+        archive: {
+          ...f.manifest.archive,
+          url: `https://github.com/EurekaRaider/${repository}/releases/download/office-runtime-v1.0.0/mac.zip`,
+        },
+      });
+      const original = JSON.stringify(manifest);
+      await f.service.install(manifest);
+      expect(f.download).toHaveBeenCalledWith(
+        "https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v1.0.0/mac.zip",
+        expect.any(Object),
+      );
+      expect(JSON.stringify(manifest)).toBe(original);
+      expect(verifyCapabilityManifest(manifest, target)).toEqual(manifest);
+    },
+  );
+
   it("verifies publisher, target, host range and immutable release URL before I/O", () => {
     const valid = signed(zip());
     expect(verifyCapabilityManifest(valid, target).version).toBe("1.0.0");
@@ -171,7 +192,7 @@ describe("host capability packs", () => {
         signed(zip(), {
           archive: {
             ...valid.archive,
-            url: "https://github.com/EurekaRaider/ArtemisRelease/releases/latest/download/mac.zip",
+            url: "https://github.com/EurekaRaider/Artemis/releases/latest/download/mac.zip",
           },
         }),
         target,
@@ -420,7 +441,7 @@ describe("host capability packs", () => {
 
 /** Software-pack (no native engine) fixtures: signed multi-file inventory. */
 const RELEASE_HOST =
-  "https://github.com/EurekaRaider/ArtemisRelease/releases/download/";
+  "https://github.com/EurekaRaider/Artemis/releases/download/";
 
 function zipEntries(entries: Array<{ name: string; bytes: Buffer }>): Buffer {
   const parts: Buffer[] = [];

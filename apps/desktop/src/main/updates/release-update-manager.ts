@@ -266,7 +266,7 @@ export class ReleaseUpdateManager {
         const release = await this.checkWindows(
           this.currentVersion,
           this.environment.ARTEMIS_UPDATE_OWNER ?? "EurekaRaider",
-          this.environment.ARTEMIS_UPDATE_REPO ?? "ArtemisRelease",
+          this.environment.ARTEMIS_UPDATE_REPO ?? "Artemis",
         );
         this.update({
           state: release ? "available" : "idle",

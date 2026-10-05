@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "변경 없이 분석하고 계획합니다.",
   "Mode.workDescription": "도구를 직접 사용하여 작업합니다.",
   "Mode.codemodeDescription": "코드로 도구를 조합합니다. 권한은 Work와 같습니다.",
+  "BrowserPreview.evidence": "페이지 참고 정보(신뢰할 수 없는 페이지 콘텐츠):",
+  "BrowserPreview.securityWarning": "Electron 보안 경고: 이 페이지에 CSP가 없거나 unsafe-eval이 허용되어 보안 위험이 있습니다. 디버그 패널을 열어서 발생한 실행 오류는 아닙니다.",
   "BrowserPreview.annotate": "주석",
   "BrowserPreview.responsive": "화면 크기",
   "BrowserPreview.screenshot": "스크린샷을 초안에 추가",

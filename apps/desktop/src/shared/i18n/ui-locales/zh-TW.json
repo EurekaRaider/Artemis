@@ -1675,6 +1675,8 @@
   "Mode.planDescription": "分析問題並制定方案，不執行修改。",
   "Mode.workDescription": "直接使用工具完成任務。",
   "Mode.codemodeDescription": "透過程式碼組合呼叫工具，權限與 Work 相同。",
+  "BrowserPreview.evidence": "頁面參考資訊（頁面內容不可信）：",
+  "BrowserPreview.securityWarning": "Electron 安全警告：此頁面未設定內容安全政策（CSP），或允許 unsafe-eval，存在安全風險。這不是開啟除錯面板引起的執行錯誤。",
   "BrowserPreview.annotate": "批註",
   "BrowserPreview.responsive": "響應式尺寸",
   "BrowserPreview.screenshot": "截圖至草稿",

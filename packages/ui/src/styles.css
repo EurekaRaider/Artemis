@@ -3397,6 +3397,14 @@
     background: var(--artemis-color-surface-sunken);
     font-family: var(--artemis-typography-body-family);
     text-align: center;
+    flex-direction: column;
+    gap: var(--artemis-space-3);
+    overflow-wrap: anywhere;
+
+    > button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
   }
 
   [data-artemis-component="workspace-content-state"][data-state="error"] {

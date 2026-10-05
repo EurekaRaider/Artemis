@@ -2,14 +2,16 @@ import { createHash } from "node:crypto";
 /** Propose a catalog change without granting the publisher main-branch bypass. */
 export async function proposeCatalog({ repository, path, content, title }) {
   if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is required");
-  const api = async (endpoint, method = "GET", body) => {
+  const api = async (endpoint, method = "GET", body, raw = false) => {
     const response = await fetch(
       `https://api.github.com/repos/${repository}/${endpoint}`,
       {
         method,
         headers: {
           Authorization: `Bearer ${process.env.GH_TOKEN}`,
-          Accept: "application/vnd.github+json",
+          Accept: raw
+            ? "application/vnd.github.raw+json"
+            : "application/vnd.github+json",
           "Content-Type": "application/json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -21,7 +23,7 @@ export async function proposeCatalog({ repository, path, content, title }) {
       throw new Error(
         `Catalog PR ${method} ${endpoint}: HTTP ${response.status}`,
       );
-    return response.json();
+    return raw ? response.text() : response.json();
   };
   const digest = createHash("sha256")
     .update(content)
@@ -60,9 +62,10 @@ export async function proposeCatalog({ repository, path, content, title }) {
       ...(previous ? { sha: previous.sha } : {}),
     });
   const readback = await api(`contents/${path}?ref=${branch}`);
-  if (
-    Buffer.from(readback.content ?? "", "base64").toString("utf8") !== content
-  )
+  const published = readback.content
+    ? Buffer.from(readback.content, "base64").toString("utf8")
+    : await api(`contents/${path}?ref=${branch}`, "GET", undefined, true);
+  if (published !== content)
     throw new Error("Catalog branch readback mismatch");
   const existing = await api(
     `pulls?state=open&head=${repository.split("/")[0]}:${branch}&base=main`,
