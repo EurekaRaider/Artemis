@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "name": "documents",
   "version": "1.1.0",
-  "description": "Runtime-free basic Word document workflows using Artemis's normalized Office document service.",
+  "description": "Office suite document workflows. Requires the installed and active Office enhancement pack.",
   "skills": "./skills/",
   "interface": {
     "displayName": "Documents",
-    "shortDescription": "Basic normalized Word document reading and writing.",
+    "shortDescription": "Document workflows within the installed Office suite.",
     "category": "Productivity",
     "brandColor": "#2563EB",
     "logo": "./assets/icon.png"

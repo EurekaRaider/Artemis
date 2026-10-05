@@ -66,10 +66,12 @@ function Harness({
   onSelect,
   projectId,
   members,
+  plugins,
 }: {
   enabled?: boolean;
   onSelect(reference: CustomAgentDraftReference): void;
   projectId?: string | undefined;
+  plugins?: Parameters<typeof useCustomAgentMention>[0]["plugins"];
   members?: Parameters<typeof useCustomAgentMention>[0]["members"];
 }) {
   const [text, setText] = useState("");
@@ -83,6 +85,7 @@ function Harness({
     enabled,
     onSelect,
     members,
+    plugins,
   });
   return (
     <>
@@ -319,5 +322,105 @@ describe("composer send wiring (source contract)", () => {
     const clearStart = appSource.indexOf("const clearSubmittedPrompt");
     const body = appSource.slice(clearStart, clearStart + 800);
     expect(body).toContain("setCustomAgentTasks([])");
+  });
+});
+
+describe("plugin mentions", () => {
+  const skill = {
+    id: "slides",
+    name: "make-slides",
+    description: "Create a deck",
+    enabled: true,
+    path: "/skills/slides",
+  };
+  const plugin = {
+    name: "slides",
+    displayName: "Presentations",
+    installable: true,
+    skillNames: [skill.name],
+  } as import("../../../src/shared/api.js").InstalledArtemisPlugin;
+  const pluginOptions = (onSelect = vi.fn()) => ({
+    installed: [plugin],
+    skills: [skill],
+    selectedNames: [],
+    onSelect,
+  });
+
+  it("searches by plugin name and selects with Tab without adding an agent", async () => {
+    const user = userEvent.setup(),
+      onSelect = vi.fn(),
+      onPlugin = vi.fn();
+    render(
+      <Harness
+        onSelect={onSelect}
+        plugins={pluginOptions(onPlugin)}
+        enabled={false}
+      />,
+    );
+    await user.type(screen.getByLabelText("prompt"), "please @Presentations");
+    expect(screen.getByRole("listbox")).toHaveTextContent("make-slides");
+    await user.keyboard("{Tab}");
+    expect(onPlugin).toHaveBeenCalledWith(skill);
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("prompt")).toHaveValue("please ");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("shares one keyboard ordered menu with members and agents", async () => {
+    const user = userEvent.setup(),
+      onPlugin = vi.fn();
+    render(
+      <Harness
+        onSelect={vi.fn()}
+        plugins={pluginOptions(onPlugin)}
+        members={{ candidates: memberCandidates, insert: vi.fn() }}
+      />,
+    );
+    await user.type(screen.getByLabelText("prompt"), "@");
+    expect(screen.getAllByRole("listbox")).toHaveLength(1);
+    expect(screen.getAllByRole("option")).toHaveLength(3);
+    await user.keyboard("{ArrowUp}{Enter}");
+    expect(onPlugin).toHaveBeenCalledWith(skill);
+  });
+
+  it("preserves text after a mid-prompt plugin selection", () => {
+    const onPlugin = vi.fn();
+    render(<Harness onSelect={vi.fn()} plugins={pluginOptions(onPlugin)} />);
+    const box = screen.getByLabelText("prompt") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "please @slides next" } });
+    box.setSelectionRange(14, 14);
+    fireEvent.select(box);
+    fireEvent.click(screen.getByRole("button", { name: /make-slides/ }));
+    expect(onPlugin).toHaveBeenCalledWith(skill);
+    expect(box).toHaveValue("please  next");
+  });
+
+  it.each(["disabled", "unavailable", "selected", "standalone"])(
+    "excludes %s skills",
+    async (kind) => {
+      const user = userEvent.setup();
+      const options = pluginOptions();
+      if (kind === "disabled") options.skills = [{ ...skill, enabled: false }];
+      if (kind === "unavailable")
+        options.installed = [{ ...plugin, installable: false }];
+      if (kind === "selected")
+        (options.selectedNames as string[]).push(skill.name);
+      if (kind === "standalone") options.installed = [];
+      render(<Harness onSelect={vi.fn()} plugins={options} />);
+      await user.type(screen.getByLabelText("prompt"), "@slides");
+      expect(screen.queryByRole("listbox")).toBeNull();
+    },
+  );
+
+  it("does not trigger for email text and respects Escape", async () => {
+    const user = userEvent.setup();
+    render(<Harness onSelect={vi.fn()} plugins={pluginOptions()} />);
+    const box = screen.getByLabelText("prompt");
+    await user.type(box, "me@slides");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await user.clear(box);
+    await user.type(box, "@slides");
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

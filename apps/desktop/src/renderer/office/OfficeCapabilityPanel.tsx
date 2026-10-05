@@ -50,6 +50,7 @@ export function OfficeCapabilityPanel({
   };
   return (
     <CapabilityPackPanel
+      installed={installed}
       copy={copy}
       api={{
         status: () => window.artemis.officeCapabilityStatus(),

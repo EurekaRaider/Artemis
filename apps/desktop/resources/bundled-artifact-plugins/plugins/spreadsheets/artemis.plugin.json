@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "name": "spreadsheets",
   "version": "1.1.0",
-  "description": "Runtime-free basic Excel workflows using Artemis's normalized Office document service.",
+  "description": "Office suite document workflows. Requires the installed and active Office enhancement pack.",
   "skills": "./skills/",
   "interface": {
     "displayName": "Spreadsheets",
-    "shortDescription": "Basic normalized Excel reading and writing.",
+    "shortDescription": "Document workflows within the installed Office suite.",
     "category": "Productivity",
     "brandColor": "#16A34A",
     "logo": "./assets/icon.png"

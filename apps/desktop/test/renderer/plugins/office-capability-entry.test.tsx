@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -20,7 +21,10 @@ beforeEach(() => {
   );
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 it("recognizes an installed Office pack with legacy plugin metadata and keeps all entry labels in sync", async () => {
   const plugins = ["documents", "spreadsheets", "presentations"].map((id) => ({
@@ -153,30 +157,30 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     }
   });
   const manage = await screen.findAllByRole("button", {
-    name: "管理 Office 配置",
+    name: "管理 Office 套件",
     exact: true,
   });
-  expect(manage).toHaveLength(3);
+  expect(manage).toHaveLength(4);
   fireEvent.click(manage[0]!);
-  const panel = await screen.findByRole("dialog", { name: "管理 Office 配置" });
+  const panel = await screen.findByRole("dialog", { name: "管理 Office 套件" });
   fireEvent.click(
     await within(panel).findByRole("button", { name: "卸载", exact: true }),
   );
   await waitFor(() =>
     expect(
-      screen.getByRole("dialog", { name: "升级 Office 功能" }),
+      screen.getByRole("dialog", { name: "安装 Office 套件" }),
     ).toBeVisible(),
   );
   fireEvent.click(screen.getByRole("button", { name: "关闭", exact: true }));
   expect(
     await screen.findAllByRole("button", {
-      name: "升级 Office 功能",
+      name: "安装 Office 套件",
       exact: true,
     }),
   ).toHaveLength(3);
   fireEvent.click(
     screen.getAllByRole("button", {
-      name: "升级 Office 功能",
+      name: "安装 Office 套件",
       exact: true,
     })[0]!,
   );
@@ -184,15 +188,14 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     await screen.findByRole("button", { name: "导入离线包", exact: true }),
   );
   expect(
-    await screen.findByRole("dialog", { name: "管理 Office 配置" }),
+    await screen.findByRole("dialog", { name: "管理 Office 套件" }),
   ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "关闭", exact: true }));
-  expect(
-    await screen.findAllByRole("button", {
-      name: "管理 Office 配置",
-      exact: true,
-    }),
-  ).toHaveLength(3);
+  await waitFor(() =>
+    expect(
+      screen.getAllByRole("button", { name: "管理 Office 套件", exact: true }),
+    ).toHaveLength(4),
+  );
   mounted.unmount();
   status.mockClear();
   render(
@@ -203,10 +206,9 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     />,
   );
   await waitFor(() => expect(status).toHaveBeenCalled());
-  expect(
-    await screen.findAllByRole("button", {
-      name: "管理 Office 配置",
-      exact: true,
-    }),
-  ).toHaveLength(3);
+  await waitFor(() =>
+    expect(
+      screen.getAllByRole("button", { name: "管理 Office 套件", exact: true }),
+    ).toHaveLength(4),
+  );
 });
