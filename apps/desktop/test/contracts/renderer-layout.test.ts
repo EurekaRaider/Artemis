@@ -889,7 +889,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("promptWithSelectedSkills(");
     expect(appSource).toContain("removeLabel={t.removeSelectedSkill}");
     expect(appSource).toContain("selectedSkills.length === 0");
-    expect(appSource).toContain("unavailablePluginSkillNames");
+    expect(appSource).toContain("!installedPluginBySkillName.has(skill.name)");
     expect(appSource).toContain("<strong>{skill.name}</strong>");
     expect(appSource).not.toContain(
       "<strong>{`/skill:${skill.name}`}</strong>",
@@ -906,12 +906,16 @@ describe("renderer layout contract", () => {
     expect(cssRule(".slash-command-suggestion")).toMatch(
       /\bmin-height:\s*42px/u,
     );
-    expect(cssRule(".slash-command-suggestion > span:last-child")).toMatch(
-      /\bflex-direction:\s*row/u,
-    );
-    expect(cssRule(".slash-command-suggestion > span:last-child")).toMatch(
-      /\bjustify-content:\s*space-between/u,
-    );
+    expect(
+      cssRule(
+        '.slash-command-suggestion > span:last-child:not([data-part="state-indicator"])',
+      ),
+    ).toMatch(/\bflex-direction:\s*row/u);
+    expect(
+      cssRule(
+        '.slash-command-suggestion > span:last-child:not([data-part="state-indicator"])',
+      ),
+    ).toMatch(/\bjustify-content:\s*space-between/u);
     expect(appSource).toContain("<ResourceAvatar");
     expect(appSource).toContain("iconDataUrl={plugin.iconDataUrl}");
     expect(cssRule(".slash-command-suggestion .resource-avatar")).toMatch(
@@ -2883,7 +2887,7 @@ describe("renderer layout contract", () => {
     expect(stylesSource).not.toContain(
       ".resource-installed-icon-button::after",
     );
-    expect(stylesSource).toContain(".resource-runtime-banner");
+    expect(stylesSource).not.toContain(".resource-runtime-banner");
     expect(runtimeSource).toContain('name: "load_workspace_dependencies"');
     expect(runtimeSource).toContain("resolveCodexWorkspaceDependencies()");
     expect(agentProcessSource).toContain("ARTEMIS_CODEX_RUNTIME_ROOT");

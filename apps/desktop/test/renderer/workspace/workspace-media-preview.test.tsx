@@ -25,7 +25,7 @@ const svg = '<svg xmlns="http://www.w3.org/2000/svg"/>';
 
 describe("workspace media preview", () => {
   it.each(["data.csv", "slides.ppt", "budget.xls"])(
-    "shows upgrade guidance for %s when Office is missing",
+    "shows installation guidance for %s when Office is missing",
     async (path) => {
       stubWindowArtemis({
         listWorkspaceDirectory: async () => [],
@@ -47,10 +47,10 @@ describe("workspace media preview", () => {
         />,
       );
       expect(
-        await screen.findByText("不支持预览，如需预览请升级office功能"),
+        await screen.findByText("安装 Office 套件后即可预览此文件"),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: "升级 Office 功能" }),
+        screen.getByRole("button", { name: "安装 Office 套件" }),
       ).toBeVisible();
       expect(screen.queryByText("Binary file")).toBeNull();
     },

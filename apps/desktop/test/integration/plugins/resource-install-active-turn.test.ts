@@ -34,6 +34,10 @@ function fixture(channel: (typeof channels)[number]) {
     path: "/tmp/new-skill",
   }));
   const scope = {
+    getOfficeWorkbench: () => ({
+      updates: { available: () => ({ version: "1.0.0" }) },
+      packs: { install },
+    }),
     IPC: Object.fromEntries(channels.map((name) => [name, name])),
     ipcMain: {
       handle: (_name: string, value: typeof handler) => {
@@ -78,9 +82,13 @@ function fixture(channel: (typeof channels)[number]) {
     ...Object.keys(scope),
     transformSync(
       between(
-        "async function resetAgentThreadsForToolChange(",
-        "type ModelSettingsSnapshot",
+        "async function installOfficeSuite(",
+        "function windowsSandboxHelperPath(",
       ) +
+        between(
+          "async function resetAgentThreadsForToolChange(",
+          "type ModelSettingsSnapshot",
+        ) +
         between(`  ipcMain.handle(\n    IPC.${channel},`, "  ipcMain.handle(") +
         "\nreturn resetAgentThreadsForToolChange;",
       { loader: "ts" },
@@ -97,7 +105,12 @@ function fixture(channel: (typeof channels)[number]) {
         : handler(
             { sender: {} },
             channel === "resourcePluginInstall"
-              ? { kind: "bundled", pluginName: "documents" }
+              ? {
+                  kind: "git",
+                  pluginName: "example",
+                  marketplaceUrl: "https://example.com/plugins.git",
+                  marketplaceName: "examples",
+                }
               : "owner/repository/new-skill",
             "operation",
           ),
@@ -118,10 +131,14 @@ describe("resource installation during an active turn", () => {
         "running-thread",
         "idle-thread",
       ]);
-      expect(f.scope.publishResourceInstallProgress).toHaveBeenLastCalledWith(
-        {},
-        expect.objectContaining({ percent: 100 }),
-      );
+      if (channel === "resourcePluginRuntimeInstall") {
+        expect(f.scope.publishResourceInstallProgress).not.toHaveBeenCalled();
+      } else {
+        expect(f.scope.publishResourceInstallProgress).toHaveBeenLastCalledWith(
+          {},
+          expect.objectContaining({ percent: 100 }),
+        );
+      }
     },
   );
 
