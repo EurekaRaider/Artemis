@@ -1876,12 +1876,6 @@ export function ResourceCenter({
                 )}
                 <Button
                   variant="secondary"
-                  onClick={() => setOfficeCapabilityOpen(true)}
-                >
-                  {office.manage}
-                </Button>
-                <Button
-                  variant="secondary"
                   className="management-destructive-action plugin-market-remove-action"
                   icon={<TrashIcon />}
                   disabled={status?.versions.some(
