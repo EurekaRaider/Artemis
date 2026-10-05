@@ -755,25 +755,29 @@
     transform: translateX(0);
   }
 
-  [data-artemis-component="switch"][data-state="checked"] [data-part="track"] {
+  [data-artemis-component="switch"]:has([data-part="control"]:checked)
+    [data-part="track"] {
     background: var(--artemis-color-accent-primary);
     border-color: var(--artemis-color-accent-primary);
   }
 
-  [data-artemis-component="switch"][data-state="checked"] [data-part="thumb"] {
+  [data-artemis-component="switch"]:has([data-part="control"]:checked)
+    [data-part="thumb"] {
     background: #fff;
     transform: translateX(
       calc(var(--artemis-space-4) + var(--artemis-space-1))
     );
   }
 
-  [data-artemis-component="switch"][data-size="compact"][data-state="checked"]
+  [data-artemis-component="switch"][data-size="compact"]:has(
+      [data-part="control"]:checked
+    )
     [data-part="thumb"] {
     transform: translateX(var(--artemis-space-4));
   }
 
   [dir="rtl"]
-    [data-artemis-component="switch"][data-state="checked"]
+    [data-artemis-component="switch"]:has([data-part="control"]:checked)
     [data-part="thumb"] {
     transform: translateX(
       calc((var(--artemis-space-4) + var(--artemis-space-1)) * -1)
@@ -781,7 +785,9 @@
   }
 
   [dir="rtl"]
-    [data-artemis-component="switch"][data-size="compact"][data-state="checked"]
+    [data-artemis-component="switch"][data-size="compact"]:has(
+      [data-part="control"]:checked
+    )
     [data-part="thumb"] {
     transform: translateX(calc(var(--artemis-space-4) * -1));
   }

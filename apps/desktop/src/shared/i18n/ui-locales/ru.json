@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "Включение…",
+  "ResourceCenter.disabling": "Отключение…",
   "Model.advanced": "Расширенные параметры модели (JSON)",
   "Plan.card": "План реализации",
   "Plan.accepted": "Принят",

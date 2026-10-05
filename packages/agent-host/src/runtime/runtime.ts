@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { projectMcpTools } from "../policy/project-mcp-overrides.js";
 import { registerVirtualModels } from "../models/virtual-models.js";
 import { contextEditingExtension } from "../context/context-editing.js";
@@ -1674,6 +1675,25 @@ export class ArtemisAgentHost {
   }
 
   async configure(configuration: AgentRuntimeConfiguration): Promise<void> {
+    const {
+      officeEnabled: previousOffice,
+      disabledSkillFiles: _previousSkills,
+      ...previous
+    } = this.configuration;
+    const {
+      officeEnabled: nextOffice,
+      disabledSkillFiles: _nextSkills,
+      ...next
+    } = configuration;
+    if (previousOffice !== nextOffice && isDeepStrictEqual(previous, next)) {
+      // Office tool execution reads this configuration immediately. Resource
+      // loaders refresh at the existing pre-prompt gate, not across every idle
+      // session during a toggle. Other configuration changes keep the full path.
+      this.configuration = structuredClone(configuration);
+      for (const hosted of this.threads.values())
+        hosted.configurationPending = true;
+      return;
+    }
     this.shellRuntime.configure(configuration.shell);
     this.credentials.replace(configuration.credentials);
     const resolvedConfiguration = structuredClone(configuration);

@@ -10040,13 +10040,13 @@ kbd {
   block-size: 16px;
 }
 .im-settings
-  [data-artemis-component="switch"][data-state="checked"]
+  [data-artemis-component="switch"]:has([data-part="control"]:checked)
   [data-part="thumb"] {
   transform: translateX(14px);
 }
 [dir="rtl"]
   .im-settings
-  [data-artemis-component="switch"][data-state="checked"]
+  [data-artemis-component="switch"]:has([data-part="control"]:checked)
   [data-part="thumb"] {
   transform: translateX(-14px);
 }

@@ -122,15 +122,16 @@ describe("MCP configuration toggles", () => {
     const setEnabled = vi.fn(
       (id: string, enabled: boolean) =>
         new Promise((resolve) => {
-          finish.push(() =>
+          finish.push(() => {
+            servers.find((server) => server.config.id === id)!.config.enabled =
+              enabled;
             resolve({
-              mcpServers: servers.map((server) =>
-                server.config.id === id
-                  ? { ...server, config: { ...server.config, enabled } }
-                  : server,
-              ),
-            }),
-          );
+              mcpServers: servers.map((server) => ({
+                ...server,
+                config: { ...server.config },
+              })),
+            });
+          });
         }),
     );
     stubWindowArtemis({
@@ -165,13 +166,116 @@ describe("MCP configuration toggles", () => {
     expect(toggles[0]).toBeDisabled();
     expect(toggles[1]).toBeEnabled();
     fireEvent.click(toggles[1]!);
-    expect(setEnabled).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(setEnabled).toHaveBeenCalledTimes(1));
     expect(toggles[0]).toBeDisabled();
     expect(toggles[1]).toBeDisabled();
     await act(async () => finish[0]!());
+    await waitFor(() => expect(setEnabled).toHaveBeenCalledTimes(2));
     expect(toggles[0]).toBeEnabled();
     expect(toggles[1]).toBeDisabled();
     await act(async () => finish[1]!());
     expect(toggles[1]).toBeEnabled();
+    expect(toggles[0]).not.toBeChecked();
+    expect(toggles[1]).not.toBeChecked();
   });
 });
+
+it.each(["plugins", "skills"] as const)(
+  "keeps unrelated %s switches unchanged while saves are queued",
+  async (kind) => {
+    vi.resetModules();
+    const { ResourceCenter: FreshResourceCenter } =
+      await import("../../../src/renderer/plugins/ResourceCenter.js");
+    const skills = ["first", "second"].map((id) => ({
+      id,
+      name: id,
+      path: `/synthetic/${id}`,
+      description: id,
+      enabled: true,
+    }));
+    const plugins = skills.map((skill) => ({
+      id: skill.id,
+      name: skill.name,
+      displayName: skill.name,
+      version: "1.0.0",
+      description: "Plugin",
+      source: { kind: "local", path: skill.path },
+      installed: true,
+      installable: true,
+      skills: [],
+      skillNames: [skill.name],
+      mcpServers: [],
+      mcpServerIds: [],
+      apps: [],
+      unsupported: [],
+      warnings: [],
+    }));
+    const finishes: Array<() => void> = [];
+    const save = vi.fn(
+      (id: string, enabled: boolean) =>
+        new Promise((resolve) => {
+          finishes.push(() => {
+            skills.find((skill) => skill.id === id)!.enabled = enabled;
+            const next = skills.map((skill) => ({ ...skill }));
+            resolve(
+              kind === "skills"
+                ? next
+                : {
+                    plugins,
+                    skills: next,
+                    warnings: [],
+                    settings: { mcpServers: [] },
+                  },
+            );
+          });
+        }),
+    );
+    stubWindowArtemis({
+      listMcpServers: async () => [],
+      listArtemisPlugins: async () => (kind === "plugins" ? plugins : []),
+      listInstalledSkills: async () => skills.map((skill) => ({ ...skill })),
+      getArtemisPluginMarketplaces: async () => ({
+        sources: [],
+        marketplaces: [],
+        errors: [],
+        selectedView: "local",
+      }),
+      loadBundledPluginMarketplace: async () => undefined,
+      onResourceInstallProgress: () => () => {},
+      setArtemisPluginEnabled: save,
+      setSkillEnabled: save,
+    });
+    render(
+      <FreshResourceCenter
+        locale="en"
+        onConfirm={async () => true}
+        onSettingsChange={vi.fn()}
+      />,
+    );
+    if (kind === "skills") {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Manage installed capabilities" }),
+      );
+      fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    }
+    const toggles = await screen.findAllByRole("switch");
+    expect(toggles).toHaveLength(2);
+    fireEvent.click(toggles[0]!);
+    expect(toggles[0]).toBeDisabled();
+    expect(toggles[0]).toBeChecked();
+    expect(toggles[1]).toBeEnabled();
+    expect(toggles[1]).toBeChecked();
+    fireEvent.click(toggles[1]!);
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    await act(async () => finishes[0]!());
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(toggles[0]).not.toBeChecked();
+    expect(toggles[0]).toBeEnabled();
+    expect(toggles[1]).toBeChecked();
+    expect(toggles[1]).toBeDisabled();
+    await act(async () => finishes[1]!());
+    expect(toggles[0]).not.toBeChecked();
+    expect(toggles[1]).not.toBeChecked();
+    expect(toggles[1]).toBeEnabled();
+  },
+);

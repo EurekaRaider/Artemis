@@ -751,7 +751,8 @@ textarea:focus {
   color: var(--artemis-color-status-success-text);
   background: color-mix(in srgb, var(--success) 16%, transparent);
 }
-[data-artemis-component="switch"][data-state="checked"] [data-part="track"] {
+[data-artemis-component="switch"]:has([data-part="control"]:checked)
+  [data-part="track"] {
   background: var(--artemis-color-switch-on);
   border-color: var(--artemis-color-switch-on);
 }

@@ -698,3 +698,101 @@ describe("agent runtime configuration", () => {
     host.dispose();
   });
 });
+
+it("defers Office-only resource changes without rebuilding models and applies them before the next prompt", async () => {
+  const root = await mkdtemp(join(tmpdir(), "artemis-office-configure-"));
+  cleanupPaths.push(root);
+  const agentDir = join(root, "agent");
+  const skillFile = join(agentDir, "skills", "office-example", "SKILL.md");
+  await mkdir(join(agentDir, "skills", "office-example"), { recursive: true });
+  await writeFile(
+    skillFile,
+    "---\nname: office-example\ndescription: Office fixture\n---\nOffice instructions.",
+  );
+  const host = new ArtemisAgentHost(
+    { async request() {} },
+    { emit() {} },
+    { agentDir },
+  );
+  const selection = {
+    providerId: "local-proxy",
+    modelId: "qwen-coder",
+    thinkingLevel: "off" as const,
+  };
+  const base = {
+    credentials: {},
+    providers: [provider("qwen-coder", "Qwen Coder")],
+    selection,
+    officeEnabled: true,
+    disabledSkillFiles: [] as string[],
+  };
+  try {
+    await host.configure(base);
+    await host.openThread({
+      threadId: "thread",
+      workspacePath: root,
+      target: "local",
+      selection,
+    });
+    const hosted = (
+      host as unknown as {
+        threads: Map<
+          string,
+          {
+            session: AgentSession;
+            resourceLoader: DefaultResourceLoader;
+            configurationPending: boolean;
+          }
+        >;
+      }
+    ).threads.get("thread")!;
+    const reload = vi.spyOn(hosted.resourceLoader, "reload");
+    const setModel = vi.spyOn(hosted.session, "setModel");
+    const register = vi.spyOn(ModelRuntime.prototype, "registerProvider");
+    await host.configure({
+      ...base,
+      officeEnabled: false,
+      disabledSkillFiles: [skillFile],
+    });
+    expect(reload).not.toHaveBeenCalled();
+    expect(setModel).not.toHaveBeenCalled();
+    expect(register).not.toHaveBeenCalled();
+    expect(hosted.configurationPending).toBe(true);
+    const prompt = vi
+      .spyOn(hosted.session, "prompt")
+      .mockImplementation(async () => {
+        expect(hosted.session.getActiveToolNames()).not.toContain(
+          "office_document",
+        );
+        expect(
+          hosted.resourceLoader.getSkills().skills.map((skill) => skill.name),
+        ).not.toContain("office-example");
+      });
+    await host.prompt("thread", "disabled-turn", "Check resources", "work");
+    expect(prompt).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalled();
+    reload.mockClear();
+    setModel.mockClear();
+    await host.configure(base);
+    expect(reload).not.toHaveBeenCalled();
+    expect(setModel).not.toHaveBeenCalled();
+    prompt.mockImplementation(async () => {
+      expect(hosted.session.getActiveToolNames()).toContain("office_document");
+      expect(
+        hosted.resourceLoader.getSkills().skills.map((skill) => skill.name),
+      ).toContain("office-example");
+    });
+    await host.prompt("thread", "enabled-turn", "Check resources", "work");
+    // Concurrently changing a model/provider must retain the full refresh path.
+    reload.mockClear();
+    await host.configure({
+      ...base,
+      officeEnabled: false,
+      providers: [provider("qwen-coder", "Updated model")],
+    });
+    expect(register).toHaveBeenCalled();
+    expect(reload).toHaveBeenCalled();
+  } finally {
+    host.dispose();
+  }
+});

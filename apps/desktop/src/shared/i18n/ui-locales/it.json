@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "Attivazione…",
+  "ResourceCenter.disabling": "Disattivazione…",
   "Model.advanced": "Parametri avanzati del modello (JSON)",
   "Plan.card": "Piano di implementazione",
   "Plan.accepted": "Accettato",

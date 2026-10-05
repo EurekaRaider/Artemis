@@ -1645,7 +1645,7 @@ export function App() {
     onSelect: addCustomAgentTask,
     plugins: {
       installed: installedPlugins,
-      skills: installedSkills,
+      skills: skillsLoading ? [] : installedSkills,
       selectedNames: selectedComposerSkillNames,
       onSelect: (skill) =>
         setSelectedComposerSkillNames((current) =>
@@ -2024,7 +2024,7 @@ export function App() {
     const selectedNames = new Set(selectedComposerSkillNames);
     const suggestions = slashCommandSuggestionsForPrompt(
       prompt,
-      installedSkills.filter(
+      (skillsLoading ? [] : installedSkills).filter(
         (skill) =>
           !selectedNames.has(skill.name) &&
           !installedPluginBySkillName.has(skill.name),
@@ -2044,6 +2044,7 @@ export function App() {
   }, [
     installedPluginBySkillName,
     installedSkills,
+    skillsLoading,
     prompt,
     selectedComposerSkillNames,
   ]);
@@ -3001,33 +3002,43 @@ export function App() {
   }, [runtimeSettings?.workspaceDockWidth, workspaceDockResizing]);
 
   useEffect(() => {
-    if (!skillCommandMenuOpen && !customAgentMention.queryActive) return;
+    // Refresh preserved queries on return and when an in-flight resource
+    // change finishes after the user has already returned to the composer.
+    if (activeView !== "workspace") return;
     let mounted = true;
-    setSkillsLoading(true);
-    setSkillsError(undefined);
-    void Promise.all([
-      window.artemis.listInstalledSkills(),
-      window.artemis.listArtemisPlugins().catch(() => []),
-    ])
-      .then(([skills, plugins]) => {
-        if (!mounted) return;
-        setInstalledSkills(skills);
-        setInstalledPlugins(plugins);
-      })
-      .catch((error) => {
-        if (mounted) {
-          setSkillsError(
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      })
-      .finally(() => {
-        if (mounted) setSkillsLoading(false);
-      });
+    let latestRequest = 0;
+    const refresh = () => {
+      const request = ++latestRequest;
+      setSkillsLoading(true);
+      setSkillsError(undefined);
+      void Promise.all([
+        window.artemis.listInstalledSkills(),
+        window.artemis.listArtemisPlugins().catch(() => []),
+      ])
+        .then(([skills, plugins]) => {
+          if (!mounted || request !== latestRequest) return;
+          setInstalledSkills(skills);
+          setInstalledPlugins(plugins);
+        })
+        .catch((error) => {
+          if (mounted && request === latestRequest) {
+            setInstalledSkills([]);
+            setSkillsError(
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        })
+        .finally(() => {
+          if (mounted && request === latestRequest) setSkillsLoading(false);
+        });
+    };
+    refresh();
+    window.addEventListener("artemis:resources-changed", refresh);
     return () => {
       mounted = false;
+      window.removeEventListener("artemis:resources-changed", refresh);
     };
-  }, [skillCommandMenuOpen, customAgentMention.queryActive]);
+  }, [activeView, skillCommandMenuOpen, customAgentMention.queryActive]);
 
   useEffect(() => {
     setActiveSlashSuggestion(0);

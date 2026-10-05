@@ -1,5 +1,6 @@
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import * as fileUtils from "../../../src/main/office/office-file-utils.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
@@ -15,6 +16,7 @@ import {
 
 const roots: string[] = [];
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -644,4 +646,52 @@ describe("software capability packs (multi-pack namespaces)", () => {
     // shape, software packs refuse the reserved id.
     expect(() => verifyCapabilityManifest(manifest, target)).toThrow();
   });
+});
+
+it("drains parallel file checks before releasing maintenance after a validation failure", async () => {
+  const f = await fixture();
+  await f.service.install(f.manifest, f.path);
+  const payload = join(f.root, "packs/office-core/1.0.0/payload");
+  const manifest = signed(zip(), {
+    archive: {
+      ...f.manifest.archive,
+      unpackedBytes: f.manifest.archive.unpackedBytes * 2,
+    },
+    files: [
+      ...f.manifest.files,
+      { ...f.manifest.files[0]!, path: "runtime/second" },
+    ],
+  });
+  await writeFile(join(payload, "runtime/second"), "native test fixture");
+  await writeFile(
+    join(f.root, "packs/office-core/1.0.0/manifest.json"),
+    JSON.stringify(manifest),
+  );
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const hash = vi
+    .spyOn(fileUtils, "fileSha256")
+    .mockImplementation(async (path) => {
+      if (path.endsWith("second")) {
+        await pending;
+        return manifest.files[1]!.sha256;
+      }
+      return "invalid-digest";
+    });
+  let settled = false;
+  const activation = f.service
+    .activate("1.0.0")
+    .catch((error) => error)
+    .finally(() => {
+      settled = true;
+    });
+  await vi.waitFor(() => expect(hash).toHaveBeenCalledTimes(2));
+  expect(settled).toBe(false);
+  await expect(f.service.deactivate()).rejects.toThrow("maintenance");
+  finish();
+  expect(await activation).toBeInstanceOf(Error);
+  expect(settled).toBe(true);
+  await f.service.deactivate();
 });

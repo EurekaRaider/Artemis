@@ -268,8 +268,14 @@ export function ResourceCenter({
   const [installProgress, setInstallProgress] =
     useState<ResourceInstallProgress>();
   const [busyId, setBusyId] = useState<string>();
-  const [pendingMcpIds, setPendingMcpIds] = useState<Set<string>>(new Set());
-  const pendingMcpIdsRef = useRef(new Set<string>());
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const pendingToggleIdsRef = useRef(new Set<string>());
+  const toggleQueueRef = useRef(Promise.resolve());
+  const [pendingPackTargets, setPendingPackTargets] = useState<
+    Record<string, boolean>
+  >({});
   const [operationPending, setOperationPending] = useState(false);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -502,6 +508,29 @@ export function ResourceCenter({
       .finally(() => {
         operationPendingRef.current = false;
         setOperationPending(false);
+      });
+  }
+
+  function runToggleOperation(
+    id: string,
+    operation: () => Promise<void>,
+  ): void {
+    if (pendingToggleIdsRef.current.has(id)) return;
+    pendingToggleIdsRef.current.add(id);
+    setPendingToggleIds(new Set(pendingToggleIdsRef.current));
+    // Mutations return full snapshots. Serialize saves so an older response
+    // cannot undo a newer toggle, while only requested rows become busy.
+    toggleQueueRef.current = toggleQueueRef.current
+      .then(async () => {
+        await operation();
+        window.dispatchEvent(new Event("artemis:resources-changed"));
+      })
+      .catch((error: unknown) =>
+        setMessage(error instanceof Error ? error.message : String(error)),
+      )
+      .finally(() => {
+        pendingToggleIdsRef.current.delete(id);
+        setPendingToggleIds(new Set(pendingToggleIdsRef.current));
       });
   }
 
@@ -866,9 +895,6 @@ export function ResourceCenter({
   }
 
   async function setMcpEnabled(serverId: string, enabled: boolean) {
-    if (pendingMcpIdsRef.current.has(serverId)) return;
-    pendingMcpIdsRef.current.add(serverId);
-    setPendingMcpIds(new Set(pendingMcpIdsRef.current));
     setMessage(undefined);
     try {
       const next = await window.artemis.setMcpServerEnabled(serverId, enabled);
@@ -876,9 +902,6 @@ export function ResourceCenter({
       onSettingsChange(next);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      pendingMcpIdsRef.current.delete(serverId);
-      setPendingMcpIds(new Set(pendingMcpIdsRef.current));
     }
   }
 
@@ -912,7 +935,6 @@ export function ResourceCenter({
   }
 
   async function setSkillEnabled(skillId: string, enabled: boolean) {
-    setBusyId(skillId);
     setMessage(undefined);
     try {
       installedSkillsCache = await window.artemis.setSkillEnabled(
@@ -922,8 +944,6 @@ export function ResourceCenter({
       setInstalledSkills(installedSkillsCache);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -1057,7 +1077,6 @@ export function ResourceCenter({
     plugin: InstalledArtemisPlugin,
     enabled: boolean,
   ) {
-    setBusyId(plugin.id);
     setMessage(undefined);
     try {
       applyPluginMutation(
@@ -1066,8 +1085,6 @@ export function ResourceCenter({
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -1104,7 +1121,6 @@ export function ResourceCenter({
   }
 
   async function setExtensionEnabled(extensionId: string, enabled: boolean) {
-    setBusyId(extensionId);
     setMessage(undefined);
     try {
       onSettingsChange(
@@ -1112,8 +1128,6 @@ export function ResourceCenter({
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -1491,6 +1505,129 @@ export function ResourceCenter({
   const matchesManagement = (...values: Array<string | undefined>) =>
     !managementFilter ||
     values.some((value) => value?.toLowerCase().includes(managementFilter));
+  const installedPacks = [
+    {
+      id: "office-core",
+      name: locale.startsWith("zh") ? "Office 套件" : "Office",
+      keywords: "office word excel powerpoint pdf",
+      status: officePackStatus,
+      icon: officeSuiteIcon,
+      activate: (version: string) =>
+        window.artemis.activateOfficeCapability(version),
+      deactivate: () => window.artemis.deactivateOfficeCapability(),
+      refresh: async () => {
+        const status = await window.artemis.officeCapabilityStatus();
+        setOfficePackStatus(status);
+        setOfficeCapabilityActive(Boolean(status.activeVersion));
+        setOfficeCapabilityInstalled(status.versions.length > 0);
+      },
+      open: () => setOfficeCapabilityOpen(true),
+    },
+    {
+      id: "artemis-design",
+      name:
+        locale === "zh-TW" ? "設計" : locale === "zh-CN" ? "设计" : "Design",
+      keywords: "design",
+      status: designPackStatus,
+      icon: designPluginIcon,
+      activate: (version: string) =>
+        window.artemis.activateDesignCapability(version),
+      deactivate: () => window.artemis.deactivateDesignCapability(),
+      refresh: async () =>
+        setDesignPackStatus(await window.artemis.designCapabilityStatus()),
+      open: () => setDesignPackOpen(true),
+    },
+  ].filter((pack) => Boolean(pack.status?.versions.length));
+  const visibleInstalledPacks = installedPacks.filter((pack) =>
+    matchesManagement(pack.name, pack.keywords, t.bundledPlugins),
+  );
+  function renderInstalledPack(pack: (typeof installedPacks)[number]) {
+    const enabled = Boolean(pack.status?.activeVersion);
+    return (
+      <ManagementRow
+        key={pack.id}
+        className="resource-installed-row"
+        title={pack.name}
+        description={`${t.plugins} · ${t.bundledPlugins}`}
+        leading={
+          <ResourceAvatar
+            kind="plugin"
+            name={pack.name}
+            iconDataUrl={pack.icon}
+          />
+        }
+        actions={
+          <>
+            <span
+              className="resource-capability-status"
+              data-state={enabled ? "enabled" : "disabled"}
+              role="status"
+              aria-busy={pendingToggleIds.has(pack.id)}
+            >
+              {pendingToggleIds.has(pack.id)
+                ? uiText(
+                    locale,
+                    pendingPackTargets[pack.id]
+                      ? "ResourceCenter.enabling"
+                      : "ResourceCenter.disabling",
+                  )
+                : enabled
+                  ? t.enabled
+                  : t.disabled}
+            </span>
+            <Button
+              variant="quiet"
+              className="management-text-action"
+              disabled={operationPending || Boolean(busyId)}
+              label={`${t.configure} ${pack.name}`}
+              onClick={pack.open}
+            >
+              {t.configure}
+            </Button>
+            <Switch
+              checked={enabled}
+              label={`${t.enabled}: ${pack.name}`}
+              labelVisibility="hidden"
+              disabled={
+                operationPending ||
+                Boolean(busyId) ||
+                pendingToggleIds.has(pack.id) ||
+                pack.status?.phase !== "idle"
+              }
+              onCheckedChange={(nextEnabled) => {
+                setPendingPackTargets((current) => ({
+                  ...current,
+                  [pack.id]: nextEnabled,
+                }));
+                runToggleOperation(pack.id, async () => {
+                  try {
+                    if (nextEnabled) {
+                      const version = pack.status!.versions.toSorted(
+                        (left, right) =>
+                          right.version.localeCompare(left.version, "en", {
+                            numeric: true,
+                          }),
+                      )[0]!.version;
+                      await pack.activate(version);
+                    } else {
+                      await pack.deactivate();
+                    }
+                    await pack.refresh();
+                  } finally {
+                    setPendingPackTargets((current) => {
+                      const next = { ...current };
+                      delete next[pack.id];
+                      return next;
+                    });
+                  }
+                });
+              }}
+            />
+          </>
+        }
+      />
+    );
+  }
   const visibleInstalledPlugins = installedPlugins.filter(
     (plugin) =>
       !isLegacyOfficePlugin(plugin) &&
@@ -1801,7 +1938,7 @@ export function ResourceCenter({
 
   function renderOfficePackCard() {
     const status = officePackStatus;
-    const installed = Boolean(status?.activeVersion);
+    const installed = Boolean(status?.versions.length);
     const working =
       officeUpdating || Boolean(status && status.phase !== "idle");
     const run = (operation: () => Promise<void>) =>
@@ -1882,11 +2019,13 @@ export function ResourceCenter({
                     (version) => version.active && version.inUse,
                   )}
                   onClick={() =>
-                    run(() =>
-                      window.artemis.uninstallOfficeCapability(
-                        status!.activeVersion!,
-                      ),
-                    )
+                    status?.activeVersion
+                      ? run(() =>
+                          window.artemis.uninstallOfficeCapability(
+                            status.activeVersion!,
+                          ),
+                        )
+                      : setOfficeCapabilityOpen(true)
                   }
                 >
                   {office.remove}
@@ -1914,7 +2053,7 @@ export function ResourceCenter({
   function renderDesignPackCard() {
     const copy = designPackCopy(locale);
     const status = designPackStatus;
-    const installed = Boolean(status?.activeVersion);
+    const installed = Boolean(status?.versions.length);
     const working = Boolean(status && status.phase !== "idle");
     return (
       <ManagementCard className="plugin-market-card design-pack-card">
@@ -2013,15 +2152,17 @@ export function ResourceCenter({
                   icon={<TrashIcon />}
                   variant="secondary"
                   onClick={() =>
-                    void window.artemis
-                      .uninstallDesignCapability(status!.activeVersion!)
-                      .catch((reason: unknown) =>
-                        setMessage(
-                          reason instanceof Error
-                            ? reason.message
-                            : String(reason),
-                        ),
-                      )
+                    status?.activeVersion
+                      ? void window.artemis
+                          .uninstallDesignCapability(status.activeVersion)
+                          .catch((reason: unknown) =>
+                            setMessage(
+                              reason instanceof Error
+                                ? reason.message
+                                : String(reason),
+                            ),
+                          )
+                      : setDesignPackOpen(true)
                   }
                 >
                   {locale.startsWith("zh") ? "卸载" : t.remove}
@@ -2548,7 +2689,10 @@ export function ResourceCenter({
 
   const managementCounts: Record<ManagementTab, number> = {
     plugins:
-      installedPlugins.length + (settings?.trustedExtensions.length ?? 0),
+      installedPlugins.filter((plugin) => !isLegacyOfficePlugin(plugin))
+        .length +
+      installedPacks.length +
+      (settings?.trustedExtensions.length ?? 0),
     mcp: mcpServers.filter(
       (server) => server.config.resourceKind !== "connector",
     ).length,
@@ -2815,6 +2959,7 @@ export function ResourceCenter({
             title={`${t.manage} · ${t.plugins}`}
           >
             <div className="resource-installed-list">
+              {installedPacks.map(renderInstalledPack)}
               {installedTiles
                 .filter((item) => item.kind === "plugin")
                 .map((item) => (
@@ -2862,19 +3007,25 @@ export function ResourceCenter({
                           label={`${t.enabled}: ${item.name}`}
                           labelVisibility="hidden"
                           disabled={
-                            operationPending || Boolean(busyId) || item.disabled
+                            operationPending ||
+                            Boolean(busyId) ||
+                            pendingToggleIds.has(item.id) ||
+                            item.disabled
                           }
                           onCheckedChange={(enabled) =>
-                            runResourceOperation(() => item.toggle(enabled))
+                            runToggleOperation(item.id, () =>
+                              item.toggle(enabled),
+                            )
                           }
                         />
                       </>
                     }
                   />
                 ))}
-              {installedTiles.length === 0 && (
-                <span className="resource-empty-inline">{t.noPlugins}</span>
-              )}
+              {installedPacks.length === 0 &&
+                !installedTiles.some((item) => item.kind === "plugin") && (
+                  <span className="resource-empty-inline">{t.noPlugins}</span>
+                )}
             </div>
           </ManagementSection>
         </div>
@@ -3005,6 +3156,7 @@ export function ResourceCenter({
           title={t.plugins}
         >
           <div className="resource-management-list">
+            {visibleInstalledPacks.map(renderInstalledPack)}
             {visibleInstalledPlugins.map((plugin) => {
               const visual = visualForPlugin(plugin);
               const unavailable = mcpServers.filter(
@@ -3077,12 +3229,13 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === plugin.id ||
+                          pendingToggleIds.has(`plugin:${plugin.id}`) ||
                           (!plugin.installable && !pluginIsEnabled(plugin))
                         }
                         label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          runResourceOperation(() =>
+                          runToggleOperation(`plugin:${plugin.id}`, () =>
                             setPluginEnabled(plugin, enabled),
                           )
                         }
@@ -3184,13 +3337,17 @@ export function ResourceCenter({
                       checked={extension.config.enabled}
                       className="resource-switch"
                       disabled={
-                        operationPending || busyId === extension.config.id
+                        operationPending ||
+                        busyId === extension.config.id ||
+                        pendingToggleIds.has(`extension:${extension.config.id}`)
                       }
                       label={extension.config.enabled ? t.enabled : t.disabled}
                       labelVisibility="hidden"
                       onCheckedChange={(enabled) =>
-                        runResourceOperation(() =>
-                          setExtensionEnabled(extension.config.id, enabled),
+                        runToggleOperation(
+                          `extension:${extension.config.id}`,
+                          () =>
+                            setExtensionEnabled(extension.config.id, enabled),
                         )
                       }
                       title={extension.config.enabled ? t.enabled : t.disabled}
@@ -3210,7 +3367,8 @@ export function ResourceCenter({
                 title={extension.config.name}
               />
             ))}
-            {visibleInstalledPlugins.length === 0 &&
+            {visibleInstalledPacks.length === 0 &&
+              visibleInstalledPlugins.length === 0 &&
               visibleExtensions.length === 0 && (
                 <EmptyResource>{t.noPlugins}</EmptyResource>
               )}
@@ -3348,7 +3506,7 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
-                          pendingMcpIds.has(server.config.id) ||
+                          pendingToggleIds.has(`mcp:${server.config.id}`) ||
                           managedMcpIds.has(server.config.id)
                         }
                         icon={<TrashIcon />}
@@ -3369,12 +3527,14 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
-                          pendingMcpIds.has(server.config.id)
+                          pendingToggleIds.has(`mcp:${server.config.id}`)
                         }
                         label={server.config.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          void setMcpEnabled(server.config.id, enabled)
+                          runToggleOperation(`mcp:${server.config.id}`, () =>
+                            setMcpEnabled(server.config.id, enabled),
+                          )
                         }
                         title={server.config.enabled ? t.enabled : t.disabled}
                       />
@@ -3505,7 +3665,11 @@ export function ResourceCenter({
                     <div className="resource-row-actions">
                       <IconButton
                         className="resource-icon-button resource-remove-button"
-                        disabled={operationPending || busyId === skill.id}
+                        disabled={
+                          operationPending ||
+                          busyId === skill.id ||
+                          pendingToggleIds.has(`skill:${skill.id}`)
+                        }
                         icon={<TrashIcon />}
                         label={`${t.remove} ${skill.name}`}
                         onClick={() =>
@@ -3517,11 +3681,15 @@ export function ResourceCenter({
                       <Switch
                         checked={skill.enabled}
                         className="resource-switch"
-                        disabled={operationPending || busyId === skill.id}
+                        disabled={
+                          operationPending ||
+                          busyId === skill.id ||
+                          pendingToggleIds.has(`skill:${skill.id}`)
+                        }
                         label={skill.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          runResourceOperation(() =>
+                          runToggleOperation(`skill:${skill.id}`, () =>
                             setSkillEnabled(skill.id, enabled),
                           )
                         }

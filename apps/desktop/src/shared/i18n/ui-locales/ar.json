@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "جارٍ التفعيل…",
+  "ResourceCenter.disabling": "جارٍ التعطيل…",
   "Model.advanced": "معلمات النموذج المتقدمة (JSON)",
   "Plan.card": "خطة التنفيذ",
   "Plan.accepted": "مقبولة",
