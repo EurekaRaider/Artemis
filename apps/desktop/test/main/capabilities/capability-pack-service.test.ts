@@ -336,14 +336,16 @@ describe("host capability packs", () => {
       wrong.service.install(wrong.manifest, wrong.path),
     ).rejects.toThrow("inventory");
   });
-  it("explicitly uninstalls a shared optional pack and returns plugins to Lite", async () => {
+  it("explicitly uninstalls a shared optional pack and disables Office features", async () => {
     const f = await fixture();
     await f.service.install(f.manifest, f.path);
     f.setUsers(["Documents", "Presentations", "Spreadsheets"]);
     await f.service.uninstall("1.0.0");
     expect((await f.service.status()).activeVersion).toBeUndefined();
     expect((await f.service.status()).versions).toEqual([]);
-    await expect(f.service.acquire()).rejects.toThrow("Lite");
+    await expect(f.service.acquire()).rejects.toThrow(
+      "Capability pack is not installed",
+    );
     await expect(
       readFile(
         join(

@@ -94,7 +94,7 @@ it("checks on every store opening and offers the Design update without installin
   fireEvent.click(screen.getAllByRole("button", { name: "更新到 0.3.0" })[0]!);
   expect(await screen.findByRole("dialog")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "关闭" }));
-  fireEvent.click(screen.getByRole("button", { name: "更新到 1.1.0" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "更新到 1.1.0" })[0]!);
   expect(await screen.findByRole("dialog")).toBeVisible();
   first.unmount();
   render(<ResourceCenter {...props} />);

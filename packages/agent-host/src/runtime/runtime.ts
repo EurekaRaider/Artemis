@@ -1768,6 +1768,10 @@ export class ArtemisAgentHost {
         ? hosted.executeTools
         : hosted.delegatedTools
       )
+        .filter(
+          (tool) =>
+            tool.name !== "office_document" || this.configuration.officeEnabled,
+        )
         .map((tool) => tool.name)
         .concat(
           hosted.currentMode === "codemode"
@@ -4311,7 +4315,7 @@ export class ArtemisAgentHost {
         name: "office_document",
         label: "Office document",
         description:
-          "Use create/read/write/modify/delete for Lite PDF/XLSX/DOCX/PPTX. Imported or externally modified originals cannot be overwritten by Lite. With the shared Office capability installed, use open/apply/snapshot/save/close for a live native document session. Apply one paragraph, slide object, or cell region operation at a time with the snapshot's expected_version and a stable operation_id; preview updates before save. Classify the exact operation's risk; the desktop validates and brokers it. A draft is not saved until save succeeds.",
+          "Requires the installed Office suite. Use create/read/write/modify/delete for normalized PDF/XLSX/DOCX/PPTX content. Normalized writes cannot overwrite imported or externally modified originals. Use open/apply/snapshot/save/close for a live native document session. Apply one paragraph, slide object, or cell region operation at a time with the snapshot's expected_version and a stable operation_id; preview updates before save. Classify the exact operation's risk; the desktop validates and brokers it. A draft is not saved until save succeeds.",
         parameters: Type.Object({
           operation: Type.Union([
             Type.Literal("create"),
@@ -4476,6 +4480,10 @@ export class ArtemisAgentHost {
           model_approval: modelApprovalParameter,
         }),
         execute: async (_toolCallId, params) => {
+          if (!this.configuration.officeEnabled)
+            throw new Error(
+              "Install the Office suite in Plugins to use Office features.",
+            );
           const hosted = this.threads.get(request.threadId);
           if (!hosted?.currentTurnId) {
             throw new Error(
@@ -6077,7 +6085,12 @@ export class ArtemisAgentHost {
                   ),
                   webSearchTool,
                   ...(allowToolClass("filesystem-write")
-                    ? [childWriteTool, childOfficeDocumentTool]
+                    ? [
+                        childWriteTool,
+                        ...(this.configuration.officeEnabled
+                          ? [childOfficeDocumentTool]
+                          : []),
+                      ]
                     : []),
                   loadWorkspaceDependenciesTool,
                   ...(childSpawnAgentTool ? [childSpawnAgentTool] : []),
@@ -6996,6 +7009,13 @@ export class ArtemisAgentHost {
       ].filter((tool) => isRemoteToolAllowed(tool.name, "plan", false));
       session.agent.state.tools = hosted.delegatedTools;
     }
+    if (!this.configuration.officeEnabled) {
+      session.setActiveToolsByName(
+        session
+          .getActiveToolNames()
+          .filter((name) => name !== "office_document"),
+      );
+    }
     hosted.unsubscribe = session.subscribe((event) => {
       if (event.type === "tool_execution_start") {
         if (planUpdateTurn !== hosted.currentTurnId) {
@@ -7150,10 +7170,12 @@ export class ArtemisAgentHost {
     );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
     hosted.session.setActiveToolsByName([
-      ...(isExecutionMode(mode)
-        ? hosted.executeTools
-        : hosted.delegatedTools
-      ).map((tool) => tool.name),
+      ...(isExecutionMode(mode) ? hosted.executeTools : hosted.delegatedTools)
+        .filter(
+          (tool) =>
+            tool.name !== "office_document" || this.configuration.officeEnabled,
+        )
+        .map((tool) => tool.name),
       ...(mode === "plan"
         ? ["submit_plan"]
         : mode === "codemode"

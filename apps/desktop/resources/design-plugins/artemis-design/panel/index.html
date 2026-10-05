@@ -390,6 +390,14 @@
         flex-direction: column;
         background: var(--artemis-color-surface-raised);
       }
+      .dz-image-mode #dzStage,
+      .dz-image-mode #dzDocFrame,
+      .dz-image-mode .dz-toolbar {
+        display: none;
+      }
+      .dz-image-view {
+        z-index: 2;
+      }
       .dz-image-view[hidden] {
         display: none;
       }
@@ -3904,6 +3912,10 @@
           }
           function dzShow(view, file, opts) {
             var files = view === "files";
+            dzViewPreview.classList.remove("dz-image-mode");
+            $("#dzImageView").hidden = true;
+            dzImageSelection = null;
+            $("#dzImageSelRect").hidden = true;
             dzCloseMenus();
             $("#dzHistory").hidden = true;
             dzViewFiles.hidden = !files;
@@ -3965,8 +3977,12 @@
               '<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewbox="0 0 24 24" width="13"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg>' +
               '<span class="design-ws-label"></span>' +
               '<span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>';
-            tab.querySelector(".design-ws-label").textContent = file;
-            dzTabsBar.appendChild(tab);
+            tab.querySelector(".design-ws-label").textContent = file.startsWith(
+              "image-view:",
+            )
+              ? title
+              : file;
+            dzTabsBar.insertBefore(tab, dzTabsBar.querySelector(".sp"));
             return tab;
           }
           /* 项目文件路径判定（tab 点击恢复用）：在最近一次快照的项目文件清单里 */
@@ -4003,7 +4019,9 @@
                   var nextName = remaining[0].dataset.dzFile;
 
                   var nextDoc = dzDocByName(nextName);
-                  if (nextDoc) {
+                  if (nextName.startsWith("image-view:")) {
+                    dzOpenImage({ path: nextName.slice(11) });
+                  } else if (nextDoc) {
                     dzProjectView = null; // 文档 tab 退出项目只读态
                     dzOpenDocument(nextDoc);
                   } else if (dzIsProjectFile(nextName)) {
@@ -4014,6 +4032,10 @@
               return;
             }
 
+            if (tab.dataset.dzFile.startsWith("image-view:")) {
+              dzOpenImage({ path: tab.dataset.dzFile.slice(11) });
+              return;
+            }
             var doc = dzDocByName(tab.dataset.dzFile);
             if (doc) {
               dzProjectView = null; // 文档 tab 退出项目只读态
@@ -4036,6 +4058,7 @@
           var DZ_SECTION_ORDER = [
             ["html", "页面", "HTML 页面"],
             ["image", "图片", "图片"],
+            ["binary", "其它", "文件"],
           ];
           function dzKindFor(name) {
             var n = String(name || "");
@@ -4301,7 +4324,7 @@
               "\u0000" +
               dzSnapshotSig(documents || [], projectFiles || []) +
               "\u0000" +
-              dzLastImages.length +
+              dzSnapshotSig([], dzLastImages) +
               "\u0000" +
               String(dzLastImageDir || "");
             if (
@@ -4322,7 +4345,10 @@
             });
             // 空态语义：仅当设计文档与项目文件全空时显示居中引导；
             // 有任何内容时隐藏空态、正常渲染胶囊与卡片。
-            var hasAny = documents.length > 0 || projectFiles.length > 0;
+            var hasAny =
+              documents.length > 0 ||
+              projectFiles.length > 0 ||
+              dzLastImages.length > 0;
             $("#dzStart").hidden = hasAny;
             dzLastDocs = documents;
             dzLastProjectFiles = projectFiles;
@@ -4379,8 +4405,8 @@
               if (count) tabs.push([def[0], def[1], count]);
             });
             // 图片创作目录的图片并入「图片」胶囊计数（渲染为创作卡）。
-            var imageCount = dzLastImages.length;
-            if (imageCount) {
+            var imageCount = dzCurrentFolder ? 0 : dzLastImages.length;
+            if (!dzCurrentFolder) {
               var existing = tabs.find(function (tab) {
                 return tab[0] === "image";
               });
@@ -4447,7 +4473,7 @@
                   dzInFolder(dzLastDocs, parent || null).concat(
                     dzInFolder(
                       (dzLastProjectFiles || []).map(function (f) {
-                        return { name: f.name };
+                        return { name: f.path };
                       }),
                       parent || null,
                     ),
@@ -4633,11 +4659,12 @@
                 card.innerHTML =
                   '<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>' +
                   '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name">' +
-                  name +
+                  "" +
                   '</span><span class="design-file-sub">' +
                   meta[2] +
                   (kb ? " · " + kb : "") +
                   ' · <span class="dz-project-badge">项目</span></span></span></span>';
+                card.querySelector(".design-file-name").textContent = name;
                 card.addEventListener("click", function () {
                   dzOpenProjectFile(file.name);
                 });
@@ -4655,11 +4682,12 @@
                 dzExtLabel(file.name) +
                 "</i></span>" +
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
-                name +
+                "" +
                 '</span><span class="dz-row-sub">' +
                 meta[2] +
                 (kb ? " · " + kb : "") +
                 " · 项目</span></span>";
+              row.querySelector(".dz-row-name").textContent = name;
               row.addEventListener("click", function () {
                 dzOpenProjectFile(file.name);
               });
@@ -4667,9 +4695,9 @@
             });
             /* 图片创作卡：指定目录后展示其中图片（预览卡）；目录未指定时
        出一张引导卡（点击选择并记住目录）。仅根级显示引导卡。 */
-            if (dzLastImageDir) {
+            if (dzLastImageDir && !dzCurrentFolder) {
               dzLastImages.forEach(function (img) {
-                var name = relName(img);
+                var name = img.path;
                 var kb =
                   img.bytes > 0 ? (img.bytes / 1024).toFixed(1) + " KiB" : "";
                 var card = document.createElement("button");
@@ -4678,14 +4706,13 @@
                 card.setAttribute("data-dz-cat", "image");
                 card.setAttribute("data-dz-image-path", img.path);
                 card.innerHTML =
-                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb" data-dz-image="' +
-                  img.path +
-                  '"></span>' +
-                  '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name">' +
-                  name +
-                  '</span><span class="design-file-sub">图片' +
-                  (kb ? " · " + kb : "") +
-                  "</span></span></span>";
+                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb"></span>' +
+                  '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name"></span><span class="design-file-sub"></span></span></span>';
+                card.querySelector(".dz-image-thumb").dataset.dzImage =
+                  img.path;
+                card.querySelector(".design-file-name").textContent = name;
+                card.querySelector(".design-file-sub").textContent =
+                  "图片" + (kb ? " · " + kb : "");
                 card.addEventListener("click", function () {
                   dzOpenImage(img);
                 });
@@ -4695,7 +4722,8 @@
                   card.querySelector(".dz-image-thumb"),
                 );
               });
-            } else if (!dzCurrentFolder) {
+            }
+            if (!dzCurrentFolder) {
               var guide = document.createElement("button");
               guide.className = "dz-file-row dz-image-guide";
               guide.type = "button";
@@ -4728,14 +4756,17 @@
             });
           }
           function dzOpenImage(img) {
-            dzEnsureFileTab(img.path, img.path.replace(/\.[^.]+$/, ""));
-            dzShow("preview", img.path, { keepProject: true });
+            dzCloseProjectView();
+            dzProjectView = { path: "image-view:" + img.path };
+            dzEnsureFileTab("image-view:" + img.path, img.path);
+            dzShow("preview", "image-view:" + img.path, { keepProject: true });
+            dzPostActiveDocument(null);
+            dzViewPreview.classList.add("dz-image-mode");
             var view = document.querySelector(".design-preview-view");
             if (view) view.classList.add("dz-project-mode");
             var frame = $("#dzProjectFrame");
             if (frame) {
-              frame.hidden = false;
-              frame.classList.add("dz-image-frame");
+              frame.hidden = true;
               var view = $("#dzImageView");
               var el = $("#dzImageEl");
               view.hidden = false;
@@ -4781,6 +4812,8 @@
                 e.clientY > r.it + r.ih
               )
                 return;
+              dzImageSelection = null;
+              rect.hidden = true;
               drag = { sx: e.clientX, sy: e.clientY };
               stage.setPointerCapture(e.pointerId);
             });
@@ -4792,10 +4825,10 @@
               var x2 = Math.max(r.il, Math.min(e.clientX, r.il + r.iw));
               var y2 = Math.max(r.it, Math.min(e.clientY, r.it + r.ih));
               var box = {
-                left: x1 - r.sl,
-                top: y1 - r.st,
-                width: x2 - x1,
-                height: y2 - y1,
+                left: Math.min(x1, x2) - r.sl,
+                top: Math.min(y1, y2) - r.st,
+                width: Math.abs(x2 - x1),
+                height: Math.abs(y2 - y1),
               };
               rect.style.left = box.left + "px";
               rect.style.top = box.top + "px";
@@ -4804,8 +4837,8 @@
               rect.hidden = false;
               if (img.naturalWidth && box.width > 2 && box.height > 2) {
                 dzImageSelection = {
-                  x: (x1 - r.il) / r.iw,
-                  y: (y1 - r.it) / r.ih,
+                  x: (Math.min(x1, x2) - r.il) / r.iw,
+                  y: (Math.min(y1, y2) - r.it) / r.ih,
                   w: box.width / r.iw,
                   h: box.height / r.ih,
                 };
@@ -4826,7 +4859,7 @@
               dzSendImagePrompt(path, dzImageSelection);
             });
             $("#dzImagePromptInput").addEventListener("keydown", function (e) {
-              if (e.key !== "Enter") return;
+              if (e.key !== "Enter" || e.isComposing) return;
               e.preventDefault();
               var path = $("#dzImageEl").dataset.dzImagePath || "";
               if (!path) return dzToast("未打开图片");
@@ -4854,7 +4887,32 @@
               text: "图片修改：" + text + spec,
             };
             var dataUrl = dzImageDataUrls[imagePath];
-            if (dataUrl) payload.images = [dataUrl];
+            if (!dataUrl) return dzToast("图片尚未加载或无法读取，请重试");
+            if (dataUrl.startsWith("data:image/avif;")) {
+              var image = $("#dzImageEl");
+              if (!image.complete || !image.naturalWidth)
+                return dzToast("图片尚未加载，请重试");
+              var canvas = document.createElement("canvas");
+              var scale = Math.min(
+                1,
+                4096 / Math.max(image.naturalWidth, image.naturalHeight),
+              );
+              canvas.width = Math.max(
+                1,
+                Math.round(image.naturalWidth * scale),
+              );
+              canvas.height = Math.max(
+                1,
+                Math.round(image.naturalHeight * scale),
+              );
+              canvas
+                .getContext("2d")
+                .drawImage(image, 0, 0, canvas.width, canvas.height);
+              dataUrl = canvas.toDataURL("image/png");
+            }
+            if (dataUrl.length > 10 * 1024 * 1024)
+              return dzToast("图片过大，请缩小后重试");
+            payload.images = [dataUrl];
             dzPostCandidate(payload);
             if (input) input.value = "";
             dzImageSelection = null;
@@ -4880,7 +4938,7 @@
             var view = document.querySelector(".design-preview-view");
             if (view) view.classList.add("dz-project-mode");
             var frame = $("#dzProjectFrame");
-            if (!/\.html?$/i.test(path)) {
+            if (!/\.(html?|png|jpe?g|gif|webp|avif)$/i.test(path)) {
               // 非 HTML 没有可视化舞台：直接落源码模式（OD 非页面文件同语义）
               frame.hidden = true;
               dzProjectView.sourceLoaded = true;
@@ -7501,6 +7559,13 @@
                   data.snapshot.canOpenProject !== true;
                 var docs = data.snapshot.documents || [];
                 var projectFiles = data.snapshot.projectFiles || [];
+                if (
+                  dzLastImageDir !== (data.snapshot.imageDir || null) ||
+                  dzSnapshotSig([], dzLastImages) !==
+                    dzSnapshotSig([], data.snapshot.images || [])
+                ) {
+                  dzImageDataUrls = {};
+                }
                 dzLastImageDir = data.snapshot.imageDir || null;
                 dzLastImages = data.snapshot.images || [];
                 // 保留用户已打开的文档（AI 后台改其他文档时不抢焦点）；
@@ -7550,16 +7615,14 @@
                 }
               }
               if (data.type === "read-image-result" && data.path) {
-                var key = String(data.path);
+                var key = String(data.path).replace(/^image-(?:dir|view):/, "");
                 if (data.dataUrl) {
                   dzImageDataUrls[key] = data.dataUrl;
-                  var thumb = document.querySelector(
-                    '.dz-image-thumb[data-dz-image="' +
-                      key.replace(/"/g, '\\"') +
-                      '"]',
-                  );
-                  if (thumb)
-                    thumb.style.backgroundImage = 'url("' + data.dataUrl + '")';
+                  $$(".dz-image-thumb").forEach(function (thumb) {
+                    if (thumb.dataset.dzImage === key)
+                      thumb.style.backgroundImage =
+                        'url("' + data.dataUrl + '")';
+                  });
                   var openEl = $("#dzImageEl");
                   if (
                     !$("#dzImageView").hidden &&
@@ -7573,7 +7636,8 @@
                 return;
               }
               if (data.type === "pick-image-folder-result") {
-                if (data.imageDir) dzToast("图片文件夹已记住");
+                if (data.error) dzToast(data.error);
+                else if (data.imageDir) dzToast("图片文件夹已记住");
                 if (hostPort)
                   hostPort.postMessage({ type: "snapshot-request" });
                 return;
@@ -7646,7 +7710,7 @@
                 if (!dzProjectView || dzProjectView.path !== data.name) return;
                 var view = document.querySelector(".design-preview-view");
                 if (view) view.classList.add("dz-project-mode");
-                if (/\.html?$/i.test(data.name)) {
+                if (/\.(html?|png|jpe?g|gif|webp|avif)$/i.test(data.name)) {
                   // 项目 HTML：srcdoc 沙箱 iframe（页面脚本/CDN 可执行，opaque
                   // origin 碰不到面板/宿主）+ 注入批注桥上报 hover/拾取（OD 同构）
                   dzMountProjectFrame(data.content, data.name, data.baseUrl);

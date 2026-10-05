@@ -73,6 +73,7 @@ import { ImService } from "./im/im-service.js";
 import {
   readProjectFileForPreview,
   scanProjectDesignFiles,
+  readDesignImage,
 } from "./design/design-plugin-project-files.js";
 import {
   turnRecoveryContext,
@@ -1313,6 +1314,17 @@ function handoffBundleRoot(projectId: string, threadId: string): string {
   return join(app.getPath("userData"), "handoff-recovery", projectId, threadId);
 }
 
+async function installOfficeSuite(): Promise<void> {
+  const workbench = await getOfficeWorkbench();
+  const manifest = workbench.updates.available();
+  if (!manifest)
+    throw new Error(
+      "No verified Office suite release is available for this platform yet. Import a verified offline pack to enable Office features.",
+    );
+  await workbench.packs.install(manifest);
+  await applyAgentRuntime();
+}
+
 function windowsSandboxHelperPath(): string {
   return app.isPackaged
     ? join(process.resourcesPath, "resources", "windows-sandbox.ps1")
@@ -1817,6 +1829,30 @@ async function applyAgentRuntime(
     resolved.globalAgents = await globalInstructionsStore.snapshot();
   }
   resolved.hooksEnabled = true;
+  resolved.officeEnabled = await getOfficeWorkbench()
+    .then(async (workbench) =>
+      Boolean((await workbench.status()).activeVersion),
+    )
+    .catch(() => false);
+  if (!resolved.officeEnabled && artemisPluginService) {
+    const officeSkills = (await artemisPluginService.listInstalled())
+      .filter(
+        (plugin) =>
+          ["bundled", "runtime"].includes(plugin.source.kind) &&
+          ["documents", "spreadsheets", "presentations", "pdf"].includes(
+            plugin.name,
+          ),
+      )
+      .flatMap((plugin) =>
+        plugin.skillNames.map((name) =>
+          join(app.getPath("home"), ".pi", "agent", "skills", name, "SKILL.md"),
+        ),
+      );
+    resolved.disabledSkillFiles = [
+      ...(resolved.disabledSkillFiles ?? []),
+      ...officeSkills,
+    ];
+  }
   resolved.mcpTools = mcpClientManager?.tools() ?? [];
   if (
     computerUseServerId &&
@@ -6051,8 +6087,12 @@ async function executeApprovedOffice(
       cancellingTurns.has(request.threadId)
     )
       throw new Error("Office operations require the current Execute turn");
+    const workbench = await getOfficeWorkbench();
+    if (!(await workbench.status()).activeVersion)
+      throw new Error(
+        "Install the Office suite in Plugins to use Office features.",
+      );
     if (request.document.protocolVersion === 2) {
-      const workbench = await getOfficeWorkbench();
       const result = await workbench.sessions.execute(request.document, {
         threadId: request.threadId,
         workspacePath: request.workspacePath,
@@ -6072,10 +6112,13 @@ async function executeApprovedOffice(
       });
       return;
     }
+    const lease = await workbench.packs.acquire();
     const documentResult = await new OfficeDocumentService(
       request.workspacePath,
       join(app.getPath("userData"), "office-lite"),
-    ).execute(request.document);
+    )
+      .execute(request.document)
+      .finally(() => lease.release());
     if (documentResult.changed) {
       const operation =
         request.document.operation === "create"
@@ -9916,91 +9959,28 @@ function registerIpc(): void {
       if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
       }
-      return artemisPluginService.loadBundledArtifactMarketplace();
+      const marketplace =
+        await artemisPluginService.loadBundledArtifactMarketplace();
+      if (!marketplace) return undefined;
+      return {
+        ...marketplace,
+        plugins: marketplace.plugins.filter(
+          (plugin) =>
+            !(
+              ["bundled", "runtime"].includes(plugin.source.kind) &&
+              ["documents", "spreadsheets", "presentations", "pdf"].includes(
+                plugin.name,
+              )
+            ),
+        ),
+      };
     },
   );
   ipcMain.handle(
     IPC.resourcePluginRuntimeInstall,
-    async (
-      event,
-      operationIdInput: string,
-    ): Promise<ArtemisPluginMutationResult> => {
-      if (!artemisPluginService) {
-        throw new Error("Plugin service is not ready.");
-      }
-      const operationId = resourceInstallOperationId(operationIdInput);
-      const marketplace =
-        await artemisPluginService.loadBundledArtifactMarketplace();
-      if (!marketplace) {
-        throw new Error("Bundled Lite artifact plugins are unavailable.");
-      }
-      const pending = marketplace.plugins.filter(
-        (plugin) => !plugin.installed && plugin.source.kind !== "builtin",
-      );
-      const publish = (percent: number) =>
-        publishResourceInstallProgress(event.sender, {
-          operationId,
-          kind: "plugin",
-          resourceId: marketplace.name,
-          percent,
-        });
-      if (!pending.length) {
-        publish(100);
-        return artemisPluginMutationResult([]);
-      }
-
-      const warnings: string[] = [];
-      const installedSkillNames: string[] = [];
-      const installedPluginIds: string[] = [];
-      const installedMcpIds: string[] = [];
-      publish(5);
-      try {
-        for (const [index, plugin] of pending.entries()) {
-          const installed = await artemisPluginService.install(
-            plugin.source,
-            (percent) =>
-              publish(
-                10 +
-                  Math.round(((index + percent / 100) / pending.length) * 80),
-              ),
-          );
-          installedPluginIds.push(installed.plugin.id);
-          installedMcpIds.push(...installed.plugin.mcpServerIds);
-          installedSkillNames.push(...installed.plugin.skillNames);
-          warnings.push(...installed.warnings);
-        }
-      } catch (error) {
-        const rollbackWarnings: string[] = [];
-        for (const pluginId of installedPluginIds.reverse()) {
-          try {
-            const rolledBack = await artemisPluginService.remove(pluginId);
-            rollbackWarnings.push(...rolledBack.warnings);
-          } catch (rollbackError) {
-            rollbackWarnings.push(
-              rollbackError instanceof Error
-                ? rollbackError.message
-                : String(rollbackError),
-            );
-          }
-        }
-        await applyAgentRuntime();
-        const reason = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          [
-            `The four required document plugins could not be installed together: ${reason}`,
-            ...rollbackWarnings,
-          ].join("\n"),
-        );
-      }
-      await enableManagedPluginSkills(installedSkillNames);
-      await reconnectEnabledMcpServers(
-        (await mcpConfigStore!.list()).filter((config) =>
-          installedMcpIds.includes(config.id),
-        ),
-      );
-      await applyAgentRuntime();
-      publish(100);
-      return artemisPluginMutationResult(warnings);
+    async (): Promise<ArtemisPluginMutationResult> => {
+      await installOfficeSuite();
+      return artemisPluginMutationResult([]);
     },
   );
   ipcMain.handle(
@@ -10012,6 +9992,15 @@ function registerIpc(): void {
     ): Promise<ArtemisPluginMutationResult> => {
       if (!artemisPluginService) {
         throw new Error("Plugin service is not ready.");
+      }
+      if (
+        (source.kind === "bundled" || source.kind === "runtime") &&
+        ["documents", "spreadsheets", "presentations", "pdf"].includes(
+          source.pluginName,
+        )
+      ) {
+        await installOfficeSuite();
+        return artemisPluginMutationResult([]);
       }
       const operationId = resourceInstallOperationId(operationIdInput);
       const resourceId =
@@ -10385,6 +10374,10 @@ function registerIpc(): void {
       );
       if (!/\.pdf$/iu.test(file.path))
         throw new Error("PDF preview requires a PDF file.");
+      if (!(await (await getOfficeWorkbench()).status()).activeVersion)
+        throw new Error(
+          "Install the Office suite in Plugins to preview documents.",
+        );
       return workspacePdfPreview.open(threadId, file.path);
     },
   );
@@ -10609,14 +10602,6 @@ function registerIpc(): void {
       panelSendEntry?.markOutcome(submissionId, outcome);
     },
   );
-  const DESIGN_IMAGE_MIME_TABLE: Record<string, string> = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-    ".avif": "image/avif",
-  };
   // 图片创作：用户指定图片产出目录（项目工作区内或临时会话目录），选择
   // 一次后持久记住（跨重启）。图片扫描与读取复用设计项目文件的安全模型。
   const designImagePrefsPath = join(
@@ -10632,23 +10617,6 @@ function registerIpc(): void {
       return undefined;
     }
   })();
-  ipcMain.handle(IPC.designImageFolderGet, async () => {
-    return { imageDir: designImageDir ?? null };
-  });
-  ipcMain.handle(IPC.designImageFolderSet, async (_event, dir: string) => {
-    const clean = typeof dir === "string" ? dir.trim() : "";
-    if (!clean) throw new Error("目录无效。");
-    const real = await realpath(clean).catch(() => undefined);
-    if (!real) throw new Error("目录不存在。");
-    const info = await stat(real).catch(() => undefined);
-    if (!info?.isDirectory()) throw new Error("请选择一个文件夹。");
-    designImageDir = real;
-    await writeFile(
-      designImagePrefsPath,
-      JSON.stringify({ imageDir: real }, null, 2),
-    ).catch(() => undefined);
-    return { imageDir: real };
-  });
   // S4: snapshot downlink — the panel renders its file list from this.
   async function pushDesignSnapshot(
     threadId: string,
@@ -10737,12 +10705,10 @@ function registerIpc(): void {
       }
     }
     // 图片创作目录快照：记住的目录 + 其中图片清单（同名同形与项目文件行）。
-    let imageDir: string | undefined = designImageDir;
+    const imageDir = designImageDir;
     let images: Array<{ path: string; bytes: number; updatedAt: string }> = [];
     if (imageDir) {
-      images = (await scanProjectDesignFiles(imageDir)).filter(
-        (file) => !/\.html?$/i.test(file.path),
-      );
+      images = await scanProjectDesignFiles(imageDir, true);
     }
     designPanelHost.pushSnapshot(threadId, panelId, {
       documents,
@@ -10935,36 +10901,8 @@ function registerIpc(): void {
      * 打开，2 MiB 上限，MIME 白名单与图片扫描一致。 */
     readImage: async (input) => {
       if (!designImageDir) return {};
-      const raw = String(input.path ?? "");
-      const rel = raw.replace(/^image-(?:dir|view):/, "").trim();
-      if (!rel || rel.includes("..") || rel.startsWith("/")) return {};
-      const dirReal = await realpath(designImageDir).catch(() => undefined);
-      if (!dirReal) return {};
-      const target = join(dirReal, rel);
-      const targetReal = await realpath(target).catch(() => undefined);
-      if (
-        !targetReal ||
-        (targetReal !== dirReal && !targetReal.startsWith(dirReal + sep))
-      )
-        return {};
-      const ext = extname(targetReal).toLowerCase();
-      const mime = DESIGN_IMAGE_MIME_TABLE[ext];
-      if (!mime) return {};
-      let handle: Awaited<ReturnType<typeof open>> | undefined;
-      try {
-        handle = await open(
-          targetReal,
-          fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
-        ).catch(() => undefined);
-        if (!handle) return {};
-        const meta = await handle.stat();
-        if (!meta.isFile() || meta.size > 2 * 1024 * 1024) return {};
-        const bytes = Buffer.alloc(meta.size);
-        await handle.read(bytes, 0, bytes.length, 0);
-        return { dataUrl: `data:${mime};base64,${bytes.toString("base64")}` };
-      } finally {
-        await handle?.close().catch(() => undefined);
-      }
+      const dataUrl = await readDesignImage(designImageDir, input.path);
+      return dataUrl ? { dataUrl } : {};
     },
     /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
      * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
@@ -11553,15 +11491,7 @@ function registerIpc(): void {
   ipcMain.handle(IPC.officeCapabilityCheckUpdates, async () => {
     await (await getOfficeWorkbench()).updates.check();
   });
-  ipcMain.handle(IPC.officeCapabilityInstall, async () => {
-    const workbench = await getOfficeWorkbench();
-    const manifest = workbench.updates.available();
-    if (!manifest)
-      throw new Error(
-        "No verified Office capability release is available for this platform yet. Lite workflows remain available.",
-      );
-    await workbench.packs.install(manifest);
-  });
+  ipcMain.handle(IPC.officeCapabilityInstall, installOfficeSuite);
   ipcMain.handle(IPC.officeCapabilityImport, async () => {
     const selected = await dialog.showOpenDialog({
       title: "Import Office offline pack",
@@ -11574,22 +11504,28 @@ function registerIpc(): void {
     await (
       await getOfficeWorkbench()
     ).packs.installOffline(selected.filePaths[0]);
+    await applyAgentRuntime();
   });
   ipcMain.handle(IPC.officeCapabilityCancel, async () =>
     (await getOfficeWorkbench()).packs.cancel(),
   );
   ipcMain.handle(
     IPC.officeCapabilityActivate,
-    async (_event, version: string) =>
-      (await getOfficeWorkbench()).packs.activate(version),
+    async (_event, version: string) => {
+      await (await getOfficeWorkbench()).packs.activate(version);
+      await applyAgentRuntime();
+    },
   );
-  ipcMain.handle(IPC.officeCapabilityDeactivate, async () =>
-    (await getOfficeWorkbench()).packs.deactivate(),
-  );
+  ipcMain.handle(IPC.officeCapabilityDeactivate, async () => {
+    await (await getOfficeWorkbench()).packs.deactivate();
+    await applyAgentRuntime();
+  });
   ipcMain.handle(
     IPC.officeCapabilityUninstall,
-    async (_event, version: string) =>
-      (await getOfficeWorkbench()).packs.uninstall(version),
+    async (_event, version: string) => {
+      await (await getOfficeWorkbench()).packs.uninstall(version);
+      await applyAgentRuntime();
+    },
   );
 
   // Design capability pack (todo ⑤): the settings toggle's backend. Mirrors
@@ -11828,6 +11764,7 @@ function registerIpc(): void {
         await (
           await getDesignPackRuntime()
         ).packs.installOffline(selected.filePaths[0]);
+        await applyAgentRuntime();
       } catch (error) {
         throw translateDesignPackError(error);
       }

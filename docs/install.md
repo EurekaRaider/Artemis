@@ -21,13 +21,11 @@ Ed25519 验证保证更新清单与附件完整性，不代表 Authenticode 签�
 刷新 OpenAI 或自定义 GitHub 插件商店时，Artemis 直接通过系统网络栈
 下载 HTTPS 仓库归档，不会调用 `git.exe`，因此用户电脑无需安装 Git。公司网络
 需要允许访问 `api.github.com` 以及 GitHub 返回的归档下载地址；网络被拦截时，
-已缓存的商店和安装包自带的四个 Lite 插件仍会保留并可继续使用。
+已缓存的商店仍会保留。
 
-## Lite 文档 Skills
+## Office 套件
 
-打开“资源中心 → 插件 → Bundled plugins”，点击“安装所需文档插件”，然后在
-Work 模式的 Skill 选择器中选择 Documents、PDF、Presentations 或
-Spreadsheets。四个插件由安装包直接携带，不要求另装 Codex 或外部文档工具链。
+打开“资源中心 → 插件 → Bundled plugins → Office 套件”，在线安装增强包，或导入经过验证的 `.artemis-office` 离线包。安装一次即可启用 Office 功能，无需另外安装基础插件。未安装或未启用增强包时，不提供 Office 文档操作和预览；卸载会保留文档和历史记录。
 
 ## 模型配置
 

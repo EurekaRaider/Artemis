@@ -608,7 +608,7 @@ export class CapabilityPackService {
       const version = await this.active();
       if (!version)
         throw new Error(
-          "Office capability pack is not installed. Lite workflows remain available.",
+          "Capability pack is not installed. Install and activate it to use its features.",
         );
       // Take the lease before asynchronous verification, so uninstall cannot race it.
       this.leases.set(version, (this.leases.get(version) ?? 0) + 1);

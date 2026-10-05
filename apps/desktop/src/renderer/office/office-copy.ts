@@ -18,10 +18,10 @@ const en = {
   paragraph: "Paragraph",
   object: "Object",
   regionSelection: "Page region",
-  runtime: "Upgrade Office features",
-  manage: "Manage Office settings",
+  runtime: "Install Office suite",
+  manage: "Manage Office suite",
   manageDescription:
-    "Manage the Office component shared by documents, spreadsheets and presentations.",
+    "Install the enhanced Office pack to read, create and edit Word, Excel and PowerPoint files, read PDF text and create text PDFs. Office features require this installation.",
   checkUpdates: "Check for updates",
   checkingUpdates: "Checking…",
   updateAvailable: "Version {version} is available",
@@ -39,11 +39,11 @@ const en = {
   inUse:
     "Close documents using Office features before removing this component.",
   removeHint:
-    "Removing this component frees space and restores basic features (Lite). Your documents are kept.",
+    "Uninstalling disables Office features. Your documents and history are kept.",
   offlineHint: "Select one .artemis-office file. No extraction is needed.",
   shared:
-    "Install the preview and editing component to view original layouts and edit documents, spreadsheets and presentations. All three plugins share one installation.",
-  lite: "Basic features (Lite) remain available without this download.",
+    "Install the enhanced Office pack to read, create and edit Word, Excel and PowerPoint files, read PDF text and create text PDFs. Office features require this installation.",
+  lite: "Office features are unavailable until the pack is installed and active.",
   unavailable:
     "Online installation is not available yet. Import an offline pack.",
   install: "Install online",
@@ -93,9 +93,10 @@ const zh: typeof en = {
   paragraph: "段落",
   object: "对象",
   regionSelection: "页面区域",
-  runtime: "升级 Office 功能",
-  manage: "管理 Office 配置",
-  manageDescription: "管理文档、表格和演示文稿共用的 Office 组件。",
+  runtime: "安装 Office 套件",
+  manage: "管理 Office 套件",
+  manageDescription:
+    "安装 Office 增强包后，可读写与编辑 Word、Excel、PowerPoint，读取 PDF 文本并创建文本 PDF。未安装时不提供 Office 功能。",
   checkUpdates: "检查更新",
   checkingUpdates: "正在检查…",
   updateAvailable: "发现新版本 {version}",
@@ -111,11 +112,11 @@ const zh: typeof en = {
   installed: "已安装",
   inactive: "未启用",
   inUse: "请先关闭正在使用 Office 功能的文档，再卸载。",
-  removeHint: "卸载后恢复基础功能（Lite）并释放空间，文档会保留。",
+  removeHint: "卸载后停用 Office 功能，文档和历史记录会保留。",
   offlineHint: "选择一个 .artemis-office 文件即可，无需解压。",
   shared:
-    "安装预览与编辑组件，支持查看原始排版并编辑文档、表格和演示文稿。三个插件共用，安装一次即可。",
-  lite: "不安装也可继续使用基础功能（Lite）。",
+    "安装 Office 增强包后，可读写与编辑 Word、Excel、PowerPoint，读取 PDF 文本并创建文本 PDF。未安装时不提供 Office 功能。",
+  lite: "安装并启用增强包后才能使用 Office 功能。",
   unavailable: "在线安装暂未开放，请导入离线包。",
   install: "在线安装",
   offline: "导入离线包",
@@ -165,9 +166,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "段落",
     object: "物件",
     regionSelection: "頁面區域",
-    runtime: "升級 Office 功能",
-    manage: "管理 Office 設定",
-    manageDescription: "管理文件、試算表和簡報共用的 Office 元件。",
+    runtime: "安裝 Office 套件",
+    manage: "管理 Office 套件",
+    manageDescription:
+      "安裝 Office 增強套件後，可讀寫與編輯 Word、Excel、PowerPoint，讀取 PDF 文字並建立文字 PDF。未安裝時不提供 Office 功能。",
     checkUpdates: "檢查更新",
     checkingUpdates: "正在檢查…",
     updateAvailable: "發現新版本 {version}",
@@ -183,11 +185,11 @@ const translations: Record<AppLocale, typeof en> = {
     installed: "已安裝",
     inactive: "未啟用",
     inUse: "請先關閉正在使用 Office 功能的文件，再解除安裝。",
-    removeHint: "解除安裝後恢復基本功能（Lite）並釋放空間，文件會保留。",
+    removeHint: "解除安裝後停用 Office 功能，文件與歷史記錄會保留。",
     offlineHint: "選擇一個 .artemis-office 檔案即可，無需解壓縮。",
     shared:
-      "安裝預覽與編輯元件，即可查看原始版面並編輯文件、試算表和簡報。三個外掛共用，安裝一次即可。",
-    lite: "不安裝也可繼續使用基本功能（Lite）。",
+      "安裝 Office 增強套件後，可讀寫與編輯 Word、Excel、PowerPoint，讀取 PDF 文字並建立文字 PDF。未安裝時不提供 Office 功能。",
+    lite: "安裝並啟用增強套件後才能使用 Office 功能。",
     unavailable: "線上安裝尚未開放，請匯入離線套件。",
     install: "線上安裝",
     offline: "匯入離線套件",
@@ -238,10 +240,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "段落",
     object: "オブジェクト",
     regionSelection: "ページ領域",
-    runtime: "Office 機能を拡張",
-    manage: "Office 設定を管理",
+    runtime: "Office スイートをインストール",
+    manage: "Office スイートの管理",
     manageDescription:
-      "文書、表計算、プレゼンテーションで共有する Office コンポーネントを管理します。",
+      "Office パックをインストールすると、Word・Excel・PowerPoint の読み書きと編集、PDF テキストの読み取りとテキスト PDF の作成ができます。",
     checkUpdates: "更新を確認",
     checkingUpdates: "確認中…",
     updateAvailable: "バージョン {version} が利用可能です",
@@ -258,12 +260,12 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "未使用",
     inUse: "削除する前に、Office 機能を使用中の文書を閉じてください。",
     removeHint:
-      "削除すると容量が解放され、基本機能（Lite）に戻ります。文書は保持されます。",
+      "アンインストールすると Office 機能が無効になります。文書と履歴は保持されます。",
     offlineHint:
       ".artemis-office ファイルを 1 つ選択してください。展開は不要です。",
     shared:
-      "Documents、Presentations、Spreadsheets は共通の実行環境で機能を拡張します。",
-    lite: "ダウンロードせずに Lite を使用できます。",
+      "Office パックをインストールすると、Word・Excel・PowerPoint の読み書きと編集、PDF テキストの読み取りとテキスト PDF の作成ができます。",
+    lite: "Office 機能にはパックのインストールと有効化が必要です。",
     unavailable:
       "オンラインインストールはまだ利用できません。オフラインパックを読み込んでください。",
     install: "オンラインでインストール",
@@ -315,10 +317,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "문단",
     object: "개체",
     regionSelection: "페이지 영역",
-    runtime: "Office 기능 업그레이드",
-    manage: "Office 설정 관리",
+    runtime: "Office 제품군 설치",
+    manage: "Office 제품군 관리",
     manageDescription:
-      "문서, 스프레드시트 및 프레젠테이션이 공유하는 Office 구성 요소를 관리합니다.",
+      "Office 팩을 설치하면 Word, Excel, PowerPoint 읽기와 편집, PDF 텍스트 읽기와 텍스트 PDF 생성이 가능합니다.",
     checkUpdates: "업데이트 확인",
     checkingUpdates: "확인 중…",
     updateAvailable: "새 버전 {version} 사용 가능",
@@ -335,12 +337,12 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "비활성",
     inUse: "제거하기 전에 Office 기능을 사용하는 문서를 닫으세요.",
     removeHint:
-      "제거하면 공간이 확보되고 기본 기능(Lite)으로 돌아갑니다. 문서는 유지됩니다.",
+      "제거하면 Office 기능이 비활성화됩니다. 문서와 기록은 유지됩니다.",
     offlineHint:
       ".artemis-office 파일 하나를 선택하세요. 압축을 풀 필요가 없습니다.",
     shared:
-      "Documents, Presentations, Spreadsheets가 하나의 실행 환경을 공유합니다.",
-    lite: "다운로드 없이 Lite를 사용할 수 있습니다.",
+      "Office 팩을 설치하면 Word, Excel, PowerPoint 읽기와 편집, PDF 텍스트 읽기와 텍스트 PDF 생성이 가능합니다.",
+    lite: "Office 기능을 사용하려면 팩을 설치하고 활성화해야 합니다.",
     unavailable:
       "아직 온라인 설치를 사용할 수 없습니다. 오프라인 팩을 가져오세요.",
     install: "온라인 설치",
@@ -392,10 +394,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Párrafo",
     object: "Objeto",
     regionSelection: "Región de página",
-    runtime: "Mejorar Office",
+    runtime: "Instalar Office",
     manage: "Administrar Office",
     manageDescription:
-      "Administra el componente de Office compartido por documentos, hojas de cálculo y presentaciones.",
+      "Instala el paquete Office para leer, crear y editar Word, Excel y PowerPoint, leer texto PDF y crear PDF de texto.",
     checkUpdates: "Buscar actualizaciones",
     checkingUpdates: "Buscando…",
     updateAvailable: "Versión {version} disponible",
@@ -413,12 +415,12 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "Inactivo",
     inUse: "Cierra los documentos que usan Office antes de desinstalar.",
     removeHint:
-      "Al desinstalar se libera espacio y se vuelve a las funciones básicas (Lite). Se conservan los documentos.",
+      "Al desinstalar se desactivan las funciones de Office. Se conservan los documentos y el historial.",
     offlineHint:
       "Selecciona un archivo .artemis-office. No hace falta extraerlo.",
     shared:
-      "Un entorno compartido amplía Documents, Presentations y Spreadsheets.",
-    lite: "Lite está disponible sin esta descarga.",
+      "Instala el paquete Office para leer, crear y editar Word, Excel y PowerPoint, leer texto PDF y crear PDF de texto.",
+    lite: "Las funciones de Office requieren instalar y activar el paquete.",
     unavailable:
       "La instalación en línea aún no está disponible. Importa un paquete sin conexión.",
     install: "Instalar en línea",
@@ -470,10 +472,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Paragraphe",
     object: "Objet",
     regionSelection: "Zone de page",
-    runtime: "Améliorer Office",
+    runtime: "Installer Office",
     manage: "Gérer Office",
     manageDescription:
-      "Gérez le composant Office partagé par les documents, les feuilles de calcul et les présentations.",
+      "Installez le pack Office pour lire, créer et modifier Word, Excel et PowerPoint, lire le texte des PDF et créer des PDF textuels.",
     checkUpdates: "Rechercher des mises à jour",
     checkingUpdates: "Recherche…",
     updateAvailable: "La version {version} est disponible",
@@ -492,11 +494,11 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "Inactif",
     inUse: "Fermez les documents utilisant Office avant de désinstaller.",
     removeHint:
-      "La désinstallation libère de l’espace et rétablit les fonctions de base (Lite). Vos documents sont conservés.",
+      "La désinstallation désactive Office. Les documents et leur historique sont conservés.",
     offlineHint: "Choisissez un fichier .artemis-office, sans le décompresser.",
     shared:
-      "Un environnement partagé enrichit Documents, Presentations et Spreadsheets.",
-    lite: "Lite est disponible sans téléchargement.",
+      "Installez le pack Office pour lire, créer et modifier Word, Excel et PowerPoint, lire le texte des PDF et créer des PDF textuels.",
+    lite: "Les fonctions Office nécessitent un pack installé et actif.",
     unavailable:
       "L’installation en ligne n’est pas encore disponible. Importez un pack hors ligne.",
     install: "Installer en ligne",
@@ -548,10 +550,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Absatz",
     object: "Objekt",
     regionSelection: "Seitenbereich",
-    runtime: "Office erweitern",
+    runtime: "Office installieren",
     manage: "Office verwalten",
     manageDescription:
-      "Verwalten Sie die gemeinsame Office-Komponente für Dokumente, Tabellen und Präsentationen.",
+      "Installieren Sie das Office-Paket zum Lesen, Erstellen und Bearbeiten von Word, Excel und PowerPoint sowie zum Lesen von PDF-Text und Erstellen von Text-PDFs.",
     checkUpdates: "Nach Updates suchen",
     checkingUpdates: "Suche läuft…",
     updateAvailable: "Version {version} ist verfügbar",
@@ -570,12 +572,12 @@ const translations: Record<AppLocale, typeof en> = {
     inUse:
       "Schließen Sie vor dem Entfernen die Dokumente, die Office verwenden.",
     removeHint:
-      "Das Entfernen gibt Speicher frei und stellt die Basisfunktionen (Lite) wieder her. Ihre Dokumente bleiben erhalten.",
+      "Die Deinstallation deaktiviert Office. Dokumente und Verlauf bleiben erhalten.",
     offlineHint:
       "Wählen Sie eine .artemis-office-Datei. Entpacken ist nicht nötig.",
     shared:
-      "Eine gemeinsame Laufzeit erweitert Documents, Presentations und Spreadsheets.",
-    lite: "Lite ist ohne diesen Download verfügbar.",
+      "Installieren Sie das Office-Paket zum Lesen, Erstellen und Bearbeiten von Word, Excel und PowerPoint sowie zum Lesen von PDF-Text und Erstellen von Text-PDFs.",
+    lite: "Office-Funktionen erfordern ein installiertes und aktives Paket.",
     unavailable:
       "Die Online-Installation ist noch nicht verfügbar. Importieren Sie ein Offline-Paket.",
     install: "Online installieren",
@@ -627,10 +629,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Parágrafo",
     object: "Objeto",
     regionSelection: "Região da página",
-    runtime: "Aprimorar Office",
+    runtime: "Instalar Office",
     manage: "Gerenciar Office",
     manageDescription:
-      "Gerencie o componente do Office compartilhado por documentos, planilhas e apresentações.",
+      "Instale o pacote Office para ler, criar e editar Word, Excel e PowerPoint, ler texto PDF e criar PDFs de texto.",
     checkUpdates: "Verificar atualizações",
     checkingUpdates: "Verificando…",
     updateAvailable: "Versão {version} disponível",
@@ -647,12 +649,12 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "Inativo",
     inUse: "Feche os documentos que usam o Office antes de remover.",
     removeHint:
-      "A remoção libera espaço e restaura as funções básicas (Lite). Seus documentos são mantidos.",
+      "A desinstalação desativa o Office. Documentos e histórico são mantidos.",
     offlineHint:
       "Selecione um arquivo .artemis-office. Não é necessário descompactar.",
     shared:
-      "Um ambiente compartilhado aprimora Documents, Presentations e Spreadsheets.",
-    lite: "O Lite está disponível sem este download.",
+      "Instale o pacote Office para ler, criar e editar Word, Excel e PowerPoint, ler texto PDF e criar PDFs de texto.",
+    lite: "As funções do Office exigem o pacote instalado e ativo.",
     unavailable:
       "A instalação online ainda não está disponível. Importe um pacote offline.",
     install: "Instalar online",
@@ -704,10 +706,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Paragrafo",
     object: "Oggetto",
     regionSelection: "Area della pagina",
-    runtime: "Potenzia Office",
+    runtime: "Installa Office",
     manage: "Gestisci Office",
     manageDescription:
-      "Gestisci il componente Office condiviso da documenti, fogli di calcolo e presentazioni.",
+      "Installa il pacchetto Office per leggere, creare e modificare Word, Excel e PowerPoint, leggere testo PDF e creare PDF testuali.",
     checkUpdates: "Cerca aggiornamenti",
     checkingUpdates: "Ricerca…",
     updateAvailable: "È disponibile la versione {version}",
@@ -725,11 +727,11 @@ const translations: Record<AppLocale, typeof en> = {
     inUse:
       "Chiudi i documenti che usano Office prima di rimuovere il componente.",
     removeHint:
-      "La rimozione libera spazio e ripristina le funzioni di base (Lite). I documenti vengono conservati.",
+      "La disinstallazione disattiva Office. Documenti e cronologia vengono conservati.",
     offlineHint: "Scegli un file .artemis-office. Non è necessario estrarlo.",
     shared:
-      "Un ambiente condiviso potenzia Documents, Presentations e Spreadsheets.",
-    lite: "Lite è disponibile senza questo download.",
+      "Installa il pacchetto Office per leggere, creare e modificare Word, Excel e PowerPoint, leggere testo PDF e creare PDF testuali.",
+    lite: "Le funzioni Office richiedono un pacchetto installato e attivo.",
     unavailable:
       "L’installazione online non è ancora disponibile. Importa un pacchetto offline.",
     install: "Installa online",
@@ -781,10 +783,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Абзац",
     object: "Объект",
     regionSelection: "Область страницы",
-    runtime: "Расширить Office",
-    manage: "Настройки Office",
+    runtime: "Установить Office",
+    manage: "Управление Office",
     manageDescription:
-      "Управляйте общим компонентом Office для документов, таблиц и презентаций.",
+      "Установите пакет Office для чтения, создания и редактирования Word, Excel и PowerPoint, чтения текста PDF и создания текстовых PDF.",
     checkUpdates: "Проверить обновления",
     checkingUpdates: "Проверка…",
     updateAvailable: "Доступна версия {version}",
@@ -800,13 +802,12 @@ const translations: Record<AppLocale, typeof en> = {
     installed: "Установлено",
     inactive: "Не активно",
     inUse: "Перед удалением закройте документы, использующие функции Office.",
-    removeHint:
-      "Удаление освобождает место и возвращает базовые функции (Lite). Документы сохраняются.",
+    removeHint: "Удаление отключает Office. Документы и история сохраняются.",
     offlineHint:
       "Выберите один файл .artemis-office. Распаковывать его не нужно.",
     shared:
-      "Общая среда расширяет возможности Documents, Presentations и Spreadsheets.",
-    lite: "Lite доступен без загрузки пакета.",
+      "Установите пакет Office для чтения, создания и редактирования Word, Excel и PowerPoint, чтения текста PDF и создания текстовых PDF.",
+    lite: "Функции Office доступны только после установки и активации пакета.",
     unavailable:
       "Онлайн-установка пока недоступна. Импортируйте автономный пакет.",
     install: "Установить онлайн",
@@ -857,10 +858,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "فقرة",
     object: "كائن",
     regionSelection: "منطقة الصفحة",
-    runtime: "ترقية ميزات Office",
-    manage: "إدارة إعدادات Office",
+    runtime: "تثبيت Office",
+    manage: "إدارة Office",
     manageDescription:
-      "إدارة مكوّن Office المشترك بين المستندات وجداول البيانات والعروض التقديمية.",
+      "ثبّت حزمة Office لقراءة وإنشاء وتحرير Word وExcel وPowerPoint وقراءة نصوص PDF وإنشاء ملفات PDF نصية.",
     checkUpdates: "التحقق من التحديثات",
     checkingUpdates: "جارٍ التحقق…",
     updateAvailable: "الإصدار {version} متاح",
@@ -876,11 +877,11 @@ const translations: Record<AppLocale, typeof en> = {
     installed: "مثبّت",
     inactive: "غير نشط",
     inUse: "أغلق المستندات التي تستخدم ميزات Office قبل الإزالة.",
-    removeHint:
-      "تؤدي الإزالة إلى تحرير المساحة واستعادة الميزات الأساسية (Lite). تبقى مستنداتك محفوظة.",
+    removeHint: "إلغاء التثبيت يعطّل Office. تبقى المستندات والسجل محفوظة.",
     offlineHint: "اختر ملف .artemis-office واحدًا، دون فك الضغط.",
-    shared: "بيئة مشتركة تعزز Documents وPresentations وSpreadsheets.",
-    lite: "يمكن استخدام Lite دون تنزيل هذه الحزمة.",
+    shared:
+      "ثبّت حزمة Office لقراءة وإنشاء وتحرير Word وExcel وPowerPoint وقراءة نصوص PDF وإنشاء ملفات PDF نصية.",
+    lite: "تتطلب ميزات Office تثبيت الحزمة وتفعيلها.",
     unavailable: "التثبيت عبر الإنترنت غير متاح بعد. استورد حزمة دون اتصال.",
     install: "تثبيت عبر الإنترنت",
     offline: "استيراد حزمة دون اتصال",
@@ -930,10 +931,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "अनुच्छेद",
     object: "ऑब्जेक्ट",
     regionSelection: "पेज का क्षेत्र",
-    runtime: "Office सुविधाएँ बढ़ाएँ",
-    manage: "Office सेटिंग प्रबंधित करें",
+    runtime: "Office स्थापित करें",
+    manage: "Office प्रबंधित करें",
     manageDescription:
-      "दस्तावेज़ों, स्प्रेडशीट और प्रस्तुतियों के साझा Office घटक का प्रबंधन करें।",
+      "Word, Excel और PowerPoint पढ़ने, बनाने और संपादित करने, PDF टेक्स्ट पढ़ने और टेक्स्ट PDF बनाने के लिए Office पैक स्थापित करें।",
     checkUpdates: "अपडेट जाँचें",
     checkingUpdates: "जाँच हो रही है…",
     updateAvailable: "संस्करण {version} उपलब्ध है",
@@ -950,12 +951,12 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "सक्रिय नहीं",
     inUse: "हटाने से पहले Office सुविधाओं का उपयोग कर रहे दस्तावेज़ बंद करें।",
     removeHint:
-      "हटाने से जगह खाली होती है और मूल सुविधाएँ (Lite) वापस आती हैं। आपके दस्तावेज़ सुरक्षित रहते हैं।",
+      "अनइंस्टॉल करने पर Office सुविधाएँ बंद हो जाती हैं। दस्तावेज़ और इतिहास सुरक्षित रहते हैं।",
     offlineHint:
       "एक .artemis-office फ़ाइल चुनें। उसे निकालने की आवश्यकता नहीं है।",
     shared:
-      "एक साझा रनटाइम Documents, Presentations और Spreadsheets की क्षमताएँ बढ़ाता है।",
-    lite: "इस डाउनलोड के बिना भी Lite उपलब्ध है।",
+      "Word, Excel और PowerPoint पढ़ने, बनाने और संपादित करने, PDF टेक्स्ट पढ़ने और टेक्स्ट PDF बनाने के लिए Office पैक स्थापित करें।",
+    lite: "Office सुविधाओं के लिए पैक स्थापित और सक्रिय होना चाहिए।",
     unavailable: "ऑनलाइन इंस्टॉलेशन अभी उपलब्ध नहीं है। ऑफ़लाइन पैक आयात करें।",
     install: "ऑनलाइन इंस्टॉल करें",
     offline: "ऑफ़लाइन पैक आयात करें",
@@ -1005,10 +1006,10 @@ const translations: Record<AppLocale, typeof en> = {
     paragraph: "Paragraf",
     object: "Objek",
     regionSelection: "Area halaman",
-    runtime: "Tingkatkan fitur Office",
-    manage: "Kelola pengaturan Office",
+    runtime: "Instal Office",
+    manage: "Kelola Office",
     manageDescription:
-      "Kelola komponen Office bersama untuk dokumen, spreadsheet, dan presentasi.",
+      "Instal paket Office untuk membaca, membuat, dan mengedit Word, Excel, dan PowerPoint, membaca teks PDF serta membuat PDF teks.",
     checkUpdates: "Periksa pembaruan",
     checkingUpdates: "Memeriksa…",
     updateAvailable: "Versi {version} tersedia",
@@ -1025,11 +1026,11 @@ const translations: Record<AppLocale, typeof en> = {
     inactive: "Tidak aktif",
     inUse: "Tutup dokumen yang menggunakan fitur Office sebelum menghapus.",
     removeHint:
-      "Penghapusan mengosongkan ruang dan memulihkan fitur dasar (Lite). Dokumen Anda tetap disimpan.",
+      "Menghapus paket menonaktifkan Office. Dokumen dan riwayat tetap disimpan.",
     offlineHint: "Pilih satu file .artemis-office. Tidak perlu diekstrak.",
     shared:
-      "Satu lingkungan bersama meningkatkan Documents, Presentations, dan Spreadsheets.",
-    lite: "Lite tersedia tanpa unduhan ini.",
+      "Instal paket Office untuk membaca, membuat, dan mengedit Word, Excel, dan PowerPoint, membaca teks PDF serta membuat PDF teks.",
+    lite: "Fitur Office memerlukan paket yang terinstal dan aktif.",
     unavailable: "Instalasi online belum tersedia. Impor paket offline.",
     install: "Instal online",
     offline: "Impor paket offline",

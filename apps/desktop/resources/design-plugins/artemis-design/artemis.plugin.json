@@ -12,13 +12,8 @@
         "zh-CN": "设计",
         "en": "Design"
       },
-      "targets": [
-        "project",
-        "temporary"
-      ],
-      "panelIds": [
-        "workspace"
-      ]
+      "targets": ["project", "temporary"],
+      "panelIds": ["workspace"]
     }
   ],
   "panels": [

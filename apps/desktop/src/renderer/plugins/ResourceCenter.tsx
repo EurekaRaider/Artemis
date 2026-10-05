@@ -1,4 +1,6 @@
 import designPluginIcon from "../assets/design-plugin-icon.png";
+// Microsoft Fluent UI: https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/office_48x1.svg
+import officeSuiteIcon from "../assets/office-suite-icon.svg";
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { OfficeCapabilityPanel } from "../office/OfficeCapabilityPanel.js";
@@ -100,6 +102,13 @@ let installedPluginsCache: InstalledArtemisPlugin[] | undefined;
 let marketplaceStateCache: ArtemisPluginMarketplaceState | undefined;
 let runtimeMarketplaceCache: ArtemisPluginMarketplace | undefined;
 let runtimeMarketplaceLoaded = false;
+
+function isLegacyOfficePlugin(plugin: ArtemisPluginPreview): boolean {
+  return (
+    ["bundled", "runtime"].includes(plugin.source.kind) &&
+    ["documents", "spreadsheets", "presentations", "pdf"].includes(plugin.name)
+  );
+}
 
 function pluginPageText(value: string): string {
   return value
@@ -296,7 +305,7 @@ export function ResourceCenter({
           if (active) setMessage(String(error));
         });
     refresh();
-    const timer = officeUpdating ? setInterval(refresh, 1000) : undefined;
+    const timer = setInterval(refresh, 1000);
     window.addEventListener("focus", refresh);
     return () => {
       active = false;
@@ -1014,25 +1023,6 @@ export function ResourceCenter({
     }
   }
 
-  async function installRuntimePlugins() {
-    if (!runtimeMarketplace || !(await onConfirm(t.confirmRequiredDocuments))) {
-      return;
-    }
-    const operationId = beginInstallation("plugin", t.bundledPlugins);
-    setBusyId("required-documents");
-    setMessage(undefined);
-    try {
-      applyPluginMutation(
-        await window.artemis.installBundledPlugins(operationId),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-    }
-  }
-
   async function updatePlugin(plugin: InstalledArtemisPlugin) {
     if (!(await onConfirm(t.confirmUpdatePlugin))) return;
     const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
@@ -1396,6 +1386,7 @@ export function ResourceCenter({
   const marketplaceFilter = marketplaceQuery.trim().toLowerCase();
   const matchingMarketplacePlugins = (plugins: ArtemisPluginPreview[]) =>
     plugins.filter((plugin) => {
+      if (isLegacyOfficePlugin(plugin)) return false;
       return (
         !marketplaceFilter ||
         plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
@@ -1500,17 +1491,19 @@ export function ResourceCenter({
   const matchesManagement = (...values: Array<string | undefined>) =>
     !managementFilter ||
     values.some((value) => value?.toLowerCase().includes(managementFilter));
-  const visibleInstalledPlugins = installedPlugins.filter((plugin) =>
-    matchesManagement(
-      plugin.displayName,
-      plugin.name,
-      plugin.shortDescription,
-      plugin.description,
-      pluginDisplayName(plugin),
-      pluginDescription(plugin),
-      localizedPluginText(plugin, locale).description,
-      pluginMarketplaceLabel(plugin),
-    ),
+  const visibleInstalledPlugins = installedPlugins.filter(
+    (plugin) =>
+      !isLegacyOfficePlugin(plugin) &&
+      matchesManagement(
+        plugin.displayName,
+        plugin.name,
+        plugin.shortDescription,
+        plugin.description,
+        pluginDisplayName(plugin),
+        pluginDescription(plugin),
+        localizedPluginText(plugin, locale).description,
+        pluginMarketplaceLabel(plugin),
+      ),
   );
   const visibleExtensions = (settings?.trustedExtensions ?? []).filter(
     (extension) =>
@@ -1553,23 +1546,25 @@ export function ResourceCenter({
     configure(): void;
     toggle(enabled: boolean): Promise<void>;
   }> = [
-    ...installedPlugins.map((plugin) => {
-      const visual = visualForPlugin(plugin);
-      return {
-        id: `plugin:${plugin.id}`,
-        name: pluginDisplayName(plugin),
-        kind: "plugin" as const,
-        description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
-        enabled: pluginIsEnabled(plugin),
-        disabled: !plugin.installable && !pluginIsEnabled(plugin),
-        configure: () =>
-          pluginHasConnection(plugin)
-            ? setConnectionPlugin(plugin)
-            : openManagement("plugins"),
-        toggle: (enabled: boolean) => setPluginEnabled(plugin, enabled),
-        ...visual,
-      };
-    }),
+    ...installedPlugins
+      .filter((plugin) => !isLegacyOfficePlugin(plugin))
+      .map((plugin) => {
+        const visual = visualForPlugin(plugin);
+        return {
+          id: `plugin:${plugin.id}`,
+          name: pluginDisplayName(plugin),
+          kind: "plugin" as const,
+          description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
+          enabled: pluginIsEnabled(plugin),
+          disabled: !plugin.installable && !pluginIsEnabled(plugin),
+          configure: () =>
+            pluginHasConnection(plugin)
+              ? setConnectionPlugin(plugin)
+              : openManagement("plugins"),
+          toggle: (enabled: boolean) => setPluginEnabled(plugin, enabled),
+          ...visual,
+        };
+      }),
     ...installedSkills
       .filter((skill) => !managedSkillNames.has(skill.name))
       .map((skill) => {
@@ -1648,10 +1643,6 @@ export function ResourceCenter({
         setExtensionEnabled(extension.config.id, enabled),
     })),
   ];
-  const runtimePendingPlugins = (runtimeMarketplace?.plugins ?? []).filter(
-    (plugin) => plugin.installable && !installedPluginIds.has(plugin.id),
-  );
-
   function renderProgressAndMessage() {
     const warnings =
       marketplaceState?.marketplaces.find(
@@ -1805,6 +1796,117 @@ export function ResourceCenter({
           );
         }}
       />
+    );
+  }
+
+  function renderOfficePackCard() {
+    const status = officePackStatus;
+    const installed = Boolean(status?.activeVersion);
+    const working =
+      officeUpdating || Boolean(status && status.phase !== "idle");
+    const run = (operation: () => Promise<void>) =>
+      runResourceOperation(async () => {
+        setOfficeUpdating(true);
+        try {
+          await operation();
+        } finally {
+          setOfficeUpdating(false);
+        }
+      });
+    return (
+      <ManagementCard className="plugin-market-card office-pack-card">
+        <div className="plugin-market-card-heading">
+          <ResourceAvatar
+            brandColor="#D83B01"
+            iconDataUrl={officeSuiteIcon}
+            kind="plugin"
+            name="Office"
+          />
+          <div className="plugin-market-card-titles">
+            <strong>
+              {locale === "zh-CN"
+                ? "Office 套件"
+                : locale === "zh-TW"
+                  ? "Office 套件"
+                  : "Office"}
+            </strong>
+            <small className="plugin-market-card-source">
+              {t.marketplaceSource}: {t.bundledPlugins}
+            </small>
+          </div>
+        </div>
+        <div className="plugin-market-copy">
+          <small>{office.shared}</small>
+        </div>
+        <div className="plugin-market-card-footer">
+          <div className="plugin-market-card-actions">
+            {working ? (
+              <>
+                <progress
+                  aria-label={office.working}
+                  max={status?.totalBytes || 1}
+                  value={status?.downloadedBytes}
+                />
+                <Button
+                  variant="quiet"
+                  onClick={() => void window.artemis.cancelOfficeCapability()}
+                >
+                  {office.cancel}
+                </Button>
+              </>
+            ) : installed ? (
+              <>
+                {status?.updateVersion && (
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      run(() => window.artemis.installOfficeCapability())
+                    }
+                  >
+                    {office.updateNow.replace(
+                      "{version}",
+                      status.updateVersion,
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  onClick={() => setOfficeCapabilityOpen(true)}
+                >
+                  {office.manage}
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon={<TrashIcon />}
+                  disabled={status?.versions.some(
+                    (version) => version.active && version.inUse,
+                  )}
+                  onClick={() =>
+                    run(() =>
+                      window.artemis.uninstallOfficeCapability(
+                        status!.activeVersion!,
+                      ),
+                    )
+                  }
+                >
+                  {office.remove}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  status?.availableVersion
+                    ? run(() => window.artemis.installOfficeCapability())
+                    : setOfficeCapabilityOpen(true)
+                }
+              >
+                {t.install}
+              </Button>
+            )}
+          </div>
+        </div>
+      </ManagementCard>
     );
   }
 
@@ -2025,11 +2127,15 @@ export function ResourceCenter({
             name={plugin.name}
           />
           <div className="plugin-market-card-titles">
-            <strong title={`${displayName} v${plugin.version}`}>
+            <strong
+              title={`${displayName} v${installedPlugin?.version ?? plugin.version}`}
+            >
               {displayName}
               {/* 已安装的插件在名称后跟小号 v+版本号。 */}
               {installed && (
-                <span className="plugin-market-card-vn">v{plugin.version}</span>
+                <span className="plugin-market-card-vn">
+                  v{installedPlugin?.version ?? plugin.version}
+                </span>
               )}
             </strong>
             <small
@@ -2624,27 +2730,6 @@ export function ResourceCenter({
             value={activeMarketplaceTabOption.value}
           />
 
-          {selectedMarketplaceView === "bundled" &&
-            !marketplaceFilter &&
-            runtimePendingPlugins.length > 0 && (
-              <ManagementCard className="resource-runtime-banner">
-                <div>
-                  <strong>{t.installRequiredDocuments}</strong>
-                  <small>{t.requiredDocumentsDescription}</small>
-                </div>
-                <Button
-                  disabled={
-                    operationPending ||
-                    busyId === "required-documents" ||
-                    installProgress !== undefined
-                  }
-                  onClick={() => runResourceOperation(installRuntimePlugins)}
-                >
-                  {t.installRequiredDocuments}
-                </Button>
-              </ManagementCard>
-            )}
-
           {marketplaceTabOptions
             .filter(
               (option) => option.value !== activeMarketplaceTabOption.value,
@@ -2664,14 +2749,32 @@ export function ResourceCenter({
             id={activeMarketplaceTabOption.panelId}
             role="tabpanel"
           >
-            {marketplaceGroups.map((group) => (
-              <section
-                className="plugin-market-group"
-                key={`${group.sourceId ?? "group"}:${group.title}`}
-              >
-                {/* bundled 组的标题（随应用提供的插件）与来源 tab 重复，略去；
-                    其余组（分类标题）照常。 */}
-                {group.sourceId !== "bundled" && (
+            {(selectedMarketplaceView === "bundled" || marketplaceFilter) && (
+              <div className="plugin-market-grid">
+                {(!marketplaceFilter ||
+                  `office word excel powerpoint pdf ${office.runtime}`
+                    .toLowerCase()
+                    .includes(marketplaceFilter)) &&
+                  renderOfficePackCard()}
+                {!marketplaceFilter && renderDesignPackCard()}
+                {selectedMarketplaceView === "bundled" &&
+                  !marketplaceFilter &&
+                  selectedMarketplacePlugins.map((plugin) =>
+                    renderPluginCard(plugin, "bundled"),
+                  )}
+              </div>
+            )}
+            {marketplaceGroups
+              .filter(
+                () =>
+                  selectedMarketplaceView !== "bundled" ||
+                  Boolean(marketplaceFilter),
+              )
+              .map((group) => (
+                <section
+                  className="plugin-market-group"
+                  key={`${group.sourceId ?? "group"}:${group.title}`}
+                >
                   <h2>
                     {marketplaceFilter
                       ? group.title
@@ -2679,20 +2782,22 @@ export function ResourceCenter({
                           localizedPluginCategory(group.title, locale),
                         )}
                   </h2>
-                )}
-                <div className="plugin-market-grid">
-                  {group.sourceId === "bundled" &&
-                    !marketplaceFilter &&
-                    renderDesignPackCard()}
-                  {group.plugins.map((plugin) =>
-                    renderPluginCard(plugin, group.sourceId),
-                  )}
-                </div>
-              </section>
-            ))}
-            {!searching && marketplaceGroups.length === 0 && (
-              <EmptyResource>{t.noMarketplaceResults}</EmptyResource>
-            )}
+                  <div className="plugin-market-grid">
+                    {group.plugins.map((plugin) =>
+                      renderPluginCard(plugin, group.sourceId),
+                    )}
+                  </div>
+                </section>
+              ))}
+            {!searching &&
+              marketplaceGroups.length === 0 &&
+              selectedMarketplaceView !== "bundled" &&
+              !(
+                marketplaceFilter &&
+                `office word excel powerpoint pdf ${office.runtime}`
+                  .toLowerCase()
+                  .includes(marketplaceFilter)
+              ) && <EmptyResource>{t.noMarketplaceResults}</EmptyResource>}
           </div>
 
           <ManagementSection

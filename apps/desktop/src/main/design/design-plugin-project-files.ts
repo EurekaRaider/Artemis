@@ -285,6 +285,15 @@ export async function readProjectFileForPreview(input: {
     requestedPath.startsWith("/")
   )
     throw new ProjectFileReadError("Invalid project file path.");
+  if (DESIGN_SCAN_IMAGE_EXTENSIONS.has(extname(requestedPath).toLowerCase())) {
+    const dataUrl = await readDesignImage(input.workspacePath, requestedPath);
+    if (!dataUrl)
+      throw new ProjectFileReadError("Project image is unreadable or unsafe.");
+    return {
+      name: requestedPath,
+      content: `<html><body style="margin:0;display:grid;place-items:center;height:100vh"><img style="max-width:100%;max-height:100vh" src="${dataUrl}"></body></html>`,
+    };
+  }
   if (!DESIGN_PROJECT_TEXT_EXTENSIONS.test(requestedPath))
     throw new ProjectFileReadError("此项目文件类型暂不支持预览。");
   const absolute = join(input.workspacePath, requestedPath);
@@ -357,6 +366,7 @@ const DESIGN_SCAN_IGNORED_DIRS = new Set([
 
 export async function scanProjectDesignFiles(
   workspacePath: string,
+  imagesOnly = false,
 ): Promise<Array<{ path: string; bytes: number; updatedAt: string }>> {
   const files: Array<{ path: string; bytes: number; updatedAt: string }> = [];
   let level: Array<{ dir: string; prefix: string }> = [
@@ -384,8 +394,7 @@ export async function scanProjectDesignFiles(
         if (!entry.isFile()) continue;
         const ext = extname(entry.name).toLowerCase();
         if (
-          ext !== ".html" &&
-          ext !== ".htm" &&
+          (imagesOnly || (ext !== ".html" && ext !== ".htm")) &&
           !DESIGN_SCAN_IMAGE_EXTENSIONS.has(ext)
         )
           continue;
@@ -401,4 +410,20 @@ export async function scanProjectDesignFiles(
     level = next;
   }
   return files;
+}
+
+/** Read a selected image directory through the same bounded, rechecked pipeline as previews. */
+export async function readDesignImage(
+  directory: string,
+  requestPath: string,
+): Promise<string | undefined> {
+  const relative = requestPath.replace(/^image-(?:dir|view):/, "");
+  if (!DESIGN_SCAN_IMAGE_EXTENSIONS.has(extname(relative).toLowerCase()))
+    return undefined;
+  const root = await realpath(directory).catch(() => undefined);
+  if (!root) return undefined;
+  const target = resolve(root, relative);
+  const read = await readWorkspaceFileBytes(root, target, 2 * 1024 * 1024);
+  if (!read) return undefined;
+  return `data:${DESIGN_IMAGE_MIME[extname(relative).toLowerCase()]};base64,${read.bytes.toString("base64")}`;
 }

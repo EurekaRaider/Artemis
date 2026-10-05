@@ -1643,6 +1643,15 @@ export function App() {
     enabled: customAgentTasks.length < AGENT_TEAM_LOGICAL_MAXIMUM,
     members: groupMentions.open ? groupMentions : undefined,
     onSelect: addCustomAgentTask,
+    plugins: {
+      installed: installedPlugins,
+      skills: installedSkills,
+      selectedNames: selectedComposerSkillNames,
+      onSelect: (skill) =>
+        setSelectedComposerSkillNames((current) =>
+          current.includes(skill.name) ? current : [...current, skill.name],
+        ),
+    },
   });
   const copyConversationText = useCallback(
     async (text: string) => {
@@ -2011,15 +2020,6 @@ export function App() {
     }
     return plugins;
   }, [installedPlugins]);
-  const unavailablePluginSkillNames = useMemo(
-    () =>
-      new Set(
-        installedPlugins
-          .filter((plugin) => !plugin.installable)
-          .flatMap((plugin) => plugin.skillNames),
-      ),
-    [installedPlugins],
-  );
   const slashCommandSuggestions = useMemo(() => {
     const selectedNames = new Set(selectedComposerSkillNames);
     const suggestions = slashCommandSuggestionsForPrompt(
@@ -2027,7 +2027,7 @@ export function App() {
       installedSkills.filter(
         (skill) =>
           !selectedNames.has(skill.name) &&
-          !unavailablePluginSkillNames.has(skill.name),
+          !installedPluginBySkillName.has(skill.name),
       ),
     );
     return [
@@ -2039,23 +2039,13 @@ export function App() {
             suggestion.kind === "work" ||
             suggestion.kind === "codemode"),
       ),
-      ...suggestions.filter(
-        (suggestion) =>
-          suggestion.kind === "skill" &&
-          installedPluginBySkillName.has(suggestion.skill.name),
-      ),
-      ...suggestions.filter(
-        (suggestion) =>
-          suggestion.kind === "skill" &&
-          !installedPluginBySkillName.has(suggestion.skill.name),
-      ),
+      ...suggestions.filter((suggestion) => suggestion.kind === "skill"),
     ];
   }, [
     installedPluginBySkillName,
     installedSkills,
     prompt,
     selectedComposerSkillNames,
-    unavailablePluginSkillNames,
   ]);
   const goalSuggestionIndex = slashCommandSuggestions.findIndex(
     (suggestion) => suggestion.kind === "goal",
@@ -2077,15 +2067,6 @@ export function App() {
   const skillSuggestions = slashCommandSuggestions.flatMap(
     (suggestion, index) =>
       suggestion.kind === "skill" ? [{ index, skill: suggestion.skill }] : [],
-  );
-  const pluginSkillSuggestions = skillSuggestions.flatMap(
-    ({ index, skill }) => {
-      const plugin = installedPluginBySkillName.get(skill.name);
-      return plugin ? [{ index, plugin, skill }] : [];
-    },
-  );
-  const standaloneSkillSuggestions = skillSuggestions.filter(
-    ({ skill }) => !installedPluginBySkillName.has(skill.name),
   );
   const selectedSkills = useMemo(
     () =>
@@ -3020,7 +3001,7 @@ export function App() {
   }, [runtimeSettings?.workspaceDockWidth, workspaceDockResizing]);
 
   useEffect(() => {
-    if (!skillCommandMenuOpen) return;
+    if (!skillCommandMenuOpen && !customAgentMention.queryActive) return;
     let mounted = true;
     setSkillsLoading(true);
     setSkillsError(undefined);
@@ -3046,7 +3027,7 @@ export function App() {
     return () => {
       mounted = false;
     };
-  }, [skillCommandMenuOpen]);
+  }, [skillCommandMenuOpen, customAgentMention.queryActive]);
 
   useEffect(() => {
     setActiveSlashSuggestion(0);
@@ -8053,70 +8034,33 @@ export function App() {
                               </div>
                             ) : skillSuggestions.length > 0 ? (
                               <>
-                                {pluginSkillSuggestions.length > 0 && (
-                                  <div className="slash-command-heading">
-                                    {t.installedPlugins}
-                                  </div>
-                                )}
-                                {pluginSkillSuggestions.map(
-                                  ({ index, plugin, skill }) => (
-                                    <button
-                                      aria-selected={
-                                        index === activeSlashSuggestion
-                                      }
-                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                      id={`skill-command-option-${index}`}
-                                      key={skill.id}
-                                      onClick={() => selectSkillCommand(skill)}
-                                      role="option"
-                                      tabIndex={-1}
-                                    >
-                                      <ResourceAvatar
-                                        brandColor={plugin.brandColor}
-                                        iconDataUrl={plugin.iconDataUrl}
-                                        pluginName={plugin.name}
-                                        kind="skill"
-                                        name={skill.name}
-                                      />
-                                      <span>
-                                        <strong>{skill.name}</strong>
-                                        <small title={skill.description}>
-                                          {plugin.displayName} ·{" "}
-                                          {skill.description}
-                                        </small>
-                                      </span>
-                                    </button>
-                                  ),
-                                )}
-                                {standaloneSkillSuggestions.length > 0 && (
+                                {skillSuggestions.length > 0 && (
                                   <div className="slash-command-heading">
                                     {t.installedSkills}
                                   </div>
                                 )}
-                                {standaloneSkillSuggestions.map(
-                                  ({ index, skill }) => (
-                                    <button
-                                      aria-selected={
-                                        index === activeSlashSuggestion
-                                      }
-                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                      id={`skill-command-option-${index}`}
-                                      key={skill.id}
-                                      onClick={() => selectSkillCommand(skill)}
-                                      role="option"
-                                      tabIndex={-1}
-                                    >
-                                      <ResourceAvatar
-                                        kind="skill"
-                                        name={skill.name}
-                                      />
-                                      <span>
-                                        <strong>{skill.name}</strong>
-                                        <small>{skill.description}</small>
-                                      </span>
-                                    </button>
-                                  ),
-                                )}
+                                {skillSuggestions.map(({ index, skill }) => (
+                                  <button
+                                    aria-selected={
+                                      index === activeSlashSuggestion
+                                    }
+                                    className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                    id={`skill-command-option-${index}`}
+                                    key={skill.id}
+                                    onClick={() => selectSkillCommand(skill)}
+                                    role="option"
+                                    tabIndex={-1}
+                                  >
+                                    <ResourceAvatar
+                                      kind="skill"
+                                      name={skill.name}
+                                    />
+                                    <span>
+                                      <strong>{skill.name}</strong>
+                                      <small>{skill.description}</small>
+                                    </span>
+                                  </button>
+                                ))}
                               </>
                             ) : (
                               <div className="slash-command-status">

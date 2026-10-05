@@ -1011,9 +1011,9 @@ const catInfo = () =>
   }));
 const cats2 = catInfo();
 check(
-  "分类白名单只保留页面与图片（保守档）",
+  "扫描白名单不隐藏已有非页面文档",
   JSON.stringify(cats2.map((c) => c.label)) ===
-    JSON.stringify(["页面", "图片"]),
+    JSON.stringify(["页面", "图片", "其它"]),
   JSON.stringify(cats2),
 );
 check(
@@ -1054,8 +1054,8 @@ fromHost({
   },
 });
 check(
-  "恢复页面快照后仅页面胶囊",
-  document.querySelectorAll(".design-cat").length === 1,
+  "恢复页面快照后保留图片创作入口",
+  document.querySelectorAll(".design-cat").length === 2,
 );
 
 console.log("== 19c. 虚拟文件夹 + 页面真实缩略图（OD 呈现）==");
@@ -1356,6 +1356,86 @@ console.log("== 19b2. 标记数据链 + composer 绑定上报 ==");
     })(),
   );
 }
+
+console.log("== PR253. 图片创作回归 ==");
+fromHost({
+  type: "snapshot",
+  snapshot: { documents: [], projectFiles: [], imageDir: null, images: [] },
+});
+const imageTab = [...document.querySelectorAll(".design-cat")].find((el) =>
+  el.textContent.includes("图片"),
+);
+check("未选择目录时图片入口可达", Boolean(imageTab));
+imageTab?.click();
+check("图片目录引导可见", visible(document.querySelector(".dz-image-guide")));
+const unsafeImageName = 'photo"><b data-injected="yes">.png';
+fromHost({
+  type: "snapshot",
+  snapshot: {
+    documents: [],
+    projectFiles: [],
+    imageDir: "/images",
+    images: [{ path: unsafeImageName, bytes: 20, updatedAt: "1" }],
+  },
+});
+check(
+  "图片名按纯文本显示",
+  document.querySelector(".dz-image-card .design-file-name")?.textContent ===
+    unsafeImageName,
+);
+check("图片名不生成 HTML 节点", !document.querySelector("[data-injected]"));
+check("仅有图片时隐藏全局空态", document.getElementById("dzStart").hidden);
+const imageData = "data:image/png;base64,aGVsbG8=";
+fromHost({
+  type: "read-image-result",
+  path: "image-dir:" + unsafeImageName,
+  dataUrl: imageData,
+});
+check(
+  "图片缩略图收到读取结果",
+  Boolean(document.querySelector(".dz-image-thumb")?.style.backgroundImage),
+);
+document.querySelector(".dz-image-card")?.click();
+fromHost({
+  type: "read-image-result",
+  path: "image-view:" + unsafeImageName,
+  dataUrl: imageData,
+});
+check(
+  "图片详情收到读取结果",
+  document.getElementById("dzImageEl").src === imageData,
+);
+document.getElementById("dzImagePromptInput").value = "修改背景";
+document.getElementById("dzImageSend").click();
+check(
+  "图片提示附带图片",
+  sent.findLast((m) => m.type === "candidate-prompt")?.images?.[0] ===
+    imageData,
+);
+document.getElementById("dzTabFiles").click();
+check(
+  "退出图片详情会隐藏图片视图",
+  document.getElementById("dzImageView").hidden,
+);
+const imageFileTab = [
+  ...document.querySelectorAll(".design-ws-tab[data-dz-file]"),
+].find((el) => el.dataset.dzFile === "image-view:" + unsafeImageName);
+imageFileTab?.click();
+check("图片标签可以重新打开", !document.getElementById("dzImageView").hidden);
+fromHost({
+  type: "snapshot",
+  snapshot: {
+    documents: [],
+    projectFiles: [],
+    imageDir: "/images",
+    images: [{ path: "replacement.png", bytes: 20, updatedAt: "2" }],
+  },
+});
+check(
+  "图片数量相同也刷新文件列表",
+  document.querySelector(".dz-image-card .design-file-name")?.textContent ===
+    "replacement.png",
+);
 
 console.log("== 20. 错误汇总 ==");
 check("全程无未捕获 JS 错误", pageErrors.length === 0, pageErrors.join("; "));

@@ -3,14 +3,14 @@ name: pdf
 description: Create, read, and make basic normalized text edits to PDF files with Artemis's built-in office_document tool.
 ---
 
-# PDF Lite
+# PDF
 
 Use this Skill for basic text-oriented PDF work that does not require a Codex primary runtime.
 
 ## Tool and mode
 
 - Use the built-in `office_document` tool for every PDF operation.
-- The tool is available in Execute mode. If it is unavailable, ask the user to switch the task to Execute mode.
+- The tool requires the installed Office suite and Work or Codemode. If it is unavailable, ask the user to install the Office suite in Resources → Plugins and use Work or Codemode.
 - Do not call `load_workspace_dependencies`, install packages, or look for a Codex runtime.
 - Use workspace-relative `.pdf` paths and provide the required model approval decision truthfully.
 
@@ -23,6 +23,6 @@ Use this Skill for basic text-oriented PDF work that does not require a Codex pr
 
 Before overwriting or deleting, confirm that the request identifies the intended file. After a write, report the resulting path and any warnings returned by the tool.
 
-## Lite limitations
+## Content limitations
 
 This workflow is intended for normalized text pages. It does not promise pixel-perfect layout, OCR, annotations, forms, signatures, embedded media, font fidelity, or preservation of arbitrary existing PDF drawing commands. Explain that limitation before changing an existing PDF when it matters to the request.

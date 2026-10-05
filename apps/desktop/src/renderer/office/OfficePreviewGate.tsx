@@ -34,8 +34,10 @@ export function OfficePreviewGate({
           setError(String(reason));
         }
       });
+    const timer = setInterval(refresh, 1000);
     return () => {
       active = false;
+      clearInterval(timer);
     };
   }, [attempt]);
   if (ready) return <>{children}</>;
@@ -43,8 +45,8 @@ export function OfficePreviewGate({
     ready === undefined
       ? t.loading
       : locale.startsWith("zh")
-        ? "不支持预览，如需预览请升级office功能"
-        : "Preview is unavailable. Upgrade Office features to preview this file.";
+        ? "安装 Office 套件后即可预览此文件"
+        : "Install the Office suite to preview this file.";
   return (
     <>
       <WorkspaceContentState

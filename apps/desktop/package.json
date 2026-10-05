@@ -19,7 +19,7 @@
     "release:win": "node scripts/packaging/package-windows-lite.mjs --release && npm run verify:win-native && node scripts/release/finalize-release.mjs --windows",
     "verify:mac-native": "node scripts/verify/native/verify-macos-native.mjs",
     "verify:win-native": "node scripts/verify/native/verify-windows-native.mjs",
-    "verify:bundled-plugins": "vitest run --no-file-parallelism test/main/plugins/artemis-plugin-service.test.ts -t \"exposes all four Lite plugins from packaged resources without a runtime\"",
+    "verify:bundled-plugins": "vitest run --no-file-parallelism test/main/plugins/artemis-plugin-service.test.ts -t \"retains four legacy Office descriptors for existing installation metadata\"",
     "verify:desktop-skin": "node scripts/verify/ui/verify-desktop-skin.mjs",
     "verify:card-heatmap": "npm run build && node scripts/verify/ui/verify-card-heatmap.mjs",
     "verify:conversation-timeline": "npm run build && node scripts/verify/ui/verify-conversation-timeline.mjs",
