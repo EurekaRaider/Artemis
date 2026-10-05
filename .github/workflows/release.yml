@@ -96,7 +96,7 @@ jobs:
       - name: Archive signed app and native verification modules
         run: >-
           tar -czf signed-macos-arm64.tar.gz apps/desktop/release/mac-arm64 packages/platform/dist
-          packages/protocol/dist
+          packages/protocol/dist packages/plugin-contract/dist
       - name: Preserve signed app for notarization
         uses: actions/upload-artifact@v6
         with:
