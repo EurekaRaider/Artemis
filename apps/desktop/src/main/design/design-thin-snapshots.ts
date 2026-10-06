@@ -1,210 +1,362 @@
-// Design thin snapshots: file-change-triggered version history for workspace
-// design targets (.html/.htm). The hosted-document ledger is gone; history
-// lives beside the workspace in <workspace>/.artemis/versions/<path hash>/
-// as timestamped copies. Append-only, bounded per file, never written on
-// restore (restore copies snapshot content back to the workspace, which then
-// records its own new snapshot via the normal change pipeline).
+// Bounded workspace HTML history. File mutations and cursor updates serialize
+// per path; snapshots use the exact bytes read before each replacement.
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, copyFile, stat } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { constants } from "node:fs";
+import {
+  lstat,
+  mkdir,
+  open,
+  readdir,
+  realpath,
+  rename,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { readWorkspaceFileBytes } from "./design-plugin-project-files.js";
 
-const VERSIONS_DIR = ".artemis/versions";
 const MAX_PER_FILE = 50;
-const MIN_BYTES_DELTA = 1; // every observed change snapshots
+const MAX_BYTES = 4 * 1024 * 1024;
+const SNAPSHOT_NAME = /^(\d+)-([0-9a-f]{16})\.html$/;
+const tails = new Map<string, Promise<unknown>>();
+type Authorize = () => void | Promise<void>;
 
-const isHtmlPath = (path: string): boolean =>
-  /\.(html?|htm)$/i.test(path);
+async function serialized<T>(
+  workspace: string,
+  path: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  const key = resolve(await realpath(workspace), path);
+  const previous = tails.get(key) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(work);
+  tails.set(key, next);
+  try {
+    return await next;
+  } finally {
+    if (tails.get(key) === next) tails.delete(key);
+  }
+}
 
-export const designThinSnapshotRoot = (workspacePath: string): string =>
-  join(workspacePath, VERSIONS_DIR);
+export const designThinSnapshotRoot = (workspace: string): string =>
+  join(workspace, ".artemis", "versions");
 
 export function designThinSnapshotDir(
-  workspacePath: string,
-  requestedPath: string,
+  workspace: string,
+  path: string,
 ): string | undefined {
-  const rel = relative(workspacePath, resolve(workspacePath, requestedPath))
-    .replaceAll("\\", "/");
-  if (!rel || rel.startsWith("..") || resolve(workspacePath, requestedPath) === resolve(workspacePath))
+  const rel = relative(resolve(workspace), resolve(workspace, path)).replaceAll(
+    "\\",
+    "/",
+  );
+  if (!rel || rel === ".." || rel.startsWith("../") || !/\.html?$/i.test(rel))
     return undefined;
-  if (!isHtmlPath(rel)) return undefined;
-  const id = createHash("sha256").update(rel).digest("hex").slice(0, 16);
-  return join(designThinSnapshotRoot(workspacePath), id);
-}
-
-/** Record a snapshot of one workspace file after a change. Snapshots carry
- * the full file copy plus sidecar meta (path/bytes/occurredAt) so the panel
- * can render labels without a lookup table. Failures are non-fatal. */
-export async function recordDesignThinSnapshot(
-  workspacePath: string,
-  requestedPath: string,
-  opts: { source?: string; operationId?: string } = {},
-): Promise<{ revision: string; occurredAt: string } | undefined> {
-  const abs = resolve(workspacePath, requestedPath);
-  if (!abs.startsWith(resolve(workspacePath) + sep) && abs !== resolve(workspacePath))
-    return undefined;
-  const rel = relative(workspacePath, abs).replaceAll("\\", "/");
-  if (!isHtmlPath(rel)) return undefined;
-  const dir = designThinSnapshotDir(workspacePath, rel);
-  if (!dir) return undefined;
-  let bytes: Buffer;
-  let mtime: Date;
-  try {
-    const info = await stat(abs);
-    if (!info.isFile()) return undefined;
-    bytes = await readFile(abs);
-    mtime = info.mtime;
-  } catch {
-    return undefined;
-  }
-  const occurredAt = new Date().toISOString();
-  const revision = createHash("sha256").update(bytes).digest("hex").slice(0, 16);
-  await mkdir(dir, { recursive: true });
-  // 内容去重：最新一份与本次内容一致（重复写同内容/恢复后重记）则跳过
-  const existing = (await readdir(dir).catch(() => []))
-    .filter((f) => /^\d+-[0-9a-f]{16}\.html$/.test(f))
-    .sort();
-  const newestRev = /^(\d+)-([0-9a-f]{16})\.html$/.exec(existing.at(-1) ?? "");
-  if (newestRev && newestRev[2] === revision) {
-    await resetDesignThinCursor(dir);
-    return { revision, occurredAt };
-  }
-  const target = join(dir, `${Date.now()}-${revision}.html`);
-  await copyFile(abs, target).catch(() => undefined);
-  await writeFile(
-    join(dir, "meta.jsonl"),
-    JSON.stringify({
-      revision,
-      path: rel,
-      bytes: bytes.length,
-      occurredAt,
-      mtime: mtime.toISOString(),
-      ...(opts.source ? { source: opts.source } : {}),
-      ...(opts.operationId ? { operationId: opts.operationId } : {}),
-    }) + "\n",
-    { flag: "a" },
-  ).catch(() => undefined);
-  await pruneDesignThinSnapshots(dir).catch(() => undefined);
-  await resetDesignThinCursor(dir);
-  return { revision, occurredAt };
-}
-
-// ---- undo/redo cursor（游标 = 距最新快照的回退步数；真实新状态归零）----
-
-interface ThinCursor {
-  undone: number;
-}
-
-async function readDesignThinCursor(dir: string): Promise<ThinCursor> {
-  try {
-    const parsed = JSON.parse(await readFile(join(dir, "cursor.json"), "utf8"));
-    if (typeof parsed.undone === "number" && parsed.undone >= 0)
-      return { undone: parsed.undone };
-  } catch {
-    /* 无游标 = 处于最新 */
-  }
-  return { undone: 0 };
-}
-
-async function writeDesignThinCursor(
-  dir: string,
-  cursor: ThinCursor,
-): Promise<void> {
-  await writeFile(join(dir, "cursor.json"), JSON.stringify(cursor) + "\n");
-}
-
-async function resetDesignThinCursor(dir: string): Promise<void> {
-  await writeFile(join(dir, "cursor.json"), '{"undone":0}\n').catch(
-    () => undefined,
+  return join(
+    designThinSnapshotRoot(workspace),
+    createHash("sha256").update(rel).digest("hex").slice(0, 16),
   );
 }
 
-async function snapshotFileAt(
-  dir: string,
-  indexFromHead: number,
-): Promise<string | undefined> {
-  const files = (await readdir(dir).catch(() => []))
-    .filter((f) => /^\d+-[0-9a-f]{16}\.html$/.test(f))
-    .sort(
-      (a, b) =>
-        Number(/^\d+/.exec(a)?.[0] ?? 0) - Number(/^\d+/.exec(b)?.[0] ?? 0),
-    );
-  if (files.length === 0) return undefined;
-  const target = files.length - 1 - indexFromHead;
-  return target >= 0 ? files[target] : undefined;
+// Reject symlinks at every component, including the history store. Canonical
+// workspace roots may themselves be aliases (e.g. /tmp on macOS).
+export async function resolveDesignWorkspacePath(
+  workspace: string,
+  path: string,
+): Promise<string> {
+  if (!designThinSnapshotDir(workspace, path))
+    throw new Error("Only workspace .html/.htm paths are supported.");
+  return checkedPath(workspace, resolve(workspace, path));
 }
 
-/** undo：回退一步（游标 +1），把对应快照内容写回工作区。
- * 游标移动不追加快照（历史保持纯时间序）；已到最早一份时报错。 */
-export async function undoDesignThinVersion(
-  workspacePath: string,
-  requestedPath: string,
-): Promise<{ revision: string; content: string } | { error: string }> {
-  const dir = designThinSnapshotDir(workspacePath, requestedPath);
-  if (!dir) return { error: "此文件没有快照历史。" };
-  const cursor = await readDesignThinCursor(dir);
-  const nextUndone = cursor.undone + 1;
-  const file = await snapshotFileAt(dir, nextUndone);
-  if (!file) return { error: "已经回到最早的快照，无可撤销的修改。" };
-  const revision = /^(\d+)-([0-9a-f]{16})\.html$/.exec(file)?.[2] ?? "";
-  const content = await readDesignThinVersion(workspacePath, requestedPath, file);
-  if (content === undefined) return { error: "快照不可读。" };
-  await writeDesignThinCursor(dir, { undone: nextUndone });
-  return { revision, content };
+async function checkedPath(
+  workspace: string,
+  candidate: string,
+): Promise<string> {
+  const root = await realpath(workspace);
+  const fromAlias = relative(resolve(workspace), candidate);
+  const rel =
+    fromAlias === ".." || fromAlias.startsWith(".." + sep)
+      ? relative(root, candidate)
+      : fromAlias;
+  if (!rel || rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel))
+    throw new Error("Path escapes the workspace.");
+  let current = root;
+  for (const part of rel.split(sep)) {
+    current = join(current, part);
+    const info = await lstat(current).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    });
+    if (info?.isSymbolicLink())
+      throw new Error("Symlinks are not allowed in design file paths.");
+  }
+  return current;
 }
 
-/** redo：重做一步（游标 -1，下限 0=最新）。 */
-export async function redoDesignThinVersion(
-  workspacePath: string,
-  requestedPath: string,
-): Promise<{ revision: string; content: string } | { error: string }> {
-  const dir = designThinSnapshotDir(workspacePath, requestedPath);
-  if (!dir) return { error: "此文件没有快照历史。" };
-  const cursor = await readDesignThinCursor(dir);
-  if (cursor.undone <= 0)
-    return { error: "没有可重做的修改（已在最新状态）。" };
-  const nextUndone = cursor.undone - 1;
-  const file = await snapshotFileAt(dir, nextUndone);
-  if (!file) return { error: "重做目标不存在。" };
-  const revision = /^(\d+)-([0-9a-f]{16})\.html$/.exec(file)?.[2] ?? "";
-  const content = await readDesignThinVersion(workspacePath, requestedPath, file);
-  if (content === undefined) return { error: "快照不可读。" };
-  await writeDesignThinCursor(dir, { undone: nextUndone });
-  return { revision, content };
+async function historyDir(workspace: string, path: string): Promise<string> {
+  const dir = designThinSnapshotDir(workspace, path);
+  if (!dir) throw new Error("Invalid design path.");
+  return checkedPath(workspace, dir);
 }
 
-/** 写入工作区（undo/redo/restore 共用）：包含校验后落盘。 */
-export async function writeWorkspaceFileChecked(
-  workspacePath: string,
-  requestedPath: string,
-  content: string,
-): Promise<void> {
-  const abs = resolve(workspacePath, requestedPath);
-  if (
-    !abs.startsWith(resolve(workspacePath) + sep) ||
-    abs === resolve(workspacePath)
+async function readCurrent(
+  workspace: string,
+  path: string,
+): Promise<Buffer | undefined> {
+  const abs = await resolveDesignWorkspacePath(workspace, path);
+  const info = await lstat(abs).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!info) return undefined;
+  const read = await readWorkspaceFileBytes(
+    await realpath(workspace),
+    abs,
+    MAX_BYTES,
+  );
+  if (!read) throw new Error("Design file is unreadable or exceeds 4 MiB.");
+  return read.bytes;
+}
+
+async function snapshotFiles(dir: string): Promise<string[]> {
+  return (
+    await readdir(dir).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [] as string[];
+      throw error;
+    })
   )
-    throw new Error("路径越出工作区。");
-  const { writeFile: fsWriteFile, mkdir: fsMkdir } = await import(
-    "node:fs/promises"
+    .filter((file) => SNAPSHOT_NAME.test(file))
+    .sort((a, b) => Number(a.split("-")[0]) - Number(b.split("-")[0]));
+}
+
+const digest = (bytes: Buffer): string =>
+  createHash("sha256").update(bytes).digest("hex").slice(0, 16);
+
+async function saveSnapshot(
+  workspace: string,
+  path: string,
+  bytes: Buffer,
+  authorize?: Authorize,
+) {
+  const dir = await historyDir(workspace, path);
+  const files = await snapshotFiles(dir);
+  const revision = digest(bytes);
+  if (SNAPSHOT_NAME.exec(files.at(-1) ?? "")?.[2] === revision)
+    return { revision, occurredAt: new Date().toISOString() };
+  await authorize?.();
+  await mkdir(dir, { recursive: true });
+  await historyDir(workspace, path);
+  await authorize?.();
+  const stamp = Math.max(
+    Date.now(),
+    Number(files.at(-1)?.split("-")[0] ?? 0) + 1,
   );
-  await fsMkdir(abs.slice(0, abs.lastIndexOf(sep)), { recursive: true });
-  await fsWriteFile(abs, content, "utf8");
+  const file = join(dir, `${stamp}-${revision}.html`);
+  const handle = await open(
+    file,
+    constants.O_WRONLY |
+      constants.O_CREAT |
+      constants.O_EXCL |
+      constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    await handle.writeFile(bytes);
+  } finally {
+    await handle.close();
+  }
+  for (const old of files.slice(
+    0,
+    Math.max(0, files.length + 1 - MAX_PER_FILE),
+  ))
+    await unlink(join(dir, old));
+  await writeCursor(workspace, path, 0, authorize);
+  return { revision, occurredAt: new Date(stamp).toISOString() };
 }
 
-async function writeFile(path: string, data: string, opts?: { flag: string }) {
-  const { writeFile: fsWriteFile } = await import("node:fs/promises");
-  await fsWriteFile(path, data, opts as never);
+export async function recordDesignThinSnapshot(
+  workspace: string,
+  path: string,
+  _opts: { source?: string; operationId?: string } = {},
+) {
+  if (!designThinSnapshotDir(workspace, path)) return undefined;
+  return serialized(workspace, path, async () => {
+    const bytes = await readCurrent(workspace, path);
+    return bytes === undefined
+      ? undefined
+      : saveSnapshot(workspace, path, bytes);
+  });
 }
 
-async function pruneDesignThinSnapshots(dir: string): Promise<void> {
-  const files = (await readdir(dir).catch(() => []))
-    .filter((f) => /^\d+-[0-9a-f]{16}\.html$/.test(f))
-    .sort();
-  if (files.length <= MAX_PER_FILE) return;
-  const { unlink } = await import("node:fs/promises");
-  for (const file of files.slice(0, files.length - MAX_PER_FILE))
-    await unlink(join(dir, file)).catch(() => undefined);
+async function readCursor(workspace: string, path: string): Promise<number> {
+  const dir = await historyDir(workspace, path);
+  const read = await readWorkspaceFileBytes(
+    await realpath(workspace),
+    join(dir, "cursor.json"),
+    1024,
+  );
+  if (!read) return 0;
+  const undone: unknown = JSON.parse(read.bytes.toString("utf8")).undone;
+  if (!Number.isSafeInteger(undone) || (undone as number) < 0)
+    throw new Error("Invalid history cursor.");
+  return undone as number;
 }
+
+async function writeCursor(
+  workspace: string,
+  path: string,
+  undone: number,
+  authorize?: Authorize,
+): Promise<void> {
+  const dir = await historyDir(workspace, path);
+  await atomicReplace(
+    workspace,
+    join(dir, "cursor.json"),
+    Buffer.from(JSON.stringify({ undone }) + "\n"),
+    authorize,
+  );
+}
+
+async function atomicReplace(
+  workspace: string,
+  candidate: string,
+  bytes: Buffer,
+  authorize?: Authorize,
+): Promise<void> {
+  let abs = await checkedPath(workspace, candidate);
+  await authorize?.();
+  await mkdir(dirname(abs), { recursive: true });
+  abs = await checkedPath(workspace, candidate);
+  const temporary = join(dirname(abs), `.artemis-${randomUUID()}.tmp`);
+  const handle = await open(
+    temporary,
+    constants.O_WRONLY |
+      constants.O_CREAT |
+      constants.O_EXCL |
+      constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    await handle.writeFile(bytes);
+    await handle.close();
+    await checkedPath(workspace, candidate);
+    await authorize?.();
+    await rename(temporary, abs);
+  } finally {
+    await handle.close().catch(() => undefined);
+    await unlink(temporary).catch(() => undefined);
+  }
+}
+
+export async function writeWorkspaceFileChecked(
+  workspace: string,
+  path: string,
+  content: string,
+  authorize?: Authorize,
+): Promise<void> {
+  await resolveDesignWorkspacePath(workspace, path);
+  if (Buffer.byteLength(content) > MAX_BYTES)
+    throw new Error("Design page exceeds 4 MiB.");
+  await atomicReplace(
+    workspace,
+    resolve(workspace, path),
+    Buffer.from(content),
+    authorize,
+  );
+}
+
+export async function writeDesignWorkspacePage(
+  workspace: string,
+  path: string,
+  content: string,
+  find?: string,
+  authorize?: Authorize,
+) {
+  return serialized(workspace, path, async () => {
+    await authorize?.();
+    const before = await readCurrent(workspace, path);
+    let result = content;
+    if (find !== undefined) {
+      if (!find)
+        throw new Error("apply_edit requires a non-empty find string.");
+      if (before === undefined)
+        throw new Error("apply_edit requires an existing page.");
+      const current = before.toString("utf8");
+      const at = current.indexOf(find);
+      if (at < 0 || current.indexOf(find, at + 1) >= 0)
+        throw new Error(
+          "find must match exactly once; use the smallest unique snippet.",
+        );
+      result = current.slice(0, at) + content + current.slice(at + find.length);
+    }
+    if (Buffer.byteLength(result) > MAX_BYTES)
+      throw new Error("Design page exceeds 4 MiB.");
+    if (before !== undefined)
+      await saveSnapshot(workspace, path, before, authorize);
+    const fresh = await readCurrent(workspace, path);
+    if (before === undefined ? fresh !== undefined : !fresh?.equals(before))
+      throw new Error("Page changed during editing; read it again.");
+    await writeWorkspaceFileChecked(workspace, path, result, authorize);
+    const saved = await saveSnapshot(
+      workspace,
+      path,
+      Buffer.from(result),
+      authorize,
+    );
+    await writeCursor(workspace, path, 0, authorize);
+    return {
+      path: relative(resolve(workspace), resolve(workspace, path)).replaceAll(
+        "\\",
+        "/",
+      ),
+      bytes: Buffer.byteLength(result),
+      revision: saved.revision,
+    };
+  });
+}
+
+async function navigate(
+  workspace: string,
+  path: string,
+  step: 1 | -1,
+  authorize?: Authorize,
+) {
+  return serialized(workspace, path, async () => {
+    await authorize?.();
+    const before = await readCurrent(workspace, path);
+    if (before === undefined) return { error: "Page does not exist." };
+    let files = await snapshotFiles(await historyDir(workspace, path));
+    let undone = await readCursor(workspace, path);
+    const active = files[files.length - 1 - undone];
+    if (SNAPSHOT_NAME.exec(active ?? "")?.[2] !== digest(before)) {
+      await saveSnapshot(workspace, path, before, authorize);
+      files = await snapshotFiles(await historyDir(workspace, path));
+      undone = 0;
+    }
+    const next = undone + step;
+    const file = next >= 0 ? files[files.length - 1 - next] : undefined;
+    if (!file)
+      return { error: step === 1 ? "Nothing to undo." : "Nothing to redo." };
+    const content = await readDesignThinVersion(workspace, path, file);
+    if (content === undefined) return { error: "Snapshot is unreadable." };
+    const fresh = await readCurrent(workspace, path);
+    if (!fresh?.equals(before))
+      throw new Error("Page changed during history navigation.");
+    await writeWorkspaceFileChecked(workspace, path, content, authorize);
+    await writeCursor(workspace, path, next, authorize);
+    return { revision: SNAPSHOT_NAME.exec(file)![2]!, content };
+  });
+}
+
+export const undoDesignThinVersion = (
+  workspace: string,
+  path: string,
+  authorize?: Authorize,
+) => navigate(workspace, path, 1, authorize);
+export const redoDesignThinVersion = (
+  workspace: string,
+  path: string,
+  authorize?: Authorize,
+) => navigate(workspace, path, -1, authorize);
 
 export interface DesignThinVersion {
   revision: string;
@@ -213,80 +365,80 @@ export interface DesignThinVersion {
   occurredAt: string;
   sequence: number;
   file: string;
+  current: boolean;
 }
 
-/** List snapshots for one workspace file, oldest → newest. */
 export async function listDesignThinVersions(
-  workspacePath: string,
-  requestedPath: string,
+  workspace: string,
+  path: string,
 ): Promise<DesignThinVersion[]> {
-  const dir = designThinSnapshotDir(workspacePath, requestedPath);
-  if (!dir) return [];
-  const files = (await readdir(dir).catch(() => []))
-    .filter((f) => /^\d+-[0-9a-f]{16}\.html$/.test(f))
-    .sort(
-      (a, b) =>
-        Number(/^\d+/.exec(a)?.[0] ?? 0) - Number(/^\d+/.exec(b)?.[0] ?? 0),
-    );
-  const rel = relative(
-    workspacePath,
-    resolve(workspacePath, requestedPath),
-  ).replaceAll("\\", "/");
-  const { stat: fsStat } = await import("node:fs/promises");
+  await resolveDesignWorkspacePath(workspace, path);
+  const dir = await historyDir(workspace, path);
+  const files = await snapshotFiles(dir);
   const out: DesignThinVersion[] = [];
-  for (let index = 0; index < files.length; index += 1) {
-    const file = files[index]!;
-    const full = join(dir, file);
-    const size = await fsStat(full)
-      .then((i) => i.size)
-      .catch(() => 0);
+  const live = await readCurrent(workspace, path);
+  const cursor = await readCursor(workspace, path);
+  const activeIndex = files.length - 1 - cursor;
+  for (const [index, file] of files.entries()) {
+    const read = await readWorkspaceFileBytes(
+      await realpath(workspace),
+      join(dir, file),
+      MAX_BYTES,
+    );
+    if (!read || digest(read.bytes) !== SNAPSHOT_NAME.exec(file)![2]) continue;
     out.push({
-      revision: /^\d+-([0-9a-f]{16})\.html$/.exec(file)?.[1] ?? "",
-      path: rel,
-      bytes: size,
-      occurredAt: new Date(
-        Number(/^\d+/.exec(file)?.[0] ?? 0) || 0,
-      ).toISOString(),
+      revision: SNAPSHOT_NAME.exec(file)![2]!,
+      path: relative(workspace, resolve(workspace, path)).replaceAll("\\", "/"),
+      bytes: read.size,
+      occurredAt: new Date(Number(file.split("-")[0])).toISOString(),
       sequence: index + 1,
       file,
+      current:
+        index === activeIndex &&
+        live !== undefined &&
+        digest(live) === SNAPSHOT_NAME.exec(file)![2],
     });
   }
   return out;
 }
 
-/** Read one snapshot's content. */
 export async function readDesignThinVersion(
-  workspacePath: string,
-  requestedPath: string,
+  workspace: string,
+  path: string,
   file: string,
 ): Promise<string | undefined> {
-  const dir = designThinSnapshotDir(workspacePath, requestedPath);
-  if (!dir || !/^\d+-[0-9a-f]{16}\.html$/.test(file)) return undefined;
-  try {
-    return (await readFile(join(dir, file))).toString("utf8");
-  } catch {
-    return undefined;
-  }
-}
-
-/** Restore: copy a snapshot back to the workspace file. Returns the content
- * written; the workspace change pipeline then records a fresh snapshot. */
-export async function restoreDesignThinVersion(
-  workspacePath: string,
-  requestedPath: string,
-  file: string,
-): Promise<string | undefined> {
-  const content = await readDesignThinVersion(workspacePath, requestedPath, file);
-  if (content === undefined) return undefined;
-  const abs = resolve(workspacePath, requestedPath);
-  if (!abs.startsWith(resolve(workspacePath) + sep)) return undefined;
-  const { writeFile: fsWriteFile, mkdir: fsMkdir } = await import(
-    "node:fs/promises"
+  if (!SNAPSHOT_NAME.test(file)) return undefined;
+  await resolveDesignWorkspacePath(workspace, path);
+  const dir = await historyDir(workspace, path);
+  const read = await readWorkspaceFileBytes(
+    await realpath(workspace),
+    join(dir, file),
+    MAX_BYTES,
   );
-  await fsMkdir(abs.slice(0, abs.lastIndexOf(sep)), { recursive: true });
-  await fsWriteFile(abs, content, "utf8");
-  return content;
+  if (!read || digest(read.bytes) !== SNAPSHOT_NAME.exec(file)![2])
+    return undefined;
+  return read.bytes.toString("utf8");
 }
 
-/** Trace id for tests/diagnostics. */
-export const designThinSnapshotTraceId = (): string => randomUUID();
+export async function restoreDesignThinVersion(
+  workspace: string,
+  path: string,
+  file: string,
+  authorize?: Authorize,
+): Promise<string | undefined> {
+  return serialized(workspace, path, async () => {
+    await authorize?.();
+    const content = await readDesignThinVersion(workspace, path, file);
+    if (content === undefined) return undefined;
+    const before = await readCurrent(workspace, path);
+    if (before !== undefined)
+      await saveSnapshot(workspace, path, before, authorize);
+    const fresh = await readCurrent(workspace, path);
+    if (before === undefined ? fresh !== undefined : !fresh?.equals(before))
+      throw new Error("Page changed during restoration.");
+    await writeWorkspaceFileChecked(workspace, path, content, authorize);
+    await saveSnapshot(workspace, path, Buffer.from(content), authorize);
+    await writeCursor(workspace, path, 0, authorize);
+    return content;
+  });
+}

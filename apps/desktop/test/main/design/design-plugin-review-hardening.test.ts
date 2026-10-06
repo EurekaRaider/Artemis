@@ -35,14 +35,12 @@ import {
   ProjectFileReadError,
   readProjectFileForPreview,
 } from "../../../src/main/design/design-plugin-project-files.js";
+import { createDesignWorkspaceToolHandlers } from "../../../src/main/design/design-plugin-workspace-tools.js";
 import { PanelSendEntryService } from "../../../src/main/design/design-plugin-send-entry.js";
 import { PluginRevisionStore } from "../../../src/main/design/design-plugin-revision-store.js";
 import { createDispatchPluginTool } from "../../../src/main/design/design-plugin-dispatch.js";
 import { AppStore } from "../../../src/main/settings/store.js";
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
-
-const itNative =
-  process.platform === "darwin" && process.arch === "arm64" ? it : it.skip;
 
 let directory: string;
 const packageRoot = join(
@@ -364,76 +362,73 @@ describe("P2-12 plugin operation ledger state machine", () => {
   });
 });
 
-describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
+describe("workspace design dispatch, persistence and authorization", () => {
   let store: AppStore;
-  afterAll(() => store?.close());
   let dispatch: ReturnType<typeof createDispatchPluginTool>;
   let threadId: string;
   let planThreadId: string;
+  let workspace: string;
   let artifactWrites: Array<{ threadId: string; toolName: string }>;
-  let databasePath: string;
-  let revisionsRoot: string;
+  afterAll(() => {
+    dispatch?.dispose();
+    store?.close();
+  });
 
   beforeAll(async () => {
-    revisionsRoot = join(directory, `rev-${randomUUID().slice(0, 6)}`);
-    const scratchRoot = join(directory, `scratch-${randomUUID().slice(0, 6)}`);
-    databasePath = join(directory, `state-${randomUUID().slice(0, 6)}.sqlite`);
-    store = new AppStore(databasePath);
+    const revisionsRoot = join(directory, "workspace-revisions");
+    workspace = join(directory, "workspace-design");
+    await mkdir(workspace);
+    store = new AppStore(join(directory, "workspace.sqlite"));
     const contentHash = await PluginRevisionStore.computeContentHash(
       join(packageRoot, "artemis-design"),
     );
-    const revisionStore = new PluginRevisionStore(revisionsRoot);
-    await revisionStore.publish({
+    await new PluginRevisionStore(revisionsRoot).publish({
       installationId: "com.artemis.design",
       contentHash,
       sourceRoot: join(packageRoot, "artemis-design"),
     });
     const now = new Date().toISOString();
+    const projectId = randomUUID();
+    store.upsertProject({
+      id: projectId,
+      name: "design",
+      path: workspace,
+      createdAt: now,
+      updatedAt: now,
+    });
     const binding = {
       installationId: "com.artemis.design",
       pluginId: "com.artemis.design",
       typeId: "artemis-design",
-      pluginVersion: "0.1.0",
+      pluginVersion: "0.4.5",
       contentHash,
-      bindingRevision: `rev-${contentHash.slice(0, 12)}`,
+      bindingRevision: "workspace-binding",
     };
     threadId = randomUUID();
     planThreadId = randomUUID();
-    store.createThread({
-      id: threadId,
-      title: "exec",
-      mode: "work",
-      target: "local",
-      status: "idle",
-      pinned: false,
-      archived: false,
-      typeBinding: binding,
-      executionProfile: RESTRICTED_PROFILE_ID,
-      createdAt: now,
-      updatedAt: now,
-    });
-    store.createThread({
-      id: planThreadId,
-      title: "plan",
-      mode: "plan",
-      target: "local",
-      status: "idle",
-      pinned: false,
-      archived: false,
-      typeBinding: binding,
-      executionProfile: RESTRICTED_PROFILE_ID,
-      createdAt: now,
-      updatedAt: now,
-    });
-    for (const scopeId of [threadId, planThreadId]) {
+    for (const id of [threadId, planThreadId]) {
+      store.createThread({
+        id,
+        projectId,
+        title: "design",
+        mode: id === planThreadId ? "plan" : "work",
+        target: "local",
+        status: "idle",
+        pinned: false,
+        archived: false,
+        typeBinding: binding,
+        executionProfile: RESTRICTED_PROFILE_ID,
+        createdAt: now,
+        updatedAt: now,
+      });
       store.insertPluginGrant({
         grantId: randomUUID(),
         installationId: binding.installationId,
         pluginId: binding.pluginId,
         contentHash,
         scope: "thread",
-        scopeId,
-        capabilities: { artifactStore: "thread" },
+        scopeId: id,
+        capabilities: { projectFiles: "explicit-import" },
         resourceRefs: { revisionsRoot },
         grantRevision: binding.bindingRevision,
       });
@@ -442,7 +437,11 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
     dispatch = createDispatchPluginTool({
       store,
       revisionsRoot,
-      scratchRoot,
+      scratchRoot: join(directory, "workspace-scratch"),
+      ...createDesignWorkspaceToolHandlers({
+        getThread: (id) => store.getThread(id),
+        resolveWorkspace: async () => ({ workspacePath: workspace }),
+      }),
       onArtifactWrite: (input) => {
         artifactWrites.push(input);
       },
@@ -452,317 +451,218 @@ describe("P2-11 / P1-7 / P2-13 through the real dispatch + runtime", () => {
           input.installationId,
           input.contentHash,
         );
-        try {
-          const bytes = await readFile(
-            join(revisionRoot, "artemis.plugin.json"),
-            "utf8",
-          );
-          const manifest = JSON.parse(bytes) as {
-            tools: Array<{ name: string; effect: string }>;
-            runtime: { entry: string };
-          };
-          return {
-            tools: manifest.tools,
-            runtimeEntry: join(revisionRoot, manifest.runtime.entry),
-            revisionRoot,
-          };
-        } catch {
-          return undefined;
-        }
+        const manifest = JSON.parse(
+          await readFile(join(revisionRoot, "artemis.plugin.json"), "utf8"),
+        );
+        return {
+          tools: manifest.tools,
+          runtimeEntry: join(revisionRoot, manifest.runtime.entry),
+          revisionRoot,
+        };
       },
     });
   });
 
-  async function call(
+  const call = (
     toolName: string,
     args: Record<string, unknown>,
-    mode: "work" | "plan" = "work",
-    useThread: string = threadId,
     operationId?: string,
-  ) {
-    const outcome = await dispatch.dispatch({
-      threadId: useThread,
+    id = threadId,
+  ) =>
+    dispatch.dispatch({
+      threadId: id,
       toolName,
       args,
-      mode,
+      mode: "work",
       ...(operationId ? { operationId } : {}),
     });
-    return outcome as {
-      status: string;
-      error?: string;
-      result?: { output?: string };
-    };
-  }
+  const output = (value: { result?: unknown }) =>
+    JSON.parse((value.result as { output: string }).output);
 
-  function parseOutput(outcome: {
-    result?: { output?: string };
-  }): Record<string, unknown> {
-    try {
-      return JSON.parse(outcome.result?.output ?? "{}") as Record<
-        string,
-        unknown
-      >;
-    } catch {
-      return {};
-    }
-  }
+  it("denies traversal and empty find without changing a page", async () => {
+    expect(
+      (await call("write_page", { path: "../escape.html", content: "bad" }))
+        .status,
+    ).toBe("failed");
+    await call("write_page", { path: "empty-find.html", content: "keep" });
+    expect(
+      (
+        await call("apply_edit", {
+          path: "empty-find.html",
+          find: "",
+          content: "bad",
+        })
+      ).status,
+    ).toBe("failed");
+    expect(await readFile(join(workspace, "empty-find.html"), "utf8")).toBe(
+      "keep",
+    );
+  });
 
-  itNative(
-    "P1-4: runtime refuses traversal-shaped document ids",
-    async () => {
-      const outcome = await call("apply_edit", {
-        documentId: "../../other-task-doc",
-        expectedRevision: "deadbeefdeadbeef",
-        operationId: `trav-${randomUUID()}`,
-        find: "a",
-        replace: "b",
-      });
-      expect(outcome.status).toBe("failed");
-      expect(outcome.error).toContain("invalid documentId");
-    },
-    30_000,
-  );
-
-  it("P1-7: a persisted Plan task cannot dispatch plugin tools even claiming execute", async () => {
-    const outcome = await call(
-      "create_document",
-      { name: "不应创建", brief: "" },
-      "work",
+  it("denies a persisted Plan task before filesystem execution", async () => {
+    const result = await call(
+      "write_page",
+      { path: "plan.html", content: "bad" },
+      undefined,
       planThreadId,
     );
-    expect(outcome.status).toBe("refused");
-    expect(outcome.error).toContain("persisted task mode is plan");
-  }, 30_000);
+    expect(result.status).toBe("refused");
+    expect(result.error).toContain("persisted task mode is plan");
+    await expect(readFile(join(workspace, "plan.html"))).rejects.toThrow();
+  });
 
-  itNative(
-    "P2-11: runtime failure status propagates instead of reporting success",
-    async () => {
-      // 空名称会被 runtime 以返回值（非异常）拒绝——外层必须传播失败。
-      const outcome = await call("create_document", { name: "", brief: "" });
-      expect(outcome.status).toBe("failed");
-      expect(outcome.error).toBeTruthy();
-      // 没有 artifact-write 提交、没有成功事件路径的副作用。
-      expect(artifactWrites.length).toBe(0);
-    },
-    30_000,
-  );
+  it("propagates a returned failed history result and does not refresh the panel", async () => {
+    await call("write_page", { path: "no-undo.html", content: "only state" });
+    const before = artifactWrites.length;
+    const result = await call("undo", { path: "no-undo.html" });
+    expect(result.status).toBe("failed");
+    expect(artifactWrites).toHaveLength(before);
+  });
 
-  itNative(
-    "P2-13: undo walks HEAD, sequences take the full-history max, redo is guarded",
-    async () => {
-      const created = await call("create_document", {
-        name: "撤销语义验收.html",
-        brief: "",
-      });
-      expect(created.status).toBe("succeeded");
-      const createdOut = parseOutput(created);
-      const documentId = String(createdOut.documentId ?? "");
-      const rev1 = String(createdOut.revision ?? "");
-      expect(documentId).toBeTruthy();
+  it("reads the actual project inventory and records read operations without artifact refresh", async () => {
+    const before = artifactWrites.length;
+    const result = await call("get_snapshot", {});
+    expect(result.status).toBe("succeeded");
+    expect(
+      output(result).files.some(
+        (file: { path: string }) => file.path === "empty-find.html",
+      ),
+    ).toBe(true);
+    expect(artifactWrites).toHaveLength(before);
+  });
 
-      const edit1 = await call("apply_edit", {
-        documentId,
-        expectedRevision: rev1,
-        operationId: `e1-${randomUUID()}`,
-        find: "<body>",
-        replace: "<body>v2",
-      });
-      expect(edit1.status).toBe("succeeded");
-      const rev2 = String(parseOutput(edit1).revision ?? "");
+  it("undo and redo move repeatedly and a new edit ends redo", async () => {
+    const path = "history.html";
+    await call("write_page", { path, content: "one" });
+    await call("write_page", { path, content: "two" });
+    await call("write_page", { path, content: "three" });
+    expect((await call("undo", { path })).status).toBe("succeeded");
+    expect(await readFile(join(workspace, path), "utf8")).toBe("two");
+    expect((await call("undo", { path })).status).toBe("succeeded");
+    expect(await readFile(join(workspace, path), "utf8")).toBe("one");
+    expect((await call("redo", { path })).status).toBe("succeeded");
+    expect(await readFile(join(workspace, path), "utf8")).toBe("two");
+    await call("apply_edit", { path, find: "two", content: "four" });
+    expect((await call("redo", { path })).status).toBe("failed");
+    const versions = output(await call("list_versions", { path })).versions;
+    expect(new Set(versions.map((v: { file: string }) => v.file)).size).toBe(
+      versions.length,
+    );
+  });
 
-      const edit2 = await call("apply_edit", {
-        documentId,
-        expectedRevision: rev2,
-        operationId: `e2-${randomUUID()}`,
-        find: "<body>v2",
-        replace: "<body>v2 v3",
-      });
-      expect(edit2.status).toBe("succeeded");
-      const rev3 = String(parseOutput(edit2).revision ?? "");
+  it("persists exact replay results and refuses conflicting operation IDs", async () => {
+    const operationId = randomUUID();
+    const args = { path: "replay.html", content: "original" };
+    const first = await call("write_page", args, operationId);
+    expect(first.status).toBe("succeeded");
+    const count = artifactWrites.length;
+    expect(await call("write_page", args, operationId)).toEqual(first);
+    expect(artifactWrites).toHaveLength(count);
+    expect(
+      (await call("write_page", { ...args, content: "changed" }, operationId))
+        .status,
+    ).toBe("refused");
+    expect(store.readPluginOperation(operationId)?.result).toEqual(
+      first.result,
+    );
+  });
 
-      // 连续撤销：HEAD 沿历史回退（旧实现第二次撤销停在原地）。
-      const undo1 = await call("undo", {
-        documentId,
-        operationId: `u1-${randomUUID()}`,
+  it("marks failed snapshot commits as failed rather than returning an unusable successful replay", async () => {
+    const operationId = randomUUID();
+    const commit = vi
+      .spyOn(store, "insertPluginSnapshot")
+      .mockImplementationOnce(() => {
+        throw new Error("snapshot unavailable");
       });
-      expect(undo1.status).toBe("succeeded");
-      expect(parseOutput(undo1).headRevision).toBe(rev2);
-      const undo2 = await call("undo", {
-        documentId,
-        operationId: `u2-${randomUUID()}`,
-      });
-      expect(undo2.status).toBe("succeeded");
-      expect(parseOutput(undo2).headRevision).toBe(rev1);
-
-      // redo：刚撤销末版本、无新版本 → 有效，回到 v3。
-      const redo = await call("redo", {
-        documentId,
-        operationId: `r1-${randomUUID()}`,
-      });
-      expect(redo.status).toBe("succeeded");
-      expect(parseOutput(redo).headRevision).toBe(rev3);
-
-      // 再撤销一次，然后编辑：新序号必须是全历史最大+1（v4），不与被撤销
-      // 的 v3 撞号；HEAD 推进到 v4。
-      const undo3 = await call("undo", {
-        documentId,
-        operationId: `u3-${randomUUID()}`,
-      });
-      expect(undo3.status).toBe("succeeded");
-      const edit3 = await call("apply_edit", {
-        documentId,
-        expectedRevision: rev2,
-        operationId: `e3-${randomUUID()}`,
-        find: "<body>v2",
-        replace: "<body>v2 v4",
-      });
-      expect(edit3.status).toBe("succeeded");
-      const edit3Out = parseOutput(edit3);
-      expect(edit3Out.version).toBe(4);
-
-      // redo 在存在更新版本后必须被拒。
-      const redoAfterEdit = await call("redo", {
-        documentId,
-        operationId: `r2-${randomUUID()}`,
-      });
-      expect(redoAfterEdit.status).toBe("failed");
-
-      // list_versions 序号唯一且连续（1..4），无重复 v3。
-      const versions = await call("list_versions", { documentId });
-      const list = parseOutput(versions).versions as Array<{
-        sequence: number;
-      }>;
-      const sequences = list
-        .map((version) => version.sequence)
-        .sort((a, b) => a - b);
-      expect(sequences).toEqual([1, 2, 3, 4]);
-      expect(new Set(sequences).size).toBe(4);
-    },
-    60_000,
-  );
-
-  itNative(
-    "P2-12: replaying the same operationId returns the stored outcome without re-execution",
-    async () => {
-      const created = await call("create_document", {
-        name: "重放幂等验收.html",
-        brief: "",
-      });
-      const documentId = String(parseOutput(created).documentId ?? "");
-      const operationId = `replay-${randomUUID()}`;
-      const args = {
-        documentId,
-        expectedRevision: String(parseOutput(created).revision ?? ""),
-        find: "<body>",
-        replace: "<body>replay",
-        operationId,
-      };
-      const before = store.readPluginOperation(operationId);
-      expect(before).toBeUndefined();
-      const first = await call(
-        "apply_edit",
-        args,
-        "work",
-        threadId,
+    try {
+      const result = await call(
+        "write_page",
+        { path: "commit-failure.html", content: "page" },
         operationId,
       );
-      expect(first.status).toBe("succeeded");
-      const writesAfterFirst = artifactWrites.length;
-      const second = await call(
-        "apply_edit",
-        args,
-        "work",
-        threadId,
-        operationId,
-      );
-      // 重放返回已存结果，不再执行（无第二次 artifact 提交）。
-      expect(second.status).toBe("succeeded");
-      expect(second.result).toEqual(first.result);
-      expect(artifactWrites.length).toBe(writesAfterFirst);
-      // digest 冲突（同 ID 不同参数）被拒。
-      const conflict = await call(
-        "apply_edit",
-        { ...args, replace: "<body>conflict" },
-        "work",
-        threadId,
-        operationId,
-      );
-      expect(conflict.status).toBe("refused");
-      expect(conflict.error).toContain("operation-conflict");
-    },
-    30_000,
-  );
+      expect(result.status).toBe("failed");
+      expect(result.error).toContain("snapshot unavailable");
+      expect(store.readPluginOperation(operationId)?.state).toBe("failed");
+    } finally {
+      commit.mockRestore();
+    }
+  });
 
-  itNative(
-    "records state-commit failure without committing an unusable successful replay",
-    async () => {
-      const operationId = randomUUID();
-      const commit = vi
-        .spyOn(store, "insertPluginSnapshot")
-        .mockImplementationOnce(() => {
-          throw new Error("snapshot unavailable");
-        });
-      try {
-        const result = await call(
-          "create_document",
-          { name: "commit-failure.html", brief: "" },
-          "work",
+  it("rolls back snapshot and success event when result persistence fails", async () => {
+    const operationId = randomUUID();
+    const head = store.readPluginStateHead({
+      threadId,
+      pluginId: "com.artemis.design",
+      stateSchemaVersion: 1,
+    });
+    const record = store.recordPluginOperation.bind(store);
+    const commit = vi
+      .spyOn(store, "recordPluginOperation")
+      .mockImplementation((operation) => {
+        if (operation.state === "succeeded")
+          throw new Error("result unavailable");
+        record(operation);
+      });
+    try {
+      expect(
+        (
+          await call(
+            "write_page",
+            { path: "result-failure.html", content: "page" },
+            operationId,
+          )
+        ).status,
+      ).toBe("failed");
+      expect(
+        store.readPluginStateHead({
           threadId,
-          operationId,
-        );
-        expect(result.status).toBe("failed");
-        expect(result.error).toContain("snapshot unavailable");
-        expect(store.readPluginOperation(operationId)?.state).toBe("failed");
-      } finally {
-        commit.mockRestore();
-      }
-    },
-  );
+          pluginId: "com.artemis.design",
+          stateSchemaVersion: 1,
+        }),
+      ).toEqual(head);
+      expect(
+        store.database
+          .prepare(
+            "SELECT snapshot_id FROM plugin_snapshots WHERE created_by_operation_id = ?",
+          )
+          .all(operationId),
+      ).toEqual([]);
+      expect(store.readPluginOperation(operationId)?.state).toBe("failed");
+    } finally {
+      commit.mockRestore();
+    }
+  });
 
-  itNative(
-    "rolls back the snapshot and event if result persistence fails",
-    async () => {
-      const operationId = randomUUID();
-      const head = store.readPluginStateHead({
-        threadId,
-        pluginId: "com.artemis.design",
-        stateSchemaVersion: 1,
-      });
-      const record = store.recordPluginOperation.bind(store);
-      const commit = vi
-        .spyOn(store, "recordPluginOperation")
-        .mockImplementation((operation) => {
-          if (operation.state === "succeeded")
-            throw new Error("result unavailable");
-          record(operation);
-        });
-      try {
-        const result = await call(
-          "create_document",
-          { name: "result-failure.html", brief: "" },
-          "work",
+  it("revoked grants are rechecked immediately before a host write", async () => {
+    const handlers = createDesignWorkspaceToolHandlers({
+      getThread: (id) => store.getThread(id),
+      resolveWorkspace: async () => {
+        store.database
+          .prepare("UPDATE plugin_grants SET revoked_at = ? WHERE scope_id = ?")
+          .run(new Date().toISOString(), threadId);
+        return { workspacePath: workspace };
+      },
+    });
+    const gate = () => {
+      if (store.listPluginGrants(threadId).every((grant) => grant.revoked_at))
+        throw new Error("grant revoked");
+    };
+    try {
+      await expect(
+        handlers.writeWorkspacePage!({
           threadId,
-          operationId,
-        );
-        expect(result).toMatchObject({ status: "failed" });
-        expect(
-          store.readPluginStateHead({
-            threadId,
-            pluginId: "com.artemis.design",
-            stateSchemaVersion: 1,
-          }),
-        ).toEqual(head);
-        expect(
-          store.database
-            .prepare(
-              "SELECT snapshot_id FROM plugin_snapshots WHERE created_by_operation_id = ?",
-            )
-            .all(operationId),
-        ).toEqual([]);
-        expect(store.readPluginOperation(operationId)?.state).toBe("failed");
-      } finally {
-        commit.mockRestore();
-      }
-    },
-  );
+          path: "revoked.html",
+          content: "bad",
+          authorize: gate,
+        }),
+      ).rejects.toThrow("grant revoked");
+      await expect(readFile(join(workspace, "revoked.html"))).rejects.toThrow();
+    } finally {
+      store.database
+        .prepare(
+          "UPDATE plugin_grants SET revoked_at = NULL WHERE scope_id = ?",
+        )
+        .run(threadId);
+    }
+  });
 });

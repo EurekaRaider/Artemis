@@ -56,10 +56,13 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.2** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.3** · [Release notes](docs/records/release-notes.md).
 
-This revision removes provider navigation row transitions during scrolling and
-squares the sidebar rail corners.
+This revision moves Design projects to workspace HTML files, with bounded snapshots,
+undo/redo, automatic preview refresh and safe path-based editing. The signed Design
+plugin pack is version **0.4.5** and requires Artemis **1.7.3** or newer. Design mode
+is available in project chats; existing hosted documents remain in their original
+scratch storage and are not migrated into the file list.
 
 ## Quick start
 
@@ -370,7 +373,7 @@ npm run build
 npm run format:check
 ```
 
-`npm test` builds the application, runs nine workspace suites and checks package,
+`npm test` builds the application, runs ten workspace suites and checks package,
 boundary and performance contracts. For native visual verification, run
 `npm run verify:screenshot-matrix`.
 

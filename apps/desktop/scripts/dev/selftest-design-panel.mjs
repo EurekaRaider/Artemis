@@ -148,6 +148,17 @@ portEvent.ports = [fakePort];
 window.dispatchEvent(portEvent);
 check("port onmessage 已绑定", typeof fakePort.onmessage === "function");
 function fromHost(msg) {
+  if (
+    msg.type === "read-project-file-result" ||
+    msg.type === "read-project-file-error"
+  ) {
+    const request = sent.findLast(
+      (m) =>
+        m.type === "read-project-file-request" &&
+        m.path === (msg.name || msg.path),
+    );
+    msg = { ...request, ...msg };
+  }
   if (msg.type === "document-html") {
     const request = sent.findLast((m) => m.type === "read-document-request");
     msg = { ...request, ...msg };
@@ -321,20 +332,14 @@ document.getElementById("dzModeSource").click();
 check("代码模式显示源码", !document.getElementById("dzSource").hidden);
 check("代码模式隐藏舞台", document.getElementById("dzStage").hidden);
 // OD 对齐：代码态隐藏端下拉与右侧功能组
-check(
-  "代码模式隐藏端下拉",
-  document.querySelector(".dz-device").hidden,
-);
+check("代码模式隐藏端下拉", document.querySelector(".dz-device").hidden);
 check(
   "代码模式隐藏右侧功能组",
   document.querySelector(".dz-toolbar-actions").hidden,
 );
 document.getElementById("dzModePreview").click();
 check("预览模式恢复舞台", !document.getElementById("dzStage").hidden);
-check(
-  "预览模式恢复端下拉",
-  !document.querySelector(".dz-device").hidden,
-);
+check("预览模式恢复端下拉", !document.querySelector(".dz-device").hidden);
 check(
   "预览模式恢复右侧功能组",
   !document.querySelector(".dz-toolbar-actions").hidden,
@@ -681,10 +686,18 @@ console.log("== 11b. 标记截图（宿主真实像素捕获） ==");
 document.getElementById("dzDrawBtn").click();
 const vp = document.getElementById("dzViewport");
 vp.dispatchEvent(
-  new window.MouseEvent("mousedown", { bubbles: true, clientX: 10, clientY: 10 }),
+  new window.MouseEvent("mousedown", {
+    bubbles: true,
+    clientX: 10,
+    clientY: 10,
+  }),
 );
 vp.dispatchEvent(
-  new window.MouseEvent("mousemove", { bubbles: true, clientX: 70, clientY: 50 }),
+  new window.MouseEvent("mousemove", {
+    bubbles: true,
+    clientX: 70,
+    clientY: 50,
+  }),
 );
 window.dispatchEvent(new window.MouseEvent("mouseup"));
 document.getElementById("dzDrawNote").value = "把红框区域改掉";
@@ -701,8 +714,7 @@ fromHost({
 const markMsg = sent.filter((m) => m.type === "candidate-prompt").at(-1);
 check(
   "标记候选附真实像素截图",
-  sent.filter((m) => m.type === "candidate-prompt").length ===
-    beforeMark + 1 &&
+  sent.filter((m) => m.type === "candidate-prompt").length === beforeMark + 1 &&
     Array.isArray(markMsg.images) &&
     markMsg.images[0] === "data:image/png;base64,MARKSHOT" &&
     markMsg.text === "把红框区域改掉",
@@ -1115,11 +1127,11 @@ fromHost({
 const imgThumb = document.querySelector(
   '.dz-image-card .dz-image-thumb[data-dz-image="project:assets/hero.png"]',
 );
-check("项目图片出预览卡（project: 键）", !!imgThumb);const imgCardEl = imgThumb.closest(".dz-image-card");
+check("项目图片出预览卡（project: 键）", !!imgThumb);
+const imgCardEl = imgThumb.closest(".dz-image-card");
 check(
   "卡片摘要两行态（文件名悬停显路径 / 类型+前往）",
-  imgCardEl.querySelector(".design-file-name").textContent ===
-    "hero.png" &&
+  imgCardEl.querySelector(".design-file-name").textContent === "hero.png" &&
     imgCardEl.querySelector(".design-file-name").dataset.tip ===
       "assets/hero.png" &&
     !imgCardEl.querySelector(".dz-file-path") &&
@@ -1178,7 +1190,10 @@ check(
 const heroTab = document.querySelector(
   '.design-ws-tab[data-dz-file="assets/hero.png"]',
 );
-check("图片 tab 用图形图标", !!heroTab && !!heroTab.querySelector("svg circle"));
+check(
+  "图片 tab 用图形图标",
+  !!heroTab && !!heroTab.querySelector("svg circle"),
+);
 check(
   "tab 名用文件短名（全路径进 data-tip）",
   heroTab.querySelector(".design-ws-label").textContent === "hero.png" &&
@@ -1196,9 +1211,15 @@ check(
     ),
   ),
 );
-const wireCardRow = document.querySelector(
-  '.design-file-card[data-dz-doc-id="w1"], .dz-file-card[data-dz-project-path="wire.html"]',
-) || Array.from(document.querySelectorAll("#dzCards .design-file-card, #dzCards .dz-file-row")).find((c) => (c.dataset.dzProjectPath || c.dataset.dzOpen) === "wire.html");
+const wireCardRow =
+  document.querySelector(
+    '.design-file-card[data-dz-doc-id="w1"], .dz-file-card[data-dz-project-path="wire.html"]',
+  ) ||
+  Array.from(
+    document.querySelectorAll(
+      "#dzCards .design-file-card, #dzCards .dz-file-row",
+    ),
+  ).find((c) => (c.dataset.dzProjectPath || c.dataset.dzOpen) === "wire.html");
 wireCardRow.click();
 const wireTab = document.querySelector(
   '.design-ws-tab[data-dz-file="wire.html"]',
@@ -1210,15 +1231,11 @@ check(
     !!wireTab.querySelector("svg rect"),
 );
 // 悬浮气泡：mouseover 命中 tab → 浮层显示全路径
-heroTab.dispatchEvent(
-  new window.MouseEvent("mouseover", { bubbles: true }),
-);
+heroTab.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
 const floatTip = document.querySelector(".dz-float-tip");
 check(
   "悬浮气泡显示 tab 全路径",
-  !!floatTip &&
-    !floatTip.hidden &&
-    floatTip.textContent === "assets/hero.png",
+  !!floatTip && !floatTip.hidden && floatTip.textContent === "assets/hero.png",
 );
 // 「前往」：进入文件所在文件夹
 document.querySelector(".dz-file-open").click();
@@ -1323,9 +1340,7 @@ check(
   "页面缩略图请求已发（统一 project-preview 通道）",
   ["pages/customer.html", "pages/orders.html", "welcome.html"].every(
     (p) =>
-      sent.some(
-        (m) => m.type === "project-preview-request" && m.path === p,
-      ) ||
+      sent.some((m) => m.type === "project-preview-request" && m.path === p) ||
       sent.some((m) => m.type === "thumb-request" && m.name === p),
   ),
 );
@@ -1426,8 +1441,9 @@ console.log("== 19b. 工作区文件刷新（账本退役后的改稿链路） =
 // 文档轴已折叠进路径轴：打开页面走 read-project-file-request，
 // AI 改稿（宿主写盘）→ 快照推送 → 面板重发读取 → 舞台更新。
 const pfr = () =>
-  sent.filter((m) => m.type === "read-project-file-request" && m.path === "a.html")
-    .length;
+  sent.filter(
+    (m) => m.type === "read-project-file-request" && m.path === "a.html",
+  ).length;
 fromHost({
   type: "snapshot",
   snapshot: {
@@ -1440,7 +1456,9 @@ fromHost({
   },
 });
 const aCard = Array.from(
-  document.querySelectorAll("#dzCards .design-file-card, #dzCards .dz-file-row"),
+  document.querySelectorAll(
+    "#dzCards .design-file-card, #dzCards .dz-file-row",
+  ),
 ).find((c) => (c.dataset.dzProjectPath || c.dataset.dzOpen) === "a.html");
 check("a.html 卡片存在（路径轴）", !!aCard);
 aCard.click();
@@ -1482,11 +1500,19 @@ fromHost({
     projectName: "P",
   },
 });
+check("composer 开着时不打断", pfr() === readsWhileOpen);
+document.getElementById("dzNoteClose").click();
+check("关闭注释弹窗后补刷项目文件", pfr() > readsWhileOpen);
+const viewport = document.getElementById("dzViewport");
+const originalParent = viewport.parentNode;
+document.getElementById("dzPresentBtn").click();
+document.querySelector('[data-dz-present="tab"]').click();
 check(
-  "composer 开着时不打断",
-  pfr() === readsWhileOpen,
+  "项目演示搬入完整 viewport",
+  document.getElementById("dzPresentBody").contains(viewport),
 );
-document.body.click();
+document.getElementById("dzPresentExit").click();
+check("项目演示退出后 viewport 归位", viewport.parentNode === originalParent);
 
 console.log("== 19b2. 标记数据链 + composer 绑定上报 ==");
 {
@@ -1567,7 +1593,8 @@ check(
   document.querySelector(".dz-image-card .design-file-name")?.textContent ===
     unsafeImageName,
 );
-check("图片名不生成 HTML 节点", !document.querySelector("[data-injected]"));check("仅有图片时隐藏全局空态", document.getElementById("dzStart").hidden);
+check("图片名不生成 HTML 节点", !document.querySelector("[data-injected]"));
+check("仅有图片时隐藏全局空态", document.getElementById("dzStart").hidden);
 const imageData = "data:image/png;base64,aGVsbG8=";
 fromHost({
   type: "read-image-result",

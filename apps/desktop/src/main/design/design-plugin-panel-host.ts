@@ -578,12 +578,14 @@ export class DesignPanelHost {
           .then((result) => {
             hostPort.postMessage({
               type: "read-project-file-result",
+              requestId: data.requestId,
               ...result,
             });
           })
           .catch((error: unknown) => {
             hostPort.postMessage({
               type: "read-project-file-error",
+              requestId: data.requestId,
               path: String(data.path),
               error: String(error),
             });

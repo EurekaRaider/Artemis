@@ -144,6 +144,7 @@ export interface PluginDispatchHost {
     path: string;
     content: string;
     find?: string;
+    authorize?: () => void | Promise<void>;
   }) => Promise<
     | { ok: true; path: string; bytes: number; revision?: string }
     | { ok: false; error: string }
@@ -159,7 +160,11 @@ export interface PluginDispatchHost {
     toolName: "undo" | "redo" | "restore_version" | "list_versions";
     path: string;
     revision?: string;
+    authorize?: () => void | Promise<void>;
   }) => Promise<{ ok: true; result: string } | { ok: false; error: string }>;
+  getWorkspaceSnapshot?: (input: {
+    threadId: string;
+  }) => Promise<{ status: string; output?: string; error?: string }>;
   /**
    * Unavailability gate: a non-null reason refuses the tool call before
    * the trust chain runs. The design plugin's removal sets this — a bound
@@ -281,6 +286,8 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     if (
       !current ||
       current.archived ||
+      current.typeBinding?.installationId !== binding.installationId ||
+      current.typeBinding?.pluginId !== binding.pluginId ||
       current.typeBinding?.contentHash !== binding.contentHash ||
       current.typeBinding?.bindingRevision !== binding.bindingRevision
     ) {
@@ -393,131 +400,115 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       state: "running",
     });
 
-    // 托管账本退役：路径化写入工具由宿主直接执行（runtime 沙箱只写
-    // scratch，碰不到工作区）。失败按 runtime 失败同语义传播。
-    const versionOps = new Set([
-      "undo",
-      "redo",
-      "restore_version",
-      "list_versions",
-    ]);
-    if (
-      (input.toolName === "write_page" || input.toolName === "apply_edit") &&
-      host.writeWorkspacePage
-    ) {
-      const args = (input.args ?? {}) as {
-        path?: unknown;
-        content?: unknown;
-        find?: unknown;
-      };
-      const outcome = await host.writeWorkspacePage({
+    // Only the first-party workspace manifest opts into host file tools.
+    // Older bound revisions and other plugins keep their runtime dispatch.
+    const workspaceTools =
+      binding.pluginId === "com.artemis.design" &&
+      published.tools.some((tool) => tool.name === "write_page");
+    const authorize = async () => {
+      const unavailable = await host.availabilityGate?.({
         threadId: input.threadId,
-        path: String(args.path ?? ""),
-        content: String(args.content ?? ""),
-        ...(input.toolName === "apply_edit"
-          ? { find: String(args.find ?? "") }
-          : {}),
       });
-      if (!outcome.ok) {
-        store.recordPluginOperation({
-          operationId,
-          threadId: input.threadId,
-          pluginId: binding.pluginId,
-          toolName: input.toolName,
-          requestDigest,
-          state: "failed",
-          error: outcome.error,
-        });
-        return { status: "failed", error: outcome.error };
+      if (unavailable) throw new Error(unavailable);
+      const latest = store.getThread(input.threadId) as typeof thread;
+      if (
+        disposed ||
+        !latest ||
+        latest.archived ||
+        !isExecutionMode(latest.mode) ||
+        latest.typeBinding?.installationId !== binding.installationId ||
+        latest.typeBinding?.pluginId !== binding.pluginId ||
+        latest.typeBinding?.contentHash !== binding.contentHash ||
+        latest.typeBinding?.bindingRevision !== binding.bindingRevision ||
+        !store
+          .listPluginGrants(input.threadId)
+          .some(
+            (grant) =>
+              grant.installation_id === binding.installationId &&
+              grant.plugin_id === binding.pluginId &&
+              grant.content_hash === binding.contentHash &&
+              grant.grant_revision === binding.bindingRevision &&
+              grant.revoked_at == null,
+          )
+      ) {
+        throw new Error(
+          "Task mode, binding or plugin grant changed before file execution.",
+        );
       }
-      store.recordPluginOperation({
-        operationId,
-        threadId: input.threadId,
-        pluginId: binding.pluginId,
-        toolName: input.toolName,
-        requestDigest,
-        state: "succeeded",
-        resultRef: `op://${operationId}`,
-      });
-      store.appendPluginEvent({
-        eventId: randomUUID(),
-        streamId: `thread/${input.threadId}/${binding.pluginId}`,
-        threadId: input.threadId,
-        schemaVersion: 1,
-        payload: {
-          kind: "tool-succeeded",
-          operationId,
-          toolName: input.toolName,
-          path: outcome.path,
-        },
-      });
-      host.onArtifactWrite?.({
-        threadId: input.threadId,
-        toolName: input.toolName,
-      });
-      return {
-        status: "succeeded",
-        result: JSON.stringify({
-          path: outcome.path,
-          bytes: outcome.bytes,
-        }),
-      };
-    }
-
-    if (versionOps.has(input.toolName) && host.designVersionOp) {
-      const args = (input.args ?? {}) as {
-        path?: unknown;
-        revision?: unknown;
-      };
-      const outcome = await host.designVersionOp({
-        threadId: input.threadId,
-        toolName: input.toolName as
-          | "undo"
-          | "redo"
-          | "restore_version"
-          | "list_versions",
-        path: String(args.path ?? ""),
-        ...(typeof args.revision === "string"
-          ? { revision: args.revision }
-          : {}),
-      });
-      if (!outcome.ok) {
-        store.recordPluginOperation({
-          operationId,
-          threadId: input.threadId,
-          pluginId: binding.pluginId,
-          toolName: input.toolName,
-          requestDigest,
-          state: "failed",
-          error: outcome.error,
-        });
-        return { status: "failed", error: outcome.error };
-      }
-      store.recordPluginOperation({
-        operationId,
-        threadId: input.threadId,
-        pluginId: binding.pluginId,
-        toolName: input.toolName,
-        requestDigest,
-        state: "succeeded",
-        resultRef: `op://${operationId}`,
-      });
-      host.onArtifactWrite?.({
-        threadId: input.threadId,
-        toolName: input.toolName,
-      });
-      return { status: "succeeded", result: outcome.result };
-    }
-
+    };
     try {
-      const manager = managerFor(input.threadId);
-      const result = (await manager.invoke({
-        entry: published.runtimeEntry,
-        pluginId: binding.pluginId,
-        contentHash: binding.contentHash,
-        toolName: input.toolName,
-        args: input.args,
-      })) as { status?: string; error?: string } | undefined;
+      let result:
+        { status?: string; output?: string; error?: string } | undefined;
+      if (
+        workspaceTools &&
+        input.toolName === "get_snapshot" &&
+        host.getWorkspaceSnapshot
+      ) {
+        result = await host.getWorkspaceSnapshot({ threadId: input.threadId });
+      } else if (
+        workspaceTools &&
+        (input.toolName === "write_page" || input.toolName === "apply_edit") &&
+        host.writeWorkspacePage
+      ) {
+        const args = input.args;
+        if (
+          typeof args.path !== "string" ||
+          typeof args.content !== "string" ||
+          (input.toolName === "apply_edit" &&
+            (typeof args.find !== "string" || !args.find))
+        ) {
+          throw new Error(
+            "path and content must be strings; apply_edit requires non-empty find.",
+          );
+        }
+        const outcome = await host.writeWorkspacePage({
+          threadId: input.threadId,
+          path: args.path,
+          content: args.content,
+          ...(input.toolName === "apply_edit"
+            ? { find: args.find as string }
+            : {}),
+          authorize,
+        });
+        result = outcome.ok
+          ? { status: "succeeded", output: JSON.stringify(outcome) }
+          : { status: "failed", error: outcome.error };
+      } else if (
+        workspaceTools &&
+        ["undo", "redo", "restore_version", "list_versions"].includes(
+          input.toolName,
+        ) &&
+        host.designVersionOp
+      ) {
+        const args = input.args;
+        if (
+          typeof args.path !== "string" ||
+          (args.revision !== undefined && typeof args.revision !== "string")
+        )
+          throw new Error("path and revision must be strings.");
+        const outcome = await host.designVersionOp({
+          threadId: input.threadId,
+          toolName: input.toolName as
+            "undo" | "redo" | "restore_version" | "list_versions",
+          path: args.path,
+          ...(typeof args.revision === "string"
+            ? { revision: args.revision }
+            : {}),
+          authorize,
+        });
+        result = outcome.ok
+          ? { status: "succeeded", output: outcome.result }
+          : { status: "failed", error: outcome.error };
+      } else {
+        const manager = managerFor(input.threadId);
+        result = (await manager.invoke({
+          entry: published.runtimeEntry,
+          pluginId: binding.pluginId,
+          contentHash: binding.contentHash,
+          toolName: input.toolName,
+          args: input.args,
+        })) as typeof result;
+      }
 
       // PR#245 P2-11：runtime 以返回值（而非异常）报告失败时必须传播——
       // 失败不记录 succeeded、不推进状态提交、不追加成功事件、不触发
@@ -587,7 +578,10 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
             snapshot: {
               files: [
                 {
-                  path: "design-documents.jsonl",
+                  path:
+                    workspaceTools && typeof input.args.path === "string"
+                      ? input.args.path
+                      : "design-documents.jsonl",
                   hash: actualHash,
                 },
               ],

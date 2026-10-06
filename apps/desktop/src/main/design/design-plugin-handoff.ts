@@ -3,15 +3,15 @@
 // no ledger/HEAD to freeze, so the material is the file itself; the coding
 // task works on the same project workspace directly.
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { realpath } from "node:fs/promises";
+import type { Thread } from "@artemis/protocol";
+import { readWorkspaceFileBytes } from "./design-plugin-project-files.js";
+import { resolveDesignWorkspacePath } from "./design-thin-snapshots.js";
 import type { AppStore } from "../settings/store.js";
 
 type HandoffInput = { threadId: string; documentId: string };
 type HandoffResult = { threadId: string; created: boolean };
-// 宽函数签名：main.ts 传入的 resolveThreadWorkspace 需要完整 Thread；
-// 这里用参数逆变友好的 (…args: never[]) 形态避免结构不匹配。
-type WorkspaceResolver = (...args: never[]) => Promise<{ workspacePath: string }>;
+type WorkspaceResolver = (thread: Thread) => Promise<{ workspacePath: string }>;
 
 export function createDesignHandoffHandler(
   getStore: () => AppStore | undefined,
@@ -42,7 +42,12 @@ export function createDesignHandoffHandler(
   ): Promise<HandoffResult> {
     const store = getStore();
     const source = store?.getThread(input.threadId);
-    if (!store || !source?.projectId) {
+    if (
+      !store ||
+      !source?.projectId ||
+      source.archived ||
+      !source.typeBinding
+    ) {
       throw new Error("设计交接仅项目会话可用。");
     }
     if (!rel || rel.includes("..") || !/\.html?$/i.test(rel)) {
@@ -67,12 +72,25 @@ export function createDesignHandoffHandler(
       }
       return { threadId: handoffId, created: false };
     }
-    const workspace = await resolveWorkspace(source as never);
-    const abs = resolve(workspace.workspacePath, rel);
-    if (!abs.startsWith(resolve(workspace.workspacePath) + sep))
-      throw new Error("Invalid project file path.");
-    const html = await readFile(abs, "utf8").catch(() => undefined);
-    if (html === undefined) throw new Error("设计页不存在或不可读。");
+    const workspace = await resolveWorkspace(source);
+    const abs = await resolveDesignWorkspacePath(workspace.workspacePath, rel);
+    if (
+      !(await readWorkspaceFileBytes(
+        await realpath(workspace.workspacePath),
+        abs,
+        4 * 1024 * 1024,
+      ))
+    )
+      throw new Error("Design page is unreadable.");
+    const current = store.getThread(input.threadId);
+    if (
+      !current ||
+      current.archived ||
+      current.projectId !== source.projectId ||
+      current.typeBinding?.bindingRevision !==
+        source.typeBinding.bindingRevision
+    )
+      throw new Error("Source task changed during handoff.");
     const name = rel.split("/").pop() ?? rel;
     const now = new Date().toISOString();
     store.commitPluginStateTransaction(() => {
@@ -90,7 +108,7 @@ export function createDesignHandoffHandler(
         projectId: source.projectId!,
         title: `[设计交接] ${name}`,
         mode: "work",
-        target: source.target,
+        target: "local",
         status: "idle",
         pinned: false,
         archived: false,
@@ -112,7 +130,7 @@ export function createDesignHandoffHandler(
     // 目标独立开事务（setThreadGoal 自带 BEGIN IMMEDIATE，不能嵌套）。
     store.setThreadGoal(
       handoffId,
-      `按设计页实现：工作区文件 ${rel}（内容已在源任务面板确认）。`,
+      `按设计页实现：工作区文件 ${rel}；源设计工作区：${workspace.workspacePath}。`,
       undefined,
     );
     return { threadId: handoffId, created: true };

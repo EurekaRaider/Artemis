@@ -2,6 +2,7 @@ import { browserPreviewCommandSchema } from "@artemis/protocol";
 import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-dock.js";
 import { createDesktopUpdateService } from "./updates/desktop-update-service.js";
 import { existsSync, readFileSync as readStartupFile } from "node:fs";
+import { createDesignWorkspaceToolHandlers } from "./design/design-plugin-workspace-tools.js";
 import { createDesignHandoffHandler } from "./design/design-plugin-handoff.js";
 import { DesignPanelHost } from "./design/design-plugin-panel-host.js";
 import {
@@ -70,12 +71,9 @@ import {
 } from "./design/design-plugin-project-files.js";
 import {
   listDesignThinVersions,
-  readDesignThinVersion,
-  redoDesignThinVersion,
   recordDesignThinSnapshot,
   restoreDesignThinVersion,
-  undoDesignThinVersion,
-  writeWorkspaceFileChecked,
+  resolveDesignWorkspacePath,
 } from "./design/design-thin-snapshots.js";
 import {
   turnRecoveryContext,
@@ -542,7 +540,6 @@ let designPanelHost: DesignPanelHost | undefined;
 // Artifact-write dispatches land outside registerIpc's scope; registerIpc
 // installs this sink so they can trigger the debounced snapshot push.
 let designArtifactWriteSink: ((threadId: string) => void) | undefined;
-let designSnapshotPusher: ((threadId: string, panelId: string) => void) | undefined;
 let pluginDispatch: PluginDispatch | undefined;
 /**
  * Design-plugin availability gate, installed during startup (the design
@@ -6057,7 +6054,7 @@ async function executeApprovedWrite(
     }).catch(() => undefined);
     // 设计面板开着（线程已绑定）：写入后推送工作区清单快照
     if (store?.getThread(request.threadId)?.typeBinding) {
-      designSnapshotPusher?.(request.threadId, "workspace");
+      designArtifactWriteSink?.(request.threadId);
     }
     emitPayload(request.threadId, request.turnId, {
       type: "file.changed",
@@ -10836,12 +10833,18 @@ function registerIpc(): void {
       if (!rootReal) return {};
       if (!rel || rel.includes("..") || rel.startsWith("/")) return {};
       const target = resolve(rootReal, rel);
-      const read = await readWorkspaceFileBytes(rootReal, target, 2 * 1024 * 1024);
+      const read = await readWorkspaceFileBytes(
+        rootReal,
+        target,
+        2 * 1024 * 1024,
+      );
       if (!read) return {};
       const ext = extname(rel).toLowerCase();
       const mime = DESIGN_IMAGE_MIME[ext];
       if (!mime) return {};
-      return { dataUrl: `data:${mime};base64,${read.bytes.toString("base64")}` };
+      return {
+        dataUrl: `data:${mime};base64,${read.bytes.toString("base64")}`,
+      };
     },
     /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
      * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
@@ -10920,8 +10923,7 @@ function registerIpc(): void {
       // 账本退役：导出对象=工作区文件（panel-project:<path>）
       if (!store) throw new Error("Export unavailable.");
       const thread = store.getThread(input.threadId);
-      if (!thread?.projectId)
-        throw new Error("设计模式仅在项目会话中可用。");
+      if (!thread?.projectId) throw new Error("设计模式仅在项目会话中可用。");
       const raw = String(input.documentId ?? "");
       if (!raw.startsWith("panel-project:"))
         throw new Error("此对象不支持导出。");
@@ -10973,7 +10975,8 @@ function registerIpc(): void {
       const rel = raw.startsWith("panel-project:")
         ? raw.slice("panel-project:".length)
         : raw;
-      if (!rel || rel.includes("..") || !/\.html?$/i.test(rel)) return undefined;
+      if (!rel || rel.includes("..") || !/\.html?$/i.test(rel))
+        return undefined;
       const workspace = await resolveThreadWorkspace(thread);
       const abs = resolve(workspace.workspacePath, rel);
       if (!abs.startsWith(resolve(workspace.workspacePath) + sep))
@@ -11015,7 +11018,7 @@ function registerIpc(): void {
       // 之外的面板专用通道，但保留 Plan 模式拒绝（P1-7 语义不变）。
       if (!store) return { ok: false, error: "Restore unavailable." };
       const thread = store.getThread(input.threadId);
-      if (!thread?.projectId) {
+      if (!thread?.projectId || thread.archived) {
         return { ok: false, error: "设计历史仅项目会话可用。" };
       }
       if (!isExecutionMode(thread.mode)) {
@@ -11029,28 +11032,43 @@ function registerIpc(): void {
         return { ok: false, error: "此对象没有版本历史。" };
       const rel = raw.slice("panel-project:".length);
       const workspace = await resolveThreadWorkspace(thread);
-      const versions = await listDesignThinVersions(workspace.workspacePath, rel);
+      const versions = await listDesignThinVersions(
+        workspace.workspacePath,
+        rel,
+      );
       if (versions.length === 0) {
         return { ok: false, error: "暂无可恢复的历史版本。" };
       }
+      const authorize = async () => {
+        const unavailable = await designPluginAvailabilityGate?.(
+          input.threadId,
+        );
+        if (unavailable) throw new Error(unavailable);
+        const current = store?.getThread(input.threadId);
+        if (
+          !current ||
+          current.archived ||
+          !isExecutionMode(current.mode) ||
+          current.projectId !== thread.projectId ||
+          current.typeBinding?.bindingRevision !==
+            thread.typeBinding?.bindingRevision
+        )
+          throw new Error("Task changed before restoring the page.");
+      };
       // revision 缺省=最新一份；restore 的 file 参数由 revision 匹配
       const target = input.revision
-        ? versions.find((v) => v.revision === input.revision)
+        ? versions.findLast((v) => v.revision === input.revision)
         : versions.at(-1);
       if (!target) return { ok: false, error: "恢复目标不存在。" };
       const content = await restoreDesignThinVersion(
         workspace.workspacePath,
         rel,
         target.file,
+        authorize,
       );
       if (content === undefined) {
         return { ok: false, error: "恢复目标不存在。" };
       }
-      // 恢复动作自身也留一份新快照（audit 链不断）
-      await recordDesignThinSnapshot(workspace.workspacePath, rel, {
-        source: "panel-restore",
-        operationId: target.revision,
-      }).catch(() => undefined);
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/restore`,
@@ -11067,13 +11085,11 @@ function registerIpc(): void {
     captureScreenshot: async (input) => {
       if (!store) throw new Error("Screenshot unavailable.");
       const thread = store.getThread(input.threadId);
-      if (!thread?.projectId)
-        throw new Error("设计模式仅在项目会话中可用。");
+      if (!thread?.projectId) throw new Error("设计模式仅在项目会话中可用。");
       const raw = String(input.documentId ?? "");
       const rel = raw.startsWith("panel-project:")
         ? raw.slice("panel-project:".length)
         : raw;
-      const workspace = await resolveThreadWorkspace(thread);
       // P2-16：真实像素捕获——面板预览区域截图为 PNG。
       const image = await designPanelHost?.capturePanelArea(
         input.threadId,
@@ -11126,13 +11142,21 @@ function registerIpc(): void {
         return { ok: false, error: "此对象不支持删除。" };
       const rel = raw.slice("panel-project:".length);
       const workspace = await resolveThreadWorkspace(thread);
-      const abs = resolve(workspace.workspacePath, rel);
+      const abs = await resolveDesignWorkspacePath(
+        workspace.workspacePath,
+        rel,
+      );
+      await recordDesignThinSnapshot(workspace.workspacePath, rel);
+      const current = store.getThread(input.threadId);
       if (
-        !abs.startsWith(resolve(workspace.workspacePath) + sep) ||
-        !/\.html?$/i.test(abs)
+        !current ||
+        current.archived ||
+        !isExecutionMode(current.mode) ||
+        current.projectId !== thread.projectId
       )
-        return { ok: false, error: "Invalid project file path." };
-      await rm(abs, { force: true }).catch(() => undefined);
+        throw new Error("Task changed before deleting the page.");
+      await resolveDesignWorkspacePath(workspace.workspacePath, rel);
+      await rm(abs, { force: true });
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/delete`,
@@ -11168,6 +11192,7 @@ function registerIpc(): void {
             sequence: v.sequence,
             file: v.file,
             occurredAt: v.occurredAt,
+            current: v.current,
           })),
         }),
       };
@@ -23302,157 +23327,10 @@ app
       // 路径化写入工具（write_page/apply_edit）的宿主执行：runtime 沙箱
       // 只写 scratch——包含校验 + 薄快照在这里做，Plan 门禁由工具调用的
       // mode 检查承担（dispatch 前置）。
-      writeWorkspacePage: async ({ threadId, path, content, find }) => {
-        const thread = store?.getThread(threadId);
-        if (!thread?.projectId)
-          return { ok: false, error: "设计模式仅在项目会话中可用。" };
-        if (!isExecutionMode(thread.mode))
-          return {
-            ok: false,
-            error: "当前任务处于 Plan 模式，写入文件已被拒绝。",
-          };
-        const rel = path.replace(/\\/g, "/").replace(/^\.\//, "");
-        if (
-          !rel ||
-          rel.includes("..") ||
-          rel.startsWith("/") ||
-          !/\.(html?|htm)$/i.test(rel)
-        )
-          return { ok: false, error: "仅支持工作区内 .html/.htm 文件。" };
-        const workspace = await resolveThreadWorkspace(thread);
-        const abs = resolve(workspace.workspacePath, rel);
-        if (!abs.startsWith(resolve(workspace.workspacePath) + sep))
-          return { ok: false, error: "路径越出工作区。" };
-        // 写前快照（数据安全底线）：首次修改/任何修改前，把当前内容先记
-        // 一份——事故教训：只记"写后"会让原始内容永远进不了历史。内容
-        // 去重使重复调用无噪声。
-        let bytesBefore: number | undefined;
-        if (existsSync(abs)) {
-          await recordDesignThinSnapshot(workspace.workspacePath, abs, {
-            source: "pre-change",
-          }).catch(() => undefined);
-          bytesBefore = (await stat(abs).catch(() => undefined))?.size;
-        }
-        let finalContent = content;
-        if (find) {
-          const current = await readFile(abs, "utf8").catch(() => undefined);
-          if (current === undefined)
-            return { ok: false, error: "目标文件不存在，apply_edit 需要已有文件。" };
-          const count = current.split(find).length - 1;
-          if (count !== 1)
-            return {
-              ok: false,
-              error: `apply_edit 的 find 文本匹配到 ${count} 处（需要恰好 1 处），请只取目标附近的最小唯一片段重试。`,
-            };
-          finalContent = current.replace(find, content);
-        }
-        await mkdir(dirname(abs), { recursive: true });
-        await writeFile(abs, finalContent, "utf8");
-        await recordDesignThinSnapshot(workspace.workspacePath, abs, {
-          source: find ? "plugin-apply-edit" : "plugin-write-page",
-        }).catch(() => undefined);
-        designArtifactWriteSink?.(threadId);
-        return {
-          ok: true,
-          path: rel,
-          bytes: Buffer.byteLength(finalContent),
-          ...(bytesBefore !== undefined ? { bytesBefore } : {}),
-        };
-      },
-      // undo/redo/restore_version/list_versions：薄快照上的版本操作。
-      // undo/redo 是游标移动（不追加快照）；restore 写回并补记一份新快照；
-      // 写类的 Plan 门禁在此承担。
-      designVersionOp: async ({ threadId, toolName, path, revision }) => {
-        const thread = store?.getThread(threadId);
-        if (!thread?.projectId)
-          return { ok: false, error: "设计模式仅在项目会话中可用。" };
-        const rel = path.replace(/\\/g, "/").replace(/^\.\//, "");
-        if (
-          !rel ||
-          rel.includes("..") ||
-          rel.startsWith("/") ||
-          !/\.(html?|htm)$/i.test(rel)
-        )
-          return { ok: false, error: "仅支持工作区内 .html/.htm 文件。" };
-        const workspace = await resolveThreadWorkspace(thread);
-        if (toolName === "list_versions") {
-          const versions = await listDesignThinVersions(
-            workspace.workspacePath,
-            rel,
-          );
-          return {
-            ok: true,
-            result: JSON.stringify({
-              path: rel,
-              versions: versions.map((v) => ({
-                revision: v.revision,
-                sequence: v.sequence,
-                occurredAt: v.occurredAt,
-                bytes: v.bytes,
-              })),
-            }),
-          };
-        }
-        if (!isExecutionMode(thread.mode))
-          return {
-            ok: false,
-            error: "当前任务处于 Plan 模式，写入文件已被拒绝。",
-          };
-        let applied: { revision: string; content: string };
-        if (toolName === "undo") {
-          const out = await undoDesignThinVersion(workspace.workspacePath, rel);
-          if ("error" in out) return { ok: false, error: out.error };
-          applied = out;
-        } else if (toolName === "redo") {
-          const out = await redoDesignThinVersion(workspace.workspacePath, rel);
-          if ("error" in out) return { ok: false, error: out.error };
-          applied = out;
-        } else {
-          const versions = await listDesignThinVersions(
-            workspace.workspacePath,
-            rel,
-          );
-          if (versions.length === 0)
-            return { ok: false, error: "此文件没有快照历史。" };
-          const target = revision
-            ? versions.find((v) => v.revision === revision)
-            : versions.at(-1);
-          if (!target) return { ok: false, error: "恢复目标不存在。" };
-          const content = await readDesignThinVersion(
-            workspace.workspacePath,
-            rel,
-            target.file,
-          );
-          if (content === undefined)
-            return { ok: false, error: "恢复目标不可读。" };
-          applied = { revision: target.revision, content };
-        }
-        // 写回前记录当前内容：若文件被外部途径改过，外部状态先进历史，
-        // 不被快照内容无痕覆盖（内容去重保证未被外部改过时零噪声）
-        await recordDesignThinSnapshot(workspace.workspacePath, rel, {
-          source: "pre-" + toolName,
-        }).catch(() => undefined);
-        await writeWorkspaceFileChecked(
-          workspace.workspacePath,
-          rel,
-          applied.content,
-        );
-        // undo/redo 是游标移动不追加快照；restore 追加一份新快照（审计）
-        if (toolName === "restore_version")
-          await recordDesignThinSnapshot(workspace.workspacePath, rel, {
-            source: "plugin-restore-version",
-            operationId: applied.revision,
-          }).catch(() => undefined);
-        designArtifactWriteSink?.(threadId);
-        return {
-          ok: true,
-          result: JSON.stringify({
-            path: rel,
-            revision: applied.revision,
-            op: toolName,
-          }),
-        };
-      },
+      ...createDesignWorkspaceToolHandlers({
+        getThread: (id) => store?.getThread(id),
+        resolveWorkspace: resolveThreadWorkspace,
+      }),
       // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
       // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
       onArtifactWrite: ({ threadId }) => {

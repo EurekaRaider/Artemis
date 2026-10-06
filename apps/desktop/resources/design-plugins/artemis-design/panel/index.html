@@ -4043,19 +4043,13 @@
             dzFloatTip.style.left = left + "px";
             dzFloatTip.style.top = r.bottom + 6 + "px";
           });
-          document.addEventListener(
-            "mouseout",
-            function (e) {
-              var t = e.target.closest(
-                ".design-ws-tab[data-tip], .design-file-name[data-tip]",
-              );
-              if (
-                t &&
-                !(e.relatedTarget && t.contains(e.relatedTarget))
-              )
-                dzFloatTip.hidden = true;
-            },
-          );
+          document.addEventListener("mouseout", function (e) {
+            var t = e.target.closest(
+              ".design-ws-tab[data-tip], .design-file-name[data-tip]",
+            );
+            if (t && !(e.relatedTarget && t.contains(e.relatedTarget)))
+              dzFloatTip.hidden = true;
+          });
           /* 「前往」：点击进入文件所在文件夹（capture 阶段拦截，
              避免冒泡到卡片自身的打开处理器） */
           $("#dzCards").addEventListener(
@@ -4636,8 +4630,7 @@
               // 文件夹视图内按相对路径分组（组头描述当前文件夹内的层级），
               // 否则组头显示的是全路径前缀、与所在文件夹语义脱节
               var name =
-                dzCurrentFolder &&
-                raw.indexOf(dzCurrentFolder + "/") === 0
+                dzCurrentFolder && raw.indexOf(dzCurrentFolder + "/") === 0
                   ? raw.slice(dzCurrentFolder.length + 1)
                   : raw;
               var folder = dzGroupKeyOf(name);
@@ -4673,8 +4666,14 @@
             // 旧测试）按其 name 折进路径轴，统一走工作区文件渲染。
             var folded = (projectFiles || []).slice();
             (documents || []).forEach(function (d) {
-              if (d && typeof d.name === "string" && d.name &&
-                  !folded.some(function (f) { return f.path === d.name; }))
+              if (
+                d &&
+                typeof d.name === "string" &&
+                d.name &&
+                !folded.some(function (f) {
+                  return f.path === d.name;
+                })
+              )
                 folded.push({ path: d.name, bytes: 0, updatedAt: d.updatedAt });
             });
             projectFiles = folded;
@@ -4818,13 +4817,13 @@
                   : null);
             function dzApplyFilter(key) {
               var shown = 0;
-              $$("#dzCards .design-file-card, #dzCards .dz-file-row, #dzCards .dz-group-label").forEach(
-                function (row) {
-                  var match = row.dataset.dzCat === key;
-                  row.hidden = !match;
-                  if (match) shown += 1;
-                },
-              );
+              $$(
+                "#dzCards .design-file-card, #dzCards .dz-file-row, #dzCards .dz-group-label",
+              ).forEach(function (row) {
+                var match = row.dataset.dzCat === key;
+                row.hidden = !match;
+                if (match) shown += 1;
+              });
               $("#dzCatEmpty").hidden =
                 shown > 0 || (!documents.length && !projectFiles.length);
             }
@@ -5050,10 +5049,7 @@
                 nameEl.textContent = cardBase;
                 nameEl.dataset.tip = name;
                 card.querySelector(".design-file-sub").textContent =
-                  meta[2] +
-                  subSuffix +
-                  (kb ? " · " + kb : "") +
-                  " · 项目";
+                  meta[2] + subSuffix + (kb ? " · " + kb : "") + " · 项目";
                 card
                   .querySelector(".dz-file-open")
                   .setAttribute("data-dz-goto", name);
@@ -5100,10 +5096,7 @@
                 pNameEl.textContent = imgCardBase;
                 pNameEl.dataset.tip = name;
                 imgCard.querySelector(".design-file-sub").textContent =
-                  meta[2] +
-                  subSuffix +
-                  (kb ? " · " + kb : "") +
-                  " · 项目";
+                  meta[2] + subSuffix + (kb ? " · " + kb : "") + " · 项目";
                 imgCard
                   .querySelector(".dz-file-open")
                   .setAttribute("data-dz-goto", name);
@@ -5290,9 +5283,7 @@
             }
             stage.addEventListener("pointerdown", function (e) {
               // 底部提示词条已按产品决定移除：框选没有消费者，图片态只看图
-              if (
-                document.querySelector(".design-preview-view.dz-image-mode")
-              )
+              if (document.querySelector(".design-preview-view.dz-image-mode"))
                 return;
               if (img.hidden || !img.naturalWidth) return;
               var r = relRect();
@@ -5417,6 +5408,7 @@
      批注工具条全量可用。「代码」视图=同一原文的源码展示；非 HTML 直接
      落代码视图。项目文件不可经插件写入（capabilities.projectFiles =
      explicit-import）。 */
+          var dzProjectReadSequence = 0;
           var dzProjectView = null; // { path, sourceLoaded? } | null
           var dzPostViewBinding = function (html) {
             if (!hostPort || !dzProjectView) return;
@@ -5428,6 +5420,15 @@
               html: typeof html === "string" ? html : "",
             });
           };
+          function dzRequestProjectFile(path) {
+            if (!hostPort || !dzProjectView) return;
+            dzProjectView.requestId = ++dzProjectReadSequence;
+            hostPort.postMessage({
+              type: "read-project-file-request",
+              path: path,
+              requestId: dzProjectView.requestId,
+            });
+          }
           function dzOpenProjectFile(path) {
             if (!hostPort) return;
             // 图片一律走图片创作视图（宿主 project: 通道读取）——否则 tab 往返
@@ -5441,7 +5442,7 @@
             dzEnsureFileTab(path, base.replace(/\.[^.]+$/, ""));
             dzShow("preview", path, { keepProject: true });
             // composer 锁定：项目页面也是「编辑中」对象（html 待读入后补）
-            dzPostViewBinding("");
+            hostPort.postMessage({ type: "active-document", documentId: null });
             var view = document.querySelector(".design-preview-view");
             if (view) view.classList.add("dz-project-mode");
             var frame = $("#dzProjectFrame");
@@ -5450,10 +5451,7 @@
               frame.hidden = true;
               dzProjectView.sourceLoaded = true;
               dzSetMode("source");
-              hostPort.postMessage({
-                type: "read-project-file-request",
-                path: path,
-              });
+              dzRequestProjectFile(path);
               return;
             }
             frame.hidden = false;
@@ -5462,10 +5460,7 @@
             dzSetMockEmpty(false);
             dzApplyStage();
             dzSetMode("preview");
-            hostPort.postMessage({
-              type: "read-project-file-request",
-              path: path,
-            });
+            dzRequestProjectFile(path);
           }
           function dzCloseProjectView() {
             dzProjectView = null;
@@ -6314,10 +6309,7 @@
             // 项目文件预览：重新经宿主读取并渲染（文件可能已在外部变化）
             if (dzProjectView) {
               if (hostPort) {
-                hostPort.postMessage({
-                  type: "read-project-file-request",
-                  path: dzProjectView.path,
-                });
+                dzRequestProjectFile(dzProjectView.path);
               }
               return;
             }
@@ -7743,18 +7735,16 @@
           /* AI 改稿推送到达时若注释弹窗开着，先记一笔，弹窗关闭后补刷文档 */
           var pendingDocRefresh = false;
           function dzFlushPendingDocRefresh() {
-            if (!pendingDocRefresh || !hostPort || !currentDocument) return;
+            if (!pendingDocRefresh || !hostPort) return;
             pendingDocRefresh = false;
-            dzLoadDocument(currentDocument);
+            if (dzProjectView) dzRequestProjectFile(dzProjectView.path);
+            else if (currentDocument) dzLoadDocument(currentDocument);
           }
           function dzRenderHistoryList() {
             var wrap = $("#dzHistoryItems");
             wrap.replaceChildren();
             // 空态：项目页面还没有任何薄快照（首次修改后才会记录）
-            if (
-              !lastVersions.length &&
-              dzProjectView
-            ) {
+            if (!lastVersions.length && dzProjectView) {
               var emptyNote = document.createElement("p");
               emptyNote.className = "dz-empty";
               emptyNote.textContent =
@@ -7774,10 +7764,12 @@
               // 项目视图（薄快照）没有 versionCount，且同内容快照会重复
               // revision——"当前"只标最新一条，避免多行同标
               var isHead =
-                v.revision === headRev &&
-                (headSeq != null
-                  ? v.sequence === headSeq
-                  : index === lastVersions.length - 1);
+                typeof v.current === "boolean"
+                  ? v.current
+                  : v.revision === headRev &&
+                    (headSeq != null
+                      ? v.sequence === headSeq
+                      : index === lastVersions.length - 1);
               var item = document.createElement("button");
               item.className = "dz-history-item" + (isHead ? " active" : "");
               item.type = "button";
@@ -7851,7 +7843,9 @@
                   revision: pendingRestoreRevision,
                 });
                 restoreRequested = true;
-                showToast2("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
+                showToast2(
+                  "已请求恢复到 " + pendingRestoreRevision.slice(0, 8),
+                );
               }
             }
             pendingRestoreRevision = null;
@@ -7890,6 +7884,7 @@
           }
           var presentLayer = $("#dzPresentLayer");
           var presentReturnTo = null;
+          var presentReturnParent = null;
           var dzPresentBtn = $("#dzPresentBtn");
           function dzPresentEnter(fullscreen) {
             if (!dzViewFiles.hidden)
@@ -7908,11 +7903,12 @@
             var file = $(".design-ws-tab.active .design-ws-label");
             $("#dzPresentTitle").textContent =
               (file ? file.textContent : "文档") + " · 演示中";
-            presentReturnTo = dzStage.nextSibling;
             // 项目页的可见内容是 viewport 里的项目帧（不是 stage），整搬。
             var presentPayload = dzProjectView
               ? document.querySelector(".dz-viewport")
               : dzStage;
+            presentReturnTo = presentPayload.nextSibling;
+            presentReturnParent = presentPayload.parentNode;
             presentPayload.dataset.dzPresentMoved = "1";
             $("#dzPresentBody").appendChild(presentPayload);
             presentLayer.hidden = false;
@@ -7924,24 +7920,15 @@
           function dzPresentExit() {
             if (presentLayer.hidden) return;
             presentLayer.hidden = true;
-            // 项目页演示搬的是 viewport 本体（含项目帧），按标记归位。
-            var moved = $("#dzPresentBody").firstChild;
-            if (moved && moved.dataset && moved.dataset.dzPresentMoved) {
+            var moved = $("#dzPresentBody").firstElementChild;
+            if (moved && moved.dataset.dzPresentMoved && presentReturnParent) {
               delete moved.dataset.dzPresentMoved;
-              if (presentReturnTo && presentReturnTo.parentNode) {
-                presentReturnTo.parentNode.insertBefore(moved, presentReturnTo);
-              } else {
-                $("#dzPresentBody").appendChild(moved);
-              }
-              dzPresentBtn.classList.remove("active");
-              return;
-            }
-            if (presentReturnTo && presentReturnTo.parentNode) {
-              presentReturnTo.parentNode.insertBefore(dzStage, presentReturnTo);
-            } else {
-              $("#dzViewport").insertBefore(
-                dzStage,
-                $("#dzViewport").firstChild,
+              presentReturnParent.insertBefore(
+                moved,
+                presentReturnTo &&
+                  presentReturnTo.parentNode === presentReturnParent
+                  ? presentReturnTo
+                  : null,
               );
             }
             dzPresentBtn.classList.remove("active");
@@ -8162,16 +8149,11 @@
                 }
                 // 打开中的项目页面：写入后自动重读重挂（预览跟随落盘内容），
                 // 注释弹窗开着时不打断（关闭后由 pendingDocRefresh 兜底）
-                if (
-                  dzProjectView &&
-                  dzMode === "preview" &&
-                  $("#dzNoteComposer").hidden &&
-                  hostPort
-                ) {
-                  hostPort.postMessage({
-                    type: "read-project-file-request",
-                    path: dzProjectView.path,
-                  });
+                if (dzProjectView && hostPort) {
+                  if ($("#dzNoteComposer").hidden) {
+                    pendingDocRefresh = false;
+                    dzRequestProjectFile(dzProjectView.path);
+                  } else pendingDocRefresh = true;
                 }
                 if (currentDocument && !dzProjectView) {
                   if ($("#dzNoteComposer").hidden) {
@@ -8260,7 +8242,18 @@
               if (data.type === "project-preview-error" && data.path) {
                 delete dzProjectThumbPending[data.path];
                 if (data.thumb) return;
-                if (!dzProjectView || dzProjectView.path !== data.path) return;
+                if (
+                  !dzProjectView ||
+                  dzProjectView.path !== data.path ||
+                  data.requestId !== dzProjectView.requestId
+                )
+                  return;
+                hostPort.postMessage({
+                  type: "active-document",
+                  documentId: null,
+                });
+                dzCloseProjectView();
+                dzRenderSource("");
                 dzRenderDocument(
                   '<div style="font:14px/1.6 system-ui;padding:32px;text-align:center;color:#8a8f98">' +
                     String(data.error).replace(/[<>&]/g, "") +
@@ -8285,7 +8278,12 @@
                 return;
               }
               if (data.type === "read-project-file-result" && data.name) {
-                if (!dzProjectView || dzProjectView.path !== data.name) return;
+                if (
+                  !dzProjectView ||
+                  dzProjectView.path !== data.name ||
+                  data.requestId !== dzProjectView.requestId
+                )
+                  return;
                 // 源文随绑定补发：composer 发送时附上项目页面原文，
                 // 模型才有可定位的源文件（而非只有标记截图）
                 dzProjectView.source = String(data.content || "");
@@ -8304,14 +8302,26 @@
                 }
               }
               if (data.type === "read-project-file-error") {
-                if (!dzProjectView || dzProjectView.path !== data.path) return;
-                dzRenderDocument(
-                  '<div style="font:14px/1.6 system-ui;padding:32px;text-align:center;color:#8a8f98">' +
-                    String(data.error).replace(/[<>&]/g, "") +
-                    "</div>",
-                  data.path,
-                  "项目文件 · 只读",
-                );
+                if (
+                  !dzProjectView ||
+                  dzProjectView.path !== data.path ||
+                  data.requestId !== dzProjectView.requestId
+                )
+                  return;
+                hostPort.postMessage({
+                  type: "active-document",
+                  documentId: null,
+                });
+                dzCloseProjectView();
+                dzSource.replaceChildren();
+                dzSetMockEmpty(true);
+                var empty = dzMockDesktop.querySelector(".mock-empty");
+                if (empty)
+                  empty.textContent =
+                    "无法加载 " +
+                    data.path +
+                    "：" +
+                    String(data.error || "文件不存在");
               }
               if (data.type === "thumb" && data.documentId) {
                 // 页面卡缩略图回包：不进舞台，只挂卡片
@@ -8361,10 +8371,7 @@
                   if (dzProjectView) {
                     // 项目页面恢复走工作区文件管线：重读重挂项目帧
                     dzToast("已恢复，并存成一个新版本");
-                    hostPort.postMessage({
-                      type: "read-project-file-request",
-                      path: dzProjectView.path,
-                    });
+                    dzRequestProjectFile(dzProjectView.path);
                   } else {
                     var restoredName =
                       (currentDocument && currentDocument.name) || data.name;
