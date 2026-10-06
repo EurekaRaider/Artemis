@@ -435,10 +435,12 @@
         background: var(--artemis-color-surface-raised);
       }
       .dz-image-mode #dzStage,
-      .dz-image-mode #dzDocFrame,
-      .dz-image-mode .dz-toolbar {
+      .dz-image-mode #dzDocFrame {
         display: none;
       }
+      /* 工具条不整体隐藏：图片态由下方 .design-preview-view.dz-image-mode
+         规则精简为 刷新/标记/缩放 左侧组（旧规则整条 display:none 会把
+         保留的 3 个按钮也埋掉） */
       .dz-image-view {
         z-index: 2;
       }
