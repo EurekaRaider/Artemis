@@ -81,19 +81,27 @@ describe("workspace design product loop", () => {
       "updated brief",
     );
   });
-  it("serializes same-base edits so the second unique-find request cannot overwrite the first", async () => {
+  it("serializes same-base edits so only one unique-find request can apply", async () => {
     await write("concurrent.html", "base");
     const results = await Promise.allSettled([
       write("concurrent.html", "first", "base"),
       write("concurrent.html", "second", "base"),
     ]);
-    expect(results.map((result) => result.status)).toEqual([
+    expect(results.map((result) => result.status).sort()).toEqual([
       "fulfilled",
       "rejected",
     ]);
     expect(await readFile(join(workspace, "concurrent.html"), "utf8")).toBe(
-      "first",
+      ["first", "second"][
+        results.findIndex((result) => result.status === "fulfilled")
+      ],
     );
+    expect(
+      results.find((result) => result.status === "rejected")?.reason.message,
+    ).toContain("exactly once");
+    expect(
+      (await version("list_versions", "concurrent.html")).versions,
+    ).toHaveLength(2);
   });
   it("rejects ambiguous find instead of selecting its first occurrence", async () => {
     await write("ambiguous.html", "repeat repeat");
