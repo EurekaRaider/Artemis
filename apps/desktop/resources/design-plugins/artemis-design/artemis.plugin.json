@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -43,7 +43,7 @@
     },
     {
       "name": "apply_edit",
-      "description": "Targeted edit of an existing workspace HTML page: `find` must match exactly once, `content` replaces it.",
+      "description": "Targeted edit of an existing workspace HTML page: `find` must match EXACTLY once and should be the SMALLEST snippet around the target (a few tokens, never a large block) — `content` replaces only that snippet. The file is snapshotted before the change (recoverable via undo/restore_version).",
       "effect": "artifact-write"
     },
     {

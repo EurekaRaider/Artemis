@@ -1,7 +1,7 @@
 import { browserPreviewCommandSchema } from "@artemis/protocol";
 import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-dock.js";
 import { createDesktopUpdateService } from "./updates/desktop-update-service.js";
-import { readFileSync as readStartupFile } from "node:fs";
+import { existsSync, readFileSync as readStartupFile } from "node:fs";
 import { createDesignHandoffHandler } from "./design/design-plugin-handoff.js";
 import { DesignPanelHost } from "./design/design-plugin-panel-host.js";
 import {
@@ -6040,6 +6040,12 @@ async function executeApprovedWrite(
       operation = "update";
     } catch {
       // A missing target is a create operation.
+    }
+    // 写前快照（若文件已存在）：原始状态必须先进历史
+    if (existsSync(path) && /\.(html?|htm)$/i.test(path)) {
+      await recordDesignThinSnapshot(request.workspacePath, path, {
+        source: "pre-change",
+      }).catch(() => undefined);
     }
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, request.content, "utf8");
@@ -23317,6 +23323,16 @@ app
         const abs = resolve(workspace.workspacePath, rel);
         if (!abs.startsWith(resolve(workspace.workspacePath) + sep))
           return { ok: false, error: "路径越出工作区。" };
+        // 写前快照（数据安全底线）：首次修改/任何修改前，把当前内容先记
+        // 一份——事故教训：只记"写后"会让原始内容永远进不了历史。内容
+        // 去重使重复调用无噪声。
+        let bytesBefore: number | undefined;
+        if (existsSync(abs)) {
+          await recordDesignThinSnapshot(workspace.workspacePath, abs, {
+            source: "pre-change",
+          }).catch(() => undefined);
+          bytesBefore = (await stat(abs).catch(() => undefined))?.size;
+        }
         let finalContent = content;
         if (find) {
           const current = await readFile(abs, "utf8").catch(() => undefined);
@@ -23326,7 +23342,7 @@ app
           if (count !== 1)
             return {
               ok: false,
-              error: `apply_edit 的 find 文本匹配到 ${count} 处（需要恰好 1 处），请扩大上下文后重试。`,
+              error: `apply_edit 的 find 文本匹配到 ${count} 处（需要恰好 1 处），请只取目标附近的最小唯一片段重试。`,
             };
           finalContent = current.replace(find, content);
         }
@@ -23336,7 +23352,12 @@ app
           source: find ? "plugin-apply-edit" : "plugin-write-page",
         }).catch(() => undefined);
         designArtifactWriteSink?.(threadId);
-        return { ok: true, path: rel, bytes: Buffer.byteLength(finalContent) };
+        return {
+          ok: true,
+          path: rel,
+          bytes: Buffer.byteLength(finalContent),
+          ...(bytesBefore !== undefined ? { bytesBefore } : {}),
+        };
       },
       // undo/redo/restore_version/list_versions：薄快照上的版本操作。
       // undo/redo 是游标移动（不追加快照）；restore 写回并补记一份新快照；
