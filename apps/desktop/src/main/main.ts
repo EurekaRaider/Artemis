@@ -23290,6 +23290,51 @@ app
       // 卸载设计插件后拒绝一切工具调用：修订残留不等于插件可用。
       availabilityGate: async (input: { threadId: string }) =>
         (await designPluginAvailabilityGate?.(input.threadId)) ?? null,
+      // 路径化写入工具（write_page/apply_edit）的宿主执行：runtime 沙箱
+      // 只写 scratch——包含校验 + 薄快照在这里做，Plan 门禁由工具调用的
+      // mode 检查承担（dispatch 前置）。
+      writeWorkspacePage: async ({ threadId, path, content, find }) => {
+        const thread = store?.getThread(threadId);
+        if (!thread?.projectId)
+          return { ok: false, error: "设计模式仅在项目会话中可用。" };
+        if (!isExecutionMode(thread.mode))
+          return {
+            ok: false,
+            error: "当前任务处于 Plan 模式，写入文件已被拒绝。",
+          };
+        const rel = path.replace(/\\/g, "/").replace(/^\.\//, "");
+        if (
+          !rel ||
+          rel.includes("..") ||
+          rel.startsWith("/") ||
+          !/\.(html?|htm)$/i.test(rel)
+        )
+          return { ok: false, error: "仅支持工作区内 .html/.htm 文件。" };
+        const workspace = await resolveThreadWorkspace(thread);
+        const abs = resolve(workspace.workspacePath, rel);
+        if (!abs.startsWith(resolve(workspace.workspacePath) + sep))
+          return { ok: false, error: "路径越出工作区。" };
+        let finalContent = content;
+        if (find) {
+          const current = await readFile(abs, "utf8").catch(() => undefined);
+          if (current === undefined)
+            return { ok: false, error: "目标文件不存在，apply_edit 需要已有文件。" };
+          const count = current.split(find).length - 1;
+          if (count !== 1)
+            return {
+              ok: false,
+              error: `apply_edit 的 find 文本匹配到 ${count} 处（需要恰好 1 处），请扩大上下文后重试。`,
+            };
+          finalContent = current.replace(find, content);
+        }
+        await mkdir(dirname(abs), { recursive: true });
+        await writeFile(abs, finalContent, "utf8");
+        await recordDesignThinSnapshot(workspace.workspacePath, abs, {
+          source: find ? "plugin-apply-edit" : "plugin-write-page",
+        }).catch(() => undefined);
+        designArtifactWriteSink?.(threadId);
+        return { ok: true, path: rel, bytes: Buffer.byteLength(finalContent) };
+      },
       // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
       // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。
       onArtifactWrite: ({ threadId }) => {

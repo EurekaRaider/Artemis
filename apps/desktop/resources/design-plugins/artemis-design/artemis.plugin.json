@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -33,8 +33,18 @@
   "tools": [
     {
       "name": "get_snapshot",
-      "description": "List design-suitable files (pages, images) in the task workspace. Edit targets are plain workspace files — use file editing tools directly; this plugin does not host documents.",
+      "description": "List design-suitable files (pages, images) in the task workspace.",
       "effect": "state-read"
+    },
+    {
+      "name": "write_page",
+      "description": "Write a complete UTF-8 HTML page into the task workspace (path relative to workspace, must be .html/.htm). Creates or replaces the file; snapshots the previous state into .artemis/versions/.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "apply_edit",
+      "description": "Targeted edit of an existing workspace HTML page: `find` must match exactly once, `content` replaces it. Safer than rewriting the whole file.",
+      "effect": "artifact-write"
     }
   ],
   "capabilities": {

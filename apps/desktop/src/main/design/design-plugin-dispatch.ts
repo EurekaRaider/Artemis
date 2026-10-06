@@ -133,6 +133,19 @@ export interface PluginDispatchHost {
    */
   onArtifactWrite?: (input: { threadId: string; toolName: string }) => void;
   /**
+   * Host-side workspace write (ledger retirement): the runtime worker is
+   * sandboxed to its scratch dir and cannot touch the workspace, so the
+   * path-based write/edit tools are executed by the HOST through this
+   * callback (containment + thin snapshots live there). Returning a string
+   * error reports failure to the model.
+   */
+  writeWorkspacePage?: (input: {
+    threadId: string;
+    path: string;
+    content: string;
+    find?: string;
+  }) => Promise<{ ok: true; path: string; bytes: number } | { ok: false; error: string }>;
+  /**
    * Unavailability gate: a non-null reason refuses the tool call before
    * the trust chain runs. The design plugin's removal sets this — a bound
    * revision surviving on disk must not keep a removed plugin usable.
@@ -364,6 +377,71 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       requestDigest,
       state: "running",
     });
+
+    // 托管账本退役：路径化写入工具由宿主直接执行（runtime 沙箱只写
+    // scratch，碰不到工作区）。失败按 runtime 失败同语义传播。
+    if (
+      (input.toolName === "write_page" || input.toolName === "apply_edit") &&
+      host.writeWorkspacePage
+    ) {
+      const args = (input.args ?? {}) as {
+        path?: unknown;
+        content?: unknown;
+        find?: unknown;
+      };
+      const outcome = await host.writeWorkspacePage({
+        threadId: input.threadId,
+        path: String(args.path ?? ""),
+        content: String(args.content ?? ""),
+        ...(input.toolName === "apply_edit"
+          ? { find: String(args.find ?? "") }
+          : {}),
+      });
+      if (!outcome.ok) {
+        store.recordPluginOperation({
+          operationId,
+          threadId: input.threadId,
+          pluginId: binding.pluginId,
+          toolName: input.toolName,
+          requestDigest,
+          state: "failed",
+          error: outcome.error,
+        });
+        return { status: "failed", error: outcome.error };
+      }
+      store.recordPluginOperation({
+        operationId,
+        threadId: input.threadId,
+        pluginId: binding.pluginId,
+        toolName: input.toolName,
+        requestDigest,
+        state: "succeeded",
+        resultRef: `op://${operationId}`,
+      });
+      store.appendPluginEvent({
+        eventId: randomUUID(),
+        streamId: `thread/${input.threadId}/${binding.pluginId}`,
+        threadId: input.threadId,
+        schemaVersion: 1,
+        payload: {
+          kind: "tool-succeeded",
+          operationId,
+          toolName: input.toolName,
+          path: outcome.path,
+        },
+      });
+      host.onArtifactWrite?.({
+        threadId: input.threadId,
+        toolName: input.toolName,
+      });
+      return {
+        status: "succeeded",
+        result: JSON.stringify({
+          path: outcome.path,
+          bytes: outcome.bytes,
+        }),
+      };
+    }
 
     try {
       const manager = managerFor(input.threadId);

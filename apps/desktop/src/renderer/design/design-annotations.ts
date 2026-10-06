@@ -141,8 +141,8 @@ export function buildDesignAnnotationHint(
     "<attached-preview-comments>",
     `Hard scope: change ONLY the elements identified below by selector / position. Do NOT modify sibling sub-pages, parent layout, global CSS, design tokens, or unrelated rules even if you notice issues there — surface those as a follow-up note in your reply instead of editing them. If the user's request cannot be satisfied without touching outside this scope, ask the user before proceeding.` +
       (documentName
-        ? ` The annotated page "${documentName}" is attached in full below. Apply the change directly to that workspace file with file editing tools — there is no hosted design-document store anymore.`
-        : " The full current page is attached below; apply the change with file editing tools."),
+        ? ` The annotated page "${documentName}" is attached in full below. Apply the change to it with the design plugin tools write_page (full-file write) or apply_edit (single unique find→replace).`
+        : " The full current page is attached below; apply the change with the design plugin tools `write_page` / `apply_edit`."),
   ];
   usable.slice(0, 20).forEach((item, index) => {
     // visual 标记（画笔/方框/文字）：OD 的 targetKind visual 段——
@@ -219,7 +219,7 @@ export function buildDesignBindingHint(binding: {
       "",
       "",
       "<design-context>",
-      `The user is editing the project file "${binding.name}" (path: ${path}) in the design panel; its full HTML source is attached. Apply the requested change directly to that file in the workspace with file editing tools. Design plugin document tools (plugin_apply_edit) do not manage project files and will reject this id.`,
+      `The user is editing the project file "${binding.name}" (path: ${path}) in the design panel; its full HTML source is attached. Apply the requested change to that file with the design plugin tools \`write_page\` (full-file write) or \`apply_edit\` (single unique find→replace, path: ${path}).`,
       "</design-context>",
     ].join("\n");
   }
