@@ -41,23 +41,12 @@ describe.each(["slack", "feishu", "lark"] as const)(
           } = ":memory:",
       platform: "slack" | "feishu" | "lark" = suitePlatform,
     ) {
-      let setupStarted = performance.now();
-      const setupPhase = (name: string) => {
-        const now = performance.now();
-        if (typeof database === "string" && database !== ":memory:")
-          console.info(
-            `[SQLite setup ${platform}] ${name}: ${(now - setupStarted).toFixed(1)}ms`,
-          );
-        setupStarted = now;
-      };
       const shared = typeof database !== "string" ? database : undefined;
       const store =
         shared?.store ?? new GatewayStore(database as string, "e".repeat(32));
-      setupPhase("open database");
       if (!shared) stores.push(store);
       const router = shared?.router ?? new GatewayRouter(store);
       const device = shared?.device ?? store.register(bot);
-      setupPhase("router and register device");
       const identity = {
         channel:
           platform === "slack" ? ("slack" as const) : ("feishu" as const),
@@ -86,9 +75,7 @@ describe.each(["slack", "feishu", "lark"] as const)(
           enabled: true,
         }),
       });
-      setupPhase("save connection");
       store.pair(store.pairCode(device.id), identity);
-      setupPhase("pair device");
       const event: ChannelEvent = {
         version: 1,
         messageId: randomUUID(),
@@ -101,9 +88,7 @@ describe.each(["slack", "feishu", "lark"] as const)(
         attachments: [],
       };
       router.ingest(event);
-      setupPhase("ingest event");
       router.processIncoming();
-      setupPhase("process event");
       const group = saveNativeGroup(store, {
         conversation,
         owner: identity,
@@ -112,10 +97,8 @@ describe.each(["slack", "feishu", "lark"] as const)(
         projectId: "project",
         enabled: true,
       });
-      setupPhase("save group");
       for (const item of store.pending("outgoing"))
         store.mark("outgoing", item.id, "done");
-      setupPhase("finish outgoing queue");
       return { store, router, device, event, group, bot };
     }
     function exchange(
@@ -1618,20 +1601,10 @@ describe.each(["slack", "feishu", "lark"] as const)(
     });
 
     it("recovers the actual SQLite store with an uncertain send and never recreates the task", () => {
-      let phaseStarted = performance.now();
-      const phase = (name: string) => {
-        const now = performance.now();
-        console.info(
-          `[SQLite recovery ${suitePlatform}] ${name}: ${(now - phaseStarted).toFixed(1)}ms`,
-        );
-        phaseStarted = now;
-      };
       const directory = mkdtempSync(join(tmpdir(), "native-im-restart-"));
       directories.push(directory);
       const path = join(directory, "gateway.sqlite");
-      phase("temporary directory");
       const f = pair(path);
-      phase("create and pair stores");
       const command = {
         action: "delegate" as const,
         participantId: "B",
@@ -1643,19 +1616,14 @@ describe.each(["slack", "feishu", "lark"] as const)(
         "persisted-call",
         command,
       );
-      phase("delegate command");
       const task = f.a.router.native.tasks(f.a.group.id)[0]!;
       f.a.store.mark("outgoing", `native:${task.envelope.id}`, "sending");
       stores.splice(stores.indexOf(f.a.store), 1);
-      phase("mark uncertain delivery");
       f.a.store.close();
-      phase("close store");
       const recovered = new GatewayStore(path, "e".repeat(32));
-      phase("reopen store");
       stores.push(recovered);
       const router = new GatewayRouter(recovered);
       router.native.tick();
-      phase("recovery tick");
       expect(router.native.tasks(f.a.group.id)[0]?.state).toBe("uncertain");
       router.native.command(
         f.request,
@@ -1663,7 +1631,6 @@ describe.each(["slack", "feishu", "lark"] as const)(
         "persisted-call",
         command,
       );
-      phase("repeat command");
       expect(router.native.tasks(f.a.group.id)).toHaveLength(1);
       expect(
         recovered
@@ -1671,7 +1638,6 @@ describe.each(["slack", "feishu", "lark"] as const)(
           .filter((q) => q.payload.native?.action === "delegate"),
       ).toHaveLength(0);
       expect(router.native.peers(f.a.group.id)[0]?.verifiedAt).toBeTruthy();
-      phase("assertions");
     });
 
     it("rejects assignments from a blocked peer and resumes only after unblocking", () => {
