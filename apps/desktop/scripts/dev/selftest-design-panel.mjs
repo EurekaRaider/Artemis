@@ -451,8 +451,8 @@ check(
 );
 check("计数更新", document.getElementById("dzCount").textContent === "1");
 check(
-  "保存后退出注释模式",
-  !document.getElementById("dzCommentBtn").classList.contains("active"),
+  "保存后保持注释模式（连续标注，OD 语义）",
+  document.getElementById("dzCommentBtn").classList.contains("active"),
 );
 // 桥拾取复用器：后续用例造批注（每次需先开注释模式——保存即退出）
 function bridgePick(label, currentText, nth) {

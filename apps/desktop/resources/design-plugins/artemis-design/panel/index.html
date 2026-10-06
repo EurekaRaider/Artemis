@@ -7033,10 +7033,8 @@
             }
             dzToast("评论已保存");
             dzCloseComposer();
-            dzCommentMode = false;
-            dzToolState($("#dzCommentBtn"), false);
-            dzSetPicking(false);
-            dzHint("");
+            // 保持注释模式（OD 语义）：连续标注多个元素不必每次重开工具
+            dzHint("点击要注释的元素");
           }
           $("#dzNoteInput").addEventListener("input", dzSyncComposerButtons);
           $("#dzNoteInput").addEventListener("keydown", function (e) {
