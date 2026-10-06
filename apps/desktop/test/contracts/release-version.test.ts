@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const root = fileURLToPath(new URL("../../../../", import.meta.url));
-const releaseVersion = "1.7.1";
+const releaseVersion = "1.7.2";
 const workspacePaths = [
   "packages/plugin-contract",
   "packages/plugin-sdk",
@@ -28,7 +28,7 @@ function json(path: string): Record<string, unknown> {
 }
 
 describe("release version", () => {
-  it("keeps manifests, lockfile, MCP identity, and theme at v1.7.1", () => {
+  it("keeps manifests, lockfile, MCP identity, and theme at v1.7.2", () => {
     const manifests = [json("package.json")];
     for (const workspacePath of workspacePaths) {
       manifests.push(json(join(workspacePath, "package.json")));
@@ -67,7 +67,7 @@ describe("release version", () => {
       join(root, "packages/theme-artemis/src/index.ts"),
       "utf8",
     );
-    expect(mcp.match(/version: "1\.7\.1"/gu)).toHaveLength(3);
+    expect(mcp.match(/version: "1\.7\.2"/gu)).toHaveLength(3);
     expect(
       themeArtemisSource.match(
         /ARTEMIS_THEME_VERSION = "([^"]+)" as const;/u,

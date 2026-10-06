@@ -56,7 +56,10 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current release: **v1.7.1** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.2** · [Release notes](docs/records/release-notes.md).
+
+This revision removes provider navigation row transitions during scrolling and
+squares the sidebar rail corners.
 
 ## Quick start
 
