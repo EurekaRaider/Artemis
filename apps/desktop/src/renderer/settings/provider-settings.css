@@ -46,6 +46,8 @@
   white-space: normal;
   gap: 6px;
   width: 100%;
+  /* Rows passing under the pointer must not animate paints during scrolling. */
+  transition: none;
 }
 .provider-navigation-name {
   overflow-wrap: anywhere;
