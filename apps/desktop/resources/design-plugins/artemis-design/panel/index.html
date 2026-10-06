@@ -4305,16 +4305,22 @@
               return;
             }
 
+            // 图片 tab 往返：先前缀 image-view:（上游形态），后裸路径（统一键）
             if (tab.dataset.dzFile.startsWith("image-view:")) {
               dzOpenImage({ path: tab.dataset.dzFile.slice(11) });
               return;
             }
+            var knownImage =
+              dzImageDataUrls["image-dir:" + tab.dataset.dzFile] !== undefined;
             var doc = dzDocByName(tab.dataset.dzFile);
             if (doc) {
               dzProjectView = null; // 文档 tab 退出项目只读态
               dzOpenDocument(doc);
+            } else if (knownImage) {
+              dzOpenImage({ path: tab.dataset.dzFile });
             } else if (dzIsProjectFile(tab.dataset.dzFile)) {
-              // 项目文件 tab 往返：重走只读预览装载（否则舞台空白、态丢失）
+              // 项目文件 tab 往返：重走只读预览装载（否则舞台空白、态丢失）；
+              // 项目图片在其中委托图片创作视图（project: 键）
               dzOpenProjectFile(tab.dataset.dzFile);
             }
           });
@@ -5013,17 +5019,18 @@
                 card.innerHTML =
                   '<span aria-hidden="true" class="design-file-thumb"><i class="t-top"></i><i class="t-row"><i class="t-side"></i><i class="t-col"><b></b><b class="w60"></b><b></b></i></i></span>' +
                   '<span class="design-file-meta"><span class="design-file-meta-text">' +
-                  '<span class="design-file-name" data-tip="' +
-                  name +
-                  '">' +
-                  cardBase +
-                  '</span><span class="dz-file-subrow"><span class="design-file-sub">' +
-                  meta[2] +
-                  (kb ? " · " + kb : "") +
-                  ' · <span class="dz-project-badge">项目</span></span>' +
-                  '<span class="dz-file-open" data-dz-goto="' +
-                  name +
-                  '" role="button" tabindex="0">前往</span></span></span></span>';
+                  '<span class="design-file-name"></span>' +
+                  '<span class="dz-file-subrow"><span class="design-file-sub"></span>' +
+                  '<span class="dz-file-open" role="button" tabindex="0">前往</span></span></span></span>';
+                // 名称/路径走 textContent 与 dataset：文件名可能含引号
+                var nameEl = card.querySelector(".design-file-name");
+                nameEl.textContent = cardBase;
+                nameEl.dataset.tip = name;
+                card.querySelector(".design-file-sub").textContent =
+                  meta[2] + (kb ? " · " + kb : "") + " · 项目";
+                card
+                  .querySelector(".dz-file-open")
+                  .setAttribute("data-dz-goto", name);
                 card.addEventListener("click", function () {
                   dzOpenProjectFile(file.name);
                 });
@@ -5041,21 +5048,22 @@
                 imgCard.setAttribute("data-dz-project-path", file.name);
                 var imgCardBase = name.split("/").pop();
                 imgCard.innerHTML =
-                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb" data-dz-image="project:' +
-                  file.name +
-                  '"></span>' +
+                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb"></span>' +
                   '<span class="design-file-meta"><span class="design-file-meta-text">' +
-                  '<span class="design-file-name" data-tip="' +
-                  name +
-                  '">' +
-                  imgCardBase +
-                  '</span><span class="dz-file-subrow"><span class="design-file-sub">' +
-                  meta[2] +
-                  (kb ? " · " + kb : "") +
-                  ' · <span class="dz-project-badge">项目</span></span>' +
-                  '<span class="dz-file-open" data-dz-goto="' +
-                  name +
-                  '" role="button" tabindex="0">前往</span></span></span></span>';
+                  '<span class="design-file-name"></span>' +
+                  '<span class="dz-file-subrow"><span class="design-file-sub"></span>' +
+                  '<span class="dz-file-open" role="button" tabindex="0">前往</span></span></span></span>';
+                // 名称/路径走 textContent 与 dataset：文件名可能含引号
+                imgCard.querySelector(".dz-image-thumb").dataset.dzImage =
+                  "project:" + file.name;
+                var pNameEl = imgCard.querySelector(".design-file-name");
+                pNameEl.textContent = imgCardBase;
+                pNameEl.dataset.tip = name;
+                imgCard.querySelector(".design-file-sub").textContent =
+                  meta[2] + (kb ? " · " + kb : "") + " · 项目";
+                imgCard
+                  .querySelector(".dz-file-open")
+                  .setAttribute("data-dz-goto", name);
                 imgCard.addEventListener("click", function () {
                   dzOpenImage({
                     imageKey: "project:" + file.name,
@@ -5104,17 +5112,19 @@
                 card.setAttribute("data-dz-image-path", img.path);
                 var imgDirBase = name.split("/").pop();
                 card.innerHTML =
-                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb" data-dz-image="image-dir:' +
-                  img.path +
-                  '"></span>' +
+                  '<span aria-hidden="true" class="design-file-thumb dz-image-thumb"></span>' +
                   '<span class="design-file-meta"><span class="design-file-meta-text">' +
-                  '<span class="design-file-name" data-tip="' +
-                  img.path +
-                  '">' +
-                  imgDirBase +
-                  '</span><span class="design-file-sub">图片' +
-                  (kb ? " · " + kb : "") +
-                  "</span></span></span>";
+                  '<span class="design-file-name"></span>' +
+                  '<span class="design-file-sub"></span></span></span>';
+                // 名称/路径走 textContent 与 dataset：文件名可能含引号，
+                // innerHTML 插值会被当成属性/标签边界（PR253 回归）
+                card.querySelector(".dz-image-thumb").dataset.dzImage =
+                  "image-dir:" + img.path;
+                var nameEl = card.querySelector(".design-file-name");
+                nameEl.textContent = imgDirBase;
+                nameEl.dataset.tip = img.path;
+                card.querySelector(".design-file-sub").textContent =
+                  "图片" + (kb ? " · " + kb : "");
                 card.addEventListener("click", function () {
                   dzOpenImage(img);
                 });
@@ -8031,7 +8041,9 @@
                 }
               }
               if (data.type === "read-image-result" && data.path) {
-                var key = String(data.path).replace(/^image-(?:dir|view):/, "");
+                // key 全程带前缀（image-dir:/project:），与请求键、
+                // 缩略图 data-dz-image、开图 dzImageKey 一致
+                var key = String(data.path);
                 if (data.dataUrl) {
                   dzImageDataUrls[key] = data.dataUrl;
                   $$(".dz-image-thumb").forEach(function (thumb) {

@@ -1589,8 +1589,7 @@ check(
   document.querySelector(".dz-image-card .design-file-name")?.textContent ===
     unsafeImageName,
 );
-check("图片名不生成 HTML 节点", !document.querySelector("[data-injected]"));
-check("仅有图片时隐藏全局空态", document.getElementById("dzStart").hidden);
+check("图片名不生成 HTML 节点", !document.querySelector("[data-injected]"));check("仅有图片时隐藏全局空态", document.getElementById("dzStart").hidden);
 const imageData = "data:image/png;base64,aGVsbG8=";
 fromHost({
   type: "read-image-result",
@@ -1604,7 +1603,7 @@ check(
 document.querySelector(".dz-image-card")?.click();
 fromHost({
   type: "read-image-result",
-  path: "image-view:" + unsafeImageName,
+  path: "image-dir:" + unsafeImageName,
   dataUrl: imageData,
 });
 check(
@@ -1625,7 +1624,7 @@ check(
 );
 const imageFileTab = [
   ...document.querySelectorAll(".design-ws-tab[data-dz-file]"),
-].find((el) => el.dataset.dzFile === "image-view:" + unsafeImageName);
+].find((el) => el.dataset.dzFile === unsafeImageName);
 imageFileTab?.click();
 check("图片标签可以重新打开", !document.getElementById("dzImageView").hidden);
 fromHost({
