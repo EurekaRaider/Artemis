@@ -6286,6 +6286,12 @@
               }
               return;
             }
+            // 文件列表视图：重拉工作区清单（外部新增/删除文件后手动刷新）
+            if (dzViewFiles && !dzViewFiles.hidden && hostPort) {
+              hostPort.postMessage({ type: "snapshot-request" });
+              dzToast("已刷新文件列表");
+              return;
+            }
             if (currentDocument && hostPort) {
               dzLoadDocument(currentDocument);
             }
@@ -7709,6 +7715,18 @@
           function dzRenderHistoryList() {
             var wrap = $("#dzHistoryItems");
             wrap.replaceChildren();
+            // 空态：项目页面还没有任何薄快照（首次修改后才会记录）
+            if (
+              !lastVersions.length &&
+              dzProjectView
+            ) {
+              var emptyNote = document.createElement("p");
+              emptyNote.className = "dz-empty";
+              emptyNote.textContent =
+                "此文件还没有快照历史：修改一次后自动记录，之后可在此恢复。";
+              wrap.appendChild(emptyNote);
+              return;
+            }
             // 「当前」以真实 head 为准：revision 可能因恢复链出现同内容重复
             // （同 16 位哈希跨多个序号），必须 sequence 一起比对才能唯一定位。
             var headRev =
@@ -7756,12 +7774,18 @@
           }
           $("#dzHistoryBtn").addEventListener("click", function () {
             $("#dzHistory").hidden = !$("#dzHistory").hidden;
-            // 项目页面没有版本账本：面板直接给空态说明，不发无效请求。
+            // 项目页面历史=薄快照（panel-project:<path> 身份），与托管文档同链路
             if (dzProjectView) {
-              var emptyItems = $("#dzHistoryItems");
-              if (emptyItems)
-                emptyItems.innerHTML =
-                  '<p class="dz-empty">项目页面暂无版本历史。</p>';
+              if (
+                !$("#dzHistory").hidden &&
+                hostPort &&
+                !$("#dzHistory").hidden
+              ) {
+                hostPort.postMessage({
+                  type: "list-versions-request",
+                  documentId: "panel-project:" + dzProjectView.path,
+                });
+              }
               return;
             }
             if (!$("#dzHistory").hidden && hostPort && currentDocument) {
@@ -7777,19 +7801,21 @@
           $("#dzConfirmOk").addEventListener("click", function () {
             $("#dzConfirm").hidden = true;
             $("#dzHistory").hidden = true;
-            if (
-              pendingRestoreRevision &&
-              hostPort &&
-              currentDocument &&
-              !restoreRequested
-            ) {
-              hostPort.postMessage({
-                type: "restore-request",
-                documentId: currentDocument.documentId,
-                revision: pendingRestoreRevision,
-              });
-              restoreRequested = true;
-              showToast2("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
+            if (pendingRestoreRevision && hostPort && !restoreRequested) {
+              var restoreTargetId = dzProjectView
+                ? "panel-project:" + dzProjectView.path
+                : currentDocument
+                  ? currentDocument.documentId
+                  : null;
+              if (restoreTargetId) {
+                hostPort.postMessage({
+                  type: "restore-request",
+                  documentId: restoreTargetId,
+                  revision: pendingRestoreRevision,
+                });
+                restoreRequested = true;
+                showToast2("已请求恢复到 " + pendingRestoreRevision.slice(0, 8));
+              }
             }
             pendingRestoreRevision = null;
           });
@@ -8084,10 +8110,30 @@
                 // ack：宿主据此取消 3s 补推（首渲染确认，兜底只兜真丢失）
                 if (hostPort) hostPort.postMessage({ type: "snapshot-ack" });
                 // 历史面板开着 → 版本列表同步刷新（恢复/修改后「当前」标记跟着走）
-                if (!$("#dzHistory").hidden && hostPort && currentDocument) {
+                if (!$("#dzHistory").hidden && hostPort) {
+                  if (dzProjectView) {
+                    hostPort.postMessage({
+                      type: "list-versions-request",
+                      documentId: "panel-project:" + dzProjectView.path,
+                    });
+                  } else if (currentDocument) {
+                    hostPort.postMessage({
+                      type: "list-versions-request",
+                      documentId: currentDocument.documentId,
+                    });
+                  }
+                }
+                // 打开中的项目页面：写入后自动重读重挂（预览跟随落盘内容），
+                // 注释弹窗开着时不打断（关闭后由 pendingDocRefresh 兜底）
+                if (
+                  dzProjectView &&
+                  dzMode === "preview" &&
+                  $("#dzNoteComposer").hidden &&
+                  hostPort
+                ) {
                   hostPort.postMessage({
-                    type: "list-versions-request",
-                    documentId: currentDocument.documentId,
+                    type: "read-project-file-request",
+                    path: dzProjectView.path,
                   });
                 }
                 if (currentDocument && !dzProjectView) {
@@ -8275,10 +8321,19 @@
               if (data.type === "restore-result") {
                 restoreRequested = false;
                 if (data.ok && data.documentHtml) {
-                  var restoredName =
-                    (currentDocument && currentDocument.name) || data.name;
-                  dzRenderDocument(data.documentHtml, restoredName, "已恢复");
-                  dzToast("已恢复，并存成一个新版本");
+                  if (dzProjectView) {
+                    // 项目页面恢复走工作区文件管线：重读重挂项目帧
+                    dzToast("已恢复，并存成一个新版本");
+                    hostPort.postMessage({
+                      type: "read-project-file-request",
+                      path: dzProjectView.path,
+                    });
+                  } else {
+                    var restoredName =
+                      (currentDocument && currentDocument.name) || data.name;
+                    dzRenderDocument(data.documentHtml, restoredName, "已恢复");
+                    dzToast("已恢复，并存成一个新版本");
+                  }
                 } else {
                   dzToast("恢复失败：" + (data.error || "未知原因"));
                 }
