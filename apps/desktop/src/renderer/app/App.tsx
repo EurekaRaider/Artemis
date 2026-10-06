@@ -342,7 +342,7 @@ import {
   type ThreadDropEdge,
 } from "./thread-list-order.js";
 import { userInitials } from "./user-profile.js";
-import { conversationWelcome } from "../conversation/conversation-welcome.js";
+import { useConversationWelcome } from "../conversation/use-conversation-welcome.js";
 import {
   agentTeamWorkspaceTab,
   childAgentWorkspaceTab,
@@ -1497,6 +1497,10 @@ export function App() {
     }
   }, [runtimeSettings?.update.completedVersion, locale, setToast]);
   const username = snapshot?.userName ?? t.local;
+  const {
+    welcome: emptyConversationGreeting,
+    renew: renewConversationGreeting,
+  } = useConversationWelcome(locale, username);
   const localeRef = useRef(locale);
   localeRef.current = locale;
   const activeThreadIdRef = useRef(activeThreadId);
@@ -1755,6 +1759,7 @@ export function App() {
 
   const beginNewConversation = useCallback(
     (projectId = activeProjectId) => {
+      renewConversationGreeting();
       setActiveView("workspace");
       setActiveProjectId(projectId);
       setActiveThreadId(undefined);
@@ -1768,10 +1773,11 @@ export function App() {
       setThreadMenuId(undefined);
       window.requestAnimationFrame(() => promptInput.current?.focus());
     },
-    [activeProjectId],
+    [activeProjectId, renewConversationGreeting],
   );
 
   const beginTemporaryConversation = useCallback(() => {
+    renewConversationGreeting();
     setActiveView("workspace");
     setActiveProjectId(undefined);
     setActiveThreadId(undefined);
@@ -1784,7 +1790,7 @@ export function App() {
     setProjectMenuId(undefined);
     setThreadMenuId(undefined);
     window.requestAnimationFrame(() => promptInput.current?.focus());
-  }, []);
+  }, [renewConversationGreeting]);
 
   const discardNewConversationDraft = useCallback(() => {
     if (activeThreadId) return;
@@ -3494,11 +3500,6 @@ export function App() {
     }
   }, [activeThreadId, imThreadStatus, snapshot?.threads]);
 
-  const emptyConversationGreeting = conversationWelcome(
-    locale,
-    clockMs,
-    username,
-  );
   const [emptyConversationPrefix, emptyConversationSuffix = ""] =
     emptyConversationGreeting.projectPrompt.split("{{workspace}}");
   const emptyConversationLabel = activeProject
