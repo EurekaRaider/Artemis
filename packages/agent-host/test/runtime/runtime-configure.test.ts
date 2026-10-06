@@ -97,6 +97,8 @@ describe("agent runtime configuration", () => {
         host.dispose();
       }
     },
+    // The first real Pi session can exceed 5s on a cold Windows runner.
+    process.platform === "win32" ? 30_000 : 5_000,
   );
   it("registers installed MCP tools for the next turn without replacing the session or exposing them in Plan", async () => {
     const workspacePath = await mkdtemp(join(tmpdir(), "artemis-mcp-refresh-"));

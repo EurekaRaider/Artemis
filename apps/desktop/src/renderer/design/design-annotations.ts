@@ -141,8 +141,8 @@ export function buildDesignAnnotationHint(
     "<attached-preview-comments>",
     `Hard scope: change ONLY the elements identified below by selector / position. Do NOT modify sibling sub-pages, parent layout, global CSS, design tokens, or unrelated rules even if you notice issues there — surface those as a follow-up note in your reply instead of editing them. If the user's request cannot be satisfied without touching outside this scope, ask the user before proceeding.` +
       (documentName
-        ? ` Apply the changes to the design document "${documentName}" through the design plugin tools (plugin_apply_edit / plugin_create_document) with that document's documentId — file writes are not available in this task; the full current page is attached below.`
-        : " Apply the changes through the design plugin tools (plugin_apply_edit / plugin_create_document) — file writes are not available in this task; the full current page is attached below."),
+        ? ` The annotated page "${documentName}" is attached in full below. Apply the change to it with the design plugin tools write_page (full-file write) or apply_edit (single unique find→replace).`
+        : " The full current page is attached below; apply the change with the design plugin tools `write_page` / `apply_edit`."),
   ];
   usable.slice(0, 20).forEach((item, index) => {
     // visual 标记（画笔/方框/文字）：OD 的 targetKind visual 段——
@@ -210,6 +210,29 @@ export function buildDesignBindingHint(binding: {
   name?: string;
 }): string {
   if (!binding.documentId || !binding.name) return "";
+  // 面板合成绑定（项目文件/图片）不在插件文档账本里：documentId 是合成键，
+  // 传给 plugin_apply_edit 只会被 requireDesignDocumentId 拒掉——明确引导
+  // 模型直接改工作区文件。
+  if (binding.documentId.startsWith("panel-project:")) {
+    const path = binding.documentId.slice("panel-project:".length);
+    return [
+      "",
+      "",
+      "<design-context>",
+      `The user is editing the project file "${binding.name}" (path: ${path}) in the design panel; its full HTML source is attached. Apply the requested change to that file with the design plugin tools \`write_page\` (full-file write) or \`apply_edit\` (single unique find→replace, path: ${path}).`,
+      "</design-context>",
+    ].join("\n");
+  }
+  if (binding.documentId.startsWith("panel-image:")) {
+    const path = binding.documentId.slice("panel-image:".length);
+    return [
+      "",
+      "",
+      "<design-context>",
+      `The user is editing the image "${binding.name}" (path: ${path}) in the design panel; the marked screenshot is attached. Edit or regenerate that image file in place — design plugin document tools do not manage images and will reject this id.`,
+      "</design-context>",
+    ].join("\n");
+  }
   return [
     "",
     "",

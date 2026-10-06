@@ -72,9 +72,10 @@ describe("design annotation hint (message body)", () => {
       document,
     );
     expect(hint).toContain("<attached-preview-comments>");
-    expect(hint).toContain('the design document "customer.html"');
-    expect(hint).toContain("plugin_apply_edit");
-    expect(hint).toContain("file writes are not available");
+    expect(hint).toContain('The annotated page "customer.html"');
+    expect(hint).toContain("write_page");
+    expect(hint).toContain("apply_edit");
+    expect(hint).toContain("single unique find");
     // OD 语义：request 区已承载批注文本，块内不重复（无 comment 行）
     expect(hint).not.toContain("comment:");
     expect(hint).not.toContain("颜色对比不足");

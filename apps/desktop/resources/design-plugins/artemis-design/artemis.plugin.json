@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.2.4",
+  "version": "0.4.5",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -12,7 +12,7 @@
         "zh-CN": "设计",
         "en": "Design"
       },
-      "targets": ["project", "temporary"],
+      "targets": ["project"],
       "panelIds": ["workspace"]
     }
   ],
@@ -28,43 +28,42 @@
   },
   "tools": [
     {
-      "name": "create_document",
-      "description": "Create a design document artifact.",
+      "name": "get_snapshot",
+      "description": "List design-suitable files (pages, images) in the task workspace.",
+      "effect": "state-read"
+    },
+    {
+      "name": "write_page",
+      "description": "Write a complete UTF-8 HTML page into the task workspace (path relative to workspace, must be .html/.htm). Creates or replaces the file; snapshots the previous state into .artemis/versions/.",
       "effect": "artifact-write"
     },
     {
-      "name": "get_snapshot",
-      "description": "Get the current snapshot of the design document.",
-      "effect": "state-read"
-    },
-    {
-      "name": "list_versions",
-      "description": "List the published versions of a design document.",
-      "effect": "state-read"
-    },
-    {
       "name": "apply_edit",
-      "description": "Apply a CAS-guarded text edit as a new document version.",
+      "description": "Targeted edit of an existing workspace HTML page: `find` must match EXACTLY once and should be the SMALLEST snippet around the target (a few tokens, never a large block) — `content` replaces only that snippet. The file is snapshotted before the change (recoverable via undo/restore_version).",
       "effect": "artifact-write"
     },
     {
       "name": "undo",
-      "description": "Undo the head edit; restores the previous version (auditable, files kept).",
-      "effect": "artifact-write"
-    },
-    {
-      "name": "restore_version",
-      "description": "Restore a historical version by saving its content as a new head version (append-only; current content is kept as the previous version).",
+      "description": "Revert a workspace HTML page to the state before its latest recorded change (thin-snapshot backed). Args: { path }.",
       "effect": "artifact-write"
     },
     {
       "name": "redo",
-      "description": "Redo an undone edit when it is still the latest version.",
+      "description": "Re-apply an undone change to a workspace HTML page. Args: { path }.",
       "effect": "artifact-write"
+    },
+    {
+      "name": "restore_version",
+      "description": "Restore a historical snapshot of a workspace HTML page as the current content (the restore itself is recorded as a new snapshot). Args: { path, revision? } — revision omitted = latest snapshot.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "list_versions",
+      "description": "List recorded snapshots of a workspace HTML page (oldest → newest). Args: { path }.",
+      "effect": "state-read"
     }
   ],
   "capabilities": {
-    "artifactStore": "thread",
     "projectFiles": "explicit-import",
     "network": "none",
     "sessionInput": "host-user-action"

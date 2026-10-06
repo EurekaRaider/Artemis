@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
   "publicKeys": {
-    "design-pack-release": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQfr/lWpN8NgUAT+WpI/1/WHB5r/RFHuKGjwUk65GgRc=\n-----END PUBLIC KEY-----\n"
+    "design-pack-release": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAQfr/lWpN8NgUAT+WpI/1/WHB5r/RFHuKGjwUk65GgRc=\n-----END PUBLIC KEY-----\n",
+    "design-pack-dev": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAE+icSOTEzRLX6ieWH1hA3Iqq1gJy7JC36KfKqTx8TL8=\n-----END PUBLIC KEY-----\n"
   },
   "manifests": [
     {

@@ -133,6 +133,39 @@ export interface PluginDispatchHost {
    */
   onArtifactWrite?: (input: { threadId: string; toolName: string }) => void;
   /**
+   * Host-side workspace write (ledger retirement): the runtime worker is
+   * sandboxed to its scratch dir and cannot touch the workspace, so the
+   * path-based write/edit tools are executed by the HOST through this
+   * callback (containment + thin snapshots live there). Returning a string
+   * error reports failure to the model.
+   */
+  writeWorkspacePage?: (input: {
+    threadId: string;
+    path: string;
+    content: string;
+    find?: string;
+    authorize?: () => void | Promise<void>;
+  }) => Promise<
+    | { ok: true; path: string; bytes: number; revision?: string }
+    | { ok: false; error: string }
+  >;
+  /**
+   * Host-side version ops on the thin-snapshot store (undo/redo/restore/
+   * list). Executed host-side for the same sandbox reason as
+   * writeWorkspacePage. undo/redo/restore additionally write the workspace
+   * file and enforce the Plan gate in the host implementation.
+   */
+  designVersionOp?: (input: {
+    threadId: string;
+    toolName: "undo" | "redo" | "restore_version" | "list_versions";
+    path: string;
+    revision?: string;
+    authorize?: () => void | Promise<void>;
+  }) => Promise<{ ok: true; result: string } | { ok: false; error: string }>;
+  getWorkspaceSnapshot?: (input: {
+    threadId: string;
+  }) => Promise<{ status: string; output?: string; error?: string }>;
+  /**
    * Unavailability gate: a non-null reason refuses the tool call before
    * the trust chain runs. The design plugin's removal sets this — a bound
    * revision surviving on disk must not keep a removed plugin usable.
@@ -253,6 +286,8 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
     if (
       !current ||
       current.archived ||
+      current.typeBinding?.installationId !== binding.installationId ||
+      current.typeBinding?.pluginId !== binding.pluginId ||
       current.typeBinding?.contentHash !== binding.contentHash ||
       current.typeBinding?.bindingRevision !== binding.bindingRevision
     ) {
@@ -365,15 +400,115 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
       state: "running",
     });
 
+    // Only the first-party workspace manifest opts into host file tools.
+    // Older bound revisions and other plugins keep their runtime dispatch.
+    const workspaceTools =
+      binding.pluginId === "com.artemis.design" &&
+      published.tools.some((tool) => tool.name === "write_page");
+    const authorize = async () => {
+      const unavailable = await host.availabilityGate?.({
+        threadId: input.threadId,
+      });
+      if (unavailable) throw new Error(unavailable);
+      const latest = store.getThread(input.threadId) as typeof thread;
+      if (
+        disposed ||
+        !latest ||
+        latest.archived ||
+        !isExecutionMode(latest.mode) ||
+        latest.typeBinding?.installationId !== binding.installationId ||
+        latest.typeBinding?.pluginId !== binding.pluginId ||
+        latest.typeBinding?.contentHash !== binding.contentHash ||
+        latest.typeBinding?.bindingRevision !== binding.bindingRevision ||
+        !store
+          .listPluginGrants(input.threadId)
+          .some(
+            (grant) =>
+              grant.installation_id === binding.installationId &&
+              grant.plugin_id === binding.pluginId &&
+              grant.content_hash === binding.contentHash &&
+              grant.grant_revision === binding.bindingRevision &&
+              grant.revoked_at == null,
+          )
+      ) {
+        throw new Error(
+          "Task mode, binding or plugin grant changed before file execution.",
+        );
+      }
+    };
     try {
-      const manager = managerFor(input.threadId);
-      const result = (await manager.invoke({
-        entry: published.runtimeEntry,
-        pluginId: binding.pluginId,
-        contentHash: binding.contentHash,
-        toolName: input.toolName,
-        args: input.args,
-      })) as { status?: string; error?: string } | undefined;
+      let result:
+        { status?: string; output?: string; error?: string } | undefined;
+      if (
+        workspaceTools &&
+        input.toolName === "get_snapshot" &&
+        host.getWorkspaceSnapshot
+      ) {
+        result = await host.getWorkspaceSnapshot({ threadId: input.threadId });
+      } else if (
+        workspaceTools &&
+        (input.toolName === "write_page" || input.toolName === "apply_edit") &&
+        host.writeWorkspacePage
+      ) {
+        const args = input.args;
+        if (
+          typeof args.path !== "string" ||
+          typeof args.content !== "string" ||
+          (input.toolName === "apply_edit" &&
+            (typeof args.find !== "string" || !args.find))
+        ) {
+          throw new Error(
+            "path and content must be strings; apply_edit requires non-empty find.",
+          );
+        }
+        const outcome = await host.writeWorkspacePage({
+          threadId: input.threadId,
+          path: args.path,
+          content: args.content,
+          ...(input.toolName === "apply_edit"
+            ? { find: args.find as string }
+            : {}),
+          authorize,
+        });
+        result = outcome.ok
+          ? { status: "succeeded", output: JSON.stringify(outcome) }
+          : { status: "failed", error: outcome.error };
+      } else if (
+        workspaceTools &&
+        ["undo", "redo", "restore_version", "list_versions"].includes(
+          input.toolName,
+        ) &&
+        host.designVersionOp
+      ) {
+        const args = input.args;
+        if (
+          typeof args.path !== "string" ||
+          (args.revision !== undefined && typeof args.revision !== "string")
+        )
+          throw new Error("path and revision must be strings.");
+        const outcome = await host.designVersionOp({
+          threadId: input.threadId,
+          toolName: input.toolName as
+            "undo" | "redo" | "restore_version" | "list_versions",
+          path: args.path,
+          ...(typeof args.revision === "string"
+            ? { revision: args.revision }
+            : {}),
+          authorize,
+        });
+        result = outcome.ok
+          ? { status: "succeeded", output: outcome.result }
+          : { status: "failed", error: outcome.error };
+      } else {
+        const manager = managerFor(input.threadId);
+        result = (await manager.invoke({
+          entry: published.runtimeEntry,
+          pluginId: binding.pluginId,
+          contentHash: binding.contentHash,
+          toolName: input.toolName,
+          args: input.args,
+        })) as typeof result;
+      }
 
       // PR#245 P2-11：runtime 以返回值（而非异常）报告失败时必须传播——
       // 失败不记录 succeeded、不推进状态提交、不追加成功事件、不触发
@@ -443,7 +578,10 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
             snapshot: {
               files: [
                 {
-                  path: "design-documents.jsonl",
+                  path:
+                    workspaceTools && typeof input.args.path === "string"
+                      ? input.args.path
+                      : "design-documents.jsonl",
                   hash: actualHash,
                 },
               ],

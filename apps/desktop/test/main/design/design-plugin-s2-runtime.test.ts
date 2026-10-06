@@ -27,6 +27,7 @@ import {
 } from "../../../src/main/design/design-plugin-thread-runtime.js";
 import { commitPluginStateChange } from "../../../src/main/design/design-plugin-state-store.js";
 import { createDispatchPluginTool } from "../../../src/main/design/design-plugin-dispatch.js";
+import { createDesignWorkspaceToolHandlers } from "../../../src/main/design/design-plugin-workspace-tools.js";
 import { AppStore } from "../../../src/main/settings/store.js";
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 
@@ -90,8 +91,19 @@ async function setupBoundThread() {
     contentHash,
     bindingRevision: `rev-${contentHash.slice(0, 12)}`,
   };
+  const workspace = join(directory, `workspace-${threadId}`);
+  await mkdir(workspace);
+  const projectId = randomUUID();
+  store.upsertProject({
+    id: projectId,
+    name: "design",
+    path: workspace,
+    createdAt: now,
+    updatedAt: now,
+  });
   store.createThread({
     id: threadId,
+    projectId,
     title: "s2",
     mode: "work",
     target: "local",
@@ -121,6 +133,10 @@ async function setupBoundThread() {
     store,
     revisionsRoot,
     scratchRoot,
+    writeWorkspacePage: createDesignWorkspaceToolHandlers({
+      getThread: (id) => store.getThread(id),
+      resolveWorkspace: async () => ({ workspacePath: workspace }),
+    }).writeWorkspacePage,
     onArtifactWrite: (input) => {
       artifactWrites.push(input);
     },
@@ -163,6 +179,7 @@ async function setupBoundThread() {
     scratchRoot,
     databasePath,
     artifactWrites,
+    workspace,
     availabilityRefused,
   };
 }
@@ -193,7 +210,7 @@ describe("S2 runtime isolation", () => {
       ctx.store.updateThread(ctx.threadId, { archived: true });
       const input = {
         threadId: ctx.threadId,
-        toolName: "create_document",
+        toolName: "get_snapshot",
         args: { name: "denied" },
         mode: "work" as const,
       };
@@ -216,12 +233,12 @@ describe("S2 runtime isolation", () => {
   });
 
   itNative(
-    "happy path: dispatch through trust chain runs create_document on a real child",
+    "happy path: dispatch through trust chain runs get_snapshot on a real child",
     async () => {
       const ctx = await setupBoundThread();
       const outcome = await ctx.dispatch.dispatch({
         threadId: ctx.threadId,
-        toolName: "create_document",
+        toolName: "get_snapshot",
         args: { name: "S2验收页", brief: "深色档案页" },
         mode: "work",
       });
@@ -238,7 +255,7 @@ describe("S2 runtime isolation", () => {
     ctx.availabilityRefused.push(ctx.threadId);
     const outcome = await ctx.dispatch.dispatch({
       threadId: ctx.threadId,
-      toolName: "create_document",
+      toolName: "get_snapshot",
       args: { name: "应被拒绝", brief: "" },
       mode: "work",
     });
@@ -258,7 +275,7 @@ describe("S2 runtime isolation", () => {
     );
     const outcome = await ctx.dispatch.dispatch({
       threadId: ctx.threadId,
-      toolName: "create_document",
+      toolName: "get_snapshot",
       args: {},
       mode: "work",
     });
@@ -279,7 +296,7 @@ describe("S2 runtime isolation", () => {
     ctx.store.revokePluginGrants("com.artemis.design");
     const outcome = await ctx.dispatch.dispatch({
       threadId: ctx.threadId,
-      toolName: "create_document",
+      toolName: "get_snapshot",
       args: {},
       mode: "work",
     });
@@ -292,7 +309,7 @@ describe("S2 runtime isolation", () => {
     const ctx = await setupBoundThread();
     const outcome = await ctx.dispatch.dispatch({
       threadId: ctx.threadId,
-      toolName: "create_document",
+      toolName: "get_snapshot",
       args: {},
       mode: "plan",
     });
@@ -367,7 +384,7 @@ describe("S2 runtime isolation", () => {
       const ctx = await setupBoundThread();
       const first = await ctx.dispatch.dispatch({
         threadId: ctx.threadId,
-        toolName: "create_document",
+        toolName: "get_snapshot",
         args: { name: "关闭验证", brief: "生命周期" },
         mode: "work",
       });
@@ -376,7 +393,7 @@ describe("S2 runtime isolation", () => {
       ctx.dispatch.closeThread(ctx.threadId);
       const second = await ctx.dispatch.dispatch({
         threadId: ctx.threadId,
-        toolName: "create_document",
+        toolName: "get_snapshot",
         args: { name: "不应执行", brief: "" },
         mode: "work",
       });
@@ -397,8 +414,8 @@ describe("S2 runtime isolation", () => {
       const ctx = await setupBoundThread();
       const created = await ctx.dispatch.dispatch({
         threadId: ctx.threadId,
-        toolName: "create_document",
-        args: { name: "推送验证.html", brief: "自动刷新" },
+        toolName: "write_page",
+        args: { path: "refresh.html", content: "page" },
         mode: "work",
       });
       expect(created.status).toBe("succeeded");
@@ -410,7 +427,7 @@ describe("S2 runtime isolation", () => {
       });
       expect(snapshotted.status).toBe("succeeded");
       expect(ctx.artifactWrites).toEqual([
-        { threadId: ctx.threadId, toolName: "create_document" },
+        { threadId: ctx.threadId, toolName: "write_page" },
       ]);
       ctx.dispatch.closeThread(ctx.threadId);
       ctx.store.close();

@@ -33,35 +33,53 @@ it("binds only loaded active documents, rejects late responses and exposes read 
     Object.assign(event, { ports: [port] });
     window.dispatchEvent(event);
     const docs = [
-      { documentId: "seed-customer", name: "customer.html" },
-      { documentId: "seed-orders", name: "orders.html" },
+      { path: "customer.html", bytes: 100 },
+      { path: "orders.html", bytes: 100 },
     ];
-    receive({ data: { type: "snapshot", snapshot: { documents: docs } } });
+    receive({ data: { type: "snapshot", snapshot: { projectFiles: docs } } });
     const click = (id: string) =>
       (
-        window.document.querySelector(`[data-dz-doc-id="${id}"]`) as HTMLElement
+        window.document.querySelector(
+          `[data-dz-project-path="${id}"]`,
+        ) as HTMLElement
       ).click();
     const request = () =>
-      sent.findLast((item) => item.type === "read-document-request");
+      sent.findLast((item) => item.type === "read-project-file-request");
     const reply = (read: any, data: any) =>
-      receive({ data: { ...read, type: "document-html", ...data } });
-    click("seed-customer");
+      receive({
+        data: {
+          ...read,
+          type: "read-project-file-result",
+          name: read.path,
+          ...data,
+        },
+      });
+    click("customer.html");
     const customer = request();
     expect(
       sent.findLast((item) => item.type === "active-document").documentId,
     ).toBeNull();
-    click("seed-orders");
+    click("orders.html");
     const orders = request();
-    reply(customer, { html: "<h1>Customer</h1>", name: "customer.html" });
+    reply(customer, { content: "<h1>Customer</h1>", name: "customer.html" });
     expect(
-      window.document.querySelector("#dzDocFrame")?.getAttribute("srcdoc"),
+      window.document.querySelector("#dzProjectFrame")?.getAttribute("srcdoc"),
     ).toBeNull();
-    reply(orders, { html: "<h1>Orders</h1>", name: "orders.html" });
+    reply(orders, { content: "<h1>Orders</h1>", name: "orders.html" });
     expect(
       sent.findLast((item) => item.type === "active-document"),
-    ).toMatchObject({ documentId: "seed-orders", html: "<h1>Orders</h1>" });
-    click("seed-customer");
-    reply(request(), { html: "", error: "Read denied" });
+    ).toMatchObject({
+      documentId: "panel-project:orders.html",
+      html: "<h1>Orders</h1>",
+    });
+    click("customer.html");
+    receive({
+      data: {
+        ...request(),
+        type: "read-project-file-error",
+        error: "Read denied",
+      },
+    });
     expect(window.document.querySelector(".mock-empty")?.textContent).toContain(
       "Read denied",
     );
@@ -69,14 +87,14 @@ it("binds only loaded active documents, rejects late responses and exposes read 
     expect(
       sent.findLast((item) => item.type === "active-document").documentId,
     ).toBeNull();
-    click("seed-customer");
-    reply(request(), { html: "", name: "customer.html" });
+    click("customer.html");
+    reply(request(), { content: "", name: "customer.html" });
     expect(
       sent.findLast((item) => item.type === "active-document").documentId,
-    ).toBe("seed-customer");
+    ).toBe("panel-project:customer.html");
     (window.document.querySelector("#dzTabFiles") as HTMLElement).click();
     reply(request(), {
-      html: "<h1>Background refresh</h1>",
+      content: "<h1>Background refresh</h1>",
       name: "customer.html",
     });
     expect(

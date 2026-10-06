@@ -13,7 +13,7 @@ import { open, readdir, realpath, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve, sep } from "node:path";
 
 /** 项目图片资产（dataURL 内联）的 MIME 表。 */
-const DESIGN_IMAGE_MIME: Record<string, string> = {
+export const DESIGN_IMAGE_MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",

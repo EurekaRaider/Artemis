@@ -73,12 +73,43 @@ app
       });
 
     await win.loadURL(panelUrl);
+    win.focus();
+    win.webContents.focus();
     await shot("01-files-view.png");
+    // 注入快照 + 文档（模拟宿主 port 下行）
+    await win.webContents.executeJavaScript(`
+    (function(){
+      window.__sent = [];
+      const fakePort = {
+        postMessage: (m) => window.__sent.push(m),
+        addEventListener: (t, l) => { fakePort["on" + t] = l; },
+        start() {},
+      };
+      const ev = new Event("artemis:port");
+      ev.ports = [fakePort];
+      window.dispatchEvent(ev);
+      window.__fromHost = (m) => fakePort.onmessage({ data: m });
+      window.__fromHost({ type: "snapshot", snapshot: { documents: [], projectFiles: [
+        { path: "customer.html", bytes: 300, updatedAt: "1" },
+        { path: "index.html", bytes: 300, updatedAt: "1" },
+      ], projectName: "2B_Hifi" } });
+    })();
+  `);
+    await shot("02-files-populated.png");
+
+    // 打开第一个文档
+    await win.webContents.executeJavaScript(
+      `document.querySelectorAll(".design-file-card")[0].click()`,
+    );
+    await win.webContents.executeJavaScript(
+      `window.__fromHost({ ...window.__sent.findLast(m => m.type === "read-project-file-request"), type: "read-project-file-result", content: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
+    );
+    await shot("03-preview-parsed.png");
+
     for (const width of [1180, 420]) {
       win.setSize(width, 860);
       for (const id of [
         "dzTabFiles",
-        "dzPlusBtn",
         "dzPresentBtn",
         "dzHistoryBtn",
         "dzExportBtn",
@@ -116,35 +147,15 @@ app
     }
     win.setSize(1180, 860);
 
-    // 注入快照 + 文档（模拟宿主 port 下行）
-    await win.webContents.executeJavaScript(`
-    (function(){
-      window.__sent = [];
-      const fakePort = {
-        postMessage: (m) => window.__sent.push(m),
-        addEventListener: (t, l) => { fakePort["on" + t] = l; },
-        start() {},
-      };
-      const ev = new Event("artemis:port");
-      ev.ports = [fakePort];
-      window.dispatchEvent(ev);
-      window.__fromHost = (m) => fakePort.onmessage({ data: m });
-      window.__fromHost({ type: "snapshot", snapshot: { documents: [
-        { documentId: "doc-1", name: "customer.html", headRevision: "abc12345", versionCount: 3 },
-        { documentId: "doc-2", name: "index.html", headRevision: "def67890", versionCount: 1 },
-      ], projectName: "2B_Hifi" } });
-    })();
-  `);
-    await shot("02-files-populated.png");
-
-    // 打开第一个文档
-    await win.webContents.executeJavaScript(
-      `document.querySelectorAll(".design-file-card")[0].click()`,
-    );
-    await win.webContents.executeJavaScript(
-      `window.__fromHost({ ...window.__sent.findLast(m => m.type === "read-document-request"), type: "document-html", html: ${JSON.stringify(TEST_DOC)}, name: "customer.html", subtitle: "客户档案" })`,
-    );
-    await shot("03-preview-parsed.png");
+    const presentation = await win.webContents.executeJavaScript(`(() => {
+      const viewport = document.getElementById("dzViewport"), parent = viewport.parentNode;
+      document.getElementById("dzPresentBtn").click();
+      document.querySelector('[data-dz-present="tab"]').click();
+      const inside = document.getElementById("dzPresentBody").contains(viewport);
+      document.getElementById("dzPresentExit").click();
+      return { inside, restored: viewport.parentNode === parent };
+    })()`);
+    assert.deepEqual(presentation, { inside: true, restored: true });
 
     // 设备切手机
     await win.webContents.executeJavaScript(`
@@ -232,7 +243,7 @@ app
       r.fileCards = document.querySelectorAll(".design-file-card").length;
       r.tabs = document.querySelectorAll(".design-ws-tab").length;
       r.cats = Array.from(document.querySelectorAll(".design-cat")).map(c => c.textContent.trim());
-      r.documentSandbox = document.getElementById("dzDocFrame").getAttribute("sandbox");
+      r.documentSandbox = document.getElementById("dzProjectFrame").getAttribute("sandbox");
       r.hostHasDocumentNodes = Boolean(document.querySelector("#dzMockDesktop .hero"));
       r.sourceLines = document.querySelectorAll("#dzSource .ln").length;
       r.pinCount = document.querySelectorAll("#dzPinLayer .dz-pin").length;

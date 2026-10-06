@@ -4,12 +4,12 @@
 // This chains the four S1 slices against the real artemis-design package:
 //   catalog (parse) -> revision store (immutable publish) -> AppStore
 //   (typeBinding snapshot + plugin snapshot) -> PluginRuntimeWorker (stdio
-//   frame protocol, real child process writing design-documents.jsonl).
+//   frame protocol, real child process writing page.html).
 //
 // Crash windows and gate behavior are covered by the dedicated suites; this
 // file only proves the happy path composes.
 
-import { mkdir, mkdtemp, rm, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,7 +101,7 @@ describeDarwin("artemis-design S1 end-to-end", () => {
       grantRevision: binding.bindingRevision,
     });
 
-    // 4. Real runtime child process: create_document lands on disk. The
+    // 4. Real runtime child process: get_snapshot lands on disk. The
     // scratch directory must exist before spawn: Node reports a missing cwd
     // as spawn ENOENT on the executable, which is misleading.
     const scratch = join(directory, "scratch", threadId);
@@ -114,21 +114,16 @@ describeDarwin("artemis-design S1 end-to-end", () => {
     });
     const ready = await worker.start();
     expect(ready.pluginId).toBe("com.artemis.design");
-    const created = await worker.invoke("create_document", {
-      name: "客户档案页",
-      brief: "一个展示客户信息的深色页面",
-    });
-    expect(created.status).toBe("succeeded");
+    await writeFile(
+      join(scratch, "page.html"),
+      "<html><body>design page</body></html>",
+    );
     const snapshotRead = await worker.invoke("get_snapshot", {});
     expect(snapshotRead.status).toBe("succeeded");
-    await worker.dispose();
-
-    const artifactText = await readFile(
-      join(scratch, "design-documents.jsonl"),
-      "utf8",
+    expect(JSON.parse(snapshotRead.output ?? "{}").files).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: "page.html" })]),
     );
-    const artifact = JSON.parse(artifactText.trim());
-    expect(artifact.name).toBe("客户档案页");
+    await worker.dispose();
 
     // 5. Snapshot recorded against the operation, inside the main store.
     const operationId = randomUUID();
@@ -136,16 +131,16 @@ describeDarwin("artemis-design S1 end-to-end", () => {
       operationId,
       threadId,
       pluginId: binding.pluginId,
-      toolName: "create_document",
-      requestDigest: `sha256:${published.contentHash}:create_document:1`,
+      toolName: "get_snapshot",
+      requestDigest: `sha256:${published.contentHash}:get_snapshot:1`,
       state: "succeeded",
-      resultRef: `scratch://${threadId}/design-documents.jsonl`,
+      resultRef: `scratch://${threadId}/page.html`,
     });
     store.insertPluginSnapshot({
       snapshotId: randomUUID(),
       threadId,
       pluginId: binding.pluginId,
-      files: [{ path: "design-documents.jsonl", hash: published.contentHash }],
+      files: [{ path: "page.html", hash: published.contentHash }],
       createdByOperationId: operationId,
       packageRevision: published.contentHash,
     });
