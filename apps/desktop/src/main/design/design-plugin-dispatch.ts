@@ -144,7 +144,22 @@ export interface PluginDispatchHost {
     path: string;
     content: string;
     find?: string;
-  }) => Promise<{ ok: true; path: string; bytes: number } | { ok: false; error: string }>;
+  }) => Promise<
+    | { ok: true; path: string; bytes: number; revision?: string }
+    | { ok: false; error: string }
+  >;
+  /**
+   * Host-side version ops on the thin-snapshot store (undo/redo/restore/
+   * list). Executed host-side for the same sandbox reason as
+   * writeWorkspacePage. undo/redo/restore additionally write the workspace
+   * file and enforce the Plan gate in the host implementation.
+   */
+  designVersionOp?: (input: {
+    threadId: string;
+    toolName: "undo" | "redo" | "restore_version" | "list_versions";
+    path: string;
+    revision?: string;
+  }) => Promise<{ ok: true; result: string } | { ok: false; error: string }>;
   /**
    * Unavailability gate: a non-null reason refuses the tool call before
    * the trust chain runs. The design plugin's removal sets this — a bound
@@ -380,6 +395,12 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
 
     // 托管账本退役：路径化写入工具由宿主直接执行（runtime 沙箱只写
     // scratch，碰不到工作区）。失败按 runtime 失败同语义传播。
+    const versionOps = new Set([
+      "undo",
+      "redo",
+      "restore_version",
+      "list_versions",
+    ]);
     if (
       (input.toolName === "write_page" || input.toolName === "apply_edit") &&
       host.writeWorkspacePage
@@ -441,6 +462,51 @@ export function createDispatchPluginTool(host: PluginDispatchHost) {
           bytes: outcome.bytes,
         }),
       };
+    }
+
+    if (versionOps.has(input.toolName) && host.designVersionOp) {
+      const args = (input.args ?? {}) as {
+        path?: unknown;
+        revision?: unknown;
+      };
+      const outcome = await host.designVersionOp({
+        threadId: input.threadId,
+        toolName: input.toolName as
+          | "undo"
+          | "redo"
+          | "restore_version"
+          | "list_versions",
+        path: String(args.path ?? ""),
+        ...(typeof args.revision === "string"
+          ? { revision: args.revision }
+          : {}),
+      });
+      if (!outcome.ok) {
+        store.recordPluginOperation({
+          operationId,
+          threadId: input.threadId,
+          pluginId: binding.pluginId,
+          toolName: input.toolName,
+          requestDigest,
+          state: "failed",
+          error: outcome.error,
+        });
+        return { status: "failed", error: outcome.error };
+      }
+      store.recordPluginOperation({
+        operationId,
+        threadId: input.threadId,
+        pluginId: binding.pluginId,
+        toolName: input.toolName,
+        requestDigest,
+        state: "succeeded",
+        resultRef: `op://${operationId}`,
+      });
+      host.onArtifactWrite?.({
+        threadId: input.threadId,
+        toolName: input.toolName,
+      });
+      return { status: "succeeded", result: outcome.result };
     }
 
     try {

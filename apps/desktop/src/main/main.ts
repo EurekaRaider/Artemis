@@ -71,8 +71,11 @@ import {
 import {
   listDesignThinVersions,
   readDesignThinVersion,
+  redoDesignThinVersion,
   recordDesignThinSnapshot,
   restoreDesignThinVersion,
+  undoDesignThinVersion,
+  writeWorkspaceFileChecked,
 } from "./design/design-thin-snapshots.js";
 import {
   turnRecoveryContext,
@@ -23334,6 +23337,95 @@ app
         }).catch(() => undefined);
         designArtifactWriteSink?.(threadId);
         return { ok: true, path: rel, bytes: Buffer.byteLength(finalContent) };
+      },
+      // undo/redo/restore_version/list_versions：薄快照上的版本操作。
+      // undo/redo 是游标移动（不追加快照）；restore 写回并补记一份新快照；
+      // 写类的 Plan 门禁在此承担。
+      designVersionOp: async ({ threadId, toolName, path, revision }) => {
+        const thread = store?.getThread(threadId);
+        if (!thread?.projectId)
+          return { ok: false, error: "设计模式仅在项目会话中可用。" };
+        const rel = path.replace(/\\/g, "/").replace(/^\.\//, "");
+        if (
+          !rel ||
+          rel.includes("..") ||
+          rel.startsWith("/") ||
+          !/\.(html?|htm)$/i.test(rel)
+        )
+          return { ok: false, error: "仅支持工作区内 .html/.htm 文件。" };
+        const workspace = await resolveThreadWorkspace(thread);
+        if (toolName === "list_versions") {
+          const versions = await listDesignThinVersions(
+            workspace.workspacePath,
+            rel,
+          );
+          return {
+            ok: true,
+            result: JSON.stringify({
+              path: rel,
+              versions: versions.map((v) => ({
+                revision: v.revision,
+                sequence: v.sequence,
+                occurredAt: v.occurredAt,
+                bytes: v.bytes,
+              })),
+            }),
+          };
+        }
+        if (!isExecutionMode(thread.mode))
+          return {
+            ok: false,
+            error: "当前任务处于 Plan 模式，写入文件已被拒绝。",
+          };
+        let applied: { revision: string; content: string };
+        if (toolName === "undo") {
+          const out = await undoDesignThinVersion(workspace.workspacePath, rel);
+          if ("error" in out) return { ok: false, error: out.error };
+          applied = out;
+        } else if (toolName === "redo") {
+          const out = await redoDesignThinVersion(workspace.workspacePath, rel);
+          if ("error" in out) return { ok: false, error: out.error };
+          applied = out;
+        } else {
+          const versions = await listDesignThinVersions(
+            workspace.workspacePath,
+            rel,
+          );
+          if (versions.length === 0)
+            return { ok: false, error: "此文件没有快照历史。" };
+          const target = revision
+            ? versions.find((v) => v.revision === revision)
+            : versions.at(-1);
+          if (!target) return { ok: false, error: "恢复目标不存在。" };
+          const content = await readDesignThinVersion(
+            workspace.workspacePath,
+            rel,
+            target.file,
+          );
+          if (content === undefined)
+            return { ok: false, error: "恢复目标不可读。" };
+          applied = { revision: target.revision, content };
+        }
+        await writeWorkspaceFileChecked(
+          workspace.workspacePath,
+          rel,
+          applied.content,
+        );
+        // undo/redo 是游标移动不追加快照；restore 追加一份新快照（审计）
+        if (toolName === "restore_version")
+          await recordDesignThinSnapshot(workspace.workspacePath, rel, {
+            source: "plugin-restore-version",
+            operationId: applied.revision,
+          }).catch(() => undefined);
+        designArtifactWriteSink?.(threadId);
+        return {
+          ok: true,
+          result: JSON.stringify({
+            path: rel,
+            revision: applied.revision,
+            op: toolName,
+          }),
+        };
       },
       // apply_edit/undo/restore 之后的自动刷新：经 sink 触发面板快照推送
       // （sink 由 registerIpc 安装，debounce 合并一回合内的多次写入）。

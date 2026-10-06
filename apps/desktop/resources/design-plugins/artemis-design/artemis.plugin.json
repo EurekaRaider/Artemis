@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -43,8 +43,28 @@
     },
     {
       "name": "apply_edit",
-      "description": "Targeted edit of an existing workspace HTML page: `find` must match exactly once, `content` replaces it. Safer than rewriting the whole file.",
+      "description": "Targeted edit of an existing workspace HTML page: `find` must match exactly once, `content` replaces it.",
       "effect": "artifact-write"
+    },
+    {
+      "name": "undo",
+      "description": "Revert a workspace HTML page to the state before its latest recorded change (thin-snapshot backed). Args: { path }.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "redo",
+      "description": "Re-apply an undone change to a workspace HTML page. Args: { path }.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "restore_version",
+      "description": "Restore a historical snapshot of a workspace HTML page as the current content (the restore itself is recorded as a new snapshot). Args: { path, revision? } — revision omitted = latest snapshot.",
+      "effect": "artifact-write"
+    },
+    {
+      "name": "list_versions",
+      "description": "List recorded snapshots of a workspace HTML page (oldest → newest). Args: { path }.",
+      "effect": "state-read"
     }
   ],
   "capabilities": {
