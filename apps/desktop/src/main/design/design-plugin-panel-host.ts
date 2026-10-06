@@ -225,13 +225,21 @@ export interface PanelRequestHandlers {
     panelId?: string;
     rect?: { x: number; y: number; width: number; height: number };
   }): Promise<{ path: string }>;
+  /** 项目页面导出：原始 HTML 经保存对话框落盘（安全读取复用预览管线）。 */
+  exportProjectFile(input: {
+    threadId: string;
+    path: string;
+  }): Promise<{ path?: string; canceled?: boolean; error?: string }>;
   /** 图片创作：弹对话框选择图片目录（宿主持久记住）。 */
   pickImageFolder(input: {
     threadId: string;
   }): Promise<{ imageDir?: string; error?: string }>;
   /** 图片创作：读取图片为 dataURL（image-dir: 前缀=已记住目录内相对路径，
    * image-view: 同左；路径解析与安全边界在宿主 handler 内完成）。 */
-  readImage(input: { path: string }): Promise<{ dataUrl?: string }>;
+  readImage(input: {
+    path: string;
+    threadId?: string;
+  }): Promise<{ dataUrl?: string }>;
   /** PR#245 P2-16：持久删除需要知道面板，删除后定向推快照刷新。 */
   deleteDocument(input: {
     threadId: string;
@@ -799,6 +807,68 @@ export class DesignPanelHost {
           });
         return;
       }
+      // 标记截图：面板视图的真实像素捕获（合成输出含沙箱帧内容与标记层），
+      // PNG dataURL 回面板随候选走。失败回空——面板退回纯结构化标记。
+      if (data?.type === "mark-shot-request") {
+        const rawRect = data.rect as
+          | { x?: unknown; y?: unknown; width?: unknown; height?: unknown }
+          | undefined;
+        const rect =
+          rawRect &&
+          Number.isFinite(rawRect.x) &&
+          Number.isFinite(rawRect.y) &&
+          Number.isFinite(rawRect.width) &&
+          Number.isFinite(rawRect.height) &&
+          (rawRect.width as number) > 0 &&
+          (rawRect.height as number) > 0
+            ? {
+                x: rawRect.x as number,
+                y: rawRect.y as number,
+                width: rawRect.width as number,
+                height: rawRect.height as number,
+              }
+            : undefined;
+        void (async () => {
+          const image = await this.capturePanelArea(threadId, panelId, rect);
+          if (!image || image.isEmpty()) {
+            hostPort.postMessage({ type: "mark-shot-result" });
+            return;
+          }
+          const sized =
+            image.getSize().width > 1400
+              ? image.resize({ width: 1400 })
+              : image;
+          hostPort.postMessage({
+            type: "mark-shot-result",
+            dataUrl: `data:image/png;base64,${sized.toPNG().toString("base64")}`,
+          });
+        })().catch(() => {
+          hostPort.postMessage({ type: "mark-shot-result" });
+        });
+        return;
+      }
+      if (
+        data?.type === "export-project-request" &&
+        typeof data.path === "string"
+      ) {
+        void this.requestHandlers
+          ?.exportProjectFile({ threadId, path: data.path })
+          .then((result) => {
+            hostPort.postMessage({
+              type: "export-project-result",
+              ...(result.path ? { path: result.path } : {}),
+              ...(result.canceled ? { canceled: true } : {}),
+              ...(result.error ? { error: result.error } : {}),
+            });
+          })
+          .catch((error: unknown) => {
+            hostPort.postMessage({
+              type: "export-project-result",
+              error: String(error),
+            });
+          });
+        return;
+      }
       if (data?.type === "pick-image-folder-request") {
         void (async () => {
           try {
@@ -826,7 +896,7 @@ export class DesignPanelHost {
         typeof data.path === "string"
       ) {
         void this.requestHandlers
-          ?.readImage({ path: data.path })
+          ?.readImage({ path: data.path, threadId })
           .then((result) => {
             hostPort.postMessage({
               type: "read-image-result",

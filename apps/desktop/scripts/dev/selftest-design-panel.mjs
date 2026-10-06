@@ -318,16 +318,33 @@ console.log("== 6. 预览|代码 ==");
 document.getElementById("dzModeSource").click();
 check("代码模式显示源码", !document.getElementById("dzSource").hidden);
 check("代码模式隐藏舞台", document.getElementById("dzStage").hidden);
+// OD 对齐：代码态隐藏端下拉与右侧功能组
+check(
+  "代码模式隐藏端下拉",
+  document.querySelector(".dz-device").hidden,
+);
+check(
+  "代码模式隐藏右侧功能组",
+  document.querySelector(".dz-toolbar-actions").hidden,
+);
 document.getElementById("dzModePreview").click();
 check("预览模式恢复舞台", !document.getElementById("dzStage").hidden);
+check(
+  "预览模式恢复端下拉",
+  !document.querySelector(".dz-device").hidden,
+);
+check(
+  "预览模式恢复右侧功能组",
+  !document.querySelector(".dz-toolbar-actions").hidden,
+);
 
 console.log("== 7. 设备/缩放（原型 dzApplyStage） ==");
 document.getElementById("dzDeviceBtn").click();
 check("设备菜单打开", !document.getElementById("dzDeviceMenu").hidden);
 document.querySelector('[data-dz-device="mobile"]').click();
 check(
-  "手机标签",
-  document.getElementById("dzDeviceLabel").textContent === "手机",
+  "移动端标签",
+  document.getElementById("dzDeviceLabel").textContent === "移动端",
 );
 // jsdom CSSOM 不支持 min()（值会被丢弃），用菜单 active 态断言；宽度在真实 Chromium 生效
 check(
@@ -657,6 +674,43 @@ check(
   "× 关闭画板",
   !document.getElementById("dzDrawBtn").classList.contains("active"),
 );
+
+console.log("== 11b. 标记截图（宿主真实像素捕获） ==");
+document.getElementById("dzDrawBtn").click();
+const vp = document.getElementById("dzViewport");
+vp.dispatchEvent(
+  new window.MouseEvent("mousedown", { bubbles: true, clientX: 10, clientY: 10 }),
+);
+vp.dispatchEvent(
+  new window.MouseEvent("mousemove", { bubbles: true, clientX: 70, clientY: 50 }),
+);
+window.dispatchEvent(new window.MouseEvent("mouseup"));
+document.getElementById("dzDrawNote").value = "把红框区域改掉";
+const beforeMark = sent.filter((m) => m.type === "candidate-prompt").length;
+document.getElementById("dzDrawSend").click();
+check(
+  "标记提交发出截图请求",
+  sent.some((m) => m.type === "mark-shot-request"),
+);
+fromHost({
+  type: "mark-shot-result",
+  dataUrl: "data:image/png;base64,MARKSHOT",
+});
+const markMsg = sent.filter((m) => m.type === "candidate-prompt").at(-1);
+check(
+  "标记候选附真实像素截图",
+  sent.filter((m) => m.type === "candidate-prompt").length ===
+    beforeMark + 1 &&
+    Array.isArray(markMsg.images) &&
+    markMsg.images[0] === "data:image/png;base64,MARKSHOT" &&
+    markMsg.text === "把红框区域改掉",
+  JSON.stringify(markMsg).slice(0, 140),
+);
+check(
+  "截图回包后气泡恢复",
+  document.getElementById("dzDrawTools").style.visibility === "",
+);
+document.getElementById("dzDrawClose").click();
 
 console.log("== 12. 截图 ==");
 const beforeShot = sent.length;
@@ -1038,6 +1092,158 @@ check(
   !catInfo().some((c) => c.label === "样式表" || c.label === "脚本"),
   JSON.stringify(catInfo()),
 );
+
+console.log("== 19b+. 项目图片预览卡 + tab 图标分型 ==");
+const beforeImgReq = sent.filter((m) => m.type === "read-image-request").length;
+fromHost({
+  type: "snapshot",
+  snapshot: {
+    documents: [
+      {
+        documentId: "w1",
+        name: "wire.html",
+        headRevision: "v1",
+        versionCount: 1,
+      },
+    ],
+    projectFiles: [{ path: "assets/hero.png", bytes: 2048 }],
+    projectName: "2B_Hifi",
+  },
+});
+const imgThumb = document.querySelector(
+  '.dz-image-card .dz-image-thumb[data-dz-image="project:assets/hero.png"]',
+);
+check("项目图片出预览卡（project: 键）", !!imgThumb);
+const imgCardEl = imgThumb.closest(".dz-image-card");
+check(
+  "卡片摘要两行态（文件名悬停显路径 / 类型+前往）",
+  imgCardEl.querySelector(".design-file-name").textContent ===
+    "hero.png" &&
+    imgCardEl.querySelector(".design-file-name").dataset.tip ===
+      "assets/hero.png" &&
+    !imgCardEl.querySelector(".dz-file-path") &&
+    imgCardEl.querySelector(".design-file-sub").textContent.includes("项目") &&
+    imgCardEl.querySelector(".dz-file-open").textContent === "前往",
+  imgCardEl.querySelector(".design-file-meta").textContent,
+);
+check(
+  "项目图片缩略图请求带 project: 前缀",
+  sent.filter(
+    (m) =>
+      m.type === "read-image-request" && m.path === "project:assets/hero.png",
+  ).length ===
+    beforeImgReq + 1,
+);
+imgThumb.closest(".dz-image-card").click();
+check("点卡进图片创作视图", !document.getElementById("dzImageView").hidden);
+check(
+  "图片态挂 dz-image-mode 类",
+  document
+    .querySelector(".design-preview-view")
+    .classList.contains("dz-image-mode"),
+);
+check(
+  "图片态不提供演示（tab 行动作整组隐藏）",
+  document.querySelector(".design-ws-present").hidden === true,
+);
+check(
+  "开图请求复用 project: 键",
+  sent.filter(
+    (m) =>
+      m.type === "read-image-request" && m.path === "project:assets/hero.png",
+  ).length ===
+    beforeImgReq + 2,
+);
+fromHost({
+  type: "read-image-result",
+  path: "project:assets/hero.png",
+  dataUrl: "data:image/png;base64,AAA",
+});
+check(
+  "回包点亮大图（键一致）",
+  document.getElementById("dzImageEl").src === "data:image/png;base64,AAA",
+);
+check(
+  "回包点亮缩略图（键一致）",
+  String(imgThumb.style.backgroundImage || "").includes("data:image/png"),
+);
+document.getElementById("dzImagePromptInput").value = "把背景换成夜景";
+document.getElementById("dzImageSend").click();
+const imgMsg = sent.filter((m) => m.type === "candidate-prompt").at(-1);
+check(
+  "图片提示词附 dataURL（键错位回归）",
+  Array.isArray(imgMsg.images) &&
+    imgMsg.images[0] === "data:image/png;base64,AAA",
+  JSON.stringify(imgMsg).slice(0, 140),
+);
+const heroTab = document.querySelector(
+  '.design-ws-tab[data-dz-file="assets/hero.png"]',
+);
+check("图片 tab 用图形图标", !!heroTab && !!heroTab.querySelector("svg circle"));
+check(
+  "tab 名用文件短名（全路径进 data-tip）",
+  heroTab.querySelector(".design-ws-label").textContent === "hero.png" &&
+    heroTab.dataset.tip === "assets/hero.png",
+);
+check(
+  "列表按一级文件夹分组（页面=根目录/，图片=assets/）",
+  Array.from(document.querySelectorAll(".dz-group-label"))
+    .map((g) => g.textContent)
+    .join("|") === "根目录/|assets/",
+  JSON.stringify(
+    Array.from(document.querySelectorAll(".dz-group-label")).map(
+      (g) => g.dataset.dzCat + ":" + g.textContent,
+    ),
+  ),
+);
+const wireCardRow = document.querySelector(
+  '.design-file-card[data-dz-doc-id="w1"]',
+);
+wireCardRow.click();
+const wireTab = document.querySelector(
+  '.design-ws-tab[data-dz-file="wire.html"]',
+);
+check(
+  "html tab 用文件代码图标",
+  !!wireTab &&
+    !wireTab.querySelector("svg circle") &&
+    !!wireTab.querySelector("svg rect"),
+);
+// 悬浮气泡：mouseover 命中 tab → 浮层显示全路径
+heroTab.dispatchEvent(
+  new window.MouseEvent("mouseover", { bubbles: true }),
+);
+const floatTip = document.querySelector(".dz-float-tip");
+check(
+  "悬浮气泡显示 tab 全路径",
+  !!floatTip &&
+    !floatTip.hidden &&
+    floatTip.textContent === "assets/hero.png",
+);
+// 「前往」：进入文件所在文件夹
+document.querySelector(".dz-file-open").click();
+check("前往进入文件所在文件夹", !!document.querySelector(".dz-cat-back"));
+check(
+  "前往后卡片相对名",
+  document.querySelector(".dz-image-card .design-file-name").textContent ===
+    "hero.png",
+);
+// 「返回」：回根级（回归：项目文件 {path} 误取 f.name 曾致 TypeError 失灵）
+document.querySelector(".dz-cat-back").click();
+check("返回回根级", !document.querySelector(".dz-cat-back"));
+check(
+  "返回后恢复完整分组",
+  Array.from(document.querySelectorAll(".dz-group-label"))
+    .map((g) => g.textContent)
+    .join("|") === "根目录/|assets/",
+);
+check(
+  "离开图片态摘掉 dz-image-mode",
+  !document
+    .querySelector(".design-preview-view")
+    .classList.contains("dz-image-mode"),
+);
+
 // 恢复页面快照（后续用例回到单页面环境）
 fromHost({
   type: "snapshot",

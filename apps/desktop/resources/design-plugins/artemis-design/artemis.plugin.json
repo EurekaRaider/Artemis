@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.2.4",
+  "version": "0.3.16",
   "engines": {
     "artemisPluginApi": "1"
   },

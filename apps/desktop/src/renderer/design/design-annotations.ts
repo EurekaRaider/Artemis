@@ -210,6 +210,29 @@ export function buildDesignBindingHint(binding: {
   name?: string;
 }): string {
   if (!binding.documentId || !binding.name) return "";
+  // 面板合成绑定（项目文件/图片）不在插件文档账本里：documentId 是合成键，
+  // 传给 plugin_apply_edit 只会被 requireDesignDocumentId 拒掉——明确引导
+  // 模型直接改工作区文件。
+  if (binding.documentId.startsWith("panel-project:")) {
+    const path = binding.documentId.slice("panel-project:".length);
+    return [
+      "",
+      "",
+      "<design-context>",
+      `The user is editing the project file "${binding.name}" (path: ${path}) in the design panel; its full HTML source is attached. Apply the requested change directly to that file in the workspace with file editing tools. Design plugin document tools (plugin_apply_edit) do not manage project files and will reject this id.`,
+      "</design-context>",
+    ].join("\n");
+  }
+  if (binding.documentId.startsWith("panel-image:")) {
+    const path = binding.documentId.slice("panel-image:".length);
+    return [
+      "",
+      "",
+      "<design-context>",
+      `The user is editing the image "${binding.name}" (path: ${path}) in the design panel; the marked screenshot is attached. Edit or regenerate that image file in place — design plugin document tools do not manage images and will reject this id.`,
+      "</design-context>",
+    ].join("\n");
+  }
   return [
     "",
     "",

@@ -72,6 +72,7 @@ import { SleepPrevention } from "./platform/sleep-prevention.js";
 import { ImService } from "./im/im-service.js";
 import {
   readProjectFileForPreview,
+  readWorkspaceFileBytes,
   scanProjectDesignFiles,
 } from "./design/design-plugin-project-files.js";
 import {
@@ -10909,6 +10910,44 @@ function registerIpc(): void {
   }
 
   designPanelHost?.setRequestHandlers({
+    /** 项目页面导出：原始 HTML 经保存对话框落盘（安全读取=预览同管线，
+     * 但不做内联——导出的是用户工作区里的原文）。 */
+    exportProjectFile: async (input) => {
+      if (!store) return { error: "Application store is not ready." };
+      const thread = store.getThread(input.threadId);
+      if (!thread) return { error: "Active task not found." };
+      const workspace = await resolveThreadWorkspace(thread);
+      try {
+        const read = await readProjectFileForPreview({
+          workspacePath: workspace.workspacePath,
+          requestedPath: String(input.path ?? ""),
+        });
+        void read;
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+      const parent =
+        BrowserWindow.getFocusedWindow() ??
+        BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
+      const save = parent
+        ? await dialog.showSaveDialog(parent, {
+            defaultPath: sanitizeDesignExportName(String(input.path ?? "")),
+            filters: [{ name: "HTML", extensions: ["html"] }],
+          })
+        : { canceled: true, filePath: "" as string | undefined };
+      if (save.canceled || !save.filePath) return { canceled: true };
+      const raw = await readWorkspaceFileBytes(
+        (await realpath(workspace.workspacePath).catch(() => undefined)) ??
+          workspace.workspacePath,
+        join(workspace.workspacePath, String(input.path ?? "")),
+        4 * 1024 * 1024,
+      );
+      if (!raw) return { error: "项目文件读取失败。" };
+      await writeFile(save.filePath, raw.bytes);
+      return { path: save.filePath };
+    },
     /** 图片创作：弹目录选择对话框并持久记住。 */
     pickImageFolder: async () => {
       const parent =
@@ -10930,16 +10969,33 @@ function registerIpc(): void {
       ).catch(() => undefined);
       return { imageDir: real };
     },
-    /** 图片创作：把记住目录内的图片读成 dataURL（image-dir:/image-view:
-     * 前缀）。安全边界：realpath 后必须仍在已记住目录内，O_NOFOLLOW
-     * 打开，2 MiB 上限，MIME 白名单与图片扫描一致。 */
+    /** 图片读取成 dataURL：`image-dir:`/`image-view:` 前缀=图片创作记住
+     * 目录，`project:` 前缀=任务工作区（图片 tab 预览卡）。安全边界：
+     * realpath 后必须仍在对应根内，O_NOFOLLOW 打开，2 MiB 上限，MIME
+     * 白名单与图片扫描一致。 */
     readImage: async (input) => {
-      if (!designImageDir) return {};
       const raw = String(input.path ?? "");
-      const rel = raw.replace(/^image-(?:dir|view):/, "").trim();
+      const projectRel = /^project:(.+)$/.exec(raw)?.[1];
+      let rootReal: string | undefined;
+      let rel: string;
+      if (projectRel !== undefined) {
+        rel = projectRel.trim();
+        const thread = input.threadId
+          ? store?.getThread(input.threadId)
+          : undefined;
+        if (!thread?.projectId) return {};
+        const workspace = await resolveThreadWorkspace(thread);
+        rootReal = await realpath(workspace.workspacePath).catch(
+          () => undefined,
+        );
+      } else {
+        if (!designImageDir) return {};
+        rel = raw.replace(/^image-(?:dir|view):/, "").trim();
+        rootReal = await realpath(designImageDir).catch(() => undefined);
+      }
+      if (!rootReal) return {};
       if (!rel || rel.includes("..") || rel.startsWith("/")) return {};
-      const dirReal = await realpath(designImageDir).catch(() => undefined);
-      if (!dirReal) return {};
+      const dirReal = rootReal;
       const target = join(dirReal, rel);
       const targetReal = await realpath(target).catch(() => undefined);
       if (
