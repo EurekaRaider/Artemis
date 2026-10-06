@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  cleanup,
   fireEvent,
   render,
   screen,
@@ -86,6 +87,7 @@ beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
