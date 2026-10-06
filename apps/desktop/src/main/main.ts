@@ -23427,6 +23427,11 @@ app
             return { ok: false, error: "恢复目标不可读。" };
           applied = { revision: target.revision, content };
         }
+        // 写回前记录当前内容：若文件被外部途径改过，外部状态先进历史，
+        // 不被快照内容无痕覆盖（内容去重保证未被外部改过时零噪声）
+        await recordDesignThinSnapshot(workspace.workspacePath, rel, {
+          source: "pre-" + toolName,
+        }).catch(() => undefined);
         await writeWorkspaceFileChecked(
           workspace.workspacePath,
           rel,

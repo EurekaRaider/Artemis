@@ -448,8 +448,9 @@
         display: none;
       }
       /* 图片创作态：舞台/文档帧整体下线（mock「尚无文档」不再透出）；
-         工具条精简为 刷新/标记/缩放 左侧组（模式/端/截图/评论与分隔线全藏）；
-         底部提示词条按产品决定移除 */
+         工具条整行屏蔽（edit_image 落地前图片态无可用操作）；
+         底部提示词条已移除 */
+      .design-preview-view.dz-image-mode .dz-toolbar,
       .design-preview-view.dz-image-mode #dzStage,
       .design-preview-view.dz-image-mode .dz-mode,
       .design-preview-view.dz-image-mode .dz-device,
