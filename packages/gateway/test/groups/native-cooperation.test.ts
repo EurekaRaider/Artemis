@@ -1600,50 +1600,45 @@ describe.each(["slack", "feishu", "lark"] as const)(
       expect(f.b.store.pending("device")).toHaveLength(1);
     });
 
-    // Reopening the on-disk database can exceed 5s on hosted Windows runners.
-    it(
-      "recovers the actual SQLite store with an uncertain send and never recreates the task",
-      { timeout: process.platform === "win32" ? 15_000 : 5_000 },
-      () => {
-        const directory = mkdtempSync(join(tmpdir(), "native-im-restart-"));
-        directories.push(directory);
-        const path = join(directory, "gateway.sqlite");
-        const f = pair(path);
-        const command = {
-          action: "delegate" as const,
-          participantId: "B",
-          text: "Persisted work",
-        };
-        f.a.router.native.command(
-          f.request,
-          "coordinator",
-          "persisted-call",
-          command,
-        );
-        const task = f.a.router.native.tasks(f.a.group.id)[0]!;
-        f.a.store.mark("outgoing", `native:${task.envelope.id}`, "sending");
-        stores.splice(stores.indexOf(f.a.store), 1);
-        f.a.store.close();
-        const recovered = new GatewayStore(path, "e".repeat(32));
-        stores.push(recovered);
-        const router = new GatewayRouter(recovered);
-        router.native.tick();
-        expect(router.native.tasks(f.a.group.id)[0]?.state).toBe("uncertain");
-        router.native.command(
-          f.request,
-          "coordinator",
-          "persisted-call",
-          command,
-        );
-        expect(router.native.tasks(f.a.group.id)).toHaveLength(1);
-        expect(
-          recovered
-            .pending<Delivery>("outgoing")
-            .filter((q) => q.payload.native?.action === "delegate"),
-        ).toHaveLength(0);
-        expect(router.native.peers(f.a.group.id)[0]?.verifiedAt).toBeTruthy();
-      },
-    );
+    it("recovers the actual SQLite store with an uncertain send and never recreates the task", () => {
+      const directory = mkdtempSync(join(tmpdir(), "native-im-restart-"));
+      directories.push(directory);
+      const path = join(directory, "gateway.sqlite");
+      const f = pair(path);
+      const command = {
+        action: "delegate" as const,
+        participantId: "B",
+        text: "Persisted work",
+      };
+      f.a.router.native.command(
+        f.request,
+        "coordinator",
+        "persisted-call",
+        command,
+      );
+      const task = f.a.router.native.tasks(f.a.group.id)[0]!;
+      f.a.store.mark("outgoing", `native:${task.envelope.id}`, "sending");
+      stores.splice(stores.indexOf(f.a.store), 1);
+      f.a.store.close();
+      const recovered = new GatewayStore(path, "e".repeat(32));
+      stores.push(recovered);
+      const router = new GatewayRouter(recovered);
+      router.native.tick();
+      expect(router.native.tasks(f.a.group.id)[0]?.state).toBe("uncertain");
+      router.native.command(
+        f.request,
+        "coordinator",
+        "persisted-call",
+        command,
+      );
+      expect(router.native.tasks(f.a.group.id)).toHaveLength(1);
+      expect(
+        recovered
+          .pending<Delivery>("outgoing")
+          .filter((q) => q.payload.native?.action === "delegate"),
+      ).toHaveLength(0);
+      expect(router.native.peers(f.a.group.id)[0]?.verifiedAt).toBeTruthy();
+    });
 
     it("rejects assignments from a blocked peer and resumes only after unblocking", () => {
       const f = pair();
