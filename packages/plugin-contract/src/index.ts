@@ -41,7 +41,8 @@ export const legacyInteractiveManifestSchema = z.strictObject({
     )
     .min(1),
   capabilities: z.object({
-    artifactStore: z.enum(["thread", "none"]),
+    // 托管账本退役：设计目标=工作区文件，插件对它们只读
+    artifactStore: z.enum(["thread", "none"]).default("none"),
     projectFiles: z.literal("explicit-import"),
     network: z.literal("none"),
     sessionInput: z.literal("host-user-action"),
