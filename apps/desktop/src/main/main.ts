@@ -3,14 +3,6 @@ import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-doc
 import { createDesktopUpdateService } from "./updates/desktop-update-service.js";
 import { readFileSync as readStartupFile } from "node:fs";
 import { createDesignHandoffHandler } from "./design/design-plugin-handoff.js";
-import {
-  deleteDesignDocument,
-  readDesignDocumentLedger,
-  readDesignDocumentVersionBytes,
-  requireDesignDocumentId,
-  resolveDesignDocumentDirectory,
-  resolveHeadVersionEntry,
-} from "./design/design-plugin-document-files.js";
 import { DesignPanelHost } from "./design/design-plugin-panel-host.js";
 import {
   closeWorkspaceTabMenu,
@@ -25,7 +17,6 @@ import {
 import { createDesignPackRuntime } from "./design/design-pack-runtime.js";
 import {
   designPluginRevisionsRoot,
-  ensureThreadDataRoot,
   migrateLegacyDesignPluginRevisions,
 } from "./design/design-plugin-thread-data.js";
 import { PanelSendEntryService } from "./design/design-plugin-send-entry.js";
@@ -75,7 +66,14 @@ import {
   readWorkspaceFileBytes,
   scanProjectDesignFiles,
   readDesignImage,
+  DESIGN_IMAGE_MIME,
 } from "./design/design-plugin-project-files.js";
+import {
+  listDesignThinVersions,
+  readDesignThinVersion,
+  recordDesignThinSnapshot,
+  restoreDesignThinVersion,
+} from "./design/design-thin-snapshots.js";
 import {
   turnRecoveryContext,
   type TurnCheckpoint,
@@ -541,6 +539,7 @@ let designPanelHost: DesignPanelHost | undefined;
 // Artifact-write dispatches land outside registerIpc's scope; registerIpc
 // installs this sink so they can trigger the debounced snapshot push.
 let designArtifactWriteSink: ((threadId: string) => void) | undefined;
+let designSnapshotPusher: ((threadId: string, panelId: string) => void) | undefined;
 let pluginDispatch: PluginDispatch | undefined;
 /**
  * Design-plugin availability gate, installed during startup (the design
@@ -6041,6 +6040,16 @@ async function executeApprovedWrite(
     }
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, request.content, "utf8");
+    // 设计薄快照：agent 写入工作区设计页（html/htm）时自动留版本
+    //（托管账本退役后的历史实现；失败不打断写入本身）
+    await recordDesignThinSnapshot(request.workspacePath, path, {
+      source: "agent-write",
+      operationId: workerRequestId,
+    }).catch(() => undefined);
+    // 设计面板开着（线程已绑定）：写入后推送工作区清单快照
+    if (store?.getThread(request.threadId)?.typeBinding) {
+      designSnapshotPusher?.(request.threadId, "workspace");
+    }
     emitPayload(request.threadId, request.turnId, {
       type: "file.changed",
       path: request.relativePath,
@@ -10414,6 +10423,10 @@ function registerIpc(): void {
       if (!window) throw new Error("Host window is not available.");
       const thread = store?.getThread(threadId);
       if (!thread) throw new Error("Active task not found.");
+      // 设计模式属于项目：临时会话没有稳定工作区（文件身份/薄快照都
+      // 无处落），宿主侧直接拒绝（渲染器入口同样收窄）。
+      if (!thread.projectId)
+        throw new Error("设计模式仅在项目会话中可用，临时会话不支持。");
       // Removal gate: an uninstalled plugin must not mount, even though its
       // bound revision survives on disk (reinstall restores it in place).
       const unavailable = await designPluginAvailabilityGate?.(threadId);
@@ -10634,6 +10647,10 @@ function registerIpc(): void {
     }
   }
 
+  designArtifactWriteSink = (threadId) => {
+    pushDesignSnapshotDebounced(threadId, "workspace");
+  };
+
   // Artifact writes arrive in bursts (one turn can apply several edits);
   // coalesce to a single trailing snapshot push per thread.
   const designSnapshotPushTimers = new Map<string, NodeJS.Timeout>();
@@ -10651,45 +10668,17 @@ function registerIpc(): void {
       }, 250),
     );
   }
-  designArtifactWriteSink = (threadId) => {
-    pushDesignSnapshotDebounced(threadId, "workspace");
-  };
 
   async function deliverDesignSnapshot(
     threadId: string,
     panelId: string,
   ): Promise<boolean> {
-    if (!pluginDispatch || !designPanelHost) return false;
-    const outcome = await pluginDispatch.dispatch({
-      threadId,
-      toolName: "get_snapshot",
-      args: {},
-      mode: "work",
-    });
-    let documents: unknown[] = [];
-    if (outcome.status === "succeeded" && outcome.result) {
-      try {
-        const parsed = JSON.parse(
-          (outcome.result as { output?: string }).output ?? "{}",
-        ) as { documents?: unknown[] };
-        documents = parsed.documents ?? [];
-      } catch {
-        documents = [];
-      }
-    } else {
-      // runtime worker 不在（会话已完成/未启动）时的降级：直读线程数据店
-      // 组装文档清单（get_snapshot 的纯文件等价物）——面板只读展示不需要
-      // 运行时存活，否则已完成会话的面板永远空白。
-      console.error(
-        `[design-panel] snapshot dispatch unavailable, reading store directly: ${JSON.stringify(outcome).slice(0, 200)}`,
-      );
-      documents = await readSnapshotDocumentsDirect(threadId);
-    }
+    if (!designPanelHost) return false;
     const thread = store?.getThread(threadId);
     const project = thread?.projectId
       ? store?.getProject(thread.projectId)
       : undefined;
-    // 项目会话：扫描项目工作区（保守白名单：页面+图片，≤120 个）进总览；
+    // 设计目标=工作区文件（无托管账本）：清单来自工作区扫描；
     // 显式选入的文件（从项目打开）永远保留并在去重时优先。
     let projectFiles = selectedDesignProjectFiles.get(threadId) ?? [];
     if (thread?.projectId) {
@@ -10712,7 +10701,7 @@ function registerIpc(): void {
       images = await scanProjectDesignFiles(imageDir, true);
     }
     designPanelHost.pushSnapshot(threadId, panelId, {
-      documents,
+      documents: [],
       projectFiles,
       imageDir: imageDir ?? null,
       images,
@@ -10720,100 +10709,6 @@ function registerIpc(): void {
       projectName: project?.name ?? "设计任务",
     });
     return true;
-  }
-
-  /** runtime 缺席时的快照降级读取：直读线程数据店的账本与版本目录
-     （runtime get_snapshot 的纯文件等价物，含 HEAD 恢复指针语义）。 */
-  async function readSnapshotDocumentsDirect(
-    threadId: string,
-  ): Promise<unknown[]> {
-    const dataRoot = await ensureThreadDataRoot(
-      join(app.getPath("userData"), "plugin-scratch"),
-      threadId,
-    );
-    let ledger: Array<Record<string, string>> = [];
-    try {
-      ledger = (await readDesignDocumentLedger(dataRoot))
-        .split("\n")
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as Record<string, string>);
-    } catch {
-      return [];
-    }
-    const byId = new Map<
-      string,
-      { id: string; name: string; brief: string; updatedAt: string }
-    >();
-    const deletedIds = new Set<string>();
-    for (const record of ledger) {
-      const id = record.id ?? "";
-      // P2-16：删除墓碑——之后的条目不再聚合，文档从快照消失。
-      if ((record as { deleted?: boolean }).deleted) {
-        deletedIds.add(id);
-        byId.delete(id);
-        continue;
-      }
-      if (deletedIds.has(id)) continue;
-      const entry = byId.get(id) ?? { id, name: "", brief: "", updatedAt: "" };
-      if (record.name) entry.name = record.name;
-      if (record.brief && !entry.brief) entry.brief = record.brief;
-      const ts =
-        record.editedAt ||
-        record.restoredAt ||
-        record.createdAt ||
-        record.undoneAt ||
-        record.redoneAt;
-      if (ts && ts > entry.updatedAt) entry.updatedAt = ts;
-      byId.set(id, entry);
-    }
-    const documents: unknown[] = [];
-    for (const entry of byId.values()) {
-      if (!entry.name) continue;
-      const docDir = await resolveDesignDocumentDirectory(
-        dataRoot,
-        entry.id,
-      ).catch(() => undefined);
-      if (!docDir) continue;
-      const versionFiles = (await readdir(docDir).catch(() => []))
-        .filter((file) => /^v\d+-/.test(file))
-        .sort(
-          (a, b) =>
-            Number(/^v(\d+)/.exec(a)?.[1] ?? 0) -
-            Number(/^v(\d+)/.exec(b)?.[1] ?? 0),
-        );
-      const head = versionFiles.at(-1);
-      // HEAD 标记（恢复指针）优先：内容 <seq>-<rev>，指向恢复来源版本
-      const marker = (
-        await readDesignDocumentVersionBytes(
-          dataRoot,
-          docDir,
-          "HEAD",
-          1024,
-        ).catch(() => Buffer.alloc(0))
-      )
-        .toString("utf8")
-        .trim();
-      const markerSeq = marker.split("-")[0] ?? "";
-      const markerRev = marker.split("-")[1] ?? "";
-      const headEntry = versionFiles.find(
-        (file) =>
-          !!marker &&
-          String(/^v(\d+)/.exec(file)?.[1] ?? "") === markerSeq &&
-          (/^v\d+-(.+)\.html$/.exec(file)?.[1] ?? "") === markerRev,
-      );
-      const headFile = headEntry ?? head;
-      documents.push({
-        documentId: entry.id,
-        name: entry.name,
-        brief: entry.brief,
-        headRevision: headFile
-          ? (/^v\d+-(.+)\.html$/.exec(headFile)?.[1] ?? null)
-          : null,
-        versionCount: versionFiles.length,
-        ...(entry.updatedAt ? { updatedAt: entry.updatedAt } : {}),
-      });
-    }
-    return documents;
   }
 
   // P1-3：项目文件读取管线已抽出为 design-plugin-project-files.ts
@@ -10838,37 +10733,7 @@ function registerIpc(): void {
    * 同构）。
    */
 
-  /** 导出文件名：优先账本显示名（customer.html），回退版本文件名。 */
-  async function readDesignDocumentName(
-    dataRoot: string,
-    documentId: string,
-    fallback: string,
-  ): Promise<string> {
-    try {
-      const ledgerText = await readDesignDocumentLedger(dataRoot);
-      let deleted = false;
-      for (const line of ledgerText.split("\n")) {
-        if (!line.trim()) continue;
-        const record = JSON.parse(line) as {
-          id?: string;
-          name?: string;
-          deleted?: boolean;
-        };
-        if (record.id !== documentId) continue;
-        if (record.deleted) {
-          deleted = true;
-          continue;
-        }
-        if (record.name && !deleted)
-          return sanitizeDesignExportName(record.name);
-      }
-    } catch {
-      /* 账本缺失时回退到版本文件名 */
-    }
-    return fallback;
-  }
-
-  /** 导出文件名净化：账本名可能带路径分隔符，压平成安全文件名。 */
+  /** 导出文件名净化：路径压平成安全文件名（上游 exportProjectFile 用）。 */
   function sanitizeDesignExportName(name: string): string {
     const base = basename(name.replace(/\\/g, "/")).trim();
     if (!base || base === "." || base === "..") return "design-document.html";
@@ -10961,32 +10826,13 @@ function registerIpc(): void {
       }
       if (!rootReal) return {};
       if (!rel || rel.includes("..") || rel.startsWith("/")) return {};
-      const dirReal = rootReal;
-      const target = join(dirReal, rel);
-      const targetReal = await realpath(target).catch(() => undefined);
-      if (
-        !targetReal ||
-        (targetReal !== dirReal && !targetReal.startsWith(dirReal + sep))
-      )
-        return {};
-      const ext = extname(targetReal).toLowerCase();
-      const mime = DESIGN_IMAGE_MIME_TABLE[ext];
+      const target = resolve(rootReal, rel);
+      const read = await readWorkspaceFileBytes(rootReal, target, 2 * 1024 * 1024);
+      if (!read) return {};
+      const ext = extname(rel).toLowerCase();
+      const mime = DESIGN_IMAGE_MIME[ext];
       if (!mime) return {};
-      let handle: Awaited<ReturnType<typeof open>> | undefined;
-      try {
-        handle = await open(
-          targetReal,
-          fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
-        ).catch(() => undefined);
-        if (!handle) return {};
-        const meta = await handle.stat();
-        if (!meta.isFile() || meta.size > 2 * 1024 * 1024) return {};
-        const bytes = Buffer.alloc(meta.size);
-        await handle.read(bytes, 0, bytes.length, 0);
-        return { dataUrl: `data:${mime};base64,${bytes.toString("base64")}` };
-      } finally {
-        await handle?.close().catch(() => undefined);
-      }
+      return { dataUrl: `data:${mime};base64,${read.bytes.toString("base64")}` };
     },
     /** 项目文件只读读取（「代码」视图原文文本）：路径封死在工作区内，限文本扩展。
      * P1-3 安全校验与内联管线见 design-plugin-project-files.ts。 */
@@ -11062,38 +10908,26 @@ function registerIpc(): void {
       return workspaceHtmlPreview.open(input.threadId, String(input.path));
     },
     exportDocument: async (input) => {
-      if (!store || !pluginDispatch) throw new Error("Export unavailable.");
+      // 账本退役：导出对象=工作区文件（panel-project:<path>）
+      if (!store) throw new Error("Export unavailable.");
       const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding)
-        throw new Error("Thread has no plugin binding.");
-      const documentId = requireDesignDocumentId(input.documentId);
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      const documentDir = await resolveDesignDocumentDirectory(
-        dataRoot,
-        documentId,
-      );
-      const entries = await readdir(documentDir).catch(() => []);
-      // 指定 revision 时精确匹配；默认导出 HEAD 当前版本（P2-13）。
-      const source = input.revision
-        ? entries.find((entry) => entry.endsWith(`-${input.revision}.html`))
-        : await resolveHeadVersionEntry(dataRoot, documentDir, entries);
-      if (!source) throw new Error("No version file for the document.");
-      const bytes = await readDesignDocumentVersionBytes(
-        dataRoot,
-        documentDir,
-        source,
-      );
-      const revision = /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "";
-      // P2-16：真实下载——保存对话框由用户选目的地，取消则如实返回
-      //（此前只写进宿主私有目录就弹「已下载」）。
-      const displayName = await readDesignDocumentName(
-        dataRoot,
-        documentId,
-        source,
-      );
+      if (!thread?.projectId)
+        throw new Error("设计模式仅在项目会话中可用。");
+      const raw = String(input.documentId ?? "");
+      if (!raw.startsWith("panel-project:"))
+        throw new Error("此对象不支持导出。");
+      const rel = raw.slice("panel-project:".length);
+      const workspace = await resolveThreadWorkspace(thread);
+      const abs = resolve(workspace.workspacePath, rel);
+      if (
+        !abs.startsWith(resolve(workspace.workspacePath) + sep) ||
+        !/\.html?$/i.test(abs)
+      )
+        throw new Error("Invalid project file path.");
+      const bytes = await readFile(abs).catch(() => undefined);
+      if (!bytes) throw new Error("项目文件不存在或不可读。");
+      const revision = "";
+      const displayName = rel.split("/").pop() || "document.html";
       const parent =
         BrowserWindow.getFocusedWindow() ??
         BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
@@ -11114,7 +10948,7 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-exported",
-          documentId,
+          documentId: raw,
           revision,
           destination: save.filePath,
         },
@@ -11122,165 +10956,92 @@ function registerIpc(): void {
       return { path: save.filePath, revision };
     },
     readDocument: async (input) => {
+      // 账本退役：读取对象=工作区文件（panel-project:<path> 或裸路径）
       if (!store) return undefined;
       const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding) return undefined;
-      const documentId = requireDesignDocumentId(input.documentId);
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      const documentDir = await resolveDesignDocumentDirectory(
-        dataRoot,
-        documentId,
-      );
-      const entries = await readdir(documentDir).catch(() => []);
-      // P2-13：按 HEAD 指针选版本（撤销后预览跟随回拨，不再显示被撤销内容）。
-      const source = await resolveHeadVersionEntry(
-        dataRoot,
-        documentDir,
-        entries,
-      );
-      if (!source) return undefined;
-      // 显示名取账本的文档名（customer.html），而非版本文件名（v2-xxx.html）。
-      let displayName = documentId;
-      try {
-        const ledgerText = await readDesignDocumentLedger(dataRoot);
-        for (const line of ledgerText.split("\n")) {
-          if (!line.trim()) continue;
-          const record = JSON.parse(line) as {
-            id?: string;
-            name?: string;
-          };
-          if (record.id === documentId && record.name) {
-            displayName = record.name;
-            break;
-          }
-        }
-      } catch {
-        /* 账本缺失时回退到 documentId */
-      }
-      return {
-        html: (
-          await readDesignDocumentVersionBytes(dataRoot, documentDir, source)
-        ).toString("utf8"),
-        name: displayName,
-      };
+      if (!thread?.projectId) return undefined;
+      const raw = String(input.documentId ?? "");
+      const rel = raw.startsWith("panel-project:")
+        ? raw.slice("panel-project:".length)
+        : raw;
+      if (!rel || rel.includes("..") || !/\.html?$/i.test(rel)) return undefined;
+      const workspace = await resolveThreadWorkspace(thread);
+      const abs = resolve(workspace.workspacePath, rel);
+      if (!abs.startsWith(resolve(workspace.workspacePath) + sep))
+        return undefined;
+      const html = await readFile(abs, "utf8").catch(() => undefined);
+      if (html === undefined) return undefined;
+      return { html, name: rel.split("/").pop() ?? rel };
     },
     listDocuments: async (input) => {
-      if (!pluginDispatch) throw new Error("Dispatch unavailable.");
-      const outcome = await pluginDispatch.dispatch({
-        threadId: input.threadId,
-        toolName: "get_snapshot",
-        args: {},
-        mode: "work",
-      });
-      let documents: unknown[] = [];
-      if (outcome.status === "succeeded" && outcome.result) {
-        try {
-          const parsed = JSON.parse(
-            (outcome.result as { output?: string }).output ?? "{}",
-          ) as { documents?: unknown[] };
-          documents = parsed.documents ?? [];
-        } catch {
-          documents = [];
-        }
-      }
+      // 账本退役：清单=工作区扫描（与 deliverDesignSnapshot 同一来源）
       const thread = store?.getThread(input.threadId);
       const project = thread?.projectId
         ? store?.getProject(thread.projectId)
         : undefined;
+      let projectFiles = selectedDesignProjectFiles.get(input.threadId) ?? [];
+      if (thread?.projectId) {
+        try {
+          const workspace = await resolveThreadWorkspace(thread);
+          const scanned = await scanProjectDesignFiles(workspace.workspacePath);
+          const selected = new Set(projectFiles.map((f) => f.path));
+          projectFiles = [
+            ...projectFiles,
+            ...scanned.filter((f) => !selected.has(f.path)),
+          ];
+        } catch (error) {
+          console.error("[design-panel] project scan failed", error);
+        }
+      }
       return {
-        documents,
-        projectFiles: selectedDesignProjectFiles.get(input.threadId) ?? [],
+        documents: [],
+        projectFiles,
         canOpenProject: Boolean(thread?.projectId),
         projectName: project?.name ?? "设计任务",
       };
     },
-    handoff: createDesignHandoffHandler(() => store, app.getPath("userData")),
+    handoff: createDesignHandoffHandler(() => store, resolveThreadWorkspace),
     restoreDocument: async (input) => {
-      if (!store || !pluginDispatch) {
-        return { ok: false, error: "Restore unavailable." };
-      }
+      // 账本退役：恢复=把薄快照内容写回工作区文件。写入走原工作区写入门禁
+      // 之外的面板专用通道，但保留 Plan 模式拒绝（P1-7 语义不变）。
+      if (!store) return { ok: false, error: "Restore unavailable." };
       const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding) {
-        return { ok: false, error: "Thread has no plugin binding." };
+      if (!thread?.projectId) {
+        return { ok: false, error: "设计历史仅项目会话可用。" };
       }
-      // P1-7：恢复 = 把历史版本写成新版本，是文件写入。必须在任何目录
-      // 创建、文件写入或 runtime 调用之前按「持久化的任务模式」门禁——
-      // Plan/Review 一律拒绝（面板按钮禁用只是辅助，不能作为边界）。
       if (!isExecutionMode(thread.mode)) {
         return {
           ok: false,
           error: "当前任务处于 Plan 模式，恢复版本需要写入文件，已被拒绝。",
         };
       }
-      const documentId = requireDesignDocumentId(input.documentId);
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      const documentDir = await resolveDesignDocumentDirectory(
-        dataRoot,
-        documentId,
-      );
-      const versionSequence = (entry: string): number =>
-        Number(/^v(\d+)-/.exec(entry)?.[1] ?? 0);
-      const entries = (await readdir(documentDir).catch(() => []))
-        .filter((entry) => /^v\d+-[0-9a-f]+\.html$/.test(entry))
-        .sort((a, b) => versionSequence(a) - versionSequence(b));
-      if (entries.length === 0) {
+      const raw = String(input.documentId ?? "");
+      if (!raw.startsWith("panel-project:"))
+        return { ok: false, error: "此对象没有版本历史。" };
+      const rel = raw.slice("panel-project:".length);
+      const workspace = await resolveThreadWorkspace(thread);
+      const versions = await listDesignThinVersions(workspace.workspacePath, rel);
+      if (versions.length === 0) {
         return { ok: false, error: "暂无可恢复的历史版本。" };
       }
-      const operationId = `panel-restore-${randomUUID()}`;
-      // OD 语义：恢复 = 把目标版本存成新版本（runtime restore_version，
-      // append-only）。任何历史版本都可恢复；点当前版本由 runtime 拒绝。
-      const outcome = await pluginDispatch.dispatch({
-        threadId: input.threadId,
-        toolName: "restore_version",
-        args: {
-          documentId,
-          ...(input.revision ? { revision: input.revision } : {}),
-          operationId,
-        },
-        mode: "work",
-      });
-      if (outcome.status !== "succeeded") {
-        return {
-          ok: false,
-          error: outcome.error || "runtime 拒绝了恢复请求。",
-        };
-      }
-      let restoredFile: string | undefined;
-      try {
-        const parsed = JSON.parse(
-          (outcome.result as { output?: string }).output ?? "{}",
-        ) as { revision?: string; version?: number };
-        restoredFile =
-          parsed.revision && parsed.version
-            ? `v${parsed.version}-${parsed.revision}.html`
-            : undefined;
-      } catch {
-        restoredFile = undefined;
-      }
-      if (!restoredFile) {
-        // 兜底：恢复后 HEAD 已推进，按 HEAD 选新当前版本（P2-13）。
-        restoredFile = await resolveHeadVersionEntry(
-          dataRoot,
-          documentDir,
-          await readdir(documentDir).catch(() => []),
-        );
-      }
-      if (!restoredFile) {
+      // revision 缺省=最新一份；restore 的 file 参数由 revision 匹配
+      const target = input.revision
+        ? versions.find((v) => v.revision === input.revision)
+        : versions.at(-1);
+      if (!target) return { ok: false, error: "恢复目标不存在。" };
+      const content = await restoreDesignThinVersion(
+        workspace.workspacePath,
+        rel,
+        target.file,
+      );
+      if (content === undefined) {
         return { ok: false, error: "恢复目标不存在。" };
       }
-      const restoredHtml = (
-        await readDesignDocumentVersionBytes(
-          dataRoot,
-          documentDir,
-          restoredFile,
-        )
-      ).toString("utf8");
+      // 恢复动作自身也留一份新快照（audit 链不断）
+      await recordDesignThinSnapshot(workspace.workspacePath, rel, {
+        source: "panel-restore",
+        operationId: target.revision,
+      }).catch(() => undefined);
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/restore`,
@@ -11288,37 +11049,23 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-restored",
-          documentId,
-          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(restoredFile)?.[1] ?? "",
+          documentId: raw,
+          revision: target.revision,
         },
       });
-      return { ok: true, documentHtml: restoredHtml, name: restoredFile };
+      return { ok: true, documentHtml: content, name: target.file };
     },
     captureScreenshot: async (input) => {
-      if (!store || !pluginDispatch) {
-        throw new Error("Screenshot unavailable.");
-      }
+      if (!store) throw new Error("Screenshot unavailable.");
       const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding) {
-        throw new Error("Thread has no plugin binding.");
-      }
-      const documentId = requireDesignDocumentId(input.documentId);
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      const documentDir = await resolveDesignDocumentDirectory(
-        dataRoot,
-        documentId,
-      );
-      const source = await resolveHeadVersionEntry(
-        dataRoot,
-        documentDir,
-        await readdir(documentDir).catch(() => []),
-      );
-      if (!source) throw new Error("No version file for the document.");
-      // P2-16：真实像素捕获——面板预览区域截图为 PNG（此前只是复制 HTML
-      // 还生成 .html.html 文件，纯属误导）。
+      if (!thread?.projectId)
+        throw new Error("设计模式仅在项目会话中可用。");
+      const raw = String(input.documentId ?? "");
+      const rel = raw.startsWith("panel-project:")
+        ? raw.slice("panel-project:".length)
+        : raw;
+      const workspace = await resolveThreadWorkspace(thread);
+      // P2-16：真实像素捕获——面板预览区域截图为 PNG。
       const image = await designPanelHost?.capturePanelArea(
         input.threadId,
         input.panelId,
@@ -11330,10 +11077,13 @@ function registerIpc(): void {
       const screenshotRoot = join(
         app.getPath("userData"),
         "design-screenshots",
-        documentId,
+        encodeURIComponent(rel || "viewport"),
       );
       await mkdir(screenshotRoot, { recursive: true });
-      const destination = join(screenshotRoot, `${source}.png`);
+      const destination = join(
+        screenshotRoot,
+        `${Date.now()}-${Math.round(image.getSize().width)}w.png`,
+      );
       await writeFile(destination, image.toPNG());
       store.appendPluginEvent({
         eventId: randomUUID(),
@@ -11342,31 +11092,38 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-screenshot",
-          documentId,
-          revision: /^v\d+-([0-9a-f]+)\.html$/.exec(source)?.[1] ?? "",
+          documentId: raw,
+          revision: "",
           destination,
         },
       });
       return { path: destination };
     },
     deleteDocument: async (input) => {
+      // 账本退役：删除=删工作区文件（破坏性写入，Plan 拒绝语义不变）
       if (!store) throw new Error("Delete unavailable.");
       const thread = store.getThread(input.threadId);
-      if (!thread?.typeBinding)
-        throw new Error("Thread has no plugin binding.");
-      // 删除是破坏性写入：仅 Execute 任务允许（P1-7 同款门禁）。
+      if (!thread?.projectId) {
+        return { ok: false, error: "设计模式仅在项目会话中可用。" };
+      }
       if (!isExecutionMode(thread.mode)) {
         return {
           ok: false,
           error: "当前任务处于 Plan 模式，删除文档需要写入，已被拒绝。",
         };
       }
-      const documentId = requireDesignDocumentId(input.documentId);
-      const dataRoot = await ensureThreadDataRoot(
-        join(app.getPath("userData"), "plugin-scratch"),
-        input.threadId,
-      );
-      await deleteDesignDocument(dataRoot, documentId);
+      const raw = String(input.documentId ?? "");
+      if (!raw.startsWith("panel-project:"))
+        return { ok: false, error: "此对象不支持删除。" };
+      const rel = raw.slice("panel-project:".length);
+      const workspace = await resolveThreadWorkspace(thread);
+      const abs = resolve(workspace.workspacePath, rel);
+      if (
+        !abs.startsWith(resolve(workspace.workspacePath) + sep) ||
+        !/\.html?$/i.test(abs)
+      )
+        return { ok: false, error: "Invalid project file path." };
+      await rm(abs, { force: true }).catch(() => undefined);
       store.appendPluginEvent({
         eventId: randomUUID(),
         streamId: `thread/${input.threadId}/delete`,
@@ -11374,25 +11131,37 @@ function registerIpc(): void {
         schemaVersion: 1,
         payload: {
           kind: "document-deleted",
-          documentId,
+          documentId: raw,
         },
       });
       pushDesignSnapshotDebounced(input.threadId, input.panelId ?? "workspace");
       return { ok: true };
     },
     listVersions: async (input) => {
-      if (!pluginDispatch) throw new Error("Dispatch unavailable.");
-      const documentId = requireDesignDocumentId(input.documentId);
-      const outcome = await pluginDispatch.dispatch({
-        threadId: input.threadId,
-        toolName: "list_versions",
-        args: { documentId },
-        mode: "work",
-      });
-      if (outcome.status !== "succeeded") {
-        throw new Error(outcome.error ?? "list_versions failed.");
-      }
-      return outcome.result;
+      // 账本退役：历史=工作区文件薄快照。绑定身份是 panel-project:<path>
+      //（托管文档身份已不存在）。
+      const raw = String(input.documentId ?? "");
+      if (!raw.startsWith("panel-project:"))
+        throw new Error("此对象没有版本历史。");
+      const rel = raw.slice("panel-project:".length);
+      const thread = store?.getThread(input.threadId);
+      if (!thread?.projectId) throw new Error("设计历史仅项目会话可用。");
+      const workspace = await resolveThreadWorkspace(thread);
+      const versions = await listDesignThinVersions(
+        workspace.workspacePath,
+        rel,
+      );
+      return {
+        output: JSON.stringify({
+          documentId: raw,
+          versions: versions.map((v) => ({
+            revision: v.revision,
+            sequence: v.sequence,
+            file: v.file,
+            occurredAt: v.occurredAt,
+          })),
+        }),
+      };
     },
   });
   // Candidate prompts flow main -> renderer; the panel never gets a channel.

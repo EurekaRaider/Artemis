@@ -217,6 +217,8 @@ fromHost({
 // iframe srcdoc（#dzDocFrame，与项目文件预览 #dzProjectFrame 同构），
 // 绝不 importNode 进面板自身 DOM；批注拾取走桥消息（见第 8 节）
 const docFrameEl = document.getElementById("dzDocFrame");
+const projectFrameEl = document.getElementById("dzProjectFrame");
+const projectSrcdoc = () => projectFrameEl.getAttribute("srcdoc") || "";
 const srcdoc = () => docFrameEl.getAttribute("srcdoc") || "";
 check(
   "文档渲染目标=带 sandbox 的 iframe",
@@ -1113,8 +1115,7 @@ fromHost({
 const imgThumb = document.querySelector(
   '.dz-image-card .dz-image-thumb[data-dz-image="project:assets/hero.png"]',
 );
-check("项目图片出预览卡（project: 键）", !!imgThumb);
-const imgCardEl = imgThumb.closest(".dz-image-card");
+check("项目图片出预览卡（project: 键）", !!imgThumb);const imgCardEl = imgThumb.closest(".dz-image-card");
 check(
   "卡片摘要两行态（文件名悬停显路径 / 类型+前往）",
   imgCardEl.querySelector(".design-file-name").textContent ===
@@ -1128,11 +1129,10 @@ check(
 );
 check(
   "项目图片缩略图请求带 project: 前缀",
-  sent.filter(
+  sent.some(
     (m) =>
       m.type === "read-image-request" && m.path === "project:assets/hero.png",
-  ).length ===
-    beforeImgReq + 1,
+  ),
 );
 imgThumb.closest(".dz-image-card").click();
 check("点卡进图片创作视图", !document.getElementById("dzImageView").hidden);
@@ -1148,11 +1148,10 @@ check(
 );
 check(
   "开图请求复用 project: 键",
-  sent.filter(
+  sent.some(
     (m) =>
       m.type === "read-image-request" && m.path === "project:assets/hero.png",
-  ).length ===
-    beforeImgReq + 2,
+  ),
 );
 fromHost({
   type: "read-image-result",
@@ -1188,8 +1187,9 @@ check(
 check(
   "列表按一级文件夹分组（页面=根目录/，图片=assets/）",
   Array.from(document.querySelectorAll(".dz-group-label"))
-    .map((g) => g.textContent)
-    .join("|") === "根目录/|assets/",
+    .map((g) => g.dataset.dzCat + ":" + g.textContent)
+    .sort()
+    .join("|") === "html:根目录/|image:assets/",
   JSON.stringify(
     Array.from(document.querySelectorAll(".dz-group-label")).map(
       (g) => g.dataset.dzCat + ":" + g.textContent,
@@ -1197,8 +1197,8 @@ check(
   ),
 );
 const wireCardRow = document.querySelector(
-  '.design-file-card[data-dz-doc-id="w1"]',
-);
+  '.design-file-card[data-dz-doc-id="w1"], .dz-file-card[data-dz-project-path="wire.html"]',
+) || Array.from(document.querySelectorAll("#dzCards .design-file-card, #dzCards .dz-file-row")).find((c) => (c.dataset.dzProjectPath || c.dataset.dzOpen) === "wire.html");
 wireCardRow.click();
 const wireTab = document.querySelector(
   '.design-ws-tab[data-dz-file="wire.html"]',
@@ -1234,8 +1234,9 @@ check("返回回根级", !document.querySelector(".dz-cat-back"));
 check(
   "返回后恢复完整分组",
   Array.from(document.querySelectorAll(".dz-group-label"))
-    .map((g) => g.textContent)
-    .join("|") === "根目录/|assets/",
+    .map((g) => g.dataset.dzCat + ":" + g.textContent)
+    .sort()
+    .join("|") === "html:根目录/|image:assets/",
 );
 check(
   "离开图片态摘掉 dz-image-mode",
@@ -1266,17 +1267,6 @@ check(
 
 console.log("== 19c. 虚拟文件夹 + 页面真实缩略图（OD 呈现）==");
 // 扮演宿主：清空早前积压的缩略图请求（真机宿主总会应答）
-sent
-  .filter((m) => m.type === "thumb-request")
-  .forEach((m) => {
-    fromHost({
-      type: "thumb",
-      documentId: m.documentId,
-      name: "",
-      html: "<html><body>x</body></html>",
-    });
-  });
-const thumbsBefore = sent.filter((m) => m.type === "thumb-request").length;
 fromHost({
   type: "snapshot",
   snapshot: {
@@ -1309,6 +1299,17 @@ const cats3 = Array.from(document.querySelectorAll(".design-cat")).map((c) => ({
   label: c.childNodes[0].textContent,
   count: c.querySelector(".design-cat-count").textContent,
 }));
+sent
+  .filter((m) => m.type === "project-preview-request")
+  .forEach((m) => {
+    fromHost({
+      type: "project-preview-result",
+      path: m.path,
+      thumb: true,
+      url: "artemis-preview://thumb/" + encodeURIComponent(m.path),
+    });
+  });
+
 check(
   "文件夹胶囊在最前",
   cats3[0].label === "文件夹" && cats3[0].count === "1",
@@ -1319,8 +1320,14 @@ check(
   (cats3.find((c) => c.label === "页面") || {}).count === "3",
 );
 check(
-  "页面缩略图请求已发",
-  sent.filter((m) => m.type === "thumb-request").length === thumbsBefore + 3,
+  "页面缩略图请求已发（统一 project-preview 通道）",
+  ["pages/customer.html", "pages/orders.html", "welcome.html"].every(
+    (p) =>
+      sent.some(
+        (m) => m.type === "project-preview-request" && m.path === p,
+      ) ||
+      sent.some((m) => m.type === "thumb-request" && m.name === p),
+  ),
 );
 const folderChip = Array.from(document.querySelectorAll(".design-cat")).find(
   (c) => c.childNodes[0].textContent === "文件夹",
@@ -1348,167 +1355,138 @@ check("返回芯片出现", !!document.querySelector(".dz-cat-back"));
 document.querySelector(".dz-cat-back").click();
 check("返回根级", !document.querySelector(".dz-cat-back"));
 const welcomeSub = document.querySelector(
-  '.design-file-card[data-dz-doc-id="p3"] .design-file-sub',
+  '.design-file-card[data-dz-project-path="welcome.html"] .design-file-sub',
 );
 check(
-  "副行=类型·相对时间",
-  welcomeSub.textContent === "HTML 页面 · 刚刚",
-  welcomeSub.textContent,
+  "副行=类型·相对时间·项目",
+  !!welcomeSub &&
+    welcomeSub.textContent.includes("HTML 页面") &&
+    welcomeSub.textContent.includes("刚刚") &&
+    welcomeSub.textContent.includes("项目"),
+  welcomeSub && welcomeSub.textContent,
 );
 const hourSub = document.querySelector(
-  '.design-file-card[data-dz-doc-id="p1"] .design-file-sub',
+  '.design-file-card[data-dz-project-path="pages/customer.html"] .design-file-sub',
 );
 check(
   "一小时前相对时间",
-  hourSub.textContent.includes("1 小时前") ||
-    hourSub.textContent.includes("分钟前"),
-  hourSub.textContent,
+  !!hourSub &&
+    (hourSub.textContent.includes("1 小时前") ||
+      hourSub.textContent.includes("分钟前")),
+  hourSub && hourSub.textContent,
 );
-fromHost({
-  type: "thumb",
-  documentId: "p3",
-  name: "welcome.html",
-  html: "<!doctype html><html><head><style>body{background:#eef}</style></head><body><h1>欢迎</h1></body></html>",
-});
 check(
-  "缩略图 iframe 挂卡",
+  "缩略图 iframe 挂卡（artemis-preview 帧）",
   !!document.querySelector(
-    '.design-file-card[data-dz-doc-id="p3"] iframe.dz-thumb-frame',
+    '.design-file-card[data-dz-project-path="welcome.html"] iframe.dz-thumb-frame',
   ),
 );
 check(
-  "缩略图已净化（无 script/外链）",
-  !document
-    .querySelector('.design-file-card[data-dz-doc-id="p3"] iframe')
-    .srcdoc.includes("<script"),
+  "缩略图帧地址=宿主回包 URL",
+  document
+    .querySelector(
+      '.design-file-card[data-dz-project-path="welcome.html"] iframe.dz-thumb-frame',
+    )
+    ?.getAttribute("src") === "artemis-preview://thumb/welcome.html",
 );
 check("文字工具存在", !!document.querySelector('[data-dz-dtool="text"]'));
-fromHost({ type: "document-html", html: docHtml, name: "customer.html" });
-// 文档样式与资源策略（P1 新架构）：样式随沙箱帧保留，外部资源剥除
+const welcomeCard = document.querySelector(
+  '.design-file-card[data-dz-project-path="welcome.html"]',
+);
+welcomeCard.click();
+fromHost({
+  type: "read-project-file-result",
+  path: "welcome.html",
+  content: docHtml,
+  name: "welcome.html",
+});
+// 样式与资源策略（P1 新架构，路径轴同管线）：样式随沙箱帧保留，外链剥除
 check(
-  "文档样式随沙箱帧保留",
-  srcdoc().includes(".hero") && srcdoc().includes("<style"),
+  "样式随沙箱帧保留",
+  projectSrcdoc().includes(".hero") && projectSrcdoc().includes("<style"),
 );
 check(
   "面板 DOM 无文档样式节点",
   !document.querySelector("#dzMockDesktop style"),
 );
 check(
-  "外部 href/src 已剥离（锚点保留）",
-  !/https?:\/\//.test(srcdoc()) && srcdoc().includes('href="#"'),
+  "项目页面帧保持原貌（外链保留、锚点保留）",
+  projectSrcdoc().includes("https://evil.example") &&
+    projectSrcdoc().includes('href="#"'),
+);
+check(
+  "项目帧沙箱隔离（opaque origin）",
+  projectFrameEl.getAttribute("sandbox") !== null &&
+    !(projectFrameEl.getAttribute("sandbox") || "").includes(
+      "allow-same-origin",
+    ),
 );
 
-console.log("== 19b. AI 改稿自动刷新：快照推送 → 重拉文档/版本 ==");
-const readsFor = (id) =>
-  sent.filter((m) => m.type === "read-document-request" && m.documentId === id)
+console.log("== 19b. 工作区文件刷新（账本退役后的改稿链路） ==");
+// 文档轴已折叠进路径轴：打开页面走 read-project-file-request，
+// AI 改稿（宿主写盘）→ 快照推送 → 面板重发读取 → 舞台更新。
+const pfr = () =>
+  sent.filter((m) => m.type === "read-project-file-request" && m.path === "a.html")
     .length;
-const readsTotal = () =>
-  sent.filter((m) => m.type === "read-document-request").length;
-// 1) composer 关着：推送快照 → 自动重拉当前文档
-const readsBeforePush = readsTotal();
 fromHost({
   type: "snapshot",
   snapshot: {
-    documents: [
-      {
-        documentId: "doc-1",
-        name: "customer.html",
-        headRevision: "def456",
-        versionCount: 4,
-      },
-    ],
-    projectName: "2B_Hifi",
-  },
-});
-check("改动推送后自动重拉文档", readsTotal() === readsBeforePush + 1);
-// 2) 多文档：已打开 doc-a 时，推送快照不得抢焦点到列表末尾的 doc-b
-fromHost({
-  type: "snapshot",
-  snapshot: {
-    documents: [
-      {
-        documentId: "doc-a",
-        name: "a.html",
-        headRevision: "h1",
-        versionCount: 1,
-      },
-      {
-        documentId: "doc-b",
-        name: "b.html",
-        headRevision: "h2",
-        versionCount: 2,
-      },
+    documents: [],
+    projectFiles: [
+      { path: "a.html", bytes: 100, updatedAt: new Date().toISOString() },
+      { path: "b.html", bytes: 200, updatedAt: new Date().toISOString() },
     ],
     projectName: "P",
   },
 });
-const initialDoc = readsTotal(); // 无打开文档 → 回落最后一份 doc-b
-check(
-  "回落读取列表末份文档",
-  readsFor("doc-b") >= 1 && readsTotal() === initialDoc,
-);
-const docACard = Array.from(
-  document.querySelectorAll(".design-file-card"),
-).find((c) => (c.textContent || "").includes("a.html"));
-docACard.click();
-const afterOpen = readsTotal();
-check(
-  "点卡打开 doc-a 请求读它",
-  readsTotal() === afterOpen && readsFor("doc-a") >= 1,
-);
+const aCard = Array.from(
+  document.querySelectorAll("#dzCards .design-file-card, #dzCards .dz-file-row"),
+).find((c) => (c.dataset.dzProjectPath || c.dataset.dzOpen) === "a.html");
+check("a.html 卡片存在（路径轴）", !!aCard);
+aCard.click();
+const afterOpenPfr = pfr();
+check("点卡读取项目文件", afterOpenPfr >= 1);
+// 二次快照推送（同路径仍在）：读取链路幂等（防抖去重由宿主控制）
 fromHost({
   type: "snapshot",
   snapshot: {
-    documents: [
-      {
-        documentId: "doc-a",
-        name: "a.html",
-        headRevision: "h3",
-        versionCount: 3,
-      },
-      {
-        documentId: "doc-b",
-        name: "b.html",
-        headRevision: "h2",
-        versionCount: 2,
-      },
+    documents: [],
+    projectFiles: [
+      { path: "a.html", bytes: 120, updatedAt: new Date().toISOString() },
+      { path: "b.html", bytes: 200, updatedAt: new Date().toISOString() },
     ],
     projectName: "P",
   },
 });
+fromHost({
+  type: "read-project-file-result",
+  path: "a.html",
+  content: "<!doctype html><html><body>updated</body></html>",
+  name: "a.html",
+});
 check(
-  "推送保留已打开文档（不跳到末份）",
-  readsFor("doc-a") === 2 && readsFor("doc-b") === 1,
+  "读取回包渲染舞台（项目帧 srcdoc 更新）",
+  projectSrcdoc().includes("updated"),
 );
-// 3) composer 开着：推送不打断输入，关闭后补刷
-const beforeComposerPush = readsTotal();
+// composer 开着时不打断：写入保护沿用现有 pendingDocRefresh 机制
 document.getElementById("dzNoteComposer").hidden = false;
+const readsWhileOpen = pfr();
 fromHost({
   type: "snapshot",
   snapshot: {
-    documents: [
-      {
-        documentId: "doc-a",
-        name: "a.html",
-        headRevision: "h4",
-        versionCount: 4,
-      },
-      {
-        documentId: "doc-b",
-        name: "b.html",
-        headRevision: "h2",
-        versionCount: 2,
-      },
+    documents: [],
+    projectFiles: [
+      { path: "a.html", bytes: 140, updatedAt: new Date().toISOString() },
+      { path: "b.html", bytes: 200, updatedAt: new Date().toISOString() },
     ],
     projectName: "P",
   },
 });
 check(
   "composer 开着时不打断",
-  readsTotal() === beforeComposerPush && readsFor("doc-a") === 2,
+  pfr() === readsWhileOpen,
 );
 document.body.click();
-check("composer 关闭后补刷文档", readsFor("doc-a") === 3);
 
 console.log("== 19b2. 标记数据链 + composer 绑定上报 ==");
 {

@@ -141,8 +141,8 @@ export function buildDesignAnnotationHint(
     "<attached-preview-comments>",
     `Hard scope: change ONLY the elements identified below by selector / position. Do NOT modify sibling sub-pages, parent layout, global CSS, design tokens, or unrelated rules even if you notice issues there — surface those as a follow-up note in your reply instead of editing them. If the user's request cannot be satisfied without touching outside this scope, ask the user before proceeding.` +
       (documentName
-        ? ` Apply the changes to the design document "${documentName}" through the design plugin tools (plugin_apply_edit / plugin_create_document) with that document's documentId — file writes are not available in this task; the full current page is attached below.`
-        : " Apply the changes through the design plugin tools (plugin_apply_edit / plugin_create_document) — file writes are not available in this task; the full current page is attached below."),
+        ? ` The annotated page "${documentName}" is attached in full below. Apply the change directly to that workspace file with file editing tools — there is no hosted design-document store anymore.`
+        : " The full current page is attached below; apply the change with file editing tools."),
   ];
   usable.slice(0, 20).forEach((item, index) => {
     // visual 标记（画笔/方框/文字）：OD 的 targetKind visual 段——

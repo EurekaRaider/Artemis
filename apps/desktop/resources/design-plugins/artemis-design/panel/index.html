@@ -4666,6 +4666,16 @@
           }
 
           function dzRenderFiles(documents, projectFiles) {
+            // 托管账本退役：documents 轴不再存在，任何传入条目（遗留宿主/
+            // 旧测试）按其 name 折进路径轴，统一走工作区文件渲染。
+            var folded = (projectFiles || []).slice();
+            (documents || []).forEach(function (d) {
+              if (d && typeof d.name === "string" && d.name &&
+                  !folded.some(function (f) { return f.path === d.name; }))
+                folded.push({ path: d.name, bytes: 0, updatedAt: d.updatedAt });
+            });
+            projectFiles = folded;
+            documents = [];
             // 三层快照兜底（就绪拉取/首推/补推）会让首开收到 2-3 次同一快照——
             // 内容签名未变且已渲染过时跳过全量重建，消掉"闪一下"。
             // 当前文件夹并入签名：点文件夹/返回的重渲染靠它放行
@@ -4719,7 +4729,11 @@
             var visibleDocs = dzInFolder(documents, dzCurrentFolder);
             var visibleProject = dzInFolder(
               projectFiles.map(function (f) {
-                return { name: f.path, bytes: f.bytes };
+                return {
+                  name: f.path,
+                  bytes: f.bytes,
+                  updatedAt: f.updatedAt,
+                };
               }),
               dzCurrentFolder,
             );
@@ -4737,7 +4751,11 @@
               (buckets[k] = buckets[k] || []).push(d);
             });
             var projectRows = visibleProject.map(function (f) {
-              return { name: f.name, bytes: f.bytes };
+              return {
+                name: f.name,
+                bytes: f.bytes,
+                updatedAt: f.updatedAt,
+              };
             });
             var folders = dzFolderEntries(
               visibleDocs.concat(projectRows),
@@ -5007,6 +5025,8 @@
               var kind = dzKindFor(file.name);
               var meta = dzSectionMeta(kind);
               var name = relName(file);
+              var time = dzRelativeTime(file.updatedAt);
+              var subSuffix = time ? " · " + time : "";
               var kb =
                 file.bytes > 0 ? (file.bytes / 1024).toFixed(1) + " KiB" : "";
               if (kind === "html") {
@@ -5027,10 +5047,27 @@
                 nameEl.textContent = cardBase;
                 nameEl.dataset.tip = name;
                 card.querySelector(".design-file-sub").textContent =
-                  meta[2] + (kb ? " · " + kb : "") + " · 项目";
+                  meta[2] +
+                  subSuffix +
+                  (kb ? " · " + kb : "") +
+                  " · 项目";
                 card
                   .querySelector(".dz-file-open")
                   .setAttribute("data-dz-goto", name);
+                card.insertAdjacentHTML(
+                  "beforeend",
+                  '<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>',
+                );
+                var menuBtn = card.querySelector(".design-file-menu");
+                menuBtn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  dzOpenFileMenu(menuBtn, card, file.name);
+                });
+                menuBtn.addEventListener("keydown", function (e) {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  dzOpenFileMenu(menuBtn, card, file.name);
+                });
                 card.addEventListener("click", function () {
                   dzOpenProjectFile(file.name);
                 });
@@ -5060,10 +5097,27 @@
                 pNameEl.textContent = imgCardBase;
                 pNameEl.dataset.tip = name;
                 imgCard.querySelector(".design-file-sub").textContent =
-                  meta[2] + (kb ? " · " + kb : "") + " · 项目";
+                  meta[2] +
+                  subSuffix +
+                  (kb ? " · " + kb : "") +
+                  " · 项目";
                 imgCard
                   .querySelector(".dz-file-open")
                   .setAttribute("data-dz-goto", name);
+                imgCard.insertAdjacentHTML(
+                  "beforeend",
+                  '<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>',
+                );
+                var imgMenuBtn = imgCard.querySelector(".design-file-menu");
+                imgMenuBtn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  dzOpenFileMenu(imgMenuBtn, imgCard, file.name);
+                });
+                imgMenuBtn.addEventListener("keydown", function (e) {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  dzOpenFileMenu(imgMenuBtn, imgCard, file.name);
+                });
                 imgCard.addEventListener("click", function () {
                   dzOpenImage({
                     imageKey: "project:" + file.name,
@@ -5874,7 +5928,13 @@
               pop.style.overflowY = "";
             }
           }
-          function dzOpenFileMenu(menuBtn, card, doc) {
+          function dzOpenFileMenu(menuBtn, card, docOrPath) {
+            // 统一路径轴：调用方可传工作区路径字符串（项目文件卡）或遗留
+            // 文档对象；删除/导出走 panel-project:<path> 合成绑定
+            const doc =
+              typeof docOrPath === "string"
+                ? { documentId: "panel-project:" + docOrPath, name: docOrPath }
+                : docOrPath;
             if (dzFileMenuPop) {
               dzCloseFileMenu();
               return;
