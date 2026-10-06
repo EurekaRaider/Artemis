@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { renderToString } from "react-dom/server";
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -162,6 +168,24 @@ describe("data display public contract", () => {
     expect(document.activeElement).toBe(
       screen.getByRole("gridcell", { name: "8 August, 70 tokens" }),
     );
+  });
+
+  it("restores the keyboard-focused tooltip when the pointer leaves", () => {
+    render(<ControlledHeatmap />);
+    const grid = screen.getByRole("grid");
+    const first = screen.getByRole("gridcell", { name: cells[0]!.label });
+    const second = screen.getByRole("gridcell", { name: cells[1]!.label });
+    act(() => first.focus());
+    fireEvent.mouseEnter(second);
+    expect(screen.getByRole("tooltip").textContent).toBe(cells[1]!.label);
+    fireEvent.mouseLeave(grid);
+    expect(document.activeElement).toBe(first);
+    expect(screen.getByRole("tooltip").textContent).toBe(cells[0]!.label);
+    act(() => first.blur());
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.mouseEnter(second);
+    fireEvent.mouseLeave(grid);
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("rejects imperceptible surface, heatmap, and cell labels", () => {

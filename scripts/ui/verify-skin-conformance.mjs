@@ -843,14 +843,14 @@ const expectedCssRules = new Map([
     { transform: "translateX(0)" },
   ],
   [
-    'normal|[data-artemis-component="switch"][data-state="checked"] [data-part="track"]',
+    'normal|[data-artemis-component="switch"]:has([data-part="control"]:checked) [data-part="track"]',
     {
       background: "var(--artemis-color-accent-primary)",
       "border-color": "var(--artemis-color-accent-primary)",
     },
   ],
   [
-    'normal|[data-artemis-component="switch"][data-state="checked"] [data-part="thumb"]',
+    'normal|[data-artemis-component="switch"]:has([data-part="control"]:checked) [data-part="thumb"]',
     {
       /* 恒白圆钮（iOS 范式）：accent 轨道深浅主题都用白，见 ui-convergence 允许清单。 */
       background: "#fff",
@@ -859,18 +859,18 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="switch"][data-size="compact"][data-state="checked"] [data-part="thumb"]',
+    'normal|[data-artemis-component="switch"][data-size="compact"]:has([data-part="control"]:checked) [data-part="thumb"]',
     { transform: "translateX(var(--artemis-space-4))" },
   ],
   [
-    'normal|[dir="rtl"] [data-artemis-component="switch"][data-state="checked"] [data-part="thumb"]',
+    'normal|[dir="rtl"] [data-artemis-component="switch"]:has([data-part="control"]:checked) [data-part="thumb"]',
     {
       transform:
         "translateX( calc((var(--artemis-space-4) + var(--artemis-space-1)) * -1) )",
     },
   ],
   [
-    'normal|[dir="rtl"] [data-artemis-component="switch"][data-size="compact"][data-state="checked"] [data-part="thumb"]',
+    'normal|[dir="rtl"] [data-artemis-component="switch"][data-size="compact"]:has([data-part="control"]:checked) [data-part="thumb"]',
     { transform: "translateX(calc(var(--artemis-space-4) * -1))" },
   ],
   [

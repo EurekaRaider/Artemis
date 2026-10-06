@@ -434,6 +434,14 @@
         flex-direction: column;
         background: var(--artemis-color-surface-raised);
       }
+      .dz-image-mode #dzStage,
+      .dz-image-mode #dzDocFrame,
+      .dz-image-mode .dz-toolbar {
+        display: none;
+      }
+      .dz-image-view {
+        z-index: 2;
+      }
       .dz-image-view[hidden] {
         display: none;
       }
@@ -487,19 +495,73 @@
       .dz-image-actions {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 10px 14px;
-        border-block-start: 1px solid var(--artemis-color-border-subtle);
+        gap: 8px;
+        padding: 12px 16px;
+        border-block-start: 1px solid var(--border-soft);
+        background: var(--surface);
+      }
+      .dz-image-actions .btn-quiet {
+        padding: 6px 8px;
+        font-size: 12px;
+        font-weight: 450;
+        white-space: nowrap;
       }
       .dz-image-prompt {
         flex: 1;
         min-width: 0;
-        font-size: 13px;
-        padding: 7px 10px;
-        color: var(--artemis-color-text-primary);
-        background: var(--artemis-color-surface);
-        border: 1px solid var(--artemis-color-border-default);
-        border-radius: 8px;
+        height: 34px;
+        font: inherit;
+        font-size: 12px;
+        padding: 0 11px;
+        color: var(--text);
+        background: var(--surface-2);
+        border: 1px solid var(--border-soft);
+        border-radius: 9px;
+      }
+      .dz-image-prompt::placeholder {
+        color: var(--text-3);
+      }
+      .dz-image-send {
+        flex: none;
+        height: 34px;
+        padding: 0 11px;
+        gap: 7px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-3);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition:
+          background var(--t-quick),
+          border-color var(--t-quick);
+      }
+      .dz-image-send:hover {
+        background: var(--selected);
+        border-color: var(--text-3);
+        filter: none;
+      }
+      .dz-image-send:active {
+        background: var(--surface-2);
+      }
+      .dz-image-send:focus-visible,
+      .dz-image-prompt:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
+      @media (max-width: 440px) {
+        .dz-image-actions {
+          flex-wrap: wrap;
+          padding: 10px;
+        }
+        .dz-image-prompt {
+          order: -1;
+          flex-basis: 100%;
+        }
+        .dz-image-send {
+          margin-inline-start: auto;
+        }
       }
       /* 图片预览卡缩略图：直接把 dataURL 画成背景 */
       .dz-image-thumb {
@@ -3388,8 +3450,26 @@
                 placeholder="描述这张图的修改…"
                 type="text"
               />
-              <button class="btn btn-primary" id="dzImageSend" type="button">
-                发送到输入框
+              <button
+                class="btn dz-image-send"
+                id="dzImageSend"
+                type="button"
+                title="将图片和修改要求加入聊天输入框"
+              >
+                <span>加入输入框</span>
+                <svg
+                  aria-hidden="true"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M7 17 17 7M7 7h10v10" />
+                </svg>
               </button>
             </div>
           </div>
@@ -4068,6 +4148,10 @@
           }
           function dzShow(view, file, opts) {
             var files = view === "files";
+            dzViewPreview.classList.remove("dz-image-mode");
+            $("#dzImageView").hidden = true;
+            dzImageSelection = null;
+            $("#dzImageSelRect").hidden = true;
             dzCloseMenus();
             // 视图切换即离开图片创作态（dzOpenImage 在此后重设旗标）
             var imageView = $("#dzImageView");
@@ -4208,7 +4292,9 @@
                   var nextName = remaining[0].dataset.dzFile;
 
                   var nextDoc = dzDocByName(nextName);
-                  if (nextDoc) {
+                  if (nextName.startsWith("image-view:")) {
+                    dzOpenImage({ path: nextName.slice(11) });
+                  } else if (nextDoc) {
                     dzProjectView = null; // 文档 tab 退出项目只读态
                     dzOpenDocument(nextDoc);
                   } else if (dzIsProjectFile(nextName)) {
@@ -4219,6 +4305,10 @@
               return;
             }
 
+            if (tab.dataset.dzFile.startsWith("image-view:")) {
+              dzOpenImage({ path: tab.dataset.dzFile.slice(11) });
+              return;
+            }
             var doc = dzDocByName(tab.dataset.dzFile);
             if (doc) {
               dzProjectView = null; // 文档 tab 退出项目只读态
@@ -4241,6 +4331,7 @@
           var DZ_SECTION_ORDER = [
             ["html", "页面", "HTML 页面"],
             ["image", "图片", "图片"],
+            ["binary", "其它", "文件"],
           ];
           function dzKindFor(name) {
             var n = String(name || "");
@@ -4577,7 +4668,7 @@
               "\u0000" +
               dzSnapshotSig(documents || [], projectFiles || []) +
               "\u0000" +
-              dzLastImages.length +
+              dzSnapshotSig([], dzLastImages) +
               "\u0000" +
               String(dzLastImageDir || "");
             if (
@@ -4600,7 +4691,10 @@
             });
             // 空态语义：仅当设计文档与项目文件全空时显示居中引导；
             // 有任何内容时隐藏空态、正常渲染胶囊与卡片。
-            var hasAny = documents.length > 0 || projectFiles.length > 0;
+            var hasAny =
+              documents.length > 0 ||
+              projectFiles.length > 0 ||
+              dzLastImages.length > 0;
             $("#dzStart").hidden = hasAny;
             dzLastDocs = documents;
             dzLastProjectFiles = projectFiles;
@@ -4657,8 +4751,8 @@
               if (count) tabs.push([def[0], def[1], count]);
             });
             // 图片创作目录的图片并入「图片」胶囊计数（渲染为创作卡）。
-            var imageCount = dzLastImages.length;
-            if (imageCount) {
+            var imageCount = dzCurrentFolder ? 0 : dzLastImages.length;
+            if (!dzCurrentFolder) {
               var existing = tabs.find(function (tab) {
                 return tab[0] === "image";
               });
@@ -4818,10 +4912,11 @@
               row.innerHTML =
                 '<span aria-hidden="true" class="dz-row-icon"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path></svg></span>' +
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
-                folder.name +
+                "" +
                 '</span><span class="dz-row-sub">' +
                 folder.count +
                 " 个文件</span></span>";
+              row.querySelector(".dz-row-name").textContent = folder.name;
               row.addEventListener("click", function () {
                 dzCurrentFolder = dzCurrentFolder
                   ? dzCurrentFolder + "/" + folder.name
@@ -4984,11 +5079,12 @@
                 dzExtLabel(file.name) +
                 "</i></span>" +
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
-                name +
+                "" +
                 '</span><span class="dz-row-sub">' +
                 meta[2] +
                 (kb ? " · " + kb : "") +
                 " · 项目</span></span>";
+              row.querySelector(".dz-row-name").textContent = name;
               row.addEventListener("click", function () {
                 dzOpenProjectFile(file.name);
               });
@@ -4996,9 +5092,9 @@
             });
             /* 图片创作卡：指定目录后展示其中图片（预览卡）；目录未指定时
        出一张引导卡（点击选择并记住目录）。仅根级显示引导卡。 */
-            if (dzLastImageDir) {
+            if (dzLastImageDir && !dzCurrentFolder) {
               dzLastImages.forEach(function (img) {
-                var name = relName(img);
+                var name = img.path;
                 var kb =
                   img.bytes > 0 ? (img.bytes / 1024).toFixed(1) + " KiB" : "";
                 var card = document.createElement("button");
@@ -5028,7 +5124,8 @@
                   card.querySelector(".dz-image-thumb"),
                 );
               });
-            } else if (!dzCurrentFolder) {
+            }
+            if (!dzCurrentFolder) {
               var guide = document.createElement("button");
               guide.className = "dz-file-row dz-image-guide";
               guide.type = "button";
@@ -5139,6 +5236,8 @@
                 e.clientY > r.it + r.ih
               )
                 return;
+              dzImageSelection = null;
+              rect.hidden = true;
               drag = { sx: e.clientX, sy: e.clientY };
               stage.setPointerCapture(e.pointerId);
             });
@@ -5150,10 +5249,10 @@
               var x2 = Math.max(r.il, Math.min(e.clientX, r.il + r.iw));
               var y2 = Math.max(r.it, Math.min(e.clientY, r.it + r.ih));
               var box = {
-                left: x1 - r.sl,
-                top: y1 - r.st,
-                width: x2 - x1,
-                height: y2 - y1,
+                left: Math.min(x1, x2) - r.sl,
+                top: Math.min(y1, y2) - r.st,
+                width: Math.abs(x2 - x1),
+                height: Math.abs(y2 - y1),
               };
               rect.style.left = box.left + "px";
               rect.style.top = box.top + "px";
@@ -5162,8 +5261,8 @@
               rect.hidden = false;
               if (img.naturalWidth && box.width > 2 && box.height > 2) {
                 dzImageSelection = {
-                  x: (x1 - r.il) / r.iw,
-                  y: (y1 - r.it) / r.ih,
+                  x: (Math.min(x1, x2) - r.il) / r.iw,
+                  y: (Math.min(y1, y2) - r.it) / r.ih,
                   w: box.width / r.iw,
                   h: box.height / r.ih,
                 };
@@ -5184,7 +5283,7 @@
               dzSendImagePrompt(key, dzImageSelection);
             });
             $("#dzImagePromptInput").addEventListener("keydown", function (e) {
-              if (e.key !== "Enter") return;
+              if (e.key !== "Enter" || e.isComposing) return;
               e.preventDefault();
               var key = $("#dzImageEl").dataset.dzImageKey || "";
               if (!key) return dzToast("未打开图片");
@@ -5212,7 +5311,32 @@
               text: "图片修改：" + text + spec,
             };
             var dataUrl = dzImageDataUrls[imageKey];
-            if (dataUrl) payload.images = [dataUrl];
+            if (!dataUrl) return dzToast("图片尚未加载或无法读取，请重试");
+            if (dataUrl.startsWith("data:image/avif;")) {
+              var image = $("#dzImageEl");
+              if (!image.complete || !image.naturalWidth)
+                return dzToast("图片尚未加载，请重试");
+              var canvas = document.createElement("canvas");
+              var scale = Math.min(
+                1,
+                4096 / Math.max(image.naturalWidth, image.naturalHeight),
+              );
+              canvas.width = Math.max(
+                1,
+                Math.round(image.naturalWidth * scale),
+              );
+              canvas.height = Math.max(
+                1,
+                Math.round(image.naturalHeight * scale),
+              );
+              canvas
+                .getContext("2d")
+                .drawImage(image, 0, 0, canvas.width, canvas.height);
+              dataUrl = canvas.toDataURL("image/png");
+            }
+            if (dataUrl.length > 10 * 1024 * 1024)
+              return dzToast("图片过大，请缩小后重试");
+            payload.images = [dataUrl];
             dzPostCandidate(payload);
             if (input) input.value = "";
             dzImageSelection = null;
@@ -5254,7 +5378,7 @@
             var view = document.querySelector(".design-preview-view");
             if (view) view.classList.add("dz-project-mode");
             var frame = $("#dzProjectFrame");
-            if (!/\.html?$/i.test(path)) {
+            if (!/\.(html?|png|jpe?g|gif|webp|avif)$/i.test(path)) {
               // 非 HTML 没有可视化舞台：直接落源码模式（OD 非页面文件同语义）
               frame.hidden = true;
               dzProjectView.sourceLoaded = true;
@@ -7851,6 +7975,13 @@
                   data.snapshot.canOpenProject !== true;
                 var docs = data.snapshot.documents || [];
                 var projectFiles = data.snapshot.projectFiles || [];
+                if (
+                  dzLastImageDir !== (data.snapshot.imageDir || null) ||
+                  dzSnapshotSig([], dzLastImages) !==
+                    dzSnapshotSig([], data.snapshot.images || [])
+                ) {
+                  dzImageDataUrls = {};
+                }
                 dzLastImageDir = data.snapshot.imageDir || null;
                 dzLastImages = data.snapshot.images || [];
                 // 保留用户已打开的文档（AI 后台改其他文档时不抢焦点）；
@@ -7900,16 +8031,14 @@
                 }
               }
               if (data.type === "read-image-result" && data.path) {
-                var key = String(data.path);
+                var key = String(data.path).replace(/^image-(?:dir|view):/, "");
                 if (data.dataUrl) {
                   dzImageDataUrls[key] = data.dataUrl;
-                  var thumb = document.querySelector(
-                    '.dz-image-thumb[data-dz-image="' +
-                      key.replace(/"/g, '\\"') +
-                      '"]',
-                  );
-                  if (thumb)
-                    thumb.style.backgroundImage = 'url("' + data.dataUrl + '")';
+                  $$(".dz-image-thumb").forEach(function (thumb) {
+                    if (thumb.dataset.dzImage === key)
+                      thumb.style.backgroundImage =
+                        'url("' + data.dataUrl + '")';
+                  });
                   var openEl = $("#dzImageEl");
                   if (
                     !$("#dzImageView").hidden &&
@@ -7930,7 +8059,8 @@
                 return;
               }
               if (data.type === "pick-image-folder-result") {
-                if (data.imageDir) dzToast("图片文件夹已记住");
+                if (data.error) dzToast(data.error);
+                else if (data.imageDir) dzToast("图片文件夹已记住");
                 if (hostPort)
                   hostPort.postMessage({ type: "snapshot-request" });
                 return;
@@ -8007,7 +8137,7 @@
                 dzPostViewBinding(dzProjectView.source);
                 var view = document.querySelector(".design-preview-view");
                 if (view) view.classList.add("dz-project-mode");
-                if (/\.html?$/i.test(data.name)) {
+                if (/\.(html?|png|jpe?g|gif|webp|avif)$/i.test(data.name)) {
                   // 项目 HTML：srcdoc 沙箱 iframe（页面脚本/CDN 可执行，opaque
                   // origin 碰不到面板/宿主）+ 注入批注桥上报 hover/拾取（OD 同构）
                   dzMountProjectFrame(data.content, data.name, data.baseUrl);

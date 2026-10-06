@@ -100,6 +100,8 @@ export interface AgentRuntimeConfiguration {
   computerUseServerId?: string;
   /** Desktop host supplies the trusted command-hook broker. */
   hooksEnabled?: boolean;
+  /** Verified by the desktop host; Office is unavailable unless its pack is active. */
+  officeEnabled?: boolean;
   credentials: Record<string, RuntimeCredential>;
   shell?: ShellRuntimeConfiguration;
   providers?: ProviderConnection[];

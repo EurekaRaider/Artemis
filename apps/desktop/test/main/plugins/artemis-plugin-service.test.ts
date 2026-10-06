@@ -1867,7 +1867,7 @@ describe("ArtemisPluginService", () => {
     ).toContain("may be stale");
   });
 
-  it("exposes all four Lite plugins from packaged resources without a runtime", async () => {
+  it("retains four legacy Office descriptors for existing installation metadata", async () => {
     const root = await temporaryRoot();
     const { service } = createService(root, {
       bundledArtifactRoot,
@@ -1899,11 +1899,9 @@ describe("ArtemisPluginService", () => {
     );
     for (const plugin of marketplace?.plugins ?? []) {
       expect(plugin.skills.map((skill) => skill.name)).toEqual([plugin.name]);
-      expect(plugin.capabilityDependencies ?? []).toEqual(
-        plugin.name === "pdf"
-          ? []
-          : [{ id: "office-core", version: "1.0.0", optional: true }],
-      );
+      expect(plugin.capabilityDependencies ?? []).toEqual([
+        { id: "office-core", version: "1.0.0", optional: true },
+      ]);
       await expect(service.install(plugin.source)).resolves.toMatchObject({
         plugin: { name: plugin.name, installed: true },
       });
@@ -1914,7 +1912,7 @@ describe("ArtemisPluginService", () => {
       expect(skillSource).toContain("`office_document`");
       if (plugin.name !== "pdf")
         expect(skillSource).toContain(
-          "https://github.com/EurekaRaider/Artemis/releases",
+          "The Office suite must be installed and active",
         );
       expect(skillSource).toContain(
         "Do not call `load_workspace_dependencies`",
@@ -1927,7 +1925,7 @@ describe("ArtemisPluginService", () => {
       (await service.listInstalled()).filter(
         (plugin) => plugin.capabilityDependencies?.[0]?.id === "office-core",
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     const reloaded = createService(root, { bundledArtifactRoot }).service;
     expect(
       (await reloaded.listInstalled()).map((plugin) => ({
@@ -1997,7 +1995,7 @@ describe("ArtemisPluginService", () => {
     ).resolves.toContain("User modified.");
   });
 
-  it("updates legacy runtime plugin records to Lite without changing their IDs", async () => {
+  it("updates legacy runtime Office plugin records without changing their IDs", async () => {
     const root = await temporaryRoot();
     const statePath = join(root, "user-data", "plugins.json");
     const firstService = createService(root, { bundledArtifactRoot }).service;

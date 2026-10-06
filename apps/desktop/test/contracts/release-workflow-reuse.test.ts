@@ -41,3 +41,34 @@ it("passes intermediate artifacts through Actions instead of source releases", (
       );
   }
 });
+
+it("archives the workspace dependency closure needed by macOS native verification", () => {
+  const archive = workflow.jobs["sign-macos"].steps.find(
+    (step: any) =>
+      step.name === "Archive signed app and native verification modules",
+  );
+  const archivedPaths = new Set<string>(archive.run.trim().split(/\s+/u));
+  const pending = ["@artemis/platform"];
+  const visited = new Set<string>();
+  while (pending.length) {
+    const name = pending.pop()!;
+    if (visited.has(name)) continue;
+    visited.add(name);
+    const directory = `packages/${name.slice("@artemis/".length)}`;
+    expect(
+      archivedPaths,
+      `Missing native verification module: ${name}`,
+    ).toContain(`${directory}/dist`);
+    const manifest = JSON.parse(
+      readFileSync(
+        new URL(`../../../../${directory}/package.json`, import.meta.url),
+        "utf8",
+      ),
+    );
+    pending.push(
+      ...Object.keys(manifest.dependencies ?? {}).filter((dependency) =>
+        dependency.startsWith("@artemis/"),
+      ),
+    );
+  }
+});

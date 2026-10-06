@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import type { CapabilityPackManifest } from "@artemis/protocol";
 import { afterEach, expect, it, vi } from "vitest";
 import { verifyOfficeNative } from "../../../src/main/office/office-uno-engine.js";
@@ -21,6 +22,7 @@ it("assesses macOS execution while retaining signature and identity checks", asy
       stderr: "TeamIdentifier=TESTTEAM\nflags=runtime",
     });
   }) as typeof execFile);
+  const appPath = join("/pack", "ArtemisOfficeRuntime.app");
   await verifyOfficeNative("/pack", {
     id: "office-core",
     native: { signer: "TESTTEAM" },
@@ -28,17 +30,8 @@ it("assesses macOS execution while retaining signature and identity checks", asy
   expect(
     vi.mocked(execFile).mock.calls.map(([command, args]) => [command, args]),
   ).toEqual([
-    [
-      "/usr/bin/codesign",
-      ["--verify", "--deep", "--strict", "/pack/ArtemisOfficeRuntime.app"],
-    ],
-    [
-      "/usr/bin/codesign",
-      ["-dv", "--verbose=4", "/pack/ArtemisOfficeRuntime.app"],
-    ],
-    [
-      "/usr/sbin/spctl",
-      ["--assess", "--type", "execute", "/pack/ArtemisOfficeRuntime.app"],
-    ],
+    ["/usr/bin/codesign", ["--verify", "--deep", "--strict", appPath]],
+    ["/usr/bin/codesign", ["-dv", "--verbose=4", appPath]],
+    ["/usr/sbin/spctl", ["--assess", "--type", "execute", appPath]],
   ]);
 });

@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "name": "presentations",
   "version": "1.1.0",
-  "description": "Runtime-free basic PowerPoint workflows using Artemis's normalized Office document service.",
+  "description": "Office suite document workflows. Requires the installed and active Office enhancement pack.",
   "skills": "./skills/",
   "interface": {
     "displayName": "Presentations",
-    "shortDescription": "Basic normalized PowerPoint reading and writing.",
+    "shortDescription": "Document workflows within the installed Office suite.",
     "category": "Productivity",
     "brandColor": "#EA580C",
     "logo": "./assets/icon.png"

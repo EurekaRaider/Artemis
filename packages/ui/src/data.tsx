@@ -483,8 +483,12 @@ export function DataHeatmap({
             onActiveCellChange(undefined);
           }
         }}
-        onMouseLeave={() => {
-          if (!disabled) onActiveCellChange(undefined);
+        onMouseLeave={(event) => {
+          if (disabled) return;
+          const focusedIndex = cellRefs.current.findIndex(
+            (cell) => cell === event.currentTarget.ownerDocument.activeElement,
+          );
+          onActiveCellChange(cells[focusedIndex]?.id);
         }}
         role="grid"
       >

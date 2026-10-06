@@ -48,7 +48,7 @@ describe("Office installation controls", () => {
   it("switches an installed pack to management and puts offline maintenance behind a disclosure", async () => {
     fixture();
     expect(
-      await screen.findByRole("dialog", { name: "管理 Office 配置" }),
+      await screen.findByRole("dialog", { name: "管理 Office 套件" }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "导入离线包" }),

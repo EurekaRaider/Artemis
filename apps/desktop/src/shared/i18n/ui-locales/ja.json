@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "有効化中…",
+  "ResourceCenter.disabling": "無効化中…",
   "Model.advanced": "モデルの詳細パラメーター（JSON）",
   "Plan.card": "実施計画",
   "Plan.accepted": "承認済み",

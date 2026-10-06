@@ -264,22 +264,37 @@ export class CapabilityPackService {
       }
     };
     await inspect(directory, "");
-    for (const file of manifest.files) {
-      const path = join(directory, file.path);
-      // Never follow even an interior symlink: release packaging dereferences links.
-      let current = directory;
-      for (const part of file.path.split("/")) {
-        current = join(current, part);
-        if ((await lstat(current)).isSymbolicLink())
+    let nextFile = 0;
+    const validateFiles = async () => {
+      while (nextFile < manifest.files.length) {
+        const file = manifest.files[nextFile++]!;
+        const parts = file.path.split("/");
+        const path = join(directory, file.path);
+        // Recheck ancestors for each file; never reuse a cached symlink check.
+        let current = directory;
+        for (const part of parts.slice(0, -1)) {
+          current = join(current, part);
+          if ((await lstat(current)).isSymbolicLink())
+            throw new Error("Capability contains a symbolic link");
+        }
+        const info = await lstat(path);
+        if (info.isSymbolicLink())
           throw new Error("Capability contains a symbolic link");
+        if (
+          !info.isFile() ||
+          info.size !== file.bytes ||
+          (await fileSha256(path)) !== file.sha256
+        )
+          throw new Error("Capability installation needs repair");
       }
-      const info = await lstat(path);
-      if (
-        !info.isFile() ||
-        info.size !== file.bytes ||
-        (await fileSha256(path)) !== file.sha256
-      )
-        throw new Error("Capability installation needs repair");
+    };
+    // Bound open streams and filesystem pressure. Drain every worker even on
+    // failure before the maintenance lock/lease can be released by the caller.
+    const results = await Promise.allSettled(
+      Array.from({ length: Math.min(8, manifest.files.length) }, validateFiles),
+    );
+    for (const result of results) {
+      if (result.status === "rejected") throw result.reason;
     }
     await this.options.verifyNative(directory, manifest);
   }
@@ -608,7 +623,7 @@ export class CapabilityPackService {
       const version = await this.active();
       if (!version)
         throw new Error(
-          "Office capability pack is not installed. Lite workflows remain available.",
+          "Capability pack is not installed. Install and activate it to use its features.",
         );
       // Take the lease before asynchronous verification, so uninstall cannot race it.
       this.leases.set(version, (this.leases.get(version) ?? 0) + 1);

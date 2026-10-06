@@ -29,16 +29,27 @@ describe("Office upgrade guidance", () => {
         </OfficePreviewGate>,
       );
       expect(
-        await screen.findByText("不支持预览，如需预览请升级office功能"),
+        await screen.findByText("安装 Office 套件后即可预览此文件"),
       ).toBeInTheDocument();
       expect(screen.queryByText(`File.${extension}`)).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "升级 Office 功能" }));
+      fireEvent.click(screen.getByRole("button", { name: "安装 Office 套件" }));
       expect(
         await screen.findByRole("button", { name: "导入离线包" }),
       ).toBeInTheDocument();
       fireEvent.click(await screen.findByRole("button", { name: "在线安装" }));
       await waitFor(() => expect(install).toHaveBeenCalledOnce());
       expect(await screen.findByText(`File.${extension}`)).toBeInTheDocument();
+      active = false;
+      await waitFor(
+        () =>
+          expect(
+            screen.queryByText(`File.${extension}`),
+          ).not.toBeInTheDocument(),
+        { timeout: 2500 },
+      );
+      expect(
+        screen.getByText("安装 Office 套件后即可预览此文件"),
+      ).toBeInTheDocument();
     },
   );
   it("does not treat a failed status check as ready", async () => {
@@ -70,9 +81,7 @@ describe("Office upgrade guidance", () => {
       </OfficePreviewGate>,
     );
     expect(
-      await screen.findByText(
-        "Preview is unavailable. Upgrade Office features to preview this file.",
-      ),
+      await screen.findByText("Install the Office suite to preview this file."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Editor")).not.toBeInTheDocument();
   });

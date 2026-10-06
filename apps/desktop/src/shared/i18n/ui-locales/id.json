@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "Mengaktifkan…",
+  "ResourceCenter.disabling": "Menonaktifkan…",
   "Model.advanced": "Parameter model lanjutan (JSON)",
   "Plan.card": "Rencana implementasi",
   "Plan.accepted": "Diterima",

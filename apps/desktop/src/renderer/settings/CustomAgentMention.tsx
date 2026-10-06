@@ -18,7 +18,12 @@ import {
 import { Button } from "@artemis/ui/actions";
 
 import type { useImMemberMentions } from "../im/ImMemberMentions.js";
-import type { CustomAgentSummary } from "../../shared/api.js";
+import { ResourceAvatar } from "../plugins/resource-icons.js";
+import type {
+  InstalledArtemisPlugin,
+  InstalledSkill,
+  CustomAgentSummary,
+} from "../../shared/api.js";
 import type { CustomAgentDraftReference } from "../conversation/composer-drafts.js";
 
 const COLOR_TOKENS = [
@@ -65,6 +70,7 @@ export function useCustomAgentMention({
   enabled,
   onSelect,
   members,
+  plugins,
 }: {
   definitions: readonly CustomAgentSummary[];
   projectId: string | undefined;
@@ -74,6 +80,12 @@ export function useCustomAgentMention({
   /** Whether more sub-agent task blocks can be added; member targeting stays available. */
   enabled: boolean;
   onSelect(reference: CustomAgentDraftReference): void;
+  plugins?: {
+    installed: readonly InstalledArtemisPlugin[];
+    skills: readonly InstalledSkill[];
+    selectedNames: readonly string[];
+    onSelect(skill: InstalledSkill): void;
+  };
   members?:
     | Pick<ReturnType<typeof useImMemberMentions>, "candidates" | "insert">
     | undefined;
@@ -111,13 +123,34 @@ export function useCustomAgentMention({
           });
   const memberCandidates =
     query === undefined ? [] : (members?.candidates ?? []);
-  const candidateCount = memberCandidates.length + candidates.length;
+  const pluginCandidates =
+    query === undefined
+      ? []
+      : (plugins?.skills ?? []).flatMap((skill) => {
+          if (!skill.enabled || plugins?.selectedNames.includes(skill.name))
+            return [];
+          const plugin = plugins?.installed.find(
+            (item) => item.installable && item.skillNames.includes(skill.name),
+          );
+          if (!plugin) return [];
+          const needle = query.toLocaleLowerCase();
+          return [
+            plugin.name,
+            plugin.displayName,
+            skill.name,
+            skill.description,
+          ].some((value) => value.toLocaleLowerCase().includes(needle))
+            ? [{ plugin, skill }]
+            : [];
+        });
+  const candidateCount =
+    memberCandidates.length + candidates.length + pluginCandidates.length;
   const open = !dismissed && query !== undefined && candidateCount > 0;
   const activeIndex = Math.min(active, Math.max(0, candidateCount - 1));
   useEffect(() => {
     setActive(0);
   }, [query, projectId]);
-  const select = (definition: CustomAgentSummary) => {
+  const removeQuery = () => {
     const element = input.current;
     const end = element?.selectionEnd ?? text.length;
     // Remove the @query fragment the user typed; the reference is carried
@@ -126,6 +159,9 @@ export function useCustomAgentMention({
     pendingCursor.current = start;
     setText(`${text.slice(0, start)}${text.slice(end)}`);
     setDismissed(true);
+  };
+  const select = (definition: CustomAgentSummary) => {
+    removeQuery();
     onSelect({
       definitionId: definition.id,
       revision: definition.revision,
@@ -133,12 +169,19 @@ export function useCustomAgentMention({
       color: definition.color,
     });
   };
+  const selectPlugin = (skill: InstalledSkill) => {
+    removeQuery();
+    plugins?.onSelect(skill);
+  };
   const selectMember = (token: string) => {
     members?.insert(token);
     setDismissed(true);
   };
   return {
     open,
+    queryActive: !dismissed && query !== undefined,
+    pluginCandidates,
+    selectPlugin,
     memberCandidates,
     selectMember,
     candidates,
@@ -173,6 +216,13 @@ export function useCustomAgentMention({
         else {
           const candidate = candidates[activeIndex - memberCandidates.length];
           if (candidate) select(candidate);
+          else {
+            const plugin =
+              pluginCandidates[
+                activeIndex - memberCandidates.length - candidates.length
+              ];
+            if (plugin) selectPlugin(plugin.skill);
+          }
         }
         return true;
       }
@@ -188,11 +238,23 @@ export function CustomAgentMentionMenu({
   mention: ReturnType<typeof useCustomAgentMention>;
   locale: AppLocale;
 }) {
+  const menu = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    menu.current
+      ?.querySelector<HTMLElement>(
+        `#custom-agent-mention-${mention.activeIndex}`,
+      )
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [mention.open, mention.activeIndex]);
   if (!mention.open) return null;
   return (
     <div
-      aria-label={uiText(locale, "CustomAgentMention.inline2")}
+      aria-label={[
+        uiText(locale, "App_copy.installedPlugins"),
+        uiText(locale, "CustomAgentMention.inline2"),
+      ].join(" · ")}
       className="slash-command-menu custom-agent-mention-menu"
+      ref={menu}
       id="custom-agent-mention-menu"
       role="listbox"
     >
@@ -249,6 +311,46 @@ export function CustomAgentMentionMenu({
                 <strong>{definition.name}</strong>
                 <small title={definition.description}>
                   {definition.description}
+                </small>
+              </span>
+            </Button>
+          </div>
+        );
+      })}
+      {mention.pluginCandidates.length > 0 && (
+        <div className="slash-command-heading">
+          {uiText(locale, "App_copy.installedPlugins")}
+        </div>
+      )}
+      {mention.pluginCandidates.map(({ plugin, skill }, pluginIndex) => {
+        const index =
+          mention.memberCandidates.length +
+          mention.candidates.length +
+          pluginIndex;
+        return (
+          <div
+            aria-selected={index === mention.activeIndex}
+            id={`custom-agent-mention-${index}`}
+            key={skill.id}
+            onMouseDown={(event) => event.preventDefault()}
+            role="option"
+          >
+            <Button
+              className={`slash-command-suggestion${index === mention.activeIndex ? " active" : ""}`}
+              onClick={() => mention.selectPlugin(skill)}
+              variant="quiet"
+            >
+              <ResourceAvatar
+                kind="skill"
+                name={skill.name}
+                pluginName={plugin.name}
+                iconDataUrl={plugin.iconDataUrl}
+                brandColor={plugin.brandColor}
+              />
+              <span>
+                <strong>{skill.name}</strong>
+                <small title={skill.description}>
+                  {plugin.displayName} · {skill.description}
                 </small>
               </span>
             </Button>

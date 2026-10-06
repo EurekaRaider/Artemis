@@ -18,11 +18,11 @@ ZIP packages retain manual updates: extract the complete archive into an ordinar
 
 Ed25519 verification establishes update-manifest and asset integrity; it does not imply Authenticode signing or SmartScreen reputation. System or enterprise execution policies may still block unsigned programs. Do not disable system protection to bypass them.
 
-When refreshing the OpenAI or a custom GitHub plugin marketplace, Artemis downloads HTTPS repository archives directly through the system network stack. It does not invoke `git.exe`, so Git is not required on the user's computer. Corporate networks must allow `api.github.com` and the archive download addresses returned by GitHub. If networking is blocked, cached marketplaces and the four bundled Lite plugins remain available.
+When refreshing the OpenAI or a custom GitHub plugin marketplace, Artemis downloads HTTPS repository archives directly through the system network stack. It does not invoke `git.exe`, so Git is not required on the user's computer. Corporate networks must allow `api.github.com` and the archive download addresses returned by GitHub. If networking is blocked, cached marketplaces remain available.
 
-## Lite document skills
+## Office suite
 
-Open **Resources → Plugins → Bundled plugins**, choose **Install required document plugins**, then select Documents, PDF, Presentations or Spreadsheets in the Work-mode skill picker. All four plugins ship with the installer; neither Codex nor an external document toolchain is required.
+Open **Resources → Plugins → Bundled plugins → Office** and install the enhancement pack online or import a verified `.artemis-office` offline pack. This single installation enables Office features; no separate basic plugins are needed. Without an active pack, Office document operations and previews are unavailable. Uninstalling keeps documents and history.
 
 ## Model configuration
 

@@ -1,4 +1,6 @@
 import designPluginIcon from "../assets/design-plugin-icon.png";
+// Microsoft Fluent UI: https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/office_48x1.svg
+import officeSuiteIcon from "../assets/office-suite-icon.svg";
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { OfficeCapabilityPanel } from "../office/OfficeCapabilityPanel.js";
@@ -100,6 +102,13 @@ let installedPluginsCache: InstalledArtemisPlugin[] | undefined;
 let marketplaceStateCache: ArtemisPluginMarketplaceState | undefined;
 let runtimeMarketplaceCache: ArtemisPluginMarketplace | undefined;
 let runtimeMarketplaceLoaded = false;
+
+function isLegacyOfficePlugin(plugin: ArtemisPluginPreview): boolean {
+  return (
+    ["bundled", "runtime"].includes(plugin.source.kind) &&
+    ["documents", "spreadsheets", "presentations", "pdf"].includes(plugin.name)
+  );
+}
 
 function pluginPageText(value: string): string {
   return value
@@ -259,8 +268,14 @@ export function ResourceCenter({
   const [installProgress, setInstallProgress] =
     useState<ResourceInstallProgress>();
   const [busyId, setBusyId] = useState<string>();
-  const [pendingMcpIds, setPendingMcpIds] = useState<Set<string>>(new Set());
-  const pendingMcpIdsRef = useRef(new Set<string>());
+  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const pendingToggleIdsRef = useRef(new Set<string>());
+  const toggleQueueRef = useRef(Promise.resolve());
+  const [pendingPackTargets, setPendingPackTargets] = useState<
+    Record<string, boolean>
+  >({});
   const [operationPending, setOperationPending] = useState(false);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -296,7 +311,7 @@ export function ResourceCenter({
           if (active) setMessage(String(error));
         });
     refresh();
-    const timer = officeUpdating ? setInterval(refresh, 1000) : undefined;
+    const timer = setInterval(refresh, 1000);
     window.addEventListener("focus", refresh);
     return () => {
       active = false;
@@ -493,6 +508,29 @@ export function ResourceCenter({
       .finally(() => {
         operationPendingRef.current = false;
         setOperationPending(false);
+      });
+  }
+
+  function runToggleOperation(
+    id: string,
+    operation: () => Promise<void>,
+  ): void {
+    if (pendingToggleIdsRef.current.has(id)) return;
+    pendingToggleIdsRef.current.add(id);
+    setPendingToggleIds(new Set(pendingToggleIdsRef.current));
+    // Mutations return full snapshots. Serialize saves so an older response
+    // cannot undo a newer toggle, while only requested rows become busy.
+    toggleQueueRef.current = toggleQueueRef.current
+      .then(async () => {
+        await operation();
+        window.dispatchEvent(new Event("artemis:resources-changed"));
+      })
+      .catch((error: unknown) =>
+        setMessage(error instanceof Error ? error.message : String(error)),
+      )
+      .finally(() => {
+        pendingToggleIdsRef.current.delete(id);
+        setPendingToggleIds(new Set(pendingToggleIdsRef.current));
       });
   }
 
@@ -857,9 +895,6 @@ export function ResourceCenter({
   }
 
   async function setMcpEnabled(serverId: string, enabled: boolean) {
-    if (pendingMcpIdsRef.current.has(serverId)) return;
-    pendingMcpIdsRef.current.add(serverId);
-    setPendingMcpIds(new Set(pendingMcpIdsRef.current));
     setMessage(undefined);
     try {
       const next = await window.artemis.setMcpServerEnabled(serverId, enabled);
@@ -867,9 +902,6 @@ export function ResourceCenter({
       onSettingsChange(next);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      pendingMcpIdsRef.current.delete(serverId);
-      setPendingMcpIds(new Set(pendingMcpIdsRef.current));
     }
   }
 
@@ -903,7 +935,6 @@ export function ResourceCenter({
   }
 
   async function setSkillEnabled(skillId: string, enabled: boolean) {
-    setBusyId(skillId);
     setMessage(undefined);
     try {
       installedSkillsCache = await window.artemis.setSkillEnabled(
@@ -913,8 +944,6 @@ export function ResourceCenter({
       setInstalledSkills(installedSkillsCache);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -1014,25 +1043,6 @@ export function ResourceCenter({
     }
   }
 
-  async function installRuntimePlugins() {
-    if (!runtimeMarketplace || !(await onConfirm(t.confirmRequiredDocuments))) {
-      return;
-    }
-    const operationId = beginInstallation("plugin", t.bundledPlugins);
-    setBusyId("required-documents");
-    setMessage(undefined);
-    try {
-      applyPluginMutation(
-        await window.artemis.installBundledPlugins(operationId),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-    }
-  }
-
   async function updatePlugin(plugin: InstalledArtemisPlugin) {
     if (!(await onConfirm(t.confirmUpdatePlugin))) return;
     const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
@@ -1067,7 +1077,6 @@ export function ResourceCenter({
     plugin: InstalledArtemisPlugin,
     enabled: boolean,
   ) {
-    setBusyId(plugin.id);
     setMessage(undefined);
     try {
       applyPluginMutation(
@@ -1076,8 +1085,6 @@ export function ResourceCenter({
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -1114,7 +1121,6 @@ export function ResourceCenter({
   }
 
   async function setExtensionEnabled(extensionId: string, enabled: boolean) {
-    setBusyId(extensionId);
     setMessage(undefined);
     try {
       onSettingsChange(
@@ -1122,8 +1128,6 @@ export function ResourceCenter({
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
     }
   }
 
@@ -1396,6 +1400,7 @@ export function ResourceCenter({
   const marketplaceFilter = marketplaceQuery.trim().toLowerCase();
   const matchingMarketplacePlugins = (plugins: ArtemisPluginPreview[]) =>
     plugins.filter((plugin) => {
+      if (isLegacyOfficePlugin(plugin)) return false;
       return (
         !marketplaceFilter ||
         plugin.displayName.toLowerCase().includes(marketplaceFilter) ||
@@ -1500,17 +1505,142 @@ export function ResourceCenter({
   const matchesManagement = (...values: Array<string | undefined>) =>
     !managementFilter ||
     values.some((value) => value?.toLowerCase().includes(managementFilter));
-  const visibleInstalledPlugins = installedPlugins.filter((plugin) =>
-    matchesManagement(
-      plugin.displayName,
-      plugin.name,
-      plugin.shortDescription,
-      plugin.description,
-      pluginDisplayName(plugin),
-      pluginDescription(plugin),
-      localizedPluginText(plugin, locale).description,
-      pluginMarketplaceLabel(plugin),
-    ),
+  const installedPacks = [
+    {
+      id: "office-core",
+      name: locale.startsWith("zh") ? "Office 套件" : "Office",
+      keywords: "office word excel powerpoint pdf",
+      status: officePackStatus,
+      icon: officeSuiteIcon,
+      activate: (version: string) =>
+        window.artemis.activateOfficeCapability(version),
+      deactivate: () => window.artemis.deactivateOfficeCapability(),
+      refresh: async () => {
+        const status = await window.artemis.officeCapabilityStatus();
+        setOfficePackStatus(status);
+        setOfficeCapabilityActive(Boolean(status.activeVersion));
+        setOfficeCapabilityInstalled(status.versions.length > 0);
+      },
+      open: () => setOfficeCapabilityOpen(true),
+    },
+    {
+      id: "artemis-design",
+      name:
+        locale === "zh-TW" ? "設計" : locale === "zh-CN" ? "设计" : "Design",
+      keywords: "design",
+      status: designPackStatus,
+      icon: designPluginIcon,
+      activate: (version: string) =>
+        window.artemis.activateDesignCapability(version),
+      deactivate: () => window.artemis.deactivateDesignCapability(),
+      refresh: async () =>
+        setDesignPackStatus(await window.artemis.designCapabilityStatus()),
+      open: () => setDesignPackOpen(true),
+    },
+  ].filter((pack) => Boolean(pack.status?.versions.length));
+  const visibleInstalledPacks = installedPacks.filter((pack) =>
+    matchesManagement(pack.name, pack.keywords, t.bundledPlugins),
+  );
+  function renderInstalledPack(pack: (typeof installedPacks)[number]) {
+    const enabled = Boolean(pack.status?.activeVersion);
+    return (
+      <ManagementRow
+        key={pack.id}
+        className="resource-installed-row"
+        title={pack.name}
+        description={`${t.plugins} · ${t.bundledPlugins}`}
+        leading={
+          <ResourceAvatar
+            kind="plugin"
+            name={pack.name}
+            iconDataUrl={pack.icon}
+          />
+        }
+        actions={
+          <>
+            <span
+              className="resource-capability-status"
+              data-state={enabled ? "enabled" : "disabled"}
+              role="status"
+              aria-busy={pendingToggleIds.has(pack.id)}
+            >
+              {pendingToggleIds.has(pack.id)
+                ? uiText(
+                    locale,
+                    pendingPackTargets[pack.id]
+                      ? "ResourceCenter.enabling"
+                      : "ResourceCenter.disabling",
+                  )
+                : enabled
+                  ? t.enabled
+                  : t.disabled}
+            </span>
+            <Button
+              variant="quiet"
+              className="management-text-action"
+              disabled={operationPending || Boolean(busyId)}
+              label={`${t.configure} ${pack.name}`}
+              onClick={pack.open}
+            >
+              {t.configure}
+            </Button>
+            <Switch
+              checked={enabled}
+              label={`${t.enabled}: ${pack.name}`}
+              labelVisibility="hidden"
+              disabled={
+                operationPending ||
+                Boolean(busyId) ||
+                pendingToggleIds.has(pack.id) ||
+                pack.status?.phase !== "idle"
+              }
+              onCheckedChange={(nextEnabled) => {
+                setPendingPackTargets((current) => ({
+                  ...current,
+                  [pack.id]: nextEnabled,
+                }));
+                runToggleOperation(pack.id, async () => {
+                  try {
+                    if (nextEnabled) {
+                      const version = pack.status!.versions.toSorted(
+                        (left, right) =>
+                          right.version.localeCompare(left.version, "en", {
+                            numeric: true,
+                          }),
+                      )[0]!.version;
+                      await pack.activate(version);
+                    } else {
+                      await pack.deactivate();
+                    }
+                    await pack.refresh();
+                  } finally {
+                    setPendingPackTargets((current) => {
+                      const next = { ...current };
+                      delete next[pack.id];
+                      return next;
+                    });
+                  }
+                });
+              }}
+            />
+          </>
+        }
+      />
+    );
+  }
+  const visibleInstalledPlugins = installedPlugins.filter(
+    (plugin) =>
+      !isLegacyOfficePlugin(plugin) &&
+      matchesManagement(
+        plugin.displayName,
+        plugin.name,
+        plugin.shortDescription,
+        plugin.description,
+        pluginDisplayName(plugin),
+        pluginDescription(plugin),
+        localizedPluginText(plugin, locale).description,
+        pluginMarketplaceLabel(plugin),
+      ),
   );
   const visibleExtensions = (settings?.trustedExtensions ?? []).filter(
     (extension) =>
@@ -1553,23 +1683,25 @@ export function ResourceCenter({
     configure(): void;
     toggle(enabled: boolean): Promise<void>;
   }> = [
-    ...installedPlugins.map((plugin) => {
-      const visual = visualForPlugin(plugin);
-      return {
-        id: `plugin:${plugin.id}`,
-        name: pluginDisplayName(plugin),
-        kind: "plugin" as const,
-        description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
-        enabled: pluginIsEnabled(plugin),
-        disabled: !plugin.installable && !pluginIsEnabled(plugin),
-        configure: () =>
-          pluginHasConnection(plugin)
-            ? setConnectionPlugin(plugin)
-            : openManagement("plugins"),
-        toggle: (enabled: boolean) => setPluginEnabled(plugin, enabled),
-        ...visual,
-      };
-    }),
+    ...installedPlugins
+      .filter((plugin) => !isLegacyOfficePlugin(plugin))
+      .map((plugin) => {
+        const visual = visualForPlugin(plugin);
+        return {
+          id: `plugin:${plugin.id}`,
+          name: pluginDisplayName(plugin),
+          kind: "plugin" as const,
+          description: `${t.plugins} · ${pluginMarketplaceLabel(plugin)}`,
+          enabled: pluginIsEnabled(plugin),
+          disabled: !plugin.installable && !pluginIsEnabled(plugin),
+          configure: () =>
+            pluginHasConnection(plugin)
+              ? setConnectionPlugin(plugin)
+              : openManagement("plugins"),
+          toggle: (enabled: boolean) => setPluginEnabled(plugin, enabled),
+          ...visual,
+        };
+      }),
     ...installedSkills
       .filter((skill) => !managedSkillNames.has(skill.name))
       .map((skill) => {
@@ -1648,10 +1780,6 @@ export function ResourceCenter({
         setExtensionEnabled(extension.config.id, enabled),
     })),
   ];
-  const runtimePendingPlugins = (runtimeMarketplace?.plugins ?? []).filter(
-    (plugin) => plugin.installable && !installedPluginIds.has(plugin.id),
-  );
-
   function renderProgressAndMessage() {
     const warnings =
       marketplaceState?.marketplaces.find(
@@ -1808,11 +1936,124 @@ export function ResourceCenter({
     );
   }
 
+  function renderOfficePackCard() {
+    const status = officePackStatus;
+    const installed = Boolean(status?.versions.length);
+    const working =
+      officeUpdating || Boolean(status && status.phase !== "idle");
+    const run = (operation: () => Promise<void>) =>
+      runResourceOperation(async () => {
+        setOfficeUpdating(true);
+        try {
+          await operation();
+        } finally {
+          setOfficeUpdating(false);
+        }
+      });
+    return (
+      <ManagementCard className="plugin-market-card office-pack-card">
+        <div className="plugin-market-card-heading">
+          <ResourceAvatar
+            brandColor="#D83B01"
+            iconDataUrl={officeSuiteIcon}
+            kind="plugin"
+            name="Office"
+          />
+          <div className="plugin-market-card-titles">
+            <strong>
+              {locale === "zh-CN"
+                ? "Office 套件"
+                : locale === "zh-TW"
+                  ? "Office 套件"
+                  : "Office"}
+              {status?.activeVersion && (
+                <span className="plugin-market-card-vn">
+                  v{status.activeVersion}
+                </span>
+              )}
+            </strong>
+            <small className="plugin-market-card-source">
+              {t.marketplaceSource}: {t.bundledPlugins}
+            </small>
+          </div>
+        </div>
+        <div className="plugin-market-copy">
+          <small>{office.shared}</small>
+        </div>
+        <div className="plugin-market-card-footer">
+          <div className="plugin-market-card-actions">
+            {working ? (
+              <>
+                <progress
+                  aria-label={office.working}
+                  max={status?.totalBytes || 1}
+                  value={status?.downloadedBytes}
+                />
+                <Button
+                  variant="quiet"
+                  onClick={() => void window.artemis.cancelOfficeCapability()}
+                >
+                  {office.cancel}
+                </Button>
+              </>
+            ) : installed ? (
+              <>
+                {status?.updateVersion && (
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      run(() => window.artemis.installOfficeCapability())
+                    }
+                  >
+                    {office.updateNow.replace(
+                      "{version}",
+                      status.updateVersion,
+                    )}
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  className="management-destructive-action plugin-market-remove-action"
+                  icon={<TrashIcon />}
+                  disabled={status?.versions.some(
+                    (version) => version.active && version.inUse,
+                  )}
+                  onClick={() =>
+                    status?.activeVersion
+                      ? run(() =>
+                          window.artemis.uninstallOfficeCapability(
+                            status.activeVersion!,
+                          ),
+                        )
+                      : setOfficeCapabilityOpen(true)
+                  }
+                >
+                  {office.remove}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  status?.availableVersion
+                    ? run(() => window.artemis.installOfficeCapability())
+                    : setOfficeCapabilityOpen(true)
+                }
+              >
+                {t.install}
+              </Button>
+            )}
+          </div>
+        </div>
+      </ManagementCard>
+    );
+  }
+
   /** 随应用提供的设计插件卡：安装/卸载决定设计面板入口的显隐（todo ⑤）。 */
   function renderDesignPackCard() {
     const copy = designPackCopy(locale);
     const status = designPackStatus;
-    const installed = Boolean(status?.activeVersion);
+    const installed = Boolean(status?.versions.length);
     const working = Boolean(status && status.phase !== "idle");
     return (
       <ManagementCard className="plugin-market-card design-pack-card">
@@ -1911,15 +2152,17 @@ export function ResourceCenter({
                   icon={<TrashIcon />}
                   variant="secondary"
                   onClick={() =>
-                    void window.artemis
-                      .uninstallDesignCapability(status!.activeVersion!)
-                      .catch((reason: unknown) =>
-                        setMessage(
-                          reason instanceof Error
-                            ? reason.message
-                            : String(reason),
-                        ),
-                      )
+                    status?.activeVersion
+                      ? void window.artemis
+                          .uninstallDesignCapability(status.activeVersion)
+                          .catch((reason: unknown) =>
+                            setMessage(
+                              reason instanceof Error
+                                ? reason.message
+                                : String(reason),
+                            ),
+                          )
+                      : setDesignPackOpen(true)
                   }
                 >
                   {locale.startsWith("zh") ? "卸载" : t.remove}
@@ -2025,11 +2268,15 @@ export function ResourceCenter({
             name={plugin.name}
           />
           <div className="plugin-market-card-titles">
-            <strong title={`${displayName} v${plugin.version}`}>
+            <strong
+              title={`${displayName} v${installedPlugin?.version ?? plugin.version}`}
+            >
               {displayName}
               {/* 已安装的插件在名称后跟小号 v+版本号。 */}
               {installed && (
-                <span className="plugin-market-card-vn">v{plugin.version}</span>
+                <span className="plugin-market-card-vn">
+                  v{installedPlugin?.version ?? plugin.version}
+                </span>
               )}
             </strong>
             <small
@@ -2442,7 +2689,10 @@ export function ResourceCenter({
 
   const managementCounts: Record<ManagementTab, number> = {
     plugins:
-      installedPlugins.length + (settings?.trustedExtensions.length ?? 0),
+      installedPlugins.filter((plugin) => !isLegacyOfficePlugin(plugin))
+        .length +
+      installedPacks.length +
+      (settings?.trustedExtensions.length ?? 0),
     mcp: mcpServers.filter(
       (server) => server.config.resourceKind !== "connector",
     ).length,
@@ -2624,27 +2874,6 @@ export function ResourceCenter({
             value={activeMarketplaceTabOption.value}
           />
 
-          {selectedMarketplaceView === "bundled" &&
-            !marketplaceFilter &&
-            runtimePendingPlugins.length > 0 && (
-              <ManagementCard className="resource-runtime-banner">
-                <div>
-                  <strong>{t.installRequiredDocuments}</strong>
-                  <small>{t.requiredDocumentsDescription}</small>
-                </div>
-                <Button
-                  disabled={
-                    operationPending ||
-                    busyId === "required-documents" ||
-                    installProgress !== undefined
-                  }
-                  onClick={() => runResourceOperation(installRuntimePlugins)}
-                >
-                  {t.installRequiredDocuments}
-                </Button>
-              </ManagementCard>
-            )}
-
           {marketplaceTabOptions
             .filter(
               (option) => option.value !== activeMarketplaceTabOption.value,
@@ -2664,14 +2893,32 @@ export function ResourceCenter({
             id={activeMarketplaceTabOption.panelId}
             role="tabpanel"
           >
-            {marketplaceGroups.map((group) => (
-              <section
-                className="plugin-market-group"
-                key={`${group.sourceId ?? "group"}:${group.title}`}
-              >
-                {/* bundled 组的标题（随应用提供的插件）与来源 tab 重复，略去；
-                    其余组（分类标题）照常。 */}
-                {group.sourceId !== "bundled" && (
+            {(selectedMarketplaceView === "bundled" || marketplaceFilter) && (
+              <div className="plugin-market-grid">
+                {(!marketplaceFilter ||
+                  `office word excel powerpoint pdf ${office.runtime}`
+                    .toLowerCase()
+                    .includes(marketplaceFilter)) &&
+                  renderOfficePackCard()}
+                {!marketplaceFilter && renderDesignPackCard()}
+                {selectedMarketplaceView === "bundled" &&
+                  !marketplaceFilter &&
+                  selectedMarketplacePlugins.map((plugin) =>
+                    renderPluginCard(plugin, "bundled"),
+                  )}
+              </div>
+            )}
+            {marketplaceGroups
+              .filter(
+                () =>
+                  selectedMarketplaceView !== "bundled" ||
+                  Boolean(marketplaceFilter),
+              )
+              .map((group) => (
+                <section
+                  className="plugin-market-group"
+                  key={`${group.sourceId ?? "group"}:${group.title}`}
+                >
                   <h2>
                     {marketplaceFilter
                       ? group.title
@@ -2679,20 +2926,22 @@ export function ResourceCenter({
                           localizedPluginCategory(group.title, locale),
                         )}
                   </h2>
-                )}
-                <div className="plugin-market-grid">
-                  {group.sourceId === "bundled" &&
-                    !marketplaceFilter &&
-                    renderDesignPackCard()}
-                  {group.plugins.map((plugin) =>
-                    renderPluginCard(plugin, group.sourceId),
-                  )}
-                </div>
-              </section>
-            ))}
-            {!searching && marketplaceGroups.length === 0 && (
-              <EmptyResource>{t.noMarketplaceResults}</EmptyResource>
-            )}
+                  <div className="plugin-market-grid">
+                    {group.plugins.map((plugin) =>
+                      renderPluginCard(plugin, group.sourceId),
+                    )}
+                  </div>
+                </section>
+              ))}
+            {!searching &&
+              marketplaceGroups.length === 0 &&
+              selectedMarketplaceView !== "bundled" &&
+              !(
+                marketplaceFilter &&
+                `office word excel powerpoint pdf ${office.runtime}`
+                  .toLowerCase()
+                  .includes(marketplaceFilter)
+              ) && <EmptyResource>{t.noMarketplaceResults}</EmptyResource>}
           </div>
 
           <ManagementSection
@@ -2710,6 +2959,7 @@ export function ResourceCenter({
             title={`${t.manage} · ${t.plugins}`}
           >
             <div className="resource-installed-list">
+              {installedPacks.map(renderInstalledPack)}
               {installedTiles
                 .filter((item) => item.kind === "plugin")
                 .map((item) => (
@@ -2757,19 +3007,25 @@ export function ResourceCenter({
                           label={`${t.enabled}: ${item.name}`}
                           labelVisibility="hidden"
                           disabled={
-                            operationPending || Boolean(busyId) || item.disabled
+                            operationPending ||
+                            Boolean(busyId) ||
+                            pendingToggleIds.has(item.id) ||
+                            item.disabled
                           }
                           onCheckedChange={(enabled) =>
-                            runResourceOperation(() => item.toggle(enabled))
+                            runToggleOperation(item.id, () =>
+                              item.toggle(enabled),
+                            )
                           }
                         />
                       </>
                     }
                   />
                 ))}
-              {installedTiles.length === 0 && (
-                <span className="resource-empty-inline">{t.noPlugins}</span>
-              )}
+              {installedPacks.length === 0 &&
+                !installedTiles.some((item) => item.kind === "plugin") && (
+                  <span className="resource-empty-inline">{t.noPlugins}</span>
+                )}
             </div>
           </ManagementSection>
         </div>
@@ -2900,6 +3156,7 @@ export function ResourceCenter({
           title={t.plugins}
         >
           <div className="resource-management-list">
+            {visibleInstalledPacks.map(renderInstalledPack)}
             {visibleInstalledPlugins.map((plugin) => {
               const visual = visualForPlugin(plugin);
               const unavailable = mcpServers.filter(
@@ -2972,12 +3229,13 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === plugin.id ||
+                          pendingToggleIds.has(`plugin:${plugin.id}`) ||
                           (!plugin.installable && !pluginIsEnabled(plugin))
                         }
                         label={pluginIsEnabled(plugin) ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          runResourceOperation(() =>
+                          runToggleOperation(`plugin:${plugin.id}`, () =>
                             setPluginEnabled(plugin, enabled),
                           )
                         }
@@ -3079,13 +3337,17 @@ export function ResourceCenter({
                       checked={extension.config.enabled}
                       className="resource-switch"
                       disabled={
-                        operationPending || busyId === extension.config.id
+                        operationPending ||
+                        busyId === extension.config.id ||
+                        pendingToggleIds.has(`extension:${extension.config.id}`)
                       }
                       label={extension.config.enabled ? t.enabled : t.disabled}
                       labelVisibility="hidden"
                       onCheckedChange={(enabled) =>
-                        runResourceOperation(() =>
-                          setExtensionEnabled(extension.config.id, enabled),
+                        runToggleOperation(
+                          `extension:${extension.config.id}`,
+                          () =>
+                            setExtensionEnabled(extension.config.id, enabled),
                         )
                       }
                       title={extension.config.enabled ? t.enabled : t.disabled}
@@ -3105,7 +3367,8 @@ export function ResourceCenter({
                 title={extension.config.name}
               />
             ))}
-            {visibleInstalledPlugins.length === 0 &&
+            {visibleInstalledPacks.length === 0 &&
+              visibleInstalledPlugins.length === 0 &&
               visibleExtensions.length === 0 && (
                 <EmptyResource>{t.noPlugins}</EmptyResource>
               )}
@@ -3243,7 +3506,7 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
-                          pendingMcpIds.has(server.config.id) ||
+                          pendingToggleIds.has(`mcp:${server.config.id}`) ||
                           managedMcpIds.has(server.config.id)
                         }
                         icon={<TrashIcon />}
@@ -3264,12 +3527,14 @@ export function ResourceCenter({
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
-                          pendingMcpIds.has(server.config.id)
+                          pendingToggleIds.has(`mcp:${server.config.id}`)
                         }
                         label={server.config.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          void setMcpEnabled(server.config.id, enabled)
+                          runToggleOperation(`mcp:${server.config.id}`, () =>
+                            setMcpEnabled(server.config.id, enabled),
+                          )
                         }
                         title={server.config.enabled ? t.enabled : t.disabled}
                       />
@@ -3400,7 +3665,11 @@ export function ResourceCenter({
                     <div className="resource-row-actions">
                       <IconButton
                         className="resource-icon-button resource-remove-button"
-                        disabled={operationPending || busyId === skill.id}
+                        disabled={
+                          operationPending ||
+                          busyId === skill.id ||
+                          pendingToggleIds.has(`skill:${skill.id}`)
+                        }
                         icon={<TrashIcon />}
                         label={`${t.remove} ${skill.name}`}
                         onClick={() =>
@@ -3412,11 +3681,15 @@ export function ResourceCenter({
                       <Switch
                         checked={skill.enabled}
                         className="resource-switch"
-                        disabled={operationPending || busyId === skill.id}
+                        disabled={
+                          operationPending ||
+                          busyId === skill.id ||
+                          pendingToggleIds.has(`skill:${skill.id}`)
+                        }
                         label={skill.enabled ? t.enabled : t.disabled}
                         labelVisibility="hidden"
                         onCheckedChange={(enabled) =>
-                          runResourceOperation(() =>
+                          runToggleOperation(`skill:${skill.id}`, () =>
                             setSkillEnabled(skill.id, enabled),
                           )
                         }

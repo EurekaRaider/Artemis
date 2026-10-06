@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "正在启用…",
+  "ResourceCenter.disabling": "正在停用…",
   "Model.advanced": "模型高级参数（JSON）",
   "Plan.card": "实施计划",
   "Plan.accepted": "已接受",

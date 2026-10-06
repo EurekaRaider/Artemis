@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "सक्रिय किया जा रहा है…",
+  "ResourceCenter.disabling": "निष्क्रिय किया जा रहा है…",
   "Model.advanced": "उन्नत मॉडल पैरामीटर (JSON)",
   "Plan.card": "कार्यान्वयन योजना",
   "Plan.accepted": "स्वीकृत",

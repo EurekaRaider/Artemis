@@ -64,7 +64,9 @@ try {
     {
       cwd: resolve("."),
       stdio: "inherit",
-      timeout: 180000,
+      // The full native sandbox suite takes about four minutes on hosted Windows.
+      // Keep its per-case limits; allow the complete installed-package run to finish.
+      timeout: 10 * 60_000,
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",

@@ -26,6 +26,7 @@ describe("Office document tool format inference", () => {
       { agentDir: join(root, "agent") },
     );
     cleanups.push(async () => host.dispose());
+    await host.configure({ credentials: {}, officeEnabled: true });
     await host.openThread({
       threadId: "thread",
       workspacePath: root,
@@ -81,5 +82,51 @@ describe("Office document tool format inference", () => {
         document: expect.objectContaining({ format: "word" }),
       }),
     );
+    // Uninstall must revoke direct calls from an already running turn too.
+    await host.configure({ credentials: {}, officeEnabled: false });
+    request.mockClear();
+    await expect(tool.execute("stale", params)).rejects.toThrow(
+      "Install the Office suite",
+    );
+    expect(request).not.toHaveBeenCalled();
   });
+});
+
+it("does not expose Office before the pack is installed", async () => {
+  const root = await mkdtemp(join(tmpdir(), "artemis-office-disabled-"));
+  cleanups.push(() => rm(root, { recursive: true, force: true }));
+  const broker = vi.fn(async () => ({ approved: true, data: {} }));
+  const host = new ArtemisAgentHost(
+    { request: broker },
+    { emit() {} },
+    { agentDir: join(root, "agent") },
+  );
+  cleanups.push(() => host.dispose());
+  await host.openThread({
+    threadId: "thread",
+    workspacePath: root,
+    target: "local",
+  });
+  const thread = (
+    host as unknown as {
+      threads: Map<
+        string,
+        {
+          session: { getActiveToolNames(): string[] };
+          executeTools: Array<{
+            name: string;
+            execute(id: string, params: unknown): Promise<unknown>;
+          }>;
+        }
+      >;
+    }
+  ).threads.get("thread")!;
+  expect(thread.session.getActiveToolNames()).not.toContain("office_document");
+  const tool = thread.executeTools.find(
+    (tool) => tool.name === "office_document",
+  )!;
+  await expect(
+    tool.execute("direct", { operation: "read", path: "file.docx" }),
+  ).rejects.toThrow("Install the Office suite");
+  expect(broker).not.toHaveBeenCalled();
 });

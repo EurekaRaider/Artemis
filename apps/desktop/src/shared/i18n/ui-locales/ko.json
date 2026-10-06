@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "활성화 중…",
+  "ResourceCenter.disabling": "비활성화 중…",
   "Model.advanced": "모델 고급 매개변수 (JSON)",
   "Plan.card": "실행 계획",
   "Plan.accepted": "승인됨",

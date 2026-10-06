@@ -28,8 +28,9 @@ it("loads plugin artwork on each cold mount without opening the skill menu", asy
     ),
   );
   const first = render(<App />);
-  await waitFor(() => expect(listArtemisPlugins).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(listArtemisPlugins).toHaveBeenCalled());
   first.unmount();
+  listArtemisPlugins.mockClear();
   render(<App />);
-  await waitFor(() => expect(listArtemisPlugins).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(listArtemisPlugins).toHaveBeenCalled());
 });

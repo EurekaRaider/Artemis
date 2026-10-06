@@ -2,8 +2,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    // Real child sessions load the SDK per worker. Bound Windows I/O contention
-    // rather than weakening the integration tests' existing timeouts.
+    // Database and native-process fixtures compete for Windows runner I/O.
+    // Serialize files while retaining the existing per-test timeout.
     maxWorkers: process.platform === "win32" ? 1 : undefined,
   },
 });

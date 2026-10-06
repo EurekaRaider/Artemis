@@ -1,4 +1,6 @@
 {
+  "ResourceCenter.enabling": "正在啟用…",
+  "ResourceCenter.disabling": "正在停用…",
   "Model.advanced": "模型進階參數（JSON）",
   "Plan.card": "實施計畫",
   "Plan.accepted": "已接受",

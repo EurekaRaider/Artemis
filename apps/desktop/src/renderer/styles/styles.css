@@ -1475,7 +1475,6 @@ button.environment-activity-row:focus-visible {
 .environment-check-list > div > span:nth-child(2),
 .environment-row-copy,
 .environment-activity-row > span:nth-child(2),
-.resource-runtime-banner > [data-part="content"] > div,
 .plugin-market-copy,
 .resource-discovery-row > span {
   display: flex;
@@ -5067,9 +5066,9 @@ button.environment-row:disabled {
   z-index: 30;
 }
 
-/* Keep the content behind the command popover visible through a light tint.
-   Member and agent mention menus retain their skin. */
-#skill-command-menu {
+/* Share the glass surface across slash commands and @ mentions. */
+#skill-command-menu,
+#custom-agent-mention-menu {
   scrollbar-color: color-mix(in srgb, var(--text) 32%, transparent) transparent;
   scrollbar-width: thin;
   background:
@@ -5083,17 +5082,20 @@ button.environment-row:disabled {
     0 18px 40px rgb(0 0 0 / 16%);
 }
 
-#skill-command-menu .slash-command-suggestion:hover {
+#skill-command-menu .slash-command-suggestion:hover,
+#custom-agent-mention-menu .slash-command-suggestion:hover {
   background: color-mix(in srgb, var(--text) 7%, transparent);
 }
 
-#skill-command-menu .slash-command-suggestion.active {
+#skill-command-menu .slash-command-suggestion.active,
+#custom-agent-mention-menu .slash-command-suggestion.active {
   background: color-mix(in srgb, var(--text) 8%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 @media (prefers-reduced-transparency: reduce), (forced-colors: active) {
-  #skill-command-menu {
+  #skill-command-menu,
+  #custom-agent-mention-menu {
     background: var(--panel-2);
     backdrop-filter: none;
     box-shadow: none;
@@ -5147,7 +5149,7 @@ button.environment-row:disabled {
   background: var(--selected);
 }
 
-.slash-command-suggestion > span:last-child {
+.slash-command-suggestion > span:last-child:not([data-part="state-indicator"]) {
   align-items: center;
   display: flex;
   flex: 1;
@@ -8057,26 +8059,6 @@ button.sources-panel-entry.attachment:focus-visible {
   flex: 0 0 auto;
 }
 
-.resource-runtime-banner > [data-part="content"] {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 18px;
-  justify-content: space-between;
-}
-
-.resource-runtime-banner strong {
-  font-size: 10.5px;
-  font-weight: 600;
-}
-
-.resource-runtime-banner small {
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.45;
-  margin-top: 3px;
-}
-
 .plugin-market-groups {
   display: flex;
   flex-direction: column;
@@ -10058,13 +10040,13 @@ kbd {
   block-size: 16px;
 }
 .im-settings
-  [data-artemis-component="switch"][data-state="checked"]
+  [data-artemis-component="switch"]:has([data-part="control"]:checked)
   [data-part="thumb"] {
   transform: translateX(14px);
 }
 [dir="rtl"]
   .im-settings
-  [data-artemis-component="switch"][data-state="checked"]
+  [data-artemis-component="switch"]:has([data-part="control"]:checked)
   [data-part="thumb"] {
   transform: translateX(-14px);
 }
@@ -11614,7 +11596,17 @@ kbd {
   align-self: center;
 }
 
-.custom-agent-mention-menu .slash-command-suggestion > span:last-child {
+.custom-agent-mention-menu
+  .slash-command-suggestion
+  > span:last-child:not([data-part="state-indicator"]) {
+  min-width: 0;
+  gap: var(--artemis-space-2);
+}
+
+.custom-agent-mention-menu .slash-command-suggestion > [data-part="label"] {
+  display: flex;
+  align-items: center;
+  flex: 1;
   min-width: 0;
   gap: var(--artemis-space-2);
 }
@@ -12237,6 +12229,7 @@ kbd {
 
 .plugin-market-card-actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
@@ -12263,6 +12256,14 @@ kbd {
 
 .plugin-market-remove-action {
   --plugin-action-icon-color: light-dark(#d82e4d, #ff7489);
+}
+
+.plugin-market-remove-action [data-artemis-component="icon"] {
+  color: var(--plugin-action-icon-color);
+}
+
+.plugin-market-remove-action [data-artemis-icon] {
+  stroke-width: 2.25;
 }
 
 .plugin-market-card
