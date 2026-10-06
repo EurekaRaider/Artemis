@@ -1741,10 +1741,10 @@
       /* 版本历史浮层 */
       .dz-history {
         position: absolute;
-        top: 10px;
+        top: 48px; /* tab 行之下：不再盖住「版本历史」触发按钮 */
         right: 12px;
         z-index: 25;
-        width: min(300px, calc(100% - 24px));
+        width: min(264px, calc(100% - 24px));
         padding: 11px;
         border: 1px solid var(--border-soft);
         border-radius: var(--r-md);
@@ -7735,10 +7735,14 @@
                 ? lastVersions[lastVersions.length - 1].revision
                 : null);
             var headSeq = currentDocument ? currentDocument.versionCount : null;
-            lastVersions.forEach(function (v) {
+            lastVersions.forEach(function (v, index) {
+              // 项目视图（薄快照）没有 versionCount，且同内容快照会重复
+              // revision——"当前"只标最新一条，避免多行同标
               var isHead =
                 v.revision === headRev &&
-                (headSeq == null || v.sequence === headSeq);
+                (headSeq != null
+                  ? v.sequence === headSeq
+                  : index === lastVersions.length - 1);
               var item = document.createElement("button");
               item.className = "dz-history-item" + (isHead ? " active" : "");
               item.type = "button";
@@ -7749,9 +7753,7 @@
               copy.className = "dz-history-copy";
               var b = document.createElement("b");
               b.textContent = "v" + v.sequence + (isHead ? " · 当前" : "");
-              var small = document.createElement("small");
-              small.textContent = "版本 " + v.revision.slice(0, 8);
-              copy.append(b, small);
+              copy.append(b);
               var id = document.createElement("span");
               id.className = "mono dz-history-id";
               id.textContent = v.revision.slice(0, 8);
