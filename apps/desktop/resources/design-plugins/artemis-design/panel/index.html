@@ -5735,6 +5735,7 @@
             };
           }
           function dzBridgeShowHover(data) {
+            if (dzComposerHoverLock) return; // 弹窗内：锁定被标注元素
             var box = $("#dzPickBox");
             var r = dzBridgeRectToStage(data.rect);
             box.style.left = r.left + "px";
@@ -5759,6 +5760,37 @@
               );
             }
           }
+          /* 弹窗内悬停：把选中框/信息卡重新设定为被标注元素（OD 语义——
+             弹窗打开期间拾取不再跟随鼠标，防止选中漂移到弹窗边缘的邻居） */
+          function dzRecomposeSelection() {
+            var ctx = dzComposerCtx;
+            if (!ctx || !ctx.bridge || !ctx.bridge.rect) return;
+            var box = $("#dzPickBox");
+            var r = dzBridgeRectToStage(ctx.bridge.rect);
+            box.style.left = r.left + "px";
+            box.style.top = r.top + "px";
+            box.style.width = r.width + "px";
+            box.style.height = r.height + "px";
+            box.classList.add("selected");
+            box.hidden = false;
+            var card = $("#dzPickCard");
+            dzRenderRows(card, ctx.bridge.rows || []);
+            card.hidden = false;
+            var vp = $("#dzViewport");
+            card.style.left =
+              Math.max(8, r.left + vp.scrollLeft - card.offsetWidth - 10) +
+              "px";
+            card.style.top = Math.max(8, r.top + vp.scrollTop) + "px";
+          }
+          $("#dzNoteComposer").addEventListener("mouseenter", function () {
+            if (!dzComposerCtx || !dzComposerCtx.bridge) return;
+            dzComposerHoverLock = true;
+            dzRecomposeSelection();
+          });
+          $("#dzNoteComposer").addEventListener("mouseleave", function () {
+            dzComposerHoverLock = false;
+          });
+
           function dzOpenComposerFromBridge(data) {
             var composer = $("#dzNoteComposer");
             dzEditTarget = null;
@@ -6315,6 +6347,8 @@
           var dzActiveCommentId = null;
           var dzEditTarget = null;
           var dzComposerCtx = null;
+          // 弹窗打开且鼠标在弹窗内：桥接 hover 冻结，选中框/信息卡锁定被标注元素
+          var dzComposerHoverLock = false;
           function dzScale() {
             return dzZoom / 100;
           }
@@ -8377,7 +8411,8 @@
                 dzPostBridgeMode(dzCommentMode);
               if (bm.type === "dz-bridge-hover" && dzCommentMode)
                 dzBridgeShowHover(bm);
-              if (bm.type === "dz-bridge-hover-end") dzHideHover();
+              if (bm.type === "dz-bridge-hover-end" && !dzComposerHoverLock)
+                dzHideHover();
               // 拾取点击：仅在注释模式开时弹 composer（注释关闭时页面点击照常）
               if (bm.type === "dz-bridge-pick" && dzCommentMode)
                 dzOpenComposerFromBridge(bm);
