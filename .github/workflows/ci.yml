@@ -138,6 +138,17 @@ jobs:
           ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
           ARTEMIS_VISUAL_CONVERGENCE_OUTPUT: ${{ runner.temp }}/artemis-visual-convergence
           GITHUB_TOKEN: ${{ github.token }}
+      - name: Preserve visual convergence evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: visual-convergence-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/artemis-visual-convergence/**/*.json
+            ${{ runner.temp }}/artemis-visual-convergence/**/*.png
+            ${{ runner.temp }}/artemis-visual-convergence/**/*.log
+          if-no-files-found: warn
+          retention-days: 7
   hooks-native:
     name: Hooks native acceptance (${{ matrix.platform }})
     env:
