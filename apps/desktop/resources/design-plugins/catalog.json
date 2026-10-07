@@ -184,6 +184,96 @@
         "keyId": "design-pack-release",
         "value": "0/x1JXhY829YJBAPnxGFMf/DLX8DzrrOgx4/aumIdSaIttyhUuruTqKKddu3S7zNHDnp2CQvjBwStDiOmGNbBQ=="
       }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "artemis-design",
+      "version": "0.4.6",
+      "hostRange": ">=1.7.4 <2",
+      "platform": "darwin",
+      "arch": "arm64",
+      "sourceDigest": "eb23278b4e7ea1663f5212fe660facdeea3b7f48aed5c45ea8e1ac560bc1a768",
+      "archive": {
+        "url": "https://github.com/EurekaRaider/Artemis/releases/download/artemis-design-v0.4.6/artemis-design-darwin-arm64.zip",
+        "sha256": "1d4ee73ed035e15c95f05084a0ffa1ab7b9a4317eff55e7c5053ba72d6178f99",
+        "downloadBytes": 77780,
+        "unpackedBytes": 352063
+      },
+      "files": [
+        {
+          "path": "artemis.plugin.json",
+          "sha256": "3cf5bdff1fecb6cc910de607730af0fa012dfcaf3ee7bd93562f5baf3bf99299",
+          "bytes": 2668,
+          "executable": false
+        },
+        {
+          "path": "panel/index.html",
+          "sha256": "06aea595d9d113467908418b257c5c14a83c731ce913e0d466ba159a2bbcc787",
+          "bytes": 341746,
+          "executable": false
+        },
+        {
+          "path": "runtime/index.mjs",
+          "sha256": "ee2fcb880fa7cf6c2a039d2a63f2cce83f6802e69701020a52a8cdbbd7ccf877",
+          "bytes": 5006,
+          "executable": false
+        },
+        {
+          "path": "schema/design-document.schema.json",
+          "sha256": "1ab589e24470b888711eeda28be896d53d587f634103ddbdbfe6ff7016317e61",
+          "bytes": 2643,
+          "executable": false
+        }
+      ],
+      "signature": {
+        "keyId": "design-pack-release",
+        "value": "Hvyz6XKrQOb1X/pnoq2kzK5QYRH2B/7jPcoky79em260fyPeyZybAagGoGpJIlj1UryTBuW03ZE2flogWiu5BQ=="
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "artemis-design",
+      "version": "0.4.6",
+      "hostRange": ">=1.7.4 <2",
+      "platform": "win32",
+      "arch": "x64",
+      "sourceDigest": "eb23278b4e7ea1663f5212fe660facdeea3b7f48aed5c45ea8e1ac560bc1a768",
+      "archive": {
+        "url": "https://github.com/EurekaRaider/Artemis/releases/download/artemis-design-v0.4.6/artemis-design-win32-x64.zip",
+        "sha256": "1d4ee73ed035e15c95f05084a0ffa1ab7b9a4317eff55e7c5053ba72d6178f99",
+        "downloadBytes": 77780,
+        "unpackedBytes": 352063
+      },
+      "files": [
+        {
+          "path": "artemis.plugin.json",
+          "sha256": "3cf5bdff1fecb6cc910de607730af0fa012dfcaf3ee7bd93562f5baf3bf99299",
+          "bytes": 2668,
+          "executable": false
+        },
+        {
+          "path": "panel/index.html",
+          "sha256": "06aea595d9d113467908418b257c5c14a83c731ce913e0d466ba159a2bbcc787",
+          "bytes": 341746,
+          "executable": false
+        },
+        {
+          "path": "runtime/index.mjs",
+          "sha256": "ee2fcb880fa7cf6c2a039d2a63f2cce83f6802e69701020a52a8cdbbd7ccf877",
+          "bytes": 5006,
+          "executable": false
+        },
+        {
+          "path": "schema/design-document.schema.json",
+          "sha256": "1ab589e24470b888711eeda28be896d53d587f634103ddbdbfe6ff7016317e61",
+          "bytes": 2643,
+          "executable": false
+        }
+      ],
+      "signature": {
+        "keyId": "design-pack-release",
+        "value": "bT6srwT/VzZwk+ZS2+Qdq55iQWx4x+TkYgZ+0RfOjamX3iq8EsxOmZ6+Nu3YvQPFfWMvCFs2uP5dpo3tM0WzBA=="
+      }
     }
   ],
   "updateUrl": "https://raw.githubusercontent.com/EurekaRaider/Artemis/main/apps/desktop/resources/design-plugins/catalog.json"
