@@ -363,8 +363,15 @@ it("classifies local previews without admitting external protocols", () => {
     expect(timelineFileKind(path)).toBeUndefined();
 });
 
-it("forwards validated frame wheel messages to the timeline scroll container", async () => {
-  api();
+it("forwards validated wheel messages as soon as the preview frame mounts", async () => {
+  const { html } = api();
+  let finish!: (value: { url: string }) => void;
+  html.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
   const userWheel = vi.fn((event) => ({
     deltaY: event.deltaY,
     scrollTop: event.currentTarget.scrollTop,
@@ -378,16 +385,44 @@ it("forwards validated frame wheel messages to the timeline scroll container", a
       <MarkdownContent text="[Demo](index.html)" videoThreadId="task" />
     </div>,
   );
-  await waitFor(() =>
-    expect(container.querySelector("iframe")).toHaveAttribute("src"),
-  );
-  const frame = container.querySelector("iframe")!;
   const scroll = screen.getByTestId("timeline-scroll");
   Object.defineProperties(scroll, {
     scrollHeight: { value: 2000 },
     clientHeight: { value: 400 },
   });
   scroll.scrollTop = 500;
+  let frame!: HTMLIFrameElement;
+  // A guest can post its first message immediately after the frame commits,
+  // before the parent's passive effects have run.
+  const observer = new MutationObserver(() => {
+    const mounted = container.querySelector("iframe");
+    if (!mounted?.getAttribute("src")) return;
+    frame = mounted;
+    observer.disconnect();
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        source: frame.contentWindow,
+        data: {
+          type: "artemis:html-wheel",
+          version: 1,
+          url: frame.src,
+          deltaY: -120,
+        },
+      }),
+    );
+  });
+  observer.observe(container, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+  });
+  await waitFor(() => expect(html).toHaveBeenCalledOnce());
+  finish({ url: "artemis-preview://test/index.html" });
+  try {
+    await waitFor(() => expect(scroll.scrollTop).toBe(380));
+  } finally {
+    observer.disconnect();
+  }
   const report = (
     deltaY: unknown,
     source = frame.contentWindow,
@@ -405,8 +440,6 @@ it("forwards validated frame wheel messages to the timeline scroll container", a
         },
       }),
     );
-  report(-120);
-  expect(scroll.scrollTop).toBe(380);
   expect(userWheel).toHaveBeenCalledOnce();
   expect(userWheel.mock.results[0].value).toEqual({
     deltaY: -120,

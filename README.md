@@ -188,6 +188,7 @@ render Mermaid diagrams and LaTeX formulas, and show interactive local HTML.
 HTML previews load scripts, styles and images from the document directory in an
 isolated frame without network, Node.js or application access. Previews load
 near the viewport and retain playback or interaction state as messages stream.
+HTML frame size and wheel messages are handled from the first mounted frame.
 Office documents and PDFs appear as file cards; click a card to use the existing
 right-side viewer and its capability requirements.
 

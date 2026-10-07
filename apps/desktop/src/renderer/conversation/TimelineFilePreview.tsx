@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { WORKSPACE_HTML_SCHEME } from "../../shared/timeline-preview.js";
 import {
@@ -99,7 +105,8 @@ export function TimelineHtmlPreview({
       if (lease) release(lease);
     };
   }, [threadId, path, attempt, visible]);
-  useEffect(() => {
+  // Register before paint so a newly mounted frame cannot outpace the listener.
+  useLayoutEffect(() => {
     if (!url) return;
     const resize = (event: MessageEvent) => {
       const data = event.data;
