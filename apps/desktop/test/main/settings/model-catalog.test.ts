@@ -24,6 +24,25 @@ function model(
 }
 
 describe("visible model catalog", () => {
+  it("keeps legacy Azure models visible alongside the renamed provider", async () => {
+    const bundled = await loadBundledModelCatalog();
+    const current = bundled.find(
+      (model) =>
+        model.providerId === "azure" && model.modelId === "gpt-6.1-sol",
+    )!;
+    expect(current).toBeDefined();
+    const legacy = {
+      ...current,
+      providerId: "azure-openai-responses",
+      configured: true,
+    };
+    const visible = filterVisibleModels(
+      mergeBundledModelCatalog(bundled, [legacy]),
+    );
+    expect(visible).toContainEqual(legacy);
+    expect(visible).toContainEqual(current);
+  });
+
   it("keeps previously added DeepSeek IDs visible with current Flash capabilities", async () => {
     const models = filterVisibleModels(await loadBundledModelCatalog());
     for (const modelId of [

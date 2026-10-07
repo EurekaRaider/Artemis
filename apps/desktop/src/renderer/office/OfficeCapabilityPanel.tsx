@@ -59,8 +59,7 @@ export function OfficeCapabilityPanel({
         importOffline: () => window.artemis.importOfficeCapability(),
         cancel: () => window.artemis.cancelOfficeCapability(),
         activate: (version) => window.artemis.activateOfficeCapability(version),
-        uninstall: (version) =>
-          window.artemis.uninstallOfficeCapability(version),
+        uninstall: () => window.artemis.uninstallOfficeCapability(),
       }}
       onClose={onClose}
       {...(onInstalledChange ? { onInstalledChange } : {})}

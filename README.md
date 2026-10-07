@@ -1,32 +1,53 @@
-<div align="center">
-
-<img src="./apps/desktop/build/icon.png" width="92" alt="Artemis application icon" />
-
-# Artemis
-
-A local-first desktop agent for coding, research and everyday work.
+<h1>
+  <picture>
+    <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme-header-mobile-dark.svg" />
+    <source media="(max-width: 600px)" srcset="docs/assets/readme-header-mobile-light.svg" />
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-header-dark.svg" />
+    <img src="docs/assets/readme-header-light.svg" width="960" alt="Artemis — A local-first desktop agent for coding, research and everyday work." />
+  </picture>
+</h1>
 
 <p>
-  <a href="#im-access-and-native-group-collaboration"><img alt="IM private chat" src="https://img.shields.io/badge/IM-Private_Chat-0066FF?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTYgNGgxMmEzIDMgMCAwIDEgMyAzdjhhMyAzIDAgMCAxLTMgM0g5bC01IDN2LTRhMyAzIDAgMCAxLTEtMlY3YTMgMyAwIDAgMSAzLTNaIi8%2BPHBhdGggZD0iTTggOWg4TTggMTNoNSIvPjwvc3ZnPg%3D%3D" /></a>
-  <a href="#im-access-and-native-group-collaboration"><img alt="IM group collaboration" src="https://img.shields.io/badge/IM-Group_Collaboration-009688?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTkgNGgxMGEyIDIgMCAwIDEgMiAydjdsLTMtMmgtMSIvPjxwYXRoIGQ9Ik01IDhoOWEyIDIgMCAwIDEgMiAydjZhMiAyIDAgMCAxLTIgMkg4bC01IDNWMTBhMiAyIDAgMCAxIDItMloiLz48cGF0aCBkPSJNNyAxMmg1bS01IDNoMyIvPjwvc3ZnPg%3D%3D" /></a>
-  <a href="#parallel-agents"><img alt="Agent teams" src="https://img.shields.io/badge/Agent-Teams-7952B3?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPGNpcmNsZSBjeD0iMTIiIGN5PSI1IiByPSIzIi8%2BPGNpcmNsZSBjeD0iNSIgY3k9IjE3IiByPSIzIi8%2BPGNpcmNsZSBjeD0iMTkiIGN5PSIxNyIgcj0iMyIvPjxwYXRoIGQ9Ik0xMiA4djRINXYybTctMmg3djIiLz48L3N2Zz4%3D" /></a>
-  <a href="#parallel-agents"><img alt="Custom Agent roles" src="https://img.shields.io/badge/Agent-Custom_Roles-FF9800?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPGNpcmNsZSBjeD0iMTIiIGN5PSI3IiByPSI0Ii8%2BPHBhdGggZD0iTTQgMjF2LTJhOCA4IDAgMCAxIDE2IDB2Mk05IDE2bDMgMyAzLTMiLz48L3N2Zz4%3D" /></a>
+  <a href="#im-access-and-native-group-collaboration"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-im-dark.svg" />
+      <img src="docs/assets/readme-badge-im-light.svg" width="208" alt="IM Collaboration — Private &amp; Group" />
+    </picture></a>
+  <a href="#parallel-agents"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-agents-dark.svg" />
+      <img src="docs/assets/readme-badge-agents-light.svg" width="184" alt="Agent Teams — Custom Roles" />
+    </picture></a>
+  <a href="#plugin-marketplace-and-capability-center"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-plugins-dark.svg" />
+      <img src="docs/assets/readme-badge-plugins-light.svg" width="200" alt="Plugins &amp; MCP" />
+    </picture></a>
+  <a href="#recurring-work-and-usage"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-automations-dark.svg" />
+      <img src="docs/assets/readme-badge-automations-light.svg" width="184" alt="Automations" />
+    </picture></a>
 </p>
 
 <p>
-  <a href="#plugin-marketplace-and-capability-center"><img alt="Plugin support" src="https://img.shields.io/badge/Plugins-Supported-FF0080?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggZD0iTTggM3Y1bTgtNXY1TTYgOGgxMnY0YTYgNiAwIDAgMS0xMiAwVjhabTYgMTB2NCIvPjwvc3ZnPg%3D%3D" /></a>
-  <a href="#recurring-work-and-usage"><img alt="Scheduled automations" src="https://img.shields.io/badge/Automations-Scheduled-00B8D9?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHJlY3QgeD0iMyIgeT0iNSIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE2IiByeD0iMiIvPjxwYXRoIGQ9Ik03IDN2NG0xMC00djRNMyAxMGgxOG0tOSAzdjNsMyAyIi8%2BPC9zdmc%2B" /></a>
-  <a href="#platform-support"><img alt="Windows x64" src="https://img.shields.io/badge/Windows-x64-0078FF?labelColor=374151&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI%2BPHBhdGggc3Ryb2tlPSJub25lIiBmaWxsPSJ3aGl0ZSIgZD0iTTIgM2g5djhIMnptMTEgMGg5djhoLTl6TTIgMTNoOXY4SDJ6bTExIDBoOXY4aC05eiIvPjwvc3ZnPg%3D%3D" /></a>
-  <a href="#platform-support"><img alt="macOS Apple Silicon" src="https://img.shields.io/badge/macOS-Apple_Silicon-7063B5?logo=apple&logoColor=white&labelColor=374151" /></a>
+  <a href="#platform-support"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-windows-dark.svg" />
+      <img src="docs/assets/readme-meta-windows-light.svg" width="140" alt="Windows x64" />
+    </picture></a>
+  &nbsp;·&nbsp;
+  <a href="#platform-support"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-macos-dark.svg" />
+      <img src="docs/assets/readme-meta-macos-light.svg" width="206" alt="macOS Apple Silicon" />
+    </picture></a>
+  &nbsp;·&nbsp;
+  <a href="LICENSE"><picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-license-dark.svg" />
+      <img src="docs/assets/readme-meta-license-light.svg" width="134" alt="MIT License" />
+    </picture></a>
 </p>
-
-[Quick start](#quick-start) · [Preview](#product-preview) · [Features](#core-capabilities) · [Permissions](#execution-permissions-and-trust-boundary) · [Development](#development-and-packaging)
-
-</div>
 
 ---
 
-<p align="center"><sub>Artemis desktop · persistent project conversation · dark theme</sub></p>
+[Quick start](#quick-start) · [Preview](#product-preview) · [Features](#core-capabilities) · [Permissions](#execution-permissions-and-trust-boundary) · [Development](#development-and-packaging)
+
+<p><sub>Artemis desktop · persistent project conversation · dark theme</sub></p>
 
 ![Artemis welcome screen with a greeting and a clean task composer](docs/assets/images/welcome-dark.png)
 
@@ -56,11 +77,12 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.4** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.5** · [Release notes](docs/records/release-notes.md).
 
-This revision expands localized interface and IM messages across all 14 supported
-languages, aligns provider login controls, and refreshes installed plugin versions
-after Design pack updates. Design projects use workspace HTML files with bounded
+This revision upgrades Pi to 1.0.4, preserves saved Azure provider settings,
+and adds image results to workspace reads and Codemode. Office and Design pack
+updates require a user action; removing a pack clears all installed versions,
+and completed updates retire unused older versions. Design projects use workspace HTML files with bounded
 snapshots, undo/redo, automatic preview refresh and safe path-based editing. The
 signed Design plugin pack is version **0.4.6** and requires Artemis **1.7.4** or newer.
 Design mode is available in project chats; existing hosted documents remain in

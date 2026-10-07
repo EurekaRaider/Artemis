@@ -23,8 +23,7 @@ export function DesignCapabilityPanel({
         importOffline: () => window.artemis.importDesignCapability(),
         cancel: () => window.artemis.cancelDesignCapability(),
         activate: (version) => window.artemis.activateDesignCapability(version),
-        uninstall: (version) =>
-          window.artemis.uninstallDesignCapability(version),
+        uninstall: () => window.artemis.uninstallDesignCapability(),
       }}
       onClose={onClose}
       {...(onInstalledChange ? { onInstalledChange } : {})}

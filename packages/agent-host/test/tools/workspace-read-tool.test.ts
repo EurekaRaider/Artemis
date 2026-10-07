@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createWorkspaceReadTool } from "../../src/tools/workspace-read-tool.js";
 import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
+import images from "../fixtures/read-images.json";
 
 const roots: string[] = [];
 async function fixture(text: string) {
@@ -30,6 +31,142 @@ afterEach(async () => {
 });
 
 describe("bounded workspace read", () => {
+  it.each(Object.entries(images))(
+    "returns a structured %s image based on its signature, even without an image extension",
+    async (_format, image) => {
+      const root = await mkdtemp(join(tmpdir(), "artemis-image-read-"));
+      roots.push(root);
+      await writeFile(
+        join(root, "picture.bin"),
+        Buffer.from(image.data, "base64"),
+      );
+      const tool = createWorkspaceReadTool(root);
+      expect(tool.outputSchema).toBeDefined();
+      const result = await tool.execute("read", { path: "picture.bin" });
+      expect(result.content).toContainEqual(
+        expect.objectContaining({
+          type: "image",
+          mimeType: image.mimeType,
+        }),
+      );
+      expect(result.structuredContent).toEqual(
+        expect.objectContaining({
+          type: "image",
+          mimeType: image.mimeType,
+          data: expect.any(String),
+          note: expect.any(String),
+        }),
+      );
+      expect(JSON.stringify(result.details)).not.toContain(image.data);
+    },
+  );
+
+  it("rejects oversized, corrupt and excessive-pixel images before returning content", async () => {
+    const root = await mkdtemp(join(tmpdir(), "artemis-invalid-image-"));
+    roots.push(root);
+    const bytes = Buffer.from(images.png.data, "base64");
+    const oversized = Buffer.alloc(10 * 1024 * 1024 + 1);
+    bytes.copy(oversized);
+    await writeFile(join(root, "large.png"), oversized);
+    const huge = Buffer.from(bytes);
+    huge.writeUInt32BE(100001, 16);
+    huge.writeUInt32BE(1000, 20);
+    await writeFile(join(root, "huge.png"), huge);
+    await writeFile(join(root, "corrupt.png"), bytes.subarray(0, 24));
+    const tool = createWorkspaceReadTool(root);
+    await expect(tool.execute("read", { path: "large.png" })).rejects.toThrow(
+      /10 MiB/,
+    );
+    await expect(tool.execute("read", { path: "huge.png" })).rejects.toThrow(
+      /100 megapixel/,
+    );
+    await expect(tool.execute("read", { path: "corrupt.png" })).rejects.toThrow(
+      /decode|invalid|process/i,
+    );
+  });
+
+  it("keeps text results as strings for Codemode and rejects image pagination", async () => {
+    const read = await fixture("plain text");
+    expect((await read()).structuredContent).toBe("plain text");
+    const root = await mkdtemp(join(tmpdir(), "artemis-image-range-"));
+    roots.push(root);
+    await writeFile(
+      join(root, "sample.png"),
+      Buffer.from(images.png.data, "base64"),
+    );
+    const tool = createWorkspaceReadTool(root);
+    for (const params of [{ offset: 1 }, { limit: 16 }])
+      await expect(
+        tool.execute("read", { path: "sample.png", ...params }),
+      ).rejects.toThrow(/image.*offset|image.*limit/i);
+  });
+
+  it("honors the current model's image limits and rejects models without vision", async () => {
+    const root = await mkdtemp(join(tmpdir(), "artemis-model-image-"));
+    roots.push(root);
+    await writeFile(
+      join(root, "sample.png"),
+      Buffer.from(images.png.data, "base64"),
+    );
+    const tool = createWorkspaceReadTool(root);
+    const context = {
+      model: {
+        input: ["text", "image"],
+        inputLimits: { images: { resize: { maxWidth: 1, maxHeight: 1 } } },
+      },
+    };
+    const result = await tool.execute(
+      "read",
+      { path: "sample.png" },
+      undefined,
+      undefined,
+      context,
+    );
+    expect(result.details).toMatchObject({
+      width: 1,
+      height: 1,
+      originalWidth: 2,
+      originalHeight: 2,
+    });
+    await expect(
+      tool.execute("read", { path: "sample.png" }, undefined, undefined, {
+        model: { input: ["text"] },
+      }),
+    ).rejects.toThrow(/does not support image input/);
+  });
+
+  it("keeps image reads within workspace and active skill roots", async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "artemis-image-roots-")),
+    );
+    roots.push(root);
+    const workspace = join(root, "workspace"),
+      skill = join(root, "skill");
+    await mkdir(workspace);
+    await mkdir(skill);
+    await writeFile(
+      join(skill, "sample.png"),
+      Buffer.from(images.png.data, "base64"),
+    );
+    await writeFile(
+      join(root, "private.png"),
+      Buffer.from(images.png.data, "base64"),
+    );
+    await symlink(root, join(workspace, "escape"), "junction");
+    let active = [skill];
+    const tool = createWorkspaceReadTool(workspace, () => active);
+    expect(
+      (await tool.execute("read", { path: join(skill, "sample.png") }))
+        .content[1],
+    ).toMatchObject({ type: "image" });
+    for (const path of ["../private.png", "escape/private.png"])
+      await expect(tool.execute("read", { path })).rejects.toThrow();
+    active = [];
+    await expect(
+      tool.execute("read", { path: join(skill, "sample.png") }),
+    ).rejects.toThrow();
+  });
+
   it("uses the bounded reader in the host's read-only and execute tool sets", async () => {
     const root = await mkdtemp(join(tmpdir(), "artemis-host-read-"));
     roots.push(root);

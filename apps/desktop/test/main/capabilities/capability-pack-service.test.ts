@@ -1,5 +1,13 @@
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import * as fileUtils from "../../../src/main/office/office-file-utils.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -538,6 +546,159 @@ function signedSoftware(
     },
   } as CapabilityPackManifest;
 }
+
+describe.each(["office-core", "artemis-design"])(
+  "%s installation lifecycle",
+  (packId) => {
+    async function lifecycleFixture() {
+      const f = await fixture();
+      const archive =
+        packId === "office-core" ? zip() : zipEntries(DESIGN_FILES);
+      const download = vi.fn(async () => new Response(archive));
+      const service = new CapabilityPackService({
+        ...target,
+        root: join(f.root, "packs"),
+        packId,
+        verifyNative: vi.fn(async () => undefined),
+        dependents: async () => [],
+        fetch: download,
+      });
+      const manifest = (version: string) =>
+        packId === "office-core"
+          ? signed(archive, { version })
+          : signedSoftware(archive, DESIGN_FILES, { version });
+      const directory = join(f.root, "packs", packId);
+      return { ...f, service, download, manifest, directory };
+    }
+
+    it("keeps only the new installation after a successful manual upgrade", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      await f.service.install(f.manifest("1.1.0"));
+      expect((await f.service.status()).activeVersion).toBe("1.1.0");
+      expect(await readdir(f.directory)).toEqual(["1.1.0"]);
+    });
+
+    it("keeps the old installation usable when the new download fails verification", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      f.download.mockResolvedValueOnce(new Response("corrupt"));
+      await expect(f.service.install(f.manifest("1.1.0"))).rejects.toThrow();
+      expect((await f.service.status()).activeVersion).toBe("1.0.0");
+      expect(await readdir(f.directory)).toEqual(["1.0.0"]);
+      const lease = await f.service.acquire();
+      lease.release();
+    });
+
+    it("keeps an old leased installation until the final document closes", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      const first = await f.service.acquire();
+      const second = await f.service.acquire();
+      await f.service.install(f.manifest("1.1.0"));
+      expect(await readdir(f.directory)).toEqual(["1.0.0", "1.1.0"]);
+      first.release();
+      expect((await f.service.status()).versions).toHaveLength(2);
+      second.release();
+      await vi.waitFor(async () => {
+        expect(await readdir(f.directory)).toEqual(["1.1.0"]);
+      });
+    });
+
+    it("automatically removes a released old installation while the plugin is disabled", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      const lease = await f.service.acquire();
+      await f.service.install(f.manifest("1.1.0"));
+      await f.service.deactivate();
+      lease.release();
+      await vi.waitFor(async () =>
+        expect(await readdir(f.directory)).toEqual(["1.1.0"]),
+      );
+      expect((await f.service.status()).activeVersion).toBeUndefined();
+    });
+
+    it("resumes deferred cleanup after restart even while the plugin is disabled", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      await f.service.acquire();
+      await f.service.install(f.manifest("1.1.0"));
+      await f.service.deactivate();
+      const restarted = new CapabilityPackService({
+        ...target,
+        root: join(f.root, "packs"),
+        packId,
+        verifyNative: vi.fn(async () => undefined),
+        dependents: async () => [],
+      });
+      const status = await restarted.status();
+      expect(status.activeVersion).toBeUndefined();
+      expect(status.versions.map((entry) => entry.version)).toEqual(["1.1.0"]);
+      expect(await readdir(f.directory)).toEqual(["1.1.0"]);
+    });
+
+    it.each([true, false])(
+      "fully uninstalls legacy versions even when active=%s and preserves user data",
+      async (active) => {
+        const f = await lifecycleFixture();
+        await f.service.install(f.manifest("1.1.0"));
+        await cp(join(f.directory, "1.1.0"), join(f.directory, "1.0.0"), {
+          recursive: true,
+        });
+        await writeFile(
+          join(f.directory, "1.0.0/manifest.json"),
+          JSON.stringify(f.manifest("1.0.0")),
+        );
+        const data = join(f.root, "document-history.json");
+        await writeFile(data, "keep my documents");
+        if (!active) await f.service.deactivate();
+        await f.service.uninstall();
+        expect((await f.service.status()).versions).toEqual([]);
+        expect((await f.service.status()).activeVersion).toBeUndefined();
+        await expect(readdir(f.directory)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await readFile(data, "utf8")).toBe("keep my documents");
+      },
+    );
+
+    it("refuses full uninstall before touching any installation when an old version is leased", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      const lease = await f.service.acquire();
+      await f.service.install(f.manifest("1.1.0"));
+      await expect(f.service.uninstall()).rejects.toThrow("in use");
+      expect((await f.service.status()).activeVersion).toBe("1.1.0");
+      expect(await readdir(f.directory)).toEqual(["1.0.0", "1.1.0"]);
+      lease.release();
+      await vi.waitFor(async () =>
+        expect((await f.service.status()).versions).toHaveLength(1),
+      );
+      await f.service.uninstall();
+      expect((await f.service.status()).versions).toEqual([]);
+    });
+
+    it("fully uninstalls only its own pack and preserves another pack's activation", async () => {
+      const f = await lifecycleFixture();
+      await f.service.install(f.manifest("1.0.0"));
+      const other = packId === "office-core" ? "artemis-design" : "office-core";
+      const otherDirectory = join(f.root, "packs", other, "2.0.0");
+      await mkdir(otherDirectory, { recursive: true });
+      await writeFile(join(otherDirectory, "keep"), "other plugin");
+      await writeFile(
+        join(f.root, "packs/active.json"),
+        JSON.stringify({ packs: { [packId]: "1.0.0", [other]: "2.0.0" } }),
+      );
+      await f.service.uninstall();
+      expect(
+        JSON.parse(await readFile(join(f.root, "packs/active.json"), "utf8")),
+      ).toEqual({ packs: { [other]: "2.0.0" } });
+      expect(await readFile(join(otherDirectory, "keep"), "utf8")).toBe(
+        "other plugin",
+      );
+    });
+  },
+);
 
 describe("software capability packs (multi-pack namespaces)", () => {
   it("downloads and installs a design pack into its own namespace", async () => {

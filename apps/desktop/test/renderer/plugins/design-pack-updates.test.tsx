@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
   fireEvent,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ResourceCenter } from "../../../src/renderer/plugins/ResourceCenter.js";
@@ -20,6 +21,97 @@ beforeEach(() => {
   );
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
+
+it.each([
+  ["office-core", true, false],
+  ["office-core", false, false],
+  ["artemis-design", true, false],
+  ["artemis-design", false, false],
+  ["office-core", true, true],
+  ["artemis-design", true, true],
+] as const)(
+  "uninstalls all versions from the %s card or waits for old leases (active=%s, inUse=%s)",
+  async (packId, active, inUse) => {
+    vi.resetModules();
+    const { ResourceCenter } =
+      await import("../../../src/renderer/plugins/ResourceCenter.js");
+    const oldVersion = packId === "office-core" ? "1.0.0" : "0.4.5";
+    const currentVersion = packId === "office-core" ? "1.1.0" : "0.4.6";
+    let versions = [
+      { version: oldVersion, bytes: 10, active: false, inUse },
+      { version: currentVersion, bytes: 10, active, inUse: false },
+    ];
+    const uninstall = vi.fn(async (version?: string) => {
+      versions = version
+        ? versions.filter((entry) => entry.version !== version)
+        : [];
+    });
+    const status = (id: string) => ({
+      id,
+      phase: "idle",
+      versions: id === packId ? versions : [],
+      activeVersion:
+        id === packId && active && versions.some((entry) => entry.active)
+          ? currentVersion
+          : undefined,
+      availableVersion: currentVersion,
+      downloadedBytes: 0,
+      totalBytes: 0,
+      dependents: [],
+    });
+    stubWindowArtemis({
+      listMcpServers: async () => [],
+      listArtemisPlugins: async () => [],
+      listInstalledSkills: async () => [],
+      getArtemisPluginMarketplaces: async () => ({
+        selectedView: "bundled",
+        sources: [],
+        marketplaces: [],
+        errors: [],
+      }),
+      loadBundledPluginMarketplace: async () => undefined,
+      onResourceInstallProgress: () => () => {},
+      checkOfficeCapabilityUpdates: async () => {},
+      checkDesignCapabilityUpdates: async () => {},
+      officeCapabilityStatus: async () => status("office-core"),
+      designCapabilityStatus: async () => status("artemis-design"),
+      uninstallOfficeCapability: uninstall,
+      uninstallDesignCapability: uninstall,
+    });
+    const { container } = render(
+      <ResourceCenter
+        locale="en"
+        onConfirm={async () => true}
+        onSettingsChange={() => {}}
+      />,
+    );
+    const selector =
+      packId === "office-core" ? ".office-pack-card" : ".design-pack-card";
+    await waitFor(() =>
+      expect(container.querySelector(selector)?.textContent).toContain(
+        `v${currentVersion}`,
+      ),
+    );
+    const card = within(container.querySelector(selector) as HTMLElement);
+    const button = card.getByRole("button", {
+      name: packId === "office-core" ? "Remove" : "Uninstall",
+      exact: true,
+    });
+    if (inUse) {
+      expect(button).toBeDisabled();
+      fireEvent.click(button);
+      expect(uninstall).not.toHaveBeenCalled();
+      return;
+    }
+    fireEvent.click(button);
+    await waitFor(() => expect(uninstall).toHaveBeenCalledWith());
+    expect(
+      await card.findByRole("button", { name: "Install", exact: true }),
+    ).toBeVisible();
+    expect(card.queryByText(`v${oldVersion}`)).toBeNull();
+    expect(card.queryByText(`v${currentVersion}`)).toBeNull();
+  },
+);
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();

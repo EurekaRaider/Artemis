@@ -11,9 +11,13 @@ import {
   getBuiltinModels,
   getBuiltinProviders,
 } from "@earendil-works/pi-ai/providers/all";
-import { withArtemisBuiltinModels } from "@artemis/agent-host/builtin-models";
+import {
+  LEGACY_AZURE_PROVIDER_ID,
+  withArtemisBuiltinModels,
+} from "@artemis/agent-host/builtin-models";
 
 const visibleProviderIds = new Set<string>(getBuiltinProviders());
+visibleProviderIds.add(LEGACY_AZURE_PROVIDER_ID);
 
 const thinkingLevels: ModelThinkingLevel[] = [
   "off",

@@ -1957,6 +1957,11 @@ export function ResourceCenter({
         setOfficeUpdating(true);
         try {
           await operation();
+          const status = await window.artemis.officeCapabilityStatus();
+          setOfficePackStatus(status);
+          setOfficeCapabilityActive(Boolean(status.activeVersion));
+          setOfficeCapabilityInstalled(status.versions.length > 0);
+          window.dispatchEvent(new Event("artemis:resources-changed"));
         } finally {
           setOfficeUpdating(false);
         }
@@ -2022,17 +2027,14 @@ export function ResourceCenter({
                   variant="secondary"
                   className="management-destructive-action plugin-market-remove-action"
                   icon={<TrashIcon />}
-                  disabled={status?.versions.some(
-                    (version) => version.active && version.inUse,
-                  )}
+                  disabled={status?.versions.some((version) => version.inUse)}
+                  title={
+                    status?.versions.some((version) => version.inUse)
+                      ? office.inUse
+                      : undefined
+                  }
                   onClick={() =>
-                    status?.activeVersion
-                      ? run(() =>
-                          window.artemis.uninstallOfficeCapability(
-                            status.activeVersion!,
-                          ),
-                        )
-                      : setOfficeCapabilityOpen(true)
+                    run(() => window.artemis.uninstallOfficeCapability())
                   }
                 >
                   {office.remove}
@@ -2063,6 +2065,12 @@ export function ResourceCenter({
     const installedVersion = installedCapabilityVersion(status);
     const installed = Boolean(status?.versions.length);
     const working = Boolean(status && status.phase !== "idle");
+    const run = (operation: () => Promise<void>) =>
+      runResourceOperation(async () => {
+        await operation();
+        setDesignPackStatus(await window.artemis.designCapabilityStatus());
+        window.dispatchEvent(new Event("artemis:resources-changed"));
+      });
     return (
       <ManagementCard className="plugin-market-card design-pack-card">
         <div className="plugin-market-card-heading">
@@ -2123,18 +2131,9 @@ export function ResourceCenter({
                     className="plugin-market-update-action"
                     variant="secondary"
                     size="compact"
+                    disabled={operationPending}
                     onClick={() =>
-                      void window.artemis
-                        .installDesignCapability()
-                        .then(() => window.artemis.designCapabilityStatus())
-                        .then(setDesignPackStatus)
-                        .catch((reason: unknown) =>
-                          setMessage(
-                            reason instanceof Error
-                              ? reason.message
-                              : String(reason),
-                          ),
-                        )
+                      run(() => window.artemis.installDesignCapability())
                     }
                   >
                     {copy.updateNow.replace("{version}", status.updateVersion)}
@@ -2144,18 +2143,17 @@ export function ResourceCenter({
                   className="management-destructive-action plugin-market-remove-action"
                   icon={<TrashIcon />}
                   variant="secondary"
+                  disabled={
+                    operationPending ||
+                    status?.versions.some((version) => version.inUse)
+                  }
+                  title={
+                    status?.versions.some((version) => version.inUse)
+                      ? copy.inUse
+                      : undefined
+                  }
                   onClick={() =>
-                    status?.activeVersion
-                      ? void window.artemis
-                          .uninstallDesignCapability(status.activeVersion)
-                          .catch((reason: unknown) =>
-                            setMessage(
-                              reason instanceof Error
-                                ? reason.message
-                                : String(reason),
-                            ),
-                          )
-                      : setDesignPackOpen(true)
+                    run(() => window.artemis.uninstallDesignCapability())
                   }
                 >
                   {t.remove}
@@ -2164,19 +2162,10 @@ export function ResourceCenter({
             ) : (
               <Button
                 variant="secondary"
+                disabled={operationPending}
                 onClick={() => {
                   if (status?.availableVersion) {
-                    void window.artemis
-                      .installDesignCapability()
-                      .then(() => window.artemis.designCapabilityStatus())
-                      .then(setDesignPackStatus)
-                      .catch((reason: unknown) =>
-                        setMessage(
-                          reason instanceof Error
-                            ? reason.message
-                            : String(reason),
-                        ),
-                      );
+                    run(() => window.artemis.installDesignCapability());
                     return;
                   }
                   // 无在线版本：管理弹窗承载离线导入路径。

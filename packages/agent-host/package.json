@@ -1,6 +1,6 @@
 {
   "name": "@artemis/agent-host",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -33,10 +33,10 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "3.0.84",
-    "@artemis/platform": "1.7.4",
-    "@artemis/protocol": "1.7.4",
-    "@earendil-works/pi-ai": "1.0.2",
-    "@earendil-works/pi-coding-agent": "1.0.2",
+    "@artemis/platform": "1.7.5",
+    "@artemis/protocol": "1.7.5",
+    "@earendil-works/pi-ai": "1.0.4",
+    "@earendil-works/pi-coding-agent": "1.0.4",
     "@sinclair/typebox": "0.34.52",
     "ai": "6.0.168",
     "undici": "7.29.1"

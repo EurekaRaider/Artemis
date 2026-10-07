@@ -186,6 +186,7 @@ function createService(
     mcpStore?: McpConfigStore;
     bundledArtifactRoot?: string;
     computerUseRoot?: string;
+    designRevisionsRoot?: string;
     cloneRepository?: (url: string, destination: string) => Promise<void>;
     fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
   } = {},
@@ -202,6 +203,9 @@ function createService(
       statePath: join(root, "user-data", "plugins.json"),
       mcpWorkspaceRoot: join(root, "user-data", "mcp-workspaces"),
       mcpStore,
+      ...(options.designRevisionsRoot
+        ? { designRevisionsRoot: options.designRevisionsRoot }
+        : {}),
       ...(options.computerUseRoot
         ? { computerUseRoot: options.computerUseRoot }
         : {}),
@@ -215,6 +219,101 @@ function createService(
     }),
   };
 }
+
+async function writeInteractivePlugin(source: string, version = "1.0.0") {
+  await mkdir(join(source, "panel"), { recursive: true });
+  await mkdir(join(source, "runtime"), { recursive: true });
+  await writeFile(join(source, "panel/index.html"), "<html>design</html>");
+  await writeFile(join(source, "runtime/index.mjs"), "export {};");
+  await writeFile(
+    join(source, "artemis.plugin.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      kind: "interactive",
+      id: "com.example.design",
+      name: "example-design",
+      version,
+      engines: { artemisPluginApi: "1" },
+      projectTypes: [
+        {
+          id: "example-design",
+          title: { en: "Design" },
+          targets: ["project"],
+          panelIds: ["main"],
+        },
+      ],
+      panels: [{ id: "main", entry: "panel/index.html" }],
+      runtime: { entry: "runtime/index.mjs", protocolVersion: 1 },
+      tools: [
+        {
+          name: "get_snapshot",
+          description: "Read design",
+          effect: "state-read",
+        },
+      ],
+      capabilities: {
+        artifactStore: "none",
+        projectFiles: "explicit-import",
+        network: "none",
+        sessionInput: "host-user-action",
+      },
+    }),
+  );
+}
+
+it.each([true, false])(
+  "removes all interactive code revisions after restart using the manifest installation ID (custom root=%s)",
+  async (customRoot) => {
+    const root = await temporaryRoot();
+    const source = join(root, "source");
+    await writeInteractivePlugin(source);
+    const revisionsRoot = customRoot
+      ? join(root, "user-data/design-plugins/revisions")
+      : join(root, "user-data/plugins/plugin-revisions");
+    const options = customRoot ? { designRevisionsRoot: revisionsRoot } : {};
+    const { service } = createService(root, options);
+    const installed = await service.install({ kind: "local", path: source });
+    await writeInteractivePlugin(source, "1.1.0");
+    await service.update(installed.plugin.id);
+    expect(
+      await readdir(join(revisionsRoot, "com.example.design")),
+    ).toHaveLength(2);
+    const history = join(root, "user-data/design-plugins/thread-data.json");
+    await mkdir(dirname(history), { recursive: true });
+    await writeFile(history, "keep user history");
+    const restarted = createService(root, options).service;
+    await restarted.remove(installed.plugin.id);
+    expect(await restarted.listInstalled()).toEqual([]);
+    await expect(
+      readdir(join(revisionsRoot, "com.example.design")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await readFile(history, "utf8")).toBe("keep user history");
+    expect(await readFile(join(source, "panel/index.html"), "utf8")).toContain(
+      "design",
+    );
+  },
+);
+
+it("preserves shared interactive revisions until the last installed owner is removed", async () => {
+  const root = await temporaryRoot();
+  const revisionsRoot = join(root, "user-data/design-plugins/revisions");
+  const options = { designRevisionsRoot: revisionsRoot };
+  const { service } = createService(root, options);
+  const sources = [join(root, "first"), join(root, "second")];
+  await writeInteractivePlugin(sources[0]!);
+  await writeInteractivePlugin(sources[1]!, "1.1.0");
+  const first = await service.install({ kind: "local", path: sources[0]! });
+  const second = await service.install({ kind: "local", path: sources[1]! });
+  const restarted = createService(root, options).service;
+  await restarted.remove(first.plugin.id);
+  expect(await readdir(join(revisionsRoot, "com.example.design"))).toHaveLength(
+    2,
+  );
+  await restarted.remove(second.plugin.id);
+  await expect(
+    readdir(join(revisionsRoot, "com.example.design")),
+  ).rejects.toMatchObject({ code: "ENOENT" });
+});
 
 async function writePlugin(
   pluginRoot: string,

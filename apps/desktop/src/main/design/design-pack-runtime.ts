@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CapabilityPackStatus } from "@artemis/protocol";
 import { rcompare } from "semver";
-import { updateCapabilityPackForHostUpgrade } from "../capabilities/capability-pack-host-upgrade.js";
+import { checkCapabilityPackUpdatesForHostUpgrade } from "../capabilities/capability-pack-host-upgrade.js";
 import { CapabilityPackService } from "../capabilities/capability-pack-service.js";
 import { PluginRevisionStore } from "./design-plugin-revision-store.js";
 import {
@@ -121,17 +121,16 @@ export async function createDesignPackRuntime(options: {
     }
   }
   const runtime = { packs, updates, status, syncActiveRevision };
-  // Run before exposing the runtime so user operations cannot race activation.
+  // Refresh update metadata after a host upgrade; installation remains manual.
   try {
-    await updateCapabilityPackForHostUpgrade(
+    await checkCapabilityPackUpdatesForHostUpgrade(
       runtime,
       options.userData,
       options.hostVersion,
       "artemis-design",
     );
   } catch (error) {
-    // Keep the old pack and retry on the next launch if offline or installation fails.
-    console.error("[design-pack] automatic update failed", error);
+    console.error("[design-pack] update check failed", error);
   }
   return runtime;
 }

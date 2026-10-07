@@ -11494,7 +11494,7 @@ function registerIpc(): void {
   });
   ipcMain.handle(
     IPC.officeCapabilityUninstall,
-    async (_event, version: string) => {
+    async (_event, version?: string) => {
       await (await getOfficeWorkbench()).packs.uninstall(version);
       await applyAgentRuntime();
     },
@@ -11761,7 +11761,7 @@ function registerIpc(): void {
   });
   ipcMain.handle(
     IPC.designCapabilityUninstall,
-    async (_event, version: string) => {
+    async (_event, version?: string) => {
       await (await getDesignPackRuntime()).packs.uninstall(version);
       // Design mode is off: open panels must go with it. Revisions (and with
       // them every thread's files and history) stay on disk.

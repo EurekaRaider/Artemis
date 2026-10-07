@@ -18,7 +18,7 @@ export async function patchPiDependencies(root) {
     }),
   );
   if (
-    sdk.version !== "1.0.2" ||
+    sdk.version !== "1.0.4" ||
     installed.name !== "brace-expansion" ||
     installed.version !== "5.0.12"
   ) {
@@ -34,6 +34,6 @@ if (
 ) {
   await patchPiDependencies(fileURLToPath(new URL("../../", import.meta.url)));
   console.log(
-    "Pi 1.0.2 dependency resolution verified: brace-expansion 5.0.12.",
+    "Pi 1.0.4 dependency resolution verified: brace-expansion 5.0.12.",
   );
 }

@@ -1,0 +1,32 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="960"
+  height="112"
+  viewBox="0 0 960 112"
+  role="img"
+  aria-labelledby="title"
+>
+  <title id="title">
+    Artemis — A local-first desktop agent for coding, research and everyday
+    work.
+  </title>
+  <g
+    font-family="Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+  >
+    <text
+      x="0"
+      y="77"
+      fill="#e6edf3"
+      font-size="64"
+      font-weight="650"
+      letter-spacing="-2"
+    >
+      Artemis
+    </text>
+    <path d="M268 20v76" stroke="#30363d" stroke-width="1.5" />
+    <text fill="#8b949e" font-size="23">
+      <tspan x="296" y="50">A local-first desktop agent for coding,</tspan>
+      <tspan x="296" y="83">research and everyday work.</tspan>
+    </text>
+  </g>
+</svg>

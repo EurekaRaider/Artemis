@@ -6171,7 +6171,10 @@ export class ArtemisAgentHost {
                   resourceLoader: childResourceLoader,
                   noTools: "builtin",
                   customTools: guardedChildTools.map(configureToolExposure),
-                  tools: guardedChildTools.map((tool) => tool.name),
+                  tools: [
+                    ...guardedChildTools.map((tool) => tool.name),
+                    ...(input.mode === "codemode" ? ["codemode"] : []),
+                  ],
                 });
                 if (request.remoteExecution)
                   created.session.setActiveToolsByName(

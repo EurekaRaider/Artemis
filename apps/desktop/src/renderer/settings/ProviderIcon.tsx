@@ -5,6 +5,7 @@ export const PROVIDER_BRAND_ICONS: Readonly<Record<string, string>> = {
   "amazon-bedrock": "bedrock",
   "ant-ling": "ant-ling",
   anthropic: "anthropic",
+  azure: "azure",
   "azure-openai-responses": "azure",
   baseten: "baseten",
   cerebras: "cerebras",

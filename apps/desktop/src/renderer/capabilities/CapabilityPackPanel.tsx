@@ -51,7 +51,7 @@ export interface CapabilityPackApi {
   importOffline(): Promise<void>;
   cancel(): Promise<void>;
   activate(version: string): Promise<void>;
-  uninstall(version: string): Promise<void>;
+  uninstall(): Promise<void>;
 }
 
 export function CapabilityPackPanel({
@@ -191,9 +191,12 @@ export function CapabilityPackPanel({
                 <Button
                   variant="quiet"
                   icon={<ArtemisIcon name="trash" />}
-                  disabled={operationBusy || version.inUse}
+                  disabled={
+                    operationBusy ||
+                    status.versions.some((entry) => entry.inUse)
+                  }
                   aria-describedby={`pack-remove-${version.version}`}
-                  onClick={() => void run(() => api.uninstall(version.version))}
+                  onClick={() => void run(() => api.uninstall())}
                 >
                   {copy.remove}
                 </Button>
@@ -203,7 +206,9 @@ export function CapabilityPackPanel({
               className="office-capability-hint"
               id={`pack-remove-${version.version}`}
             >
-              {version.inUse ? copy.inUse : copy.removeHint}
+              {status.versions.some((entry) => entry.inUse)
+                ? copy.inUse
+                : copy.removeHint}
             </p>
           </div>
         ))}

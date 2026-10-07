@@ -1216,7 +1216,7 @@ export interface ArtemisApi {
   cancelOfficeCapability(): Promise<void>;
   activateOfficeCapability(version: string): Promise<void>;
   deactivateOfficeCapability(): Promise<void>;
-  uninstallOfficeCapability(version: string): Promise<void>;
+  uninstallOfficeCapability(version?: string): Promise<void>;
   /** Design plugin capability pack (settings toggle backend, todo ⑤). */
   designCapabilityStatus(): Promise<
     import("@artemis/protocol").CapabilityPackStatus
@@ -1233,7 +1233,7 @@ export interface ArtemisApi {
   cancelDesignCapability(): Promise<void>;
   activateDesignCapability(version: string): Promise<void>;
   deactivateDesignCapability(): Promise<void>;
-  uninstallDesignCapability(version: string): Promise<void>;
+  uninstallDesignCapability(version?: string): Promise<void>;
   readWorkspaceTextFile(
     threadId: string,
     path: string,

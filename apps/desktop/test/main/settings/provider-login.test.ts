@@ -25,6 +25,7 @@ async function setup() {
   vi.spyOn(ModelRuntime, "create").mockImplementation(async (options) => {
     credentials = options!.credentials!;
     return {
+      getProvider: () => undefined,
       getProviders: () => [
         {
           id: "fixture",
@@ -63,6 +64,44 @@ async function setup() {
     service: new ProviderLoginService(settings, changed),
   };
 }
+it("keeps the legacy Azure API-key login separate from the renamed provider", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "artemis-azure-auth-"));
+  dirs.push(dir);
+  const settings = new EncryptedSettingsStore(join(dir, "settings.json"), {
+    isEncryptionAvailable: () => true,
+    encryptString: (value) => Buffer.from(value),
+    decryptString: (value) => value.toString(),
+  });
+  const service = new ProviderLoginService(settings, async () => {});
+  expect(await service.providers()).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ providerId: "azure", type: "api_key" }),
+      expect.objectContaining({
+        providerId: "azure-openai-responses",
+        type: "api_key",
+      }),
+    ]),
+  );
+  const started = await service.start("azure-openai-responses", "api_key");
+  await vi.waitFor(() =>
+    expect(service.status(started.id).prompt).toBeDefined(),
+  );
+  service.answer(
+    started.id,
+    service.status(started.id).prompt!.id,
+    "synthetic-azure-key",
+  );
+  await vi.waitFor(() =>
+    expect(service.status(started.id).status).toBe("completed"),
+  );
+  const credentials = (await settings.runtimeConfiguration()).credentials;
+  expect(credentials["azure-openai-responses"]).toMatchObject({
+    type: "api_key",
+    key: "synthetic-azure-key",
+  });
+  expect(credentials.azure).toBeUndefined();
+});
+
 it("requires an explicit current prompt answer and persists credentials outside the UI state", async () => {
   const { service, settings, changed } = await setup();
   const started = await service.start("fixture", "oauth");

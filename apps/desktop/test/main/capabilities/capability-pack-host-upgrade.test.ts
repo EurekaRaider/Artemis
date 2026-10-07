@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { updateCapabilityPackForHostUpgrade } from "../../../src/main/capabilities/capability-pack-host-upgrade.js";
+import { checkCapabilityPackUpdatesForHostUpgrade } from "../../../src/main/capabilities/capability-pack-host-upgrade.js";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -32,21 +32,29 @@ describe.each(["artemis-design", "office-core"] as const)("%s", (packId) => {
     const runtime = {
       packs: { install },
       updates: { check, status, available },
-    } as unknown as Parameters<typeof updateCapabilityPackForHostUpgrade>[0];
+    } as unknown as Parameters<
+      typeof checkCapabilityPackUpdatesForHostUpgrade
+    >[0];
     return { root, runtime, install, check, status, available, manifest };
   }
   it.each(["1.7.0", undefined])(
-    "updates an active pack on host upgrade from %s, only once",
+    "checks an active pack on host upgrade from %s without installing, only once",
     async (previous) => {
       const f = await fixture(previous, "0.2.0");
-      await updateCapabilityPackForHostUpgrade(
+      await checkCapabilityPackUpdatesForHostUpgrade(
         f.runtime,
         f.root,
         "1.8.0",
         packId,
       );
-      expect(f.install).toHaveBeenCalledWith(f.manifest);
-      await updateCapabilityPackForHostUpgrade(
+      expect(f.check).toHaveBeenCalledOnce();
+      expect(f.install).not.toHaveBeenCalled();
+      expect(
+        JSON.parse(
+          await readFile(join(f.root, "capability-packs/active.json"), "utf8"),
+        ),
+      ).toEqual({ packs: { [packId]: "0.2.0" } });
+      await checkCapabilityPackUpdatesForHostUpgrade(
         f.runtime,
         f.root,
         "1.8.0",
@@ -59,7 +67,7 @@ describe.each(["artemis-design", "office-core"] as const)("%s", (packId) => {
     "does not update for an unchanged or rolled-back host %s",
     async (previous) => {
       const f = await fixture(previous, "0.2.0");
-      await updateCapabilityPackForHostUpgrade(
+      await checkCapabilityPackUpdatesForHostUpgrade(
         f.runtime,
         f.root,
         "1.8.0",
@@ -70,7 +78,7 @@ describe.each(["artemis-design", "office-core"] as const)("%s", (packId) => {
   );
   it("does not reinstall a removed or disabled pack", async () => {
     const f = await fixture("1.7.0");
-    await updateCapabilityPackForHostUpgrade(
+    await checkCapabilityPackUpdatesForHostUpgrade(
       f.runtime,
       f.root,
       "1.8.0",
@@ -81,7 +89,7 @@ describe.each(["artemis-design", "office-core"] as const)("%s", (packId) => {
   });
   it("does not downgrade a newer installed plugin", async () => {
     const f = await fixture("1.7.0", "0.4.0");
-    await updateCapabilityPackForHostUpgrade(
+    await checkCapabilityPackUpdatesForHostUpgrade(
       f.runtime,
       f.root,
       "1.8.0",
@@ -89,24 +97,30 @@ describe.each(["artemis-design", "office-core"] as const)("%s", (packId) => {
     );
     expect(f.install).not.toHaveBeenCalled();
   });
-  it("leaves the upgrade pending after download failure and retries next launch", async () => {
+  it("retries a failed update check without downloading a plugin", async () => {
     const f = await fixture("1.7.0", "0.2.0");
-    f.install.mockRejectedValueOnce(new Error("offline"));
+    f.status.mockReturnValueOnce({ updateCheck: "error" });
     await expect(
-      updateCapabilityPackForHostUpgrade(f.runtime, f.root, "1.8.0", packId),
-    ).rejects.toThrow("offline");
+      checkCapabilityPackUpdatesForHostUpgrade(
+        f.runtime,
+        f.root,
+        "1.8.0",
+        packId,
+      ),
+    ).rejects.toThrow("check failed");
     expect(
       JSON.parse(
         await readFile(join(f.root, `${packId}-host-version.json`), "utf8"),
       ).hostVersion,
     ).toBe("1.7.0");
-    await updateCapabilityPackForHostUpgrade(
+    await checkCapabilityPackUpdatesForHostUpgrade(
       f.runtime,
       f.root,
       "1.8.0",
       packId,
     );
-    expect(f.install).toHaveBeenCalledTimes(2);
+    expect(f.check).toHaveBeenCalledTimes(2);
+    expect(f.install).not.toHaveBeenCalled();
   });
   it("keeps legacy Office activation compatible without activating Design", async () => {
     const f = await fixture("1.7.0");
@@ -114,19 +128,25 @@ describe.each(["artemis-design", "office-core"] as const)("%s", (packId) => {
       join(f.root, "capability-packs", "active.json"),
       JSON.stringify({ version: "0.2.0" }),
     );
-    await updateCapabilityPackForHostUpgrade(
+    await checkCapabilityPackUpdatesForHostUpgrade(
       f.runtime,
       f.root,
       "1.8.0",
       packId,
     );
-    expect(f.install).toHaveBeenCalledTimes(packId === "office-core" ? 1 : 0);
+    expect(f.check).toHaveBeenCalledTimes(packId === "office-core" ? 1 : 0);
+    expect(f.install).not.toHaveBeenCalled();
   });
   it("does not mark a failed catalog check completed", async () => {
     const f = await fixture("1.7.0", "0.3.0");
     f.status.mockReturnValue({ updateCheck: "error" });
     await expect(
-      updateCapabilityPackForHostUpgrade(f.runtime, f.root, "1.8.0", packId),
+      checkCapabilityPackUpdatesForHostUpgrade(
+        f.runtime,
+        f.root,
+        "1.8.0",
+        packId,
+      ),
     ).rejects.toThrow("check failed");
     expect(f.install).not.toHaveBeenCalled();
   });

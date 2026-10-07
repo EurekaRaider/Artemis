@@ -1,9 +1,11 @@
 import type { Api, Model, Provider } from "@earendil-works/pi-ai";
+import { createProvider } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 export const GLM_5_3_FLASH_MODEL_ID = "glm-5.3-flash";
 export const GLM_5_3_FLASH_MODEL_NAME = "GLM-5.3-Flash";
 export const GLM_5_3_FLASH_PROVIDER_IDS = ["zai", "zai-coding-cn"] as const;
+export const LEGACY_AZURE_PROVIDER_ID = "azure-openai-responses";
 
 const GLM_5_3_MODEL_ID = "glm-5.3";
 
@@ -82,6 +84,28 @@ function providerWithArtemisBuiltinModels(provider: Provider): Provider {
 export function registerArtemisBuiltinModels(
   runtime: Pick<ModelRuntime, "getProvider" | "registerNativeProvider">,
 ): void {
+  // Pi 1.0.3 renamed the provider. Keep saved sessions and encrypted credentials
+  // under their original ID; custom providers with that ID take precedence.
+  const azure = runtime.getProvider("azure");
+  if (azure && !runtime.getProvider(LEGACY_AZURE_PROVIDER_ID)) {
+    runtime.registerNativeProvider(
+      createProvider({
+        id: LEGACY_AZURE_PROVIDER_ID,
+        name: "Azure OpenAI (legacy)",
+        auth: azure.auth,
+        models: azure
+          .getModels()
+          .filter((model) => model.api === "azure-openai-responses")
+          .map((model) => ({ ...model, provider: LEGACY_AZURE_PROVIDER_ID })),
+        api: {
+          stream: (model, context, options) =>
+            azure.stream(model, context, options),
+          streamSimple: (model, context, options) =>
+            azure.streamSimple(model, context, options),
+        },
+      }),
+    );
+  }
   for (const providerId of [...GLM_5_3_FLASH_PROVIDER_IDS, "deepseek"]) {
     const provider = runtime.getProvider(providerId);
     if (!provider) continue;

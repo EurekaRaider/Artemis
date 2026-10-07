@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { registerArtemisBuiltinModels } from "@artemis/agent-host/builtin-models";
 import type {
   AuthEvent,
   AuthPrompt,
@@ -64,6 +65,9 @@ export class ProviderLoginService {
       modelsPath: null,
       refreshOnCreate: false,
       allowModelNetwork: false,
+    }).then((runtime) => {
+      registerArtemisBuiltinModels(runtime);
+      return runtime;
     }));
   }
   async providers(): Promise<ProviderLoginOption[]> {

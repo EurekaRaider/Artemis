@@ -2363,6 +2363,12 @@ export class ArtemisPluginService {
       if (!existing) throw new Error("Installed plugin was not found.");
       const currentMcp = await this.options.mcpStore.list();
       await this.verifyInstalledResources(existing, currentMcp);
+      const designManifest = parseDesignPluginManifest(
+        await readJson(
+          join(this.options.pluginsRoot, existing.id, "artemis.plugin.json"),
+          MAX_MANIFEST_BYTES,
+        ),
+      );
       const moves = this.resourceDestinations(existing).map((destination) => ({
         destination,
         backup: `${destination}.remove-${randomUUID()}`,
@@ -2376,16 +2382,38 @@ export class ArtemisPluginService {
         plugins: store.plugins.filter((plugin) => plugin.id !== existing.id),
       };
       await this.commitMoves(moves, currentMcp, nextMcp, nextStore);
-      // S1: best-effort cleanup of the plugin's immutable revisions. Failure
-      // only warns: leftover revisions are inert without an installation.
       const warnings: string[] = [];
-      try {
-        await rm(
-          join(this.options.pluginsRoot, "plugin-revisions", existing.id),
-          { recursive: true, force: true },
-        );
-      } catch (error) {
-        warnings.push(`Failed to remove plugin revisions: ${String(error)}`);
+      if (designManifest) {
+        try {
+          // Revisions use the manifest ID, not the source-derived store ID.
+          // Several installed sources can share that revision namespace.
+          let shared = false;
+          for (const plugin of nextStore.plugins) {
+            const manifest = parseDesignPluginManifest(
+              await readJson(
+                join(
+                  this.options.pluginsRoot,
+                  plugin.id,
+                  "artemis.plugin.json",
+                ),
+                MAX_MANIFEST_BYTES,
+              ),
+            );
+            if (manifest?.id === designManifest.id) {
+              shared = true;
+              break;
+            }
+          }
+          const revisionsRoot =
+            this.options.designRevisionsRoot ??
+            join(this.options.pluginsRoot, "plugin-revisions");
+          const path = join(revisionsRoot, designManifest.id);
+          if (!pathIsInside(revisionsRoot, path) || path === revisionsRoot)
+            throw new Error("Managed plugin revision path is unsafe.");
+          if (!shared) await rm(path, { recursive: true, force: true });
+        } catch (error) {
+          warnings.push(`Failed to remove plugin revisions: ${String(error)}`);
+        }
       }
       return { warnings };
     });

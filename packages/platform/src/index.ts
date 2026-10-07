@@ -1,4 +1,5 @@
 export * from "./mode-policy.js";
+export * from "./image-header.js";
 export * from "./path-identity.js";
 export * from "./platform-contract.js";
 export * from "./sandbox-executor.js";

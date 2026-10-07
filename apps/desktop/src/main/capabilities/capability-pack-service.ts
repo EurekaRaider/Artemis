@@ -82,6 +82,7 @@ export class CapabilityPackService {
   private error: string | undefined;
   private maintenance = false;
   private acquiring = 0;
+  private cleanupPending = true;
   private readonly packId: string;
 
   constructor(private readonly options: PackServiceOptions) {
@@ -191,6 +192,7 @@ export class CapabilityPackService {
   }
 
   async status(): Promise<CapabilityPackStatus> {
+    await this.finishCleanup();
     const activeVersion = await this.active();
     const versions: CapabilityPackStatus["versions"] = [];
     const dependents = new Set<string>();
@@ -225,6 +227,60 @@ export class CapabilityPackService {
       totalBytes: this.totalBytes,
       ...(this.error ? { error: this.error } : {}),
     };
+  }
+
+  private cleanupPath(): string {
+    return join(this.options.root, `${this.packId}-cleanup.json`);
+  }
+
+  /** Persist retirement after a successful user-requested installation. */
+  private async scheduleCleanup(keepVersion: string): Promise<void> {
+    this.cleanupPending = true;
+    await atomicWrite(this.cleanupPath(), JSON.stringify({ keepVersion }));
+    await this.cleanupInactiveVersions();
+  }
+
+  /** Run under maintenance and the shared installation lock. */
+  private async cleanupInactiveVersions(): Promise<void> {
+    try {
+      let plan: { keepVersion?: unknown };
+      try {
+        plan = JSON.parse(await readFile(this.cleanupPath(), "utf8"));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        this.cleanupPending = false;
+        return;
+      }
+      if (!plan || typeof plan.keepVersion !== "string")
+        throw new Error("Invalid capability cleanup plan");
+      this.versionPath(plan.keepVersion);
+      const activeVersion = await this.active();
+      this.cleanupPending = false;
+      for (const version of await readdir(
+        join(this.options.root, this.packId),
+      )) {
+        if (!/^\d+\.\d+\.\d+$/u.test(version) || version === plan.keepVersion)
+          continue;
+        if (version === activeVersion || (this.leases.get(version) ?? 0) > 0) {
+          this.cleanupPending = true;
+          continue;
+        }
+        await rm(this.versionPath(version), { recursive: true, force: true });
+      }
+      if (!this.cleanupPending) await rm(this.cleanupPath(), { force: true });
+    } catch (error) {
+      this.cleanupPending = true;
+      throw error;
+    }
+  }
+
+  private async finishCleanup(): Promise<void> {
+    if (!this.cleanupPending || this.maintenance || this.acquiring) return;
+    try {
+      await this.maintain(() => this.cleanupInactiveVersions());
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    }
   }
 
   private async progress(phase: CapabilityPackStatus["phase"]): Promise<void> {
@@ -485,13 +541,18 @@ export class CapabilityPackService {
           throw new Error(
             "An immutable capability version cannot be republished",
           );
+        let healthy = false;
         try {
           await this.validateInstallation(join(target, "payload"), installed);
-          signal.throwIfAborted();
-          await this.setActiveVersion(manifest.version);
-          return;
+          healthy = true;
         } catch (error) {
           if ((this.leases.get(manifest.version) ?? 0) > 0) throw error;
+        }
+        if (healthy) {
+          signal.throwIfAborted();
+          await this.setActiveVersion(manifest.version);
+          await this.scheduleCleanup(manifest.version);
+          return;
         }
       }
       await mkdir(stage, { mode: 0o700 });
@@ -583,6 +644,7 @@ export class CapabilityPackService {
       }
       await this.setActiveVersion(manifest.version);
       if (exists) await rm(backup, { recursive: true, force: true });
+      await this.scheduleCleanup(manifest.version);
     } finally {
       await rm(stage, { recursive: true, force: true });
       await releaseLock();
@@ -607,6 +669,7 @@ export class CapabilityPackService {
         throw new Error("Capability version is in use");
       await this.clearActiveVersion();
     });
+    await this.finishCleanup();
   }
 
   async acquire(): Promise<{
@@ -635,6 +698,7 @@ export class CapabilityPackService {
             version,
             Math.max(0, (this.leases.get(version) ?? 1) - 1),
           );
+          queueMicrotask(() => void this.finishCleanup());
         }
       };
       try {
@@ -651,15 +715,27 @@ export class CapabilityPackService {
     }
   }
 
-  async uninstall(version: string): Promise<void> {
-    const path = this.versionPath(version);
+  async uninstall(version?: string): Promise<void> {
+    const path =
+      version === undefined
+        ? join(this.options.root, this.packId)
+        : this.versionPath(version);
     await this.maintain(async () => {
-      if ((this.leases.get(version) ?? 0) > 0)
+      if (
+        version === undefined
+          ? [...this.leases.values()].some((count) => count > 0)
+          : (this.leases.get(version) ?? 0) > 0
+      )
         throw new Error("Capability version is in use");
       // Office dependencies are optional; explicit removal returns them to Lite.
       // The maintenance lock prevents a new document lease during removal.
-      if ((await this.active()) === version) await this.clearActiveVersion();
+      if (version === undefined || (await this.active()) === version)
+        await this.clearActiveVersion();
       await rm(path, { recursive: true, force: true });
+      if (version === undefined) {
+        await rm(this.cleanupPath(), { force: true });
+        this.cleanupPending = false;
+      }
     });
   }
 }

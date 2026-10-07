@@ -10790,6 +10790,22 @@ export function ChildAgentPanel({
   );
 }
 
+function ToolResultImages({ tool }: { tool: ToolState }) {
+  return tool.images?.map((image, index) => (
+    <a
+      key={index}
+      href={`data:${image.mimeType};base64,${image.data}`}
+      download={`generated-${tool.id}-${index}.${image.mimeType.split("/")[1]}`}
+    >
+      <img
+        className="tool-result-image"
+        alt={tool.name}
+        src={`data:${image.mimeType};base64,${image.data}`}
+      />
+    </a>
+  ));
+}
+
 export function ToolActivityGroupCard({
   active,
   locale,
@@ -10919,6 +10935,14 @@ export function ToolActivityGroupCard({
           })}
         </ol>
       )}
+      {(view.fileActivity || mixedActivity) &&
+        tools.some((tool) => tool.images?.length) && (
+          <div className="tool-details">
+            {tools.map((tool) => (
+              <ToolResultImages key={tool.id} tool={tool} />
+            ))}
+          </div>
+        )}
       {!mixedActivity && view.kind === "bash" && view.bashTranscript && (
         <pre aria-live="polite" className="bash-transcript" role="log">
           {view.bashTranscript}
@@ -10955,19 +10979,7 @@ export function ToolActivityGroupCard({
                 <span>{summarizeToolDetail(tool, locale)}</span>
                 {input && <pre>{input}</pre>}
                 {output && <pre>{output}</pre>}
-                {tool.images?.map((image, index) => (
-                  <a
-                    key={index}
-                    href={`data:${image.mimeType};base64,${image.data}`}
-                    download={`generated-${tool.id}-${index}.${image.mimeType.split("/")[1]}`}
-                  >
-                    <img
-                      className="tool-result-image"
-                      alt={tool.name}
-                      src={`data:${image.mimeType};base64,${image.data}`}
-                    />
-                  </a>
-                ))}
+                <ToolResultImages tool={tool} />
               </section>
             );
           })}

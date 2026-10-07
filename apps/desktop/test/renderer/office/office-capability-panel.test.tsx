@@ -113,7 +113,7 @@ describe("Office installation controls", () => {
       screen.queryByRole("button", { name: /恢复使用 Lite/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(remove);
-    await waitFor(() => expect(f.uninstall).toHaveBeenCalledWith("1.0.0"));
+    await waitFor(() => expect(f.uninstall).toHaveBeenCalledWith());
     await waitFor(() =>
       expect(
         screen.queryByRole("button", { name: "卸载", exact: true }),

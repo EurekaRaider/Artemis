@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
@@ -20,6 +20,7 @@ it.each([
   { mode: "codemode", direct: false, scenario: "read" },
   { mode: "codemode", direct: true, scenario: "read" },
   { mode: "codemode", direct: false, scenario: "shell" },
+  { mode: "codemode", direct: false, scenario: "image-save" },
   { mode: "work", direct: false, scenario: "loop" },
   { mode: "work", direct: false, scenario: "invalid-loop" },
 ] as const)(
@@ -28,6 +29,7 @@ it.each([
     const dir = await mkdtemp(join(tmpdir(), "artemis-modes-"));
     const payloads: AgentPayload[] = [];
     const calls: string[] = [];
+    const imageFiles: string[] = [];
     const host = new ArtemisAgentHost(
       {
         request: async (r) => {
@@ -55,21 +57,27 @@ it.each([
         const args =
           scenario === "invalid-loop"
             ? { plan: [] }
-            : scenario.endsWith("loop")
-              ? { steps: [{ step: "Read branches", status: "in_progress" }] }
-              : scenario === "shell"
-                ? {
-                    code: `text(await tools.shell(${JSON.stringify({ command: process.platform === "win32" ? "Write-Output 'SCRIPT_RESULT'" : "printf SCRIPT_RESULT", deadline_seconds: 10, model_approval: { risk: "low", explicit_user_request: false, reason: "Read-only test output" } })}));`,
-                  }
-                : mode === "plan"
+            : scenario === "image-save"
+              ? {
+                  code: 'image("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="); text(await tools.read({path:"fixture.txt"}));',
+                }
+              : scenario.endsWith("loop")
+                ? { steps: [{ step: "Read branches", status: "in_progress" }] }
+                : scenario === "shell"
                   ? {
-                      title: "Full plan",
-                      markdown:
-                        "Goal, steps, interfaces, acceptance, assumptions.",
+                      code: `text(await tools.shell(${JSON.stringify({ command: process.platform === "win32" ? "Write-Output 'SCRIPT_RESULT'" : "printf SCRIPT_RESULT", deadline_seconds: 10, model_approval: { risk: "low", explicit_user_request: false, reason: "Read-only test output" } })}));`,
                     }
-                  : mode === "codemode" && !direct
-                    ? { code: 'text(await tools.read({path:"fixture.txt"}));' }
-                    : { path: "fixture.txt" };
+                  : mode === "plan"
+                    ? {
+                        title: "Full plan",
+                        markdown:
+                          "Goal, steps, interfaces, acceptance, assumptions.",
+                      }
+                    : mode === "codemode" && !direct
+                      ? {
+                          code: 'text(await tools.read({path:"fixture.txt"}));',
+                        }
+                      : { path: "fixture.txt" };
         const message: AssistantMessage = {
           role: "assistant",
           api: model.api,
@@ -194,10 +202,31 @@ it.each([
             (p) => p.type === "tool.started" && p.parentToolCallId === "call-1",
           ),
         ).toBe(true);
+      if (scenario === "image-save") {
+        const result = payloads.find(
+          (p) =>
+            p.type === "tool.completed" &&
+            p.output?.includes("[Image saved to "),
+        );
+        expect(result?.type).toBe("tool.completed");
+        if (result?.type === "tool.completed") {
+          const path = result.output!.match(
+            /\[Image saved to (.+) \(image\/png, [^)]+\)\]/,
+          )?.[1];
+          expect(path).toBeDefined();
+          imageFiles.push(path!);
+          expect((await readFile(path!)).subarray(0, 8).toString("hex")).toBe(
+            "89504e470d0a1a0a",
+          );
+          if (process.platform !== "win32")
+            expect((await stat(path!)).mode & 0o777).toBe(0o600);
+        }
+      }
       expect(payloads.some((p) => p.type === "turn.completed")).toBe(true);
     } finally {
       stream.mockRestore();
       host.dispose();
+      await Promise.all(imageFiles.map((path) => rm(path, { force: true })));
       await rm(dir, { recursive: true, force: true });
     }
   },

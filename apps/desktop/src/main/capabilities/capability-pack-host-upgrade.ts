@@ -1,24 +1,12 @@
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { gt, valid } from "semver";
-import type { CapabilityPackService } from "./capability-pack-service.js";
 import type { OfficeCapabilityUpdates } from "../office/office-capability-updates.js";
 
-// Both services share active.json: serialize automatic activations.
-let pending = Promise.resolve();
-export function updateCapabilityPackForHostUpgrade(
-  ...args: Parameters<typeof performHostUpgrade>
-): Promise<void> {
-  const result = pending.then(() => performHostUpgrade(...args));
-  pending = result.catch(() => {});
-  return result;
-}
-
 /** Missing markers cover upgrades from hosts predating this update policy. */
-async function performHostUpgrade(
+export async function checkCapabilityPackUpdatesForHostUpgrade(
   runtime: {
-    packs: Pick<CapabilityPackService, "install">;
-    updates: Pick<OfficeCapabilityUpdates, "check" | "available" | "status">;
+    updates: Pick<OfficeCapabilityUpdates, "check" | "status">;
   },
   userData: string,
   hostVersion: string,
@@ -50,10 +38,7 @@ async function performHostUpgrade(
     (packId === "office-core" ? pointer?.version : undefined);
   if (typeof active === "string" && valid(active)) {
     await runtime.updates.check();
-    const manifest = runtime.updates.available();
-    if (manifest && gt(manifest.version, active)) {
-      await runtime.packs.install(manifest);
-    }
+    // Installing a newer release always requires an explicit user action.
     if (runtime.updates.status(active).updateCheck === "error") {
       throw new Error(
         "Capability update check failed; retry on the next launch",
