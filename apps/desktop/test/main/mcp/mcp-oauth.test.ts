@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createConnection } from "node:net";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchToken } from "@modelcontextprotocol/sdk/client/auth.js";
 
 import type { SafeStorageAdapter } from "../../../src/main/settings/encrypted-settings-store.js";
 import {
@@ -87,11 +88,13 @@ describe("MCP OAuth", () => {
     await provider.saveClientInformation({
       client_id: "client-secret-id",
       client_secret: "dynamic-secret",
+      issuer: "https://issuer.example.com/",
     });
     await provider.saveTokens({
       access_token: "access-secret",
       refresh_token: "refresh-secret",
       token_type: "bearer",
+      issuer: "https://issuer.example.com/",
     });
     await provider.saveCodeVerifier("pkce-secret");
 
@@ -111,12 +114,62 @@ describe("MCP OAuth", () => {
     expect(await reopened.clientInformation()).toMatchObject({
       client_id: "client-secret-id",
       client_secret: "dynamic-secret",
+      issuer: "https://issuer.example.com/",
     });
     expect(await reopened.tokens()).toMatchObject({
       access_token: "access-secret",
       refresh_token: "refresh-secret",
+      issuer: "https://issuer.example.com/",
     });
     expect(await reopened.codeVerifier()).toBe("pkce-secret");
+  });
+
+  it("does not expose legacy credentials without an authorization issuer", async () => {
+    const { store } = await createStore();
+    await store.update("legacy", () => ({
+      clientInformation: { client_id: "legacy", client_secret: "private" },
+      tokens: {
+        access_token: "private-access",
+        refresh_token: "private-refresh",
+        token_type: "bearer",
+      },
+    }));
+    const provider = new SecureMcpOAuthProvider(
+      "legacy",
+      "http://127.0.0.1:4242/mcp-oauth/legacy",
+      store,
+      vi.fn(),
+    );
+    expect(await provider.clientInformation()).toBeUndefined();
+    expect(await provider.tokens()).toBeUndefined();
+  });
+
+  it("does not send bound credentials to a different authorization server", async () => {
+    const { store } = await createStore();
+    const provider = new SecureMcpOAuthProvider(
+      "bound",
+      "http://127.0.0.1:4242/mcp-oauth/bound",
+      store,
+      vi.fn(),
+    );
+    await provider.saveClientInformation({
+      client_id: "bound-client",
+      client_secret: "private-secret",
+      issuer: "https://issuer.example.com/",
+    });
+    await provider.saveTokens({
+      access_token: "private-access",
+      refresh_token: "private-refresh",
+      token_type: "bearer",
+      issuer: "https://issuer.example.com/",
+    });
+    const fetcher = vi.fn();
+    await expect(
+      fetchToken(provider, "https://attacker.example.com/", {
+        fetchFn: fetcher,
+      }),
+    ).rejects.toThrow(/issuer|authorization server/i);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it("accepts only an exact loopback callback path and OAuth state", async () => {

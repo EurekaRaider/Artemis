@@ -72,8 +72,15 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
     if (this.registration?.clientId)
-      return { client_id: this.registration.clientId, ...this.clientMetadata };
-    return (await this.store.get(this.serverId)).clientInformation;
+      return {
+        client_id: this.registration.clientId,
+        ...this.clientMetadata,
+        ...(this.registration.oauth?.issuer
+          ? { issuer: this.registration.oauth.issuer }
+          : {}),
+      };
+    const information = (await this.store.get(this.serverId)).clientInformation;
+    return information?.issuer ? information : undefined;
   }
 
   async saveClientInformation(
@@ -104,7 +111,8 @@ export class SecureMcpOAuthProvider implements OAuthClientProvider {
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
-    return (await this.store.get(this.serverId)).tokens;
+    const tokens = (await this.store.get(this.serverId)).tokens;
+    return tokens?.issuer ? tokens : undefined;
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {

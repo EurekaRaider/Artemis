@@ -66,6 +66,9 @@ signed Design plugin pack is version **0.4.6** and requires Artemis **1.7.4** or
 Design mode is available in project chats; existing hosted documents remain in
 their original scratch storage and are not migrated into the file list.
 
+MCP OAuth credentials retain their authorization-server issuer. Existing credentials
+without an issuer require a new sign-in after the security update.
+
 ## Quick start
 
 > Artemis is MIT-licensed and starts without activation or device registration.

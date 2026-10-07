@@ -15,8 +15,10 @@ const { version: hostVersion } = JSON.parse(
 
 describe("Design marketplace online installation catalog", () => {
   it.each([
-    ["darwin", "arm64", hostVersion, "0.4.5"],
-    ["win32", "x64", hostVersion, "0.4.5"],
+    ["darwin", "arm64", hostVersion, "0.4.6"],
+    ["win32", "x64", hostVersion, "0.4.6"],
+    ["darwin", "arm64", "1.7.3", "0.4.5"],
+    ["win32", "x64", "1.7.3", "0.4.5"],
     ["darwin", "arm64", "1.7.2", "0.2.0"],
     ["win32", "x64", "1.7.2", "0.2.0"],
   ])(
