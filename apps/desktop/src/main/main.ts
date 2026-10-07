@@ -9227,7 +9227,14 @@ function registerIpc(): void {
         // round-trips the real McpConfigStore persistence. Only the connect
         // step is simulated away (the synthetic identity must never spawn a
         // process or dial an endpoint) and the bearer token is dropped.
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+        await new Promise((resolvePromise) =>
+          setTimeout(
+            resolvePromise,
+            process.env.ARTEMIS_SMOKE_VIEW === "mcp-editor-credentials"
+              ? 1_500
+              : 250,
+          ),
+        );
         await mcpConfigStore.upsert(input);
         return getSettingsSnapshot();
       }
@@ -20016,7 +20023,14 @@ function createMainWindow(): BrowserWindow {
                       },
                     };
                     document.querySelector('.mcp-editor-save')?.click();
-                    await wait(1_200);
+                    const savedNotice = await waitFor(
+                      '.resource-management-page ' +
+                        '[data-artemis-component="inline-notice"]' +
+                        '[data-tone="info"] [data-part="message"]',
+                    );
+                    if (!savedNotice || document.querySelector('.mcp-editor')) {
+                      throw new Error('MCP credential save did not reach its completed state.');
+                    }
                     window.__mcpEditorProbe.afterSave = scanForBearer();
                     window.__mcpEditorConsoleCapture.credentialEntries =
                       window.__mcpEditorConsoleCapture.entries.filter(
