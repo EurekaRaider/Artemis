@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import DOMPurify from "dompurify";
 import { marked, Marked } from "marked";
 import { timelineMathExtensions } from "./markdown-math.js";
@@ -434,10 +435,12 @@ export const MarkdownContent = memo(function MarkdownContent({
   useLayoutEffect(() => {
     const root = contentRoot.current;
     if (!root) return;
-    const copyLabel = locale === "zh-CN" ? "复制代码" : "Copy code";
-    const copiedLabel = locale === "zh-CN" ? "已复制" : "Copied";
-    const failedLabel =
-      locale === "zh-CN" ? "复制失败，请重试" : "Copy failed; retry";
+    const copyLabel = uiText(locale, "MarkdownContent.copyCode");
+    const copiedLabel = uiText(
+      locale,
+      "EnvironmentPullRequestError_labels.copied",
+    );
+    const failedLabel = uiText(locale, "TimelinePreview.copyFailedRetry");
     const cleanups: (() => void)[] = [];
     for (const code of root.querySelectorAll<HTMLElement>("pre > code")) {
       if (code.closest(".timeline-diagram-preview")) continue;

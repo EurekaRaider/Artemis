@@ -2866,7 +2866,7 @@ async function launchWorkspaceFile(
   });
 }
 
-const worktreeCapacity = new WorktreeCapacity();
+const worktreeCapacity = new WorktreeCapacity(currentLocale);
 
 async function removeManagedWorktree(
   input: Parameters<typeof removeManagedWorktreeFromGit>[0],
@@ -6817,7 +6817,11 @@ async function startTaskTurnUnchecked(
     const titleRequest = options.displayText ?? requestText;
     const formatTitle = (title: string) =>
       options.titleContext
-        ? formatImTaskTitle(options.titleContext.channel, title)
+        ? formatImTaskTitle(
+            options.titleContext.channel,
+            title,
+            currentLocale(),
+          )
         : title;
     thread = store.updateThread(thread.id, {
       title: formatTitle(
@@ -8359,6 +8363,7 @@ function registerIpc(): void {
         languagePreference,
         app.getPreferredSystemLanguages(),
       );
+      designPanelHost?.setLocale(currentLocale());
       return getSettingsSnapshot();
     },
   );
@@ -10424,15 +10429,20 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.designPanelEnsure,
     async (event, threadId: string, panelId: string) => {
-      if (!designPanelHost) throw new Error("Panel host is not ready.");
+      if (!designPanelHost)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const window = BrowserWindow.fromWebContents(event.sender);
-      if (!window) throw new Error("Host window is not available.");
+      if (!window)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store?.getThread(threadId);
-      if (!thread) throw new Error("Active task not found.");
+      if (!thread)
+        throw new Error(
+          uiText(currentLocale(), "DesignHost.activeTaskMissing"),
+        );
       // 设计模式属于项目：临时会话没有稳定工作区（文件身份/薄快照都
       // 无处落），宿主侧直接拒绝（渲染器入口同样收窄）。
       if (!thread.projectId)
-        throw new Error("设计模式仅在项目会话中可用，临时会话不支持。");
+        throw new Error(uiText(currentLocale(), "DesignHost.projectOnly"));
       // Removal gate: an uninstalled plugin must not mount, even though its
       // bound revision survives on disk (reinstall restores it in place).
       const unavailable = await designPluginAvailabilityGate?.(threadId);
@@ -10458,9 +10468,7 @@ function registerIpc(): void {
         // 工具链在同一信任链上工作。移除插件时由可用性 gate 统一拒绝。
         const synced = await ensureDesignPackSynced();
         if (!synced)
-          throw new Error(
-            "设计插件未安装：请在 插件市场 → 随应用提供的插件 中获取。",
-          );
+          throw new Error(uiText(currentLocale(), "DesignHost.pluginMissing"));
         const manifest = JSON.parse(
           await readFile(
             join(synced.revisionRoot, "artemis.plugin.json"),
@@ -10499,6 +10507,7 @@ function registerIpc(): void {
           revisionRoot: synced.revisionRoot,
         });
       }
+      designPanelHost.setLocale(currentLocale());
       const handle = await designPanelHost.ensurePanel(
         window,
         threadId,
@@ -10554,7 +10563,8 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.designPanelCandidateAccept,
     async (_event, threadId: string, candidateText: string) => {
-      if (!store || !panelSendEntry) throw new Error("Send entry unavailable.");
+      if (!store || !panelSendEntry)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store.getThread(threadId);
       const bindingRevision =
         thread?.typeBinding?.bindingRevision ?? "unbound-preview";
@@ -10574,7 +10584,8 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.designPanelSendConsume,
     async (_event, credential: string) => {
-      if (!panelSendEntry) throw new Error("Send entry unavailable.");
+      if (!panelSendEntry)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       try {
         const consumed = panelSendEntry.consumeCredential(credential);
         return {
@@ -10599,7 +10610,8 @@ function registerIpc(): void {
   ipcMain.handle(
     IPC.designPanelSendStage,
     async (_event, credential: string) => {
-      if (!panelSendEntry) throw new Error("Send entry unavailable.");
+      if (!panelSendEntry)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       try {
         const staged = panelSendEntry.stageCredential(credential);
         return {
@@ -10712,7 +10724,8 @@ function registerIpc(): void {
       imageDir: imageDir ?? null,
       images,
       canOpenProject: Boolean(thread?.projectId),
-      projectName: project?.name ?? "设计任务",
+      projectName:
+        project?.name ?? uiText(currentLocale(), "DesignHost.designTask"),
     });
     return true;
   }
@@ -10750,12 +10763,17 @@ function registerIpc(): void {
     /** 项目页面导出：原始 HTML 经保存对话框落盘（安全读取=预览同管线，
      * 但不做内联——导出的是用户工作区里的原文）。 */
     exportProjectFile: async (input) => {
-      if (!store) return { error: "Application store is not ready." };
+      if (!store)
+        return { error: uiText(currentLocale(), "DesignHost.hostUnavailable") };
       const thread = store.getThread(input.threadId);
-      if (!thread) return { error: "Active task not found." };
+      if (!thread)
+        return {
+          error: uiText(currentLocale(), "DesignHost.activeTaskMissing"),
+        };
       const workspace = await resolveThreadWorkspace(thread);
       try {
         const read = await readProjectFileForPreview({
+          locale: currentLocale(),
           workspacePath: workspace.workspacePath,
           requestedPath: String(input.path ?? ""),
         });
@@ -10781,7 +10799,8 @@ function registerIpc(): void {
         join(workspace.workspacePath, String(input.path ?? "")),
         4 * 1024 * 1024,
       );
-      if (!raw) return { error: "项目文件读取失败。" };
+      if (!raw)
+        return { error: uiText(currentLocale(), "DesignHost.readFailed") };
       await writeFile(save.filePath, raw.bytes);
       return { path: save.filePath };
     },
@@ -10792,13 +10811,14 @@ function registerIpc(): void {
         BrowserWindow.getAllWindows().find((window) => !window.isDestroyed());
       const result = parent
         ? await dialog.showOpenDialog(parent, {
-            title: "选择图片文件夹",
+            title: uiText(currentLocale(), "DesignHost.chooseImageFolder"),
             properties: ["openDirectory", "createDirectory"],
           })
         : { canceled: true, filePaths: [] };
       if (result.canceled || !result.filePaths[0]) return {};
       const real = await realpath(result.filePaths[0]).catch(() => undefined);
-      if (!real) return { error: "目录不存在。" };
+      if (!real)
+        return { error: uiText(currentLocale(), "DesignHost.folderMissing") };
       designImageDir = real;
       await writeFile(
         designImagePrefsPath,
@@ -10851,22 +10871,29 @@ function registerIpc(): void {
     openProjectFile: async ({ threadId }) => {
       const thread = store?.getThread(threadId);
       if (!thread?.projectId || !mainWindow)
-        throw new Error("请先打开项目任务");
+        throw new Error(uiText(currentLocale(), "DesignHost.openProjectFirst"));
       const workspace = await resolveThreadWorkspace(thread);
       const result = await dialog.showOpenDialog(mainWindow, {
-        title: "从项目打开设计页面",
+        title: uiText(currentLocale(), "DesignHost.openDesignPage"),
         defaultPath: workspace.workspacePath,
         properties: ["openFile"],
-        filters: [{ name: "HTML 页面", extensions: ["html", "htm"] }],
+        filters: [
+          {
+            name: uiText(currentLocale(), "DesignHost.htmlPages"),
+            extensions: ["html", "htm"],
+          },
+        ],
       });
       if (result.canceled || !result.filePaths[0]) return {};
       const path = relative(
         workspace.workspacePath,
         result.filePaths[0],
       ).replaceAll("\\", "/");
-      if (!/\.html?$/i.test(path)) throw new Error("请选择 HTML 页面");
+      if (!/\.html?$/i.test(path))
+        throw new Error(uiText(currentLocale(), "DesignHost.selectHtml"));
       // Reuse the preview reader's containment and symlink checks before listing.
       await readProjectFileForPreview({
+        locale: currentLocale(),
         workspacePath: workspace.workspacePath,
         requestedPath: path,
       });
@@ -10880,12 +10907,17 @@ function registerIpc(): void {
       return { path };
     },
     readProjectFile: async (input) => {
-      if (!store) throw new Error("Application store is not ready.");
+      if (!store)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store.getThread(input.threadId);
-      if (!thread) throw new Error("Active task not found.");
+      if (!thread)
+        throw new Error(
+          uiText(currentLocale(), "DesignHost.activeTaskMissing"),
+        );
       const workspace = await resolveThreadWorkspace(thread);
       const requestedPath = String(input.path ?? "").trim();
       const { content } = await readProjectFileForPreview({
+        locale: currentLocale(),
         workspacePath: workspace.workspacePath,
         requestedPath,
       });
@@ -10914,19 +10946,27 @@ function registerIpc(): void {
     /** 项目 HTML 预览 lease：面板只换得 artemis-preview URL（URL-load，
      * 相对资源由协议处理器在文件目录内解析——OD 的 /raw/ 同构）。 */
     projectPreview: async (input) => {
-      if (!store) throw new Error("Application store is not ready.");
+      if (!store)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store.getThread(input.threadId);
-      if (!thread) throw new Error("Active task not found.");
+      if (!thread)
+        throw new Error(
+          uiText(currentLocale(), "DesignHost.activeTaskMissing"),
+        );
       return workspaceHtmlPreview.open(input.threadId, String(input.path));
     },
     exportDocument: async (input) => {
       // 账本退役：导出对象=工作区文件（panel-project:<path>）
-      if (!store) throw new Error("Export unavailable.");
+      if (!store)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store.getThread(input.threadId);
-      if (!thread?.projectId) throw new Error("设计模式仅在项目会话中可用。");
+      if (!thread?.projectId)
+        throw new Error(uiText(currentLocale(), "DesignHost.projectOnly"));
       const raw = String(input.documentId ?? "");
       if (!raw.startsWith("panel-project:"))
-        throw new Error("此对象不支持导出。");
+        throw new Error(
+          uiText(currentLocale(), "DesignHost.exportUnsupported"),
+        );
       const rel = raw.slice("panel-project:".length);
       const workspace = await resolveThreadWorkspace(thread);
       const abs = resolve(workspace.workspacePath, rel);
@@ -10936,7 +10976,8 @@ function registerIpc(): void {
       )
         throw new Error("Invalid project file path.");
       const bytes = await readFile(abs).catch(() => undefined);
-      if (!bytes) throw new Error("项目文件不存在或不可读。");
+      if (!bytes)
+        throw new Error(uiText(currentLocale(), "DesignHost.fileUnreadable"));
       const revision = "";
       const displayName = rel.split("/").pop() || "document.html";
       const parent =
@@ -11009,27 +11050,42 @@ function registerIpc(): void {
         documents: [],
         projectFiles,
         canOpenProject: Boolean(thread?.projectId),
-        projectName: project?.name ?? "设计任务",
+        projectName:
+          project?.name ?? uiText(currentLocale(), "DesignHost.designTask"),
       };
     },
-    handoff: createDesignHandoffHandler(() => store, resolveThreadWorkspace),
+    handoff: createDesignHandoffHandler(
+      () => store,
+      resolveThreadWorkspace,
+      currentLocale,
+    ),
     restoreDocument: async (input) => {
       // 账本退役：恢复=把薄快照内容写回工作区文件。写入走原工作区写入门禁
       // 之外的面板专用通道，但保留 Plan 模式拒绝（P1-7 语义不变）。
-      if (!store) return { ok: false, error: "Restore unavailable." };
+      if (!store)
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.hostUnavailable"),
+        };
       const thread = store.getThread(input.threadId);
       if (!thread?.projectId || thread.archived) {
-        return { ok: false, error: "设计历史仅项目会话可用。" };
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.historyProjectOnly"),
+        };
       }
       if (!isExecutionMode(thread.mode)) {
         return {
           ok: false,
-          error: "当前任务处于 Plan 模式，恢复版本需要写入文件，已被拒绝。",
+          error: uiText(currentLocale(), "DesignHost.restorePlanDenied"),
         };
       }
       const raw = String(input.documentId ?? "");
       if (!raw.startsWith("panel-project:"))
-        return { ok: false, error: "此对象没有版本历史。" };
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.noHistory"),
+        };
       const rel = raw.slice("panel-project:".length);
       const workspace = await resolveThreadWorkspace(thread);
       const versions = await listDesignThinVersions(
@@ -11037,7 +11093,10 @@ function registerIpc(): void {
         rel,
       );
       if (versions.length === 0) {
-        return { ok: false, error: "暂无可恢复的历史版本。" };
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.noRestorableVersion"),
+        };
       }
       const authorize = async () => {
         const unavailable = await designPluginAvailabilityGate?.(
@@ -11053,13 +11112,17 @@ function registerIpc(): void {
           current.typeBinding?.bindingRevision !==
             thread.typeBinding?.bindingRevision
         )
-          throw new Error("Task changed before restoring the page.");
+          throw new Error(uiText(currentLocale(), "DesignHost.taskChanged"));
       };
       // revision 缺省=最新一份；restore 的 file 参数由 revision 匹配
       const target = input.revision
         ? versions.findLast((v) => v.revision === input.revision)
         : versions.at(-1);
-      if (!target) return { ok: false, error: "恢复目标不存在。" };
+      if (!target)
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.restoreTargetMissing"),
+        };
       const content = await restoreDesignThinVersion(
         workspace.workspacePath,
         rel,
@@ -11067,7 +11130,10 @@ function registerIpc(): void {
         authorize,
       );
       if (content === undefined) {
-        return { ok: false, error: "恢复目标不存在。" };
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.restoreTargetMissing"),
+        };
       }
       store.appendPluginEvent({
         eventId: randomUUID(),
@@ -11083,9 +11149,11 @@ function registerIpc(): void {
       return { ok: true, documentHtml: content, name: target.file };
     },
     captureScreenshot: async (input) => {
-      if (!store) throw new Error("Screenshot unavailable.");
+      if (!store)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store.getThread(input.threadId);
-      if (!thread?.projectId) throw new Error("设计模式仅在项目会话中可用。");
+      if (!thread?.projectId)
+        throw new Error(uiText(currentLocale(), "DesignHost.projectOnly"));
       const raw = String(input.documentId ?? "");
       const rel = raw.startsWith("panel-project:")
         ? raw.slice("panel-project:".length)
@@ -11097,7 +11165,7 @@ function registerIpc(): void {
         input.rect,
       );
       if (!image || image.isEmpty()) {
-        throw new Error("No visible design panel to capture.");
+        throw new Error(uiText(currentLocale(), "DesignHost.panelNotVisible"));
       }
       const screenshotRoot = join(
         app.getPath("userData"),
@@ -11126,20 +11194,27 @@ function registerIpc(): void {
     },
     deleteDocument: async (input) => {
       // 账本退役：删除=删工作区文件（破坏性写入，Plan 拒绝语义不变）
-      if (!store) throw new Error("Delete unavailable.");
+      if (!store)
+        throw new Error(uiText(currentLocale(), "DesignHost.hostUnavailable"));
       const thread = store.getThread(input.threadId);
       if (!thread?.projectId) {
-        return { ok: false, error: "设计模式仅在项目会话中可用。" };
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.projectOnly"),
+        };
       }
       if (!isExecutionMode(thread.mode)) {
         return {
           ok: false,
-          error: "当前任务处于 Plan 模式，删除文档需要写入，已被拒绝。",
+          error: uiText(currentLocale(), "DesignHost.deletePlanDenied"),
         };
       }
       const raw = String(input.documentId ?? "");
       if (!raw.startsWith("panel-project:"))
-        return { ok: false, error: "此对象不支持删除。" };
+        return {
+          ok: false,
+          error: uiText(currentLocale(), "DesignHost.deleteUnsupported"),
+        };
       const rel = raw.slice("panel-project:".length);
       const workspace = await resolveThreadWorkspace(thread);
       const abs = await resolveDesignWorkspacePath(
@@ -11154,7 +11229,7 @@ function registerIpc(): void {
         !isExecutionMode(current.mode) ||
         current.projectId !== thread.projectId
       )
-        throw new Error("Task changed before deleting the page.");
+        throw new Error(uiText(currentLocale(), "DesignHost.taskChanged"));
       await resolveDesignWorkspacePath(workspace.workspacePath, rel);
       await rm(abs, { force: true });
       store.appendPluginEvent({
@@ -11175,10 +11250,13 @@ function registerIpc(): void {
       //（托管文档身份已不存在）。
       const raw = String(input.documentId ?? "");
       if (!raw.startsWith("panel-project:"))
-        throw new Error("此对象没有版本历史。");
+        throw new Error(uiText(currentLocale(), "DesignHost.noHistory"));
       const rel = raw.slice("panel-project:".length);
       const thread = store?.getThread(input.threadId);
-      if (!thread?.projectId) throw new Error("设计历史仅项目会话可用。");
+      if (!thread?.projectId)
+        throw new Error(
+          uiText(currentLocale(), "DesignHost.historyProjectOnly"),
+        );
       const workspace = await resolveThreadWorkspace(thread);
       const versions = await listDesignThinVersions(
         workspace.workspacePath,
@@ -11562,7 +11640,7 @@ function registerIpc(): void {
         /* fall through to the removal message */
       }
     }
-    return "设计插件已移除：请在 设置 → 执行权限 中重新获取。设计文件与历史版本已保留，重新安装后自动恢复。";
+    return uiText(currentLocale(), "DesignHost.pluginRemoved");
   };
   designPluginAvailabilityGate = designPluginUnavailableReason;
   /** Entry visibility + tab lifecycle follow the pack: broadcast on change. */
@@ -11599,20 +11677,18 @@ function registerIpc(): void {
   const translateDesignPackError = (error: unknown): Error => {
     const message = error instanceof Error ? error.message : String(error);
     if (/Untrusted capability signing key/.test(message))
-      return new Error(
-        "此安装包不是由当前应用信任的发布方签名：应用尚未内置该发布公钥，或安装包来自非官方渠道。请更新应用后重试，或使用官方发布的安装包。",
-      );
+      return new Error(uiText(currentLocale(), "DesignHost.untrustedPack"));
     if (/No verified design plugin release/.test(message))
-      return new Error("暂时没有可下载的官方版本。可先通过“导入离线包”安装。");
+      return new Error(
+        uiText(currentLocale(), "DesignHost.releaseUnavailable"),
+      );
     return error instanceof Error ? error : new Error(message);
   };
   ipcMain.handle(IPC.designCapabilityInstall, async () => {
     const runtime = await getDesignPackRuntime();
     const manifest = runtime.updates.available();
     if (!manifest)
-      throw new Error(
-        "No verified design plugin release is available for this platform yet.",
-      );
+      throw new Error(uiText(currentLocale(), "DesignHost.releaseUnavailable"));
     try {
       await runtime.packs.install(manifest);
     } catch (error) {
@@ -23859,7 +23935,7 @@ app
           "computer-use-permissions.json",
         ),
         window: () => mainWindow,
-        chinese: () => currentLocale().startsWith("zh"),
+        locale: currentLocale,
       });
     configurationImportService = new ConfigurationImportService({
       homePath: app.getPath("home"),

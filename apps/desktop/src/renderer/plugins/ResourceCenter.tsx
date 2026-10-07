@@ -202,6 +202,17 @@ const FEATURED_PLUGINS = [
   "data-analytics",
 ];
 
+function installedCapabilityVersion(
+  status: CapabilityPackStatus | undefined,
+): string | undefined {
+  return (
+    status?.activeVersion ??
+    status?.versions.toSorted((left, right) =>
+      right.version.localeCompare(left.version, "en", { numeric: true }),
+    )[0]?.version
+  );
+}
+
 export function ResourceCenter({
   onReviewHooks,
   locale,
@@ -1508,7 +1519,7 @@ export function ResourceCenter({
   const installedPacks = [
     {
       id: "office-core",
-      name: locale.startsWith("zh") ? "Office 套件" : "Office",
+      name: "Office",
       keywords: "office word excel powerpoint pdf",
       status: officePackStatus,
       icon: officeSuiteIcon,
@@ -1525,8 +1536,7 @@ export function ResourceCenter({
     },
     {
       id: "artemis-design",
-      name:
-        locale === "zh-TW" ? "設計" : locale === "zh-CN" ? "设计" : "Design",
+      name: uiText(locale, "App_copy.designTab"),
       keywords: "design",
       status: designPackStatus,
       icon: designPluginIcon,
@@ -1938,6 +1948,7 @@ export function ResourceCenter({
 
   function renderOfficePackCard() {
     const status = officePackStatus;
+    const installedVersion = installedCapabilityVersion(status);
     const installed = Boolean(status?.versions.length);
     const working =
       officeUpdating || Boolean(status && status.phase !== "idle");
@@ -1961,14 +1972,10 @@ export function ResourceCenter({
           />
           <div className="plugin-market-card-titles">
             <strong>
-              {locale === "zh-CN"
-                ? "Office 套件"
-                : locale === "zh-TW"
-                  ? "Office 套件"
-                  : "Office"}
-              {status?.activeVersion && (
+              {"Office"}
+              {installedVersion && (
                 <span className="plugin-market-card-vn">
-                  v{status.activeVersion}
+                  v{installedVersion}
                 </span>
               )}
             </strong>
@@ -2053,6 +2060,7 @@ export function ResourceCenter({
   function renderDesignPackCard() {
     const copy = designPackCopy(locale);
     const status = designPackStatus;
+    const installedVersion = installedCapabilityVersion(status);
     const installed = Boolean(status?.versions.length);
     const working = Boolean(status && status.phase !== "idle");
     return (
@@ -2062,33 +2070,20 @@ export function ResourceCenter({
             brandColor="#6d5ae6"
             iconDataUrl={designPluginIcon}
             kind="plugin"
-            name={
-              locale === "zh-TW"
-                ? "設計"
-                : locale === "zh-CN"
-                  ? "设计"
-                  : "Design"
-            }
+            name={uiText(locale, "App_copy.designTab")}
           />
           <div className="plugin-market-card-titles">
             <strong
-              title={`${
-                locale === "zh-TW"
-                  ? "設計"
-                  : locale === "zh-CN"
-                    ? "设计"
-                    : "Design"
-              } v${designPackStatus?.activeVersion ?? ""}`}
+              title={`${uiText(
+                locale,
+                "App_copy.designTab",
+              )}${installedVersion ? ` v${installedVersion}` : ""}`}
             >
-              {locale === "zh-TW"
-                ? "設計"
-                : locale === "zh-CN"
-                  ? "设计"
-                  : "Design"}
+              {uiText(locale, "App_copy.designTab")}
               {/* 与通用卡一致：已安装时在名称后跟小号 v+版本号。 */}
-              {designPackInstalled && designPackStatus?.activeVersion && (
+              {designPackInstalled && installedVersion && (
                 <span className="plugin-market-card-vn">
-                  v{designPackStatus.activeVersion}
+                  v{installedVersion}
                 </span>
               )}
             </strong>
@@ -2098,11 +2093,7 @@ export function ResourceCenter({
           </div>
         </div>
         <div className="plugin-market-copy">
-          <small>
-            {locale.startsWith("zh")
-              ? "在设计模式中打开与修改设计文件。移除后设计入口隐藏，设计文件与版本历史保留。"
-              : "Open and edit design files in design mode. Removing the pack hides design entrances; design files and history are kept."}
-          </small>
+          <small>{copy.manageDescription}</small>
         </div>
         <div className="plugin-market-card-footer">
           <div className="plugin-market-card-actions">
@@ -2135,6 +2126,8 @@ export function ResourceCenter({
                     onClick={() =>
                       void window.artemis
                         .installDesignCapability()
+                        .then(() => window.artemis.designCapabilityStatus())
+                        .then(setDesignPackStatus)
                         .catch((reason: unknown) =>
                           setMessage(
                             reason instanceof Error
@@ -2165,7 +2158,7 @@ export function ResourceCenter({
                       : setDesignPackOpen(true)
                   }
                 >
-                  {locale.startsWith("zh") ? "卸载" : t.remove}
+                  {t.remove}
                 </Button>
               </>
             ) : (
@@ -2175,6 +2168,8 @@ export function ResourceCenter({
                   if (status?.availableVersion) {
                     void window.artemis
                       .installDesignCapability()
+                      .then(() => window.artemis.designCapabilityStatus())
+                      .then(setDesignPackStatus)
                       .catch((reason: unknown) =>
                         setMessage(
                           reason instanceof Error
@@ -2188,7 +2183,7 @@ export function ResourceCenter({
                   setDesignPackOpen(true);
                 }}
               >
-                {locale.startsWith("zh") ? "安装" : t.install}
+                {t.install}
               </Button>
             )}
           </div>
@@ -2235,6 +2230,7 @@ export function ResourceCenter({
     const installedPlugin = installedPlugins.find(
       (candidate) => candidate.id === plugin.id,
     );
+    const installedVersion = installedPlugin?.version;
     const conflict = installed ? undefined : pluginSkillConflict(plugin);
     const displayName = pluginDisplayName(plugin);
     const description = pluginDescription(plugin);
@@ -2269,13 +2265,13 @@ export function ResourceCenter({
           />
           <div className="plugin-market-card-titles">
             <strong
-              title={`${displayName} v${installedPlugin?.version ?? plugin.version}`}
+              title={`${displayName}${installedVersion ? ` v${installedVersion}` : installed ? "" : ` v${plugin.version}`}`}
             >
               {displayName}
               {/* 已安装的插件在名称后跟小号 v+版本号。 */}
-              {installed && (
+              {installedVersion && (
                 <span className="plugin-market-card-vn">
-                  v{installedPlugin?.version ?? plugin.version}
+                  v{installedVersion}
                 </span>
               )}
             </strong>
@@ -2292,8 +2288,7 @@ export function ResourceCenter({
           {Boolean(plugin.skins?.length) && (
             <small>
               <ArtemisIcon name="palette" />{" "}
-              {locale.startsWith("zh") ? "视觉皮肤" : "Visual skins"}:{" "}
-              {plugin.skins!.length}
+              {uiText(locale, "Appearance.visualSkin")}: {plugin.skins!.length}
             </small>
           )}
           {diagnostic && (
@@ -2832,11 +2827,7 @@ export function ResourceCenter({
           )}
           {designPackStatus?.updateVersion && (
             <InlineNotice tone="info">
-              {locale === "zh-TW"
-                ? "設計："
-                : locale === "zh-CN"
-                  ? "设计："
-                  : "Design: "}
+              {`${uiText(locale, "App_copy.designTab")}: `}
               {designPackCopy(locale).updateAvailable.replace(
                 "{version}",
                 designPackStatus.updateVersion,

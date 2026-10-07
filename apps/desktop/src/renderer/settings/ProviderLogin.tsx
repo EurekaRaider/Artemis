@@ -102,57 +102,62 @@ export function ProviderLogin({
   const prompt = state?.prompt;
   return (
     <div className="provider-login">
-      <div className="settings-row-copy">
-        <div className="settings-row-label">
-          {uiText(locale, "ProviderLogin.title")}
+      <div className="provider-login-header">
+        <div className="settings-row-copy">
+          <div className="settings-row-label">
+            {uiText(locale, "ProviderLogin.title")}
+          </div>
+          <p className="settings-row-description">
+            {providerId
+              ? uiText(
+                  locale,
+                  authType === "oauth"
+                    ? "Providers.loginHint"
+                    : "Providers.guidedKey",
+                )
+              : uiText(locale, "ProviderLogin.description")}
+          </p>
         </div>
-        <p className="settings-row-description">
-          {providerId
-            ? uiText(
-                locale,
-                authType === "oauth"
-                  ? "Providers.loginHint"
-                  : "Providers.guidedKey",
-              )
-            : uiText(locale, "ProviderLogin.description")}
-        </p>
+        <div className="provider-login-setup">
+          {!providerId && (
+            <Select
+              label={uiText(locale, "ProviderLogin.title")}
+              labelVisibility="hidden"
+              value={selected}
+              disabled={disabled || busy || state?.status === "running"}
+              options={providers.map((p) => ({
+                value: `${p.providerId}:${p.type}`,
+                label: `${p.name} · ${p.providerId} (${p.type === "oauth" ? "OAuth" : "API key"})`,
+              }))}
+              onValueChange={setSelected}
+            />
+          )}
+          {state?.status !== "running" && (
+            <div className="provider-login-actions">
+              <Button
+                disabled={disabled || busy || !selected}
+                onClick={() =>
+                  void run(async () => {
+                    const provider = providers.find(
+                      (p) => `${p.providerId}:${p.type}` === selected,
+                    )!;
+                    const next = await window.artemis.providerLoginStart(
+                      provider.providerId,
+                      provider.type,
+                    );
+                    loginId.current = next.id;
+                    setState(next);
+                    if (next.status === "completed")
+                      await onCompleteRef.current();
+                  })
+                }
+              >
+                {uiText(locale, "ProviderLogin.start")}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
-      {!providerId && (
-        <Select
-          label={uiText(locale, "ProviderLogin.title")}
-          labelVisibility="hidden"
-          value={selected}
-          disabled={disabled || busy || state?.status === "running"}
-          options={providers.map((p) => ({
-            value: `${p.providerId}:${p.type}`,
-            label: `${p.name} · ${p.providerId} (${p.type === "oauth" ? "OAuth" : "API key"})`,
-          }))}
-          onValueChange={setSelected}
-        />
-      )}
-      {state?.status !== "running" && (
-        <div className="provider-login-actions">
-          <Button
-            disabled={disabled || busy || !selected}
-            onClick={() =>
-              void run(async () => {
-                const provider = providers.find(
-                  (p) => `${p.providerId}:${p.type}` === selected,
-                )!;
-                const next = await window.artemis.providerLoginStart(
-                  provider.providerId,
-                  provider.type,
-                );
-                loginId.current = next.id;
-                setState(next);
-                if (next.status === "completed") await onCompleteRef.current();
-              })
-            }
-          >
-            {uiText(locale, "ProviderLogin.start")}
-          </Button>
-        </div>
-      )}
       {state?.messages.map((message, index) => (
         <p key={index}>{message}</p>
       ))}

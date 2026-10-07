@@ -30,7 +30,7 @@ export function PluginInstallDialog({
   const capabilities = [
     {
       icon: "palette",
-      label: locale.startsWith("zh") ? "视觉皮肤" : "Visual skins",
+      label: uiText(locale, "Appearance.visualSkin"),
       count: plugin.skins?.length ?? 0,
       enabled: true,
     },

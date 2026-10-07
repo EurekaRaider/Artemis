@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { expect, it } from "vitest";
+import { designPanelLocaleMessage } from "../../../src/shared/i18n/design-panel-copy.js";
 
 it("binds only loaded active documents, rejects late responses and exposes read errors", async () => {
   const html = await readFile(
@@ -32,6 +33,7 @@ it("binds only loaded active documents, rejects late responses and exposes read 
     const event = new window.Event("artemis:port");
     Object.assign(event, { ports: [port] });
     window.dispatchEvent(event);
+    receive({ data: designPanelLocaleMessage("zh-CN") });
     const docs = [
       { path: "customer.html", bytes: 100 },
       { path: "orders.html", bytes: 100 },
@@ -127,9 +129,11 @@ it("offers a staged start, hides unavailable actions, and opens project files on
       window.document.getElementById(id) as HTMLButtonElement;
     for (const id of ["dzExportBtn", "dzHistoryBtn", "dzPresentBtn"])
       expect(element(id).disabled).toBe(true);
-    element("dzStartBtn").click();
-    expect(element("dzToast").closest("[hidden]")).toBeNull();
-    expect(element("dzToast").textContent).toContain("尚未连接");
+    expect(
+      window.document
+        .querySelector(".design-panel-root")
+        ?.hasAttribute("data-localizing"),
+    ).toBe(true);
     const sent: any[] = [];
     let receive = (_: any) => {};
     const port = {
@@ -142,6 +146,7 @@ it("offers a staged start, hides unavailable actions, and opens project files on
     const event = new window.Event("artemis:port");
     Object.assign(event, { ports: [port] });
     window.dispatchEvent(event);
+    receive({ data: designPanelLocaleMessage("zh-CN") });
     receive({
       data: {
         type: "snapshot",

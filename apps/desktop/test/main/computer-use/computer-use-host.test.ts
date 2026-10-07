@@ -60,7 +60,7 @@ beforeEach(async () => {
     permissionsPath: join(directory, "permissions.json"),
     window: () =>
       ({ isDestroyed: () => false, webContents: { send() {} } }) as never,
-    chinese: () => false,
+    locale: () => "en",
   });
 });
 afterEach(async () => {

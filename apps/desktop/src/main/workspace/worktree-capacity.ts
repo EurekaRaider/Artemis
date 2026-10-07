@@ -1,8 +1,11 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../../shared/i18n/ui-text.js";
 export const MANAGED_WORKTREE_LIMIT = 10;
 
 // Reservations remain until the caller persists the successfully created worktree.
 // This also covers the promise continuation between Git completion and SQLite.
 export class WorktreeCapacity {
+  constructor(private readonly locale: () => AppLocale = () => "en") {}
   private readonly reservations = new Set<string>();
 
   release(id: string): void {
@@ -21,7 +24,7 @@ export class WorktreeCapacity {
     }
     if (existing.size + this.reservations.size >= MANAGED_WORKTREE_LIMIT) {
       throw new Error(
-        "WORKTREE_LIMIT: Artemis 最多保留 10 个工作树。请打开工作区菜单 → 管理工作树，删除不用的工作树后重试。 / Artemis allows 10 worktrees. Open the workspace menu → Manage worktrees and delete unused worktrees before retrying.",
+        `WORKTREE_LIMIT: ${uiText(this.locale(), "WorktreeManager.limitReached")}`,
       );
     }
     this.reservations.add(id);

@@ -1,3 +1,5 @@
+import { imText } from "@artemis/gateway";
+import type { AppLocale } from "@artemis/protocol";
 import { z } from "zod";
 import type { SafeStorageAdapter } from "../settings/encrypted-settings-store.js";
 
@@ -25,11 +27,15 @@ const credential = z.object({
 });
 
 /** Only called for a settings file explicitly selected in the native import dialog. */
-export function readLegacyImSettings(json: string, secure: SafeStorageAdapter) {
+export function readLegacyImSettings(
+  json: string,
+  secure: SafeStorageAdapter,
+  locale: AppLocale = "zh-CN",
+) {
   if (!secure.isEncryptionAvailable())
-    throw new Error("系统凭据加密不可用，无法导入。");
+    throw new Error(imText(locale, "legacyImportEncryption"));
   if (Buffer.byteLength(json) > 2 * 1024 * 1024)
-    throw new Error("旧设置文件超过 2 MiB。");
+    throw new Error(imText(locale, "legacyFileTooLarge"));
   try {
     const settings = legacySettings.parse(JSON.parse(json));
     return Object.entries(settings.imAdapters).map(([name, config]) => {
@@ -49,8 +55,6 @@ export function readLegacyImSettings(json: string, secure: SafeStorageAdapter) {
     });
   } catch {
     // Do not return Zod values or OS decryption errors containing credentials.
-    throw new Error(
-      "无法读取旧版飞书配置。请在原电脑和用户下选择旧版 settings.json，或手动输入凭据。",
-    );
+    throw new Error(imText(locale, "legacyCredentialsUnreadable"));
   }
 }

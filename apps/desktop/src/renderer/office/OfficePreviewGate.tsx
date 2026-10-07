@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
@@ -44,9 +45,10 @@ export function OfficePreviewGate({
   const label =
     ready === undefined
       ? t.loading
-      : locale.startsWith("zh")
-        ? "安装 Office 套件后即可预览此文件"
-        : "Install the Office suite to preview this file.";
+      : uiText(
+          locale,
+          "OfficePreviewGate.installTheOfficeSuiteToPreviewThisFile",
+        );
   return (
     <>
       <WorkspaceContentState
@@ -57,19 +59,13 @@ export function OfficePreviewGate({
           <strong>{label}</strong>
           {ready === false ? (
             <>
-              <p>
-                {locale.startsWith("zh")
-                  ? "点击下方按钮，选择在线安装或导入 .artemis-office 离线包。安装并启用后，将自动打开当前文件。"
-                  : "Choose the button below, then install online or import an .artemis-office offline pack. This file opens automatically once the component is active."}
-              </p>
+              <p>{uiText(locale, "OfficePreviewGate.installHint")}</p>
               {error ? <p role="alert">{error}</p> : null}
               <Button variant="primary" onClick={() => setManagement(true)}>
                 {t.runtime}
               </Button>
               <Button variant="quiet" onClick={refresh}>
-                {locale.startsWith("zh")
-                  ? "已安装，重新检查"
-                  : "Installed? Check again"}
+                {uiText(locale, "OfficePreviewGate.installedCheckAgain")}
               </Button>
             </>
           ) : null}

@@ -8089,7 +8089,7 @@ export function App() {
                             title={designDocBinding.name}
                           >
                             <span className="composer-active-file-label">
-                              {locale.startsWith("zh") ? "编辑中" : "Editing"}
+                              {uiText(locale, "AppDesign.editing")}
                             </span>
                             <span className="composer-active-file-name">
                               {designDocBinding.name}
@@ -8364,9 +8364,11 @@ export function App() {
                                 : hasOfficeAnnotations
                                   ? officeAnnotationCopy(locale).placeholder
                                   : designDocBinding
-                                    ? locale.startsWith("zh")
-                                      ? `让 Artemis 修改 ${designDocBinding.name}…`
-                                      : `Ask Artemis to edit ${designDocBinding.name}…`
+                                    ? uiText(
+                                        locale,
+                                        "AppDesign.askArtemisToEditName",
+                                        { name: designDocBinding.name },
+                                      )
                                     : t.prompt
                             }
                             ref={promptInput}
@@ -9817,9 +9819,10 @@ ${model.providerId} · ${model.modelId}`}
                                       } catch {
                                         setToast({
                                           error: true,
-                                          message: locale.startsWith("zh")
-                                            ? "候选入账失败"
-                                            : "Failed to accept the candidate",
+                                          message: uiText(
+                                            locale,
+                                            "AppDesign.failedToAcceptTheCandidate",
+                                          ),
                                         });
                                       }
                                     })();
@@ -9843,9 +9846,7 @@ ${model.providerId} · ${model.modelId}`}
                                     "var(--artemis-color-text-secondary, #9399b2)",
                                 }}
                               >
-                                {locale.startsWith("zh")
-                                  ? "设计插件已移除：请在 插件市场 → 随应用提供的插件 中重新获取。"
-                                  : "The design plugin was removed. Get it again from Plugins → Bundled."}
+                                {uiText(locale, "AppDesign.removed")}
                               </div>
                             )
                           ) : null}
@@ -10010,24 +10011,20 @@ ${model.providerId} · ${model.modelId}`}
       {failedTabClose && (
         <Dialog
           open
-          label={locale.startsWith("zh") ? "文件尚未保存" : "File not saved"}
+          label={uiText(locale, "WorkspaceSave.fileNotSaved")}
           onOpenChange={(open) => {
             if (!open) setFailedTabClose(undefined);
           }}
         >
-          <h2>{locale.startsWith("zh") ? "文件尚未保存" : "File not saved"}</h2>
+          <h2>{uiText(locale, "WorkspaceSave.fileNotSaved")}</h2>
           <p>{failedTabClose.path}</p>
           <p>{failedTabClose.message}</p>
-          <p>
-            {locale.startsWith("zh")
-              ? "可以重试保存，或保留 Office 草稿并关闭。保留的草稿尚未写入文档，重新打开此文件后可继续处理。"
-              : "Retry saving, or retain the Office draft and close. Retained drafts are not saved to the document; reopen this file to recover them."}
-          </p>
+          <p>{uiText(locale, "WorkspaceSave.draftHint")}</p>
           <Button onClick={() => setFailedTabClose(undefined)}>
-            {locale.startsWith("zh") ? "继续编辑" : "Keep editing"}
+            {uiText(locale, "WorkspaceSave.keepEditing")}
           </Button>
           <Button onClick={() => void closeWorkspaceTab(failedTabClose.tabId)}>
-            {locale.startsWith("zh") ? "重试保存" : "Retry save"}
+            {uiText(locale, "WorkspaceSave.retrySave")}
           </Button>
           <Button
             onClick={() => {
@@ -10047,9 +10044,7 @@ ${model.providerId} · ${model.modelId}`}
               }
             }}
           >
-            {locale.startsWith("zh")
-              ? "保留草稿并关闭"
-              : "Retain draft and close"}
+            {uiText(locale, "WorkspaceSave.retainDraftAndClose")}
           </Button>
         </Dialog>
       )}

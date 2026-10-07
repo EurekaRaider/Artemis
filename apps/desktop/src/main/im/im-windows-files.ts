@@ -1,3 +1,5 @@
+import { imText } from "@artemis/gateway";
+import type { AppLocale } from "@artemis/protocol";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -34,7 +36,10 @@ interface NativeResult {
 /** A fixed host-owned broker. No model commands or file bytes appear in argv. */
 export class WindowsImFiles {
   readonly helper: string;
-  constructor(sandboxHelper: string) {
+  constructor(
+    sandboxHelper: string,
+    private readonly locale: () => AppLocale = () => "zh-CN",
+  ) {
     this.helper = join(dirname(sandboxHelper), "windows-im-files.ps1");
   }
   available() {
@@ -60,7 +65,7 @@ export class WindowsImFiles {
       return Promise.reject(new Error("IM operation cancelled."));
     if (!this.available())
       return Promise.reject(
-        new Error("Windows IM 文件组件缺失，请更新 Artemis。"),
+        new Error(imText(this.locale(), "windowsFilesMissing")),
       );
     const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
     const child = spawn(
@@ -175,7 +180,7 @@ export class WindowsImFiles {
     scope: ImDataScope,
     assertCurrent?: () => void,
   ) {
-    authorizeImPath(scope, path);
+    authorizeImPath(scope, path, undefined, this.locale());
     const result = await this.request(
       workspace,
       scope,
@@ -192,7 +197,7 @@ export class WindowsImFiles {
     scope: ImDataScope,
     assertCurrent?: () => void,
   ) {
-    authorizeImReadPath(scope, path);
+    authorizeImReadPath(scope, path, this.locale());
     const result = await this.request(
       workspace,
       scope,
@@ -200,7 +205,7 @@ export class WindowsImFiles {
       assertCurrent,
     );
     return (result.entries ?? []).map((entry) => ({
-      path: authorizeImPath(scope, entry.path),
+      path: authorizeImPath(scope, entry.path, undefined, this.locale()),
       directory: entry.directory,
     }));
   }
@@ -239,7 +244,7 @@ export class WindowsImFiles {
       signal,
     );
     for (const entry of result.entries ?? [])
-      authorizeImPath(scope, entry.path);
+      authorizeImPath(scope, entry.path, undefined, this.locale());
     return result.entries ?? [];
   }
   async apply(
@@ -249,7 +254,8 @@ export class WindowsImFiles {
     assertCurrent: () => void,
     signal?: AbortSignal,
   ) {
-    for (const change of changes) authorizeImPath(scope, change.path, true);
+    for (const change of changes)
+      authorizeImPath(scope, change.path, true, this.locale());
     if (!changes.length) return;
     await this.request(
       workspace,
@@ -275,12 +281,13 @@ export function imSnapshotChanges(
   before: ImFileSnapshotEntry[],
   after: ImFileSnapshotEntry[],
   scope: ImDataScope,
+  locale: AppLocale = "zh-CN",
 ): Change[] {
   const old = new Map(before.map((entry) => [entry.path, entry]));
   const next = new Map(after.map((entry) => [entry.path, entry]));
   const changes: Change[] = [];
   for (const entry of after) {
-    authorizeImPath(scope, entry.path);
+    authorizeImPath(scope, entry.path, undefined, locale);
     const previous = old.get(entry.path);
     if (
       previous?.directory !== undefined &&
@@ -289,7 +296,7 @@ export function imSnapshotChanges(
       throw new Error("Shell changed a file's type; changes were not applied.");
     if (entry.directory) {
       if (!previous) {
-        authorizeImPath(scope, entry.path, true);
+        authorizeImPath(scope, entry.path, true, locale);
         changes.push({ path: entry.path, directory: true });
       }
       continue;
@@ -297,7 +304,7 @@ export function imSnapshotChanges(
     if (typeof entry.data !== "string")
       throw new Error("Invalid native snapshot bytes.");
     if (previous?.data === entry.data) continue;
-    authorizeImPath(scope, entry.path, true);
+    authorizeImPath(scope, entry.path, true, locale);
     changes.push({
       path: entry.path,
       data: entry.data,
@@ -309,7 +316,7 @@ export function imSnapshotChanges(
   }
   for (const entry of before)
     if (!entry.directory && !next.has(entry.path)) {
-      authorizeImPath(scope, entry.path, true);
+      authorizeImPath(scope, entry.path, true, locale);
       changes.push({
         path: entry.path,
         delete: true,
@@ -327,9 +334,10 @@ export async function runWindowsImShell(input: {
   network: boolean;
   signal: AbortSignal;
   timeoutSeconds: number;
+  locale?: AppLocale;
   assertCurrent: () => void;
 }) {
-  const files = new WindowsImFiles(input.helper);
+  const files = new WindowsImFiles(input.helper, () => input.locale ?? "zh-CN");
   input.assertCurrent();
   const before = await files.snapshot(
     input.workspace,
@@ -344,7 +352,10 @@ export async function runWindowsImShell(input: {
   );
   try {
     for (const entry of before) {
-      const path = join(stage, authorizeImPath(input.scope, entry.path));
+      const path = join(
+        stage,
+        authorizeImPath(input.scope, entry.path, false, input.locale),
+      );
       await mkdir(entry.directory ? path : dirname(path), { recursive: true });
       if (!entry.directory)
         await writeFile(path, Buffer.from(entry.data!, "base64"), {
@@ -445,7 +456,7 @@ Set-Location -LiteralPath 'ArtemisWorkspace:\' -ErrorAction Stop`,
     await files.apply(
       input.workspace,
       input.scope,
-      imSnapshotChanges(prepared, after, input.scope)
+      imSnapshotChanges(prepared, after, input.scope, input.locale)
         .filter((change) => !change.delete || originalPaths.has(change.path))
         .map((change) =>
           change.expected && !originalPaths.has(change.path)

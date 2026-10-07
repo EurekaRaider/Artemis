@@ -239,3 +239,17 @@ it("routes explicit project selection and returns cancellation and errors to the
   }
   expect(openProjectFile).toHaveBeenCalledWith({ threadId: "selection-task" });
 });
+
+it("sends the current locale when opening and broadcasts changes to live panels", async () => {
+  const host = freshHost();
+  host.setLocale("ja");
+  await host.ensurePanel(makeWindow(), "locale-task", "workspace");
+  const port = tracked.ports[0];
+  expect(port.postMessage).toHaveBeenCalledWith(
+    expect.objectContaining({ type: "locale", locale: "ja", direction: "ltr" }),
+  );
+  host.setLocale("ar");
+  expect(port.postMessage).toHaveBeenLastCalledWith(
+    expect.objectContaining({ type: "locale", locale: "ar", direction: "rtl" }),
+  );
+});

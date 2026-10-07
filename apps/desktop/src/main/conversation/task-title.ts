@@ -1,3 +1,4 @@
+import { imText } from "@artemis/gateway";
 import type { AgentEvent, AppLocale, Thread } from "@artemis/protocol";
 
 import { I18N_RESOURCES } from "../../shared/i18n/i18n-resources.js";
@@ -35,10 +36,13 @@ export interface ImTaskTitleContext {
 export function formatImTaskTitle(
   channel: ImTaskTitleContext["channel"],
   summary: string,
+  locale: AppLocale = "zh-CN",
 ): string {
-  const platform = { slack: "Slack", feishu: "飞书", wecom: "企业微信" }[
-    channel
-  ];
+  const platform = {
+    slack: "Slack",
+    feishu: imText(locale, "feishuBrand"),
+    wecom: imText(locale, "wecomBrand"),
+  }[channel];
   return trimToCodePoints(`${platform} · ${summary}`, TITLE_LIMIT);
 }
 

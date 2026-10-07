@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 // S1 host-side plugin PanelHost (proposal §8/§9 slice).
 //
 // Manages WebContentsView lifecycles for installed design-plugin panels:
@@ -19,7 +20,8 @@ import {
 } from "electron";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pluginManifestSchema } from "@artemis/protocol";
+import { pluginManifestSchema, type AppLocale } from "@artemis/protocol";
+import { designPanelLocaleMessage } from "../../shared/i18n/design-panel-copy.js";
 import { randomUUID } from "node:crypto";
 
 import { DesignPluginCatalog } from "./design-plugin-catalog.js";
@@ -262,6 +264,15 @@ export interface PanelRequestHandlers {
 }
 
 export class DesignPanelHost {
+  private locale: AppLocale = "en";
+
+  setLocale(locale: AppLocale): void {
+    this.locale = locale;
+    for (const panel of this.panels.values()) {
+      panel.hostPort.postMessage(designPanelLocaleMessage(locale));
+    }
+  }
+
   private readonly panels = new Map<string, LivePanel>();
   private readonly pendingEnsures = new Map<
     string,
@@ -545,6 +556,7 @@ export class DesignPanelHost {
       // 面板就绪后主动拉完整快照：首开时 host 的初始 push 可能早于 port
       // 握手完成而丢失（面板白屏无卡片），拉模式兜底推模式。
       if (data?.type === "snapshot-request") {
+        hostPort.postMessage(designPanelLocaleMessage(this.locale));
         console.log(
           `[design-panel] snapshot-request from ${threadId}/${panelId}`,
         );
@@ -555,7 +567,9 @@ export class DesignPanelHost {
         void (async () => {
           try {
             if (!this.requestHandlers?.openProjectFile)
-              throw new Error("从项目打开暂不可用");
+              throw new Error(
+                uiText(this.locale, "DesignHost.openUnavailable"),
+              );
             const result = await this.requestHandlers.openProjectFile({
               threadId,
             });
@@ -875,7 +889,9 @@ export class DesignPanelHost {
         void (async () => {
           try {
             if (!this.requestHandlers?.pickImageFolder)
-              throw new Error("主进程不可用");
+              throw new Error(
+                uiText(this.locale, "DesignHost.hostUnavailable"),
+              );
             const result = await this.requestHandlers.pickImageFolder({
               threadId,
             });
@@ -950,6 +966,7 @@ export class DesignPanelHost {
     }
     await webContents.loadURL(entryUrl);
     webContents.postMessage("artemis:port", null, [panelPort]);
+    hostPort.postMessage(designPanelLocaleMessage(this.locale));
     if (this.releasedWhilePending.has(this.key(threadId, panelId))) {
       // The renderer released while this creation was in flight (tab
       // closed / thread switched before ensure resolved). The registry

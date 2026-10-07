@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "com.artemis.design",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "engines": {
     "artemisPluginApi": "1"
   },
@@ -9,8 +9,20 @@
     {
       "id": "artemis-design",
       "title": {
+        "en": "Design",
         "zh-CN": "设计",
-        "en": "Design"
+        "zh-TW": "設計",
+        "ja": "デザイン",
+        "ko": "디자인",
+        "es": "Diseño",
+        "fr": "Design",
+        "de": "Design",
+        "pt-BR": "Design",
+        "it": "Design",
+        "ru": "Дизайн",
+        "ar": "التصميم",
+        "hi": "डिज़ाइन",
+        "id": "Desain"
       },
       "targets": ["project"],
       "panelIds": ["workspace"]

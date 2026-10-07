@@ -14096,6 +14096,22 @@ kbd {
   overflow-wrap: anywhere;
 }
 
+.provider-login-header,
+.provider-login-setup {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.provider-login-setup {
+  flex: 0 1 auto;
+  gap: 8px;
+}
+.provider-login-header .provider-login-actions {
+  flex: 0 0 auto;
+  padding-block-start: 0;
+}
+
 .provider-login-prompt {
   min-width: 0;
 }

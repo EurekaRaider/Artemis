@@ -1,3 +1,5 @@
+import type { AppLocale } from "@artemis/protocol";
+import { uiText } from "../../shared/i18n/ui-text.js";
 // PR#245 P1-3：设计面板「代码」视图的项目文件读取管线（从 main.ts 抽出
 // 以便可测试）。安全模型：
 //   - 请求路径过白名单扩展与字符串层工作区包含检查（快速预过滤）；
@@ -277,6 +279,7 @@ export class ProjectFileReadError extends Error {}
 export async function readProjectFileForPreview(input: {
   workspacePath: string;
   requestedPath: string;
+  locale?: AppLocale;
 }): Promise<{ name: string; content: string }> {
   const requestedPath = String(input.requestedPath ?? "").trim();
   if (
@@ -295,7 +298,9 @@ export async function readProjectFileForPreview(input: {
     };
   }
   if (!DESIGN_PROJECT_TEXT_EXTENSIONS.test(requestedPath))
-    throw new ProjectFileReadError("此项目文件类型暂不支持预览。");
+    throw new ProjectFileReadError(
+      uiText(input.locale ?? "en", "DesignHost.previewUnsupported"),
+    );
   const absolute = join(input.workspacePath, requestedPath);
   const workspaceRoot = resolve(input.workspacePath);
   if (

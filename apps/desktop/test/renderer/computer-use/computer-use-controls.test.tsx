@@ -1,10 +1,37 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
-import type { ComputerControlState } from "@artemis/protocol";
+import { APP_LOCALES, type ComputerControlState } from "@artemis/protocol";
+import { uiText } from "../../../src/shared/i18n/ui-text.js";
 import { ComputerUseControls } from "../../../src/renderer/computer-use/ComputerUseControls.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
+
+it.each(APP_LOCALES)(
+  "localizes control reasons in %s and preserves external details",
+  async (locale) => {
+    let notify!: (state: ComputerControlState) => void;
+    const state: ComputerControlState = {
+      version: 1,
+      state: "paused",
+      threadId: "task",
+      reason: "User took control",
+    };
+    stubWindowArtemis({
+      getComputerState: async () => state,
+      onComputerState: (callback: typeof notify) => {
+        notify = callback;
+        return () => {};
+      },
+    });
+    render(<ComputerUseControls locale={locale} />);
+    expect(
+      await screen.findByText(uiText(locale, "ComputerUse.reasonTakeover")),
+    ).toBeVisible();
+    act(() => notify({ ...state, reason: "toString" }));
+    expect(screen.getByText("toString")).toBeVisible();
+  },
+);
 
 it("stops, resumes and revokes the actual target's grant", async () => {
   const user = userEvent.setup();

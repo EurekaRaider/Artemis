@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { workspaceFileError } from "./workspace-file-error.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArtemisIcon } from "@artemis/ui/icons";
@@ -509,9 +510,7 @@ export function WorkspaceFilesPanel({
             ) : /\.(?:docx?|pptx?|xlsx?|csv)$/iu.test(selectedFile.path) ? (
               <OfficePreviewGate locale={locale}>
                 <WorkspaceContentState state="read-only" label={binaryMessage}>
-                  {locale.startsWith("zh")
-                    ? "请将旧版 Office 文件转换为 DOCX、PPTX 或 XLSX；CSV 请使用 UTF-8 编码，然后重新打开。"
-                    : "Convert legacy Office files to DOCX, PPTX or XLSX, or convert CSV to UTF-8, then reopen the file."}
+                  {uiText(locale, "WorkspaceFiles.conversionHint")}
                 </WorkspaceContentState>
               </OfficePreviewGate>
             ) : selectedFile.binary ? (

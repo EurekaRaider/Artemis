@@ -2,7 +2,13 @@ import { verificationOutput } from "../../../../../scripts/artifacts/output-path
 // 真实渲染验证：Electron 加载设计面板，注入测试文档，
 // 截图文件视图/预览视图/注释模式，并在页面里执行真实交互读回状态。
 import { app, BrowserWindow } from "electron";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -27,6 +33,40 @@ const panelUrl =
     "panel",
     "index.html",
   );
+
+const locales = [
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "ja",
+  "ko",
+  "es",
+  "fr",
+  "de",
+  "pt-BR",
+  "it",
+  "ru",
+  "ar",
+  "hi",
+  "id",
+];
+const localeMessage = (locale) => ({
+  type: "locale",
+  locale,
+  direction: locale === "ar" ? "rtl" : "ltr",
+  messages: Object.fromEntries(
+    Object.entries(
+      JSON.parse(
+        readFileSync(
+          join(here, "../../../src/shared/i18n/ui-locales", `${locale}.json`),
+          "utf8",
+        ),
+      ),
+    )
+      .filter(([key]) => key.startsWith("DesignPanel."))
+      .map(([key, value]) => [key.slice("DesignPanel.".length), value]),
+  ),
+});
 
 const TEST_DOC = `<!doctype html>
 <html><head><style>
@@ -89,6 +129,7 @@ app
       ev.ports = [fakePort];
       window.dispatchEvent(ev);
       window.__fromHost = (m) => fakePort.onmessage({ data: m });
+      window.__fromHost(${JSON.stringify(localeMessage("zh-CN"))});
       window.__fromHost({ type: "snapshot", snapshot: { documents: [], projectFiles: [
         { path: "customer.html", bytes: 300, updatedAt: "1" },
         { path: "index.html", bytes: 300, updatedAt: "1" },
@@ -235,6 +276,38 @@ app
       ] }) } });
   `);
     await shot("10-history.png");
+
+    const languageResults = [];
+    for (const locale of locales) {
+      const message = localeMessage(locale);
+      const state = await win.webContents.executeJavaScript(`(() => {
+        window.__fromHost(${JSON.stringify(message)});
+        return { lang: document.documentElement.lang, dir: document.documentElement.dir,
+          missing: Array.from(document.querySelectorAll('[data-dz-i18n]')).map(node => node.dataset.dzI18n).filter(key => !${JSON.stringify(message.messages)}[key]),
+          name: document.querySelector('.design-file-name')?.textContent,
+          overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+      })()`);
+      assert.equal(state.lang, locale);
+      assert.equal(state.dir, message.direction);
+      assert.deepEqual(state.missing, []);
+      assert.equal(state.overflow, false);
+      assert.equal(
+        await documentFrame.executeJavaScript(
+          `document.querySelector('.hero h1').textContent`,
+        ),
+        "账户设置",
+      );
+      languageResults.push(state);
+      if (["en", "ja", "ar"].includes(locale))
+        await shot(`locale-${locale}.png`);
+    }
+    await win.webContents.executeJavaScript(
+      `window.__fromHost(${JSON.stringify(localeMessage("zh-CN"))})`,
+    );
+    writeFileSync(
+      join(outDir, "languages.json"),
+      JSON.stringify(languageResults, null, 2),
+    );
 
     // 交互读回验证
     const interaction = await win.webContents.executeJavaScript(`

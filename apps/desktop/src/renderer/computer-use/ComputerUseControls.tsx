@@ -4,8 +4,36 @@ import { LoadingState } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import type { AppLocale, ComputerControlState } from "@artemis/protocol";
 import "./computer-use.css";
+import { uiText, type UiMessageKey } from "../../shared/i18n/ui-text.js";
 import { COMPUTER_USE_RESOURCES } from "../../shared/i18n/computer-use-resources.js";
 import type { ComputerPermission } from "../../shared/api.js";
+
+const reasonKeys: Readonly<Record<string, UiMessageKey>> = {
+  "Permission revoked": "ComputerUse.reasonPermissionRevoked",
+  "Task permission revoked": "ComputerUse.reasonTaskPermissionRevoked",
+  "Task stopped": "ComputerUse.reasonTaskStopped",
+  "Computer Use disabled": "ComputerUse.reasonDisabled",
+  "User took control": "ComputerUse.reasonTakeover",
+  "User paused control": "ComputerUse.reasonPaused",
+  "Native Stop button pressed": "ComputerUse.reasonStopped",
+  "Native control was stopped": "ComputerUse.reasonActionStopped",
+  "User input during foreground control": "ComputerUse.reasonForegroundInput",
+  "User keyboard input in the target application":
+    "ComputerUse.reasonKeyboardInput",
+  "User pointer input in the target application":
+    "ComputerUse.reasonPointerInput",
+  Released: "ComputerUse.reasonReleased",
+  "Turn ended": "ComputerUse.reasonTurnEnded",
+  "MCP call cancelled": "ComputerUse.reasonCallCancelled",
+  "Artemis window closed": "ComputerUse.reasonWindowClosed",
+  "Artemis renderer stopped": "ComputerUse.reasonRendererStopped",
+  "Unable to observe the target. Reopen it to retry.":
+    "ComputerUse.reasonObserveFailed",
+  "Computer action exceeded 3 seconds. Resume control before retrying.":
+    "ComputerUse.reasonTimeout",
+  "Computer action stopped. Resume control before reopening the target.":
+    "ComputerUse.reasonActionStopped",
+};
 
 export function ComputerUseControls({
   locale,
@@ -25,6 +53,10 @@ export function ComputerUseControls({
   const [error, setError] = useState<string>();
   const controlRef = useRef<HTMLElement>(null);
   const active = !permissionsOnly && state.state !== "idle";
+  const reasonKey =
+    state.reason && Object.hasOwn(reasonKeys, state.reason)
+      ? reasonKeys[state.reason]
+      : undefined;
   useLayoutEffect(() => {
     const control = controlRef.current;
     const conversation = control?.closest<HTMLElement>(".conversation");
@@ -114,7 +146,7 @@ export function ComputerUseControls({
     <aside
       ref={controlRef}
       className={permissionsOnly ? "computer-permissions" : "computer-control"}
-      aria-label="Computer Use"
+      aria-label={uiText(locale, "ComputerUse.title")}
     >
       {!permissionsOnly ? (
         <>
@@ -125,7 +157,7 @@ export function ComputerUseControls({
                 className="computer-control-name"
                 title={state.target?.name}
               >
-                Computer Use
+                {uiText(locale, "ComputerUse.title")}
                 {state.target?.name ? ` · ${state.target.name}` : ""}
               </span>
               <span className="computer-control-mode">
@@ -138,7 +170,9 @@ export function ComputerUseControls({
             </span>
           </div>
           {state.reason ? (
-            <span className="computer-control-reason">{state.reason}</span>
+            <span className="computer-control-reason">
+              {reasonKey ? uiText(locale, reasonKey) : state.reason}
+            </span>
           ) : null}
           <div className="computer-control-actions">
             <Button

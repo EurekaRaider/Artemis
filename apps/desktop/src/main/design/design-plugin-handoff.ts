@@ -4,10 +4,11 @@
 // task works on the same project workspace directly.
 import { createHash, randomUUID } from "node:crypto";
 import { realpath } from "node:fs/promises";
-import type { Thread } from "@artemis/protocol";
+import type { AppLocale, Thread } from "@artemis/protocol";
 import { readWorkspaceFileBytes } from "./design-plugin-project-files.js";
 import { resolveDesignWorkspacePath } from "./design-thin-snapshots.js";
 import type { AppStore } from "../settings/store.js";
+import { uiText } from "../../shared/i18n/ui-text.js";
 
 type HandoffInput = { threadId: string; documentId: string };
 type HandoffResult = { threadId: string; created: boolean };
@@ -16,6 +17,7 @@ type WorkspaceResolver = (thread: Thread) => Promise<{ workspacePath: string }>;
 export function createDesignHandoffHandler(
   getStore: () => AppStore | undefined,
   resolveWorkspace: WorkspaceResolver,
+  locale: () => AppLocale = () => "en",
 ) {
   const pending = new Map<string, Promise<HandoffResult>>();
   return async (input: HandoffInput): Promise<HandoffResult> => {
@@ -48,7 +50,7 @@ export function createDesignHandoffHandler(
       source.archived ||
       !source.typeBinding
     ) {
-      throw new Error("设计交接仅项目会话可用。");
+      throw new Error(uiText(locale(), "DesignHost.handoffProjectOnly"));
     }
     if (!rel || rel.includes("..") || !/\.html?$/i.test(rel)) {
       throw new Error("Invalid project file path.");
@@ -66,7 +68,7 @@ export function createDesignHandoffHandler(
       if (!store.getThreadGoal(handoffId)) {
         store.setThreadGoal(
           handoffId,
-          `按设计页实现（源文件 ${rel}，见源任务材料）。`,
+          uiText(locale(), "DesignHost.handoffGoalRecovery", { file: rel }),
           undefined,
         );
       }
@@ -106,7 +108,7 @@ export function createDesignHandoffHandler(
       store.createThread({
         id: handoffId,
         projectId: source.projectId!,
-        title: `[设计交接] ${name}`,
+        title: uiText(locale(), "DesignHost.handoffTitle", { name }),
         mode: "work",
         target: "local",
         status: "idle",
@@ -130,7 +132,10 @@ export function createDesignHandoffHandler(
     // 目标独立开事务（setThreadGoal 自带 BEGIN IMMEDIATE，不能嵌套）。
     store.setThreadGoal(
       handoffId,
-      `按设计页实现：工作区文件 ${rel}；源设计工作区：${workspace.workspacePath}。`,
+      uiText(locale(), "DesignHost.handoffGoal", {
+        file: rel,
+        workspace: workspace.workspacePath,
+      }),
       undefined,
     );
     return { threadId: handoffId, created: true };

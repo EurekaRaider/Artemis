@@ -1,3 +1,4 @@
+import { imText } from "@artemis/gateway";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open, lstat, readdir } from "node:fs/promises";
@@ -9,6 +10,7 @@ import {
   normalizeImPath,
   imScopeCanWrite,
   imScopeConfirmation,
+  type AppLocale,
   type ExecutionGrant,
   type ImDataScope,
   type ImConversation,
@@ -36,15 +38,16 @@ export function requireImScope(
   grant: ExecutionGrant,
   audience: string,
   access: "read" | "write" = "read",
+  locale: AppLocale = "zh-CN",
 ): ImDataScope {
   if (grant.security?.version !== IM_SECURITY_VERSION)
-    throw new Error("请在桌面确认此项目的数据与分享范围后继续。");
+    throw new Error(imText(locale, "confirmProjectScope"));
   const scope = grant.security.scopes.find((s) => s.audience === audience);
-  if (!scope) throw new Error("此会话的数据与分享范围尚未授权，请在桌面设置。");
+  if (!scope) throw new Error(imText(locale, "conversationScopeUnauthorized"));
   // Enabling this project/audience grants its configured reads by default.
   // Pending execution consent must not block queries or ordinary coordination.
   if (access === "write" && !imScopeConfirmation(grant.security, scope))
-    throw new Error("请在桌面确认此会话的写入与命令执行权限后继续。");
+    throw new Error(imText(locale, "confirmWriteCommands"));
   return scope;
 }
 export class ImPermissionError extends Error {
@@ -93,21 +96,25 @@ export function imRequiresApproval(
 }
 
 /** Only directory reads may address the root; never broaden file/write paths. */
-export function authorizeImReadPath(scope: ImDataScope, input: string): string {
+export function authorizeImReadPath(
+  scope: ImDataScope,
+  input: string,
+  locale: AppLocale = "zh-CN",
+): string {
   if (input === "." || imProjectedDirectory(scope, input)) return input;
-  return authorizeImPath(scope, input);
+  return authorizeImPath(scope, input, undefined, locale);
 }
 
 export function authorizeImPath(
   scope: ImDataScope,
   input: string,
   write = false,
+  locale: AppLocale = "zh-CN",
 ): string {
   const path = normalizeImPath(input);
   if (scope.filePaths?.some((root) => path.startsWith(`${root}/`)))
-    throw new Error("授权的是文件，不能将其替换为目录后扩大范围。");
-  if (isImProtectedPath(path))
-    throw new Error("此文件属于受保护配置，请在私人桌面任务中处理。");
+    throw new Error(imText(locale, "fileReplacedByDirectory"));
+  if (isImProtectedPath(path)) throw new Error(imText(locale, "protectedFile"));
   // Empty readPaths grants the whole project root; empty writePaths still
   // grants no writes.
   const withinScope = write
@@ -116,7 +123,7 @@ export function authorizeImPath(
   if (!withinScope)
     throw new ImPermissionError(
       "scope-denied",
-      "文件不在此会话的授权范围内，请在桌面调整范围后继续原任务。",
+      imText(locale, "fileOutsideScope"),
     );
   return path;
 }
@@ -124,7 +131,10 @@ export function imContentHash(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 /** Detection is supplemental. Only scoped contexts are eligible for automatic delivery. */
-export function inspectImOutbound(input: string): string | undefined {
+export function inspectImOutbound(
+  input: string,
+  locale: AppLocale = "zh-CN",
+): string | undefined {
   const text = input
     .normalize("NFKC")
     .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/gu, "");
@@ -137,18 +147,18 @@ export function inspectImOutbound(input: string): string | undefined {
       text,
     )
   )
-    return "检测到可能的凭据，请在桌面审阅。";
+    return imText(locale, "credentialReview");
   if (
     /<\s*(?:img|iframe|object|embed)\b/iu.test(text) ||
     /!\[[\s\S]*?\]\s*(?:\(|\[)/u.test(text)
   )
-    return "外部图片或嵌入内容需要桌面审阅。";
+    return imText(locale, "embeddedContentReview");
   if (
     /(?:javascript|data|file):/iu.test(
       text.match(/(?:\]\([^)]*\)|<[^>]*>)/gu)?.join(" ") ?? "",
     )
   )
-    return "链接包含不允许的协议。";
+    return imText(locale, "linkProtocolDenied");
   for (const raw of text.match(/https?:\/\/[^\s<>"')]+/giu) ?? []) {
     try {
       const url = new URL(raw);
@@ -161,9 +171,9 @@ export function inspectImOutbound(input: string): string | undefined {
           ),
         )
       )
-        return "链接可能携带敏感数据，请在桌面审阅。";
+        return imText(locale, "linkSensitiveReview");
     } catch {
-      return "链接无法安全解析，请在桌面审阅。";
+      return imText(locale, "linkInvalidReview");
     }
   }
   return undefined;
@@ -175,10 +185,11 @@ export async function readImFile(
   input: string,
   scope: ImDataScope,
   limit = 10 * 1024 * 1024,
+  locale: AppLocale = "zh-CN",
 ): Promise<Buffer> {
   const path = await checkedRemotePath(
     workspace,
-    authorizeImPath(scope, input),
+    authorizeImPath(scope, input, undefined, locale),
   );
   const handle = await open(path, constants.O_RDONLY | noFollowFlags());
   try {
@@ -256,10 +267,11 @@ export async function writeImFile(
   scope: ImDataScope,
   assertCurrent: () => void = () => {},
   expectedHash?: string,
+  locale: AppLocale = "zh-CN",
 ): Promise<void> {
   const path = await checkedRemotePath(
     workspace,
-    authorizeImPath(scope, input, true),
+    authorizeImPath(scope, input, true, locale),
   );
   assertCurrent();
   await checkedRemotePath(workspace, input);

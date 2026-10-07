@@ -1144,7 +1144,7 @@ export class GatewayRouter {
               id: `result:${task.id}`,
               sourceKind: "tool-result" as const,
               taskId: task.coordinatorThreadId,
-              text: `[协作结果 ${task.id}]\n${task.result}`,
+              text: `[${imText(this.deviceLocale(parent.deviceId), "collaborationResultLabel", { id: task.id })}]\n${task.result}`,
               attachments: [],
               expiresAt: Math.min(parent.expiresAt, task.expiresAt),
             };
@@ -1280,9 +1280,7 @@ export class GatewayRouter {
     _threadId: string,
     _command: CollaborationCommand,
   ): unknown {
-    throw new Error(
-      "自动协作尚未通过平台验证。请在同一 IM 群中人工 @ 目标机器人，并附上任务摘要。共享网关派工已退役。",
-    );
+    throw new Error(imText(this.deviceLocale(_deviceId), "manualOnly"));
   }
   private queueAssignmentCancellation(
     task: CollaborationTask,

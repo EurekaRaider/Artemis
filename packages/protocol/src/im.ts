@@ -410,7 +410,11 @@ export function imGroupMentionTargets(group: ImGroupContext) {
     });
 }
 
-export function resolveImGroupMentions(group: ImGroupContext, text: string) {
+export function resolveImGroupMentions(
+  group: ImGroupContext,
+  text: string,
+  unknownMemberMessage = "Unrecognized @member. Choose a member from the conversation’s member list.",
+) {
   const members = imGroupMentionTargets(group).sort(
     (a, b) => b.token.length - a.token.length,
   );
@@ -424,8 +428,7 @@ export function resolveImGroupMentions(group: ImGroupContext, text: string) {
           text.slice(start + m.token.length),
         ),
     );
-    if (!member)
-      throw new Error("无法识别 @成员，请从对话输入框的成员列表中选择。");
+    if (!member) throw new Error(unknownMemberMessage);
     found.set(member.deviceId, member);
   }
   return [...found.values()];

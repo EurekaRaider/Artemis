@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import {
@@ -42,7 +43,6 @@ export function WorkspaceCsvEditor({
   );
   const columns =
     preview?.rows.reduce((max, row) => Math.max(max, row.length), 0) ?? 0;
-  const zh = locale.startsWith("zh");
   return (
     <WorkspaceEditorToolbar
       {...toolbar}
@@ -85,16 +85,18 @@ export function WorkspaceCsvEditor({
         >
           {preview.invalid && (
             <p role="status">
-              {zh
-                ? "CSV 引号格式不完整，请在源码中检查。"
-                : "CSV quotes are malformed. Check the source."}
+              {uiText(
+                locale,
+                "WorkspaceCsv.csvQuotesAreMalformedCheckTheSource",
+              )}
             </p>
           )}
           {preview.truncated && (
             <p role="status">
-              {zh
-                ? `预览最多显示 ${CSV_PREVIEW_ROWS} 行、${CSV_PREVIEW_COLUMNS} 列；源码保留全部内容。`
-                : `Preview limited to ${CSV_PREVIEW_ROWS} rows and ${CSV_PREVIEW_COLUMNS} columns. The source keeps all content.`}
+              {uiText(locale, "WorkspaceCsv.truncated", {
+                rows: CSV_PREVIEW_ROWS,
+                columns: CSV_PREVIEW_COLUMNS,
+              })}
             </p>
           )}
           <table aria-label={toolbar.path}>

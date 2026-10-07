@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="light">
+<html lang="en" data-theme="light">
   <script>
     // 无宿主时的兜底：跟随系统配色（宿主连接后会下发显式主题）
     (function () {
@@ -20,8 +20,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>设计面板</title>
+    <title data-dz-i18n="designPanel"></title>
     <style>
+      [data-localizing] {
+        visibility: hidden;
+      }
       :root {
         --t-quick: 180ms cubic-bezier(0.32, 0.72, 0, 1);
         --t-med: 320ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -2608,11 +2611,16 @@
     </style>
   </head>
   <body>
-    <div class="design-panel-root">
+    <div data-localizing="" class="design-panel-root">
       <!-- 设计面板使用 design-ws-* / dz-* / mock-* 类名。
      安全约束（goal 冻结）：面板零 Node、零 IPC、零 fetch；候选经 MessagePort 上行；
      导出/版本历史/恢复/截图/交接全部是宿主动作。 -->
-      <div aria-label="页面" class="design-ws-tabs" role="tablist">
+      <div
+        aria-label=""
+        data-dz-i18n-aria-label="page"
+        class="design-ws-tabs"
+        role="tablist"
+      >
         <!-- OD 同款两段式：左侧 tab 滚动区（tab 不收缩，溢出滚动），右侧
      动作区固定宽（演示/历史/导出），竖分割线分隔。下拉菜单都在动作区，
      滚动容器的 overflow 不影响弹层。 -->
@@ -2621,7 +2629,8 @@
             aria-selected="true"
             class="design-ws-tab active"
             data-dz-view="files"
-            data-tip="查看设计文件"
+            data-tip=""
+            data-dz-i18n-data-tip="viewDesignFiles"
             id="dzTabFiles"
             role="tab"
             type="button"
@@ -2639,7 +2648,9 @@
             >
               <rect height="14" rx="2" width="14" x="5" y="5"></rect>
               <path d="M5 10h14M10 5v14"></path></svg
-            ><span class="design-ws-label">设计文件</span>
+            ><span class="design-ws-label"
+              ><span data-dz-i18n="designFiles"></span
+            ></span>
           </button>
           <!-- 文件 tab 全动态：dzEnsureFileTab 按 open 的文档创建/复用，追加在
      固定「设计文件」tab 之后。原「+」菜单只重复「设计文件」入口，无信息量，
@@ -2651,11 +2662,14 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
-              aria-label="演示"
+              aria-label=""
+              data-dz-i18n-aria-label="present"
               class="design-ws-iconbtn"
-              data-tip="演示"
+              data-tip=""
+              data-dz-i18n-data-tip="present"
               id="dzPresentBtn"
-              title="演示"
+              title=""
+              data-dz-i18n-title="present"
               type="button"
             >
               <svg
@@ -2688,7 +2702,7 @@
                 role="menuitem"
                 type="button"
               >
-                在当前标签页
+                <span data-dz-i18n="inThisTab"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -2696,7 +2710,7 @@
                 role="menuitem"
                 type="button"
               >
-                全屏
+                <span data-dz-i18n="fullScreen"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -2704,16 +2718,19 @@
                 role="menuitem"
                 type="button"
               >
-                新标签页
+                <span data-dz-i18n="newTab"></span>
               </button>
             </div>
           </div>
           <button
-            aria-label="版本历史"
+            aria-label=""
+            data-dz-i18n-aria-label="versionHistory"
             class="design-ws-iconbtn"
-            data-tip="版本历史"
+            data-tip=""
+            data-dz-i18n-data-tip="versionHistory"
             id="dzHistoryBtn"
-            title="版本历史"
+            title=""
+            data-dz-i18n-title="versionHistory"
             type="button"
           >
             <svg
@@ -2733,11 +2750,12 @@
           <div class="dz-export">
             <button
               class="btn btn-primary design-ws-export"
-              data-tip="导出"
+              data-tip=""
+              data-dz-i18n-data-tip="export"
               id="dzExportBtn"
               type="button"
             >
-              导出
+              <span data-dz-i18n="export"></span>
             </button>
             <div
               class="dz-menu dz-export-menu"
@@ -2751,7 +2769,7 @@
                 role="menuitem"
                 type="button"
               >
-                下载 HTML
+                <span data-dz-i18n="downloadHTML"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -2759,7 +2777,7 @@
                 role="menuitem"
                 type="button"
               >
-                下载截图
+                <span data-dz-i18n="downloadScreenshot"></span>
               </button>
             </div>
           </div>
@@ -2769,9 +2787,11 @@
       <div class="design-files" id="dzViewFiles">
         <!-- 空态（仅当没有任何设计文档与项目文件时显示，主区居中） -->
         <div id="dzStart" class="dz-start-empty" hidden>
-          <p class="dz-start-title">开始您的创作之旅！</p>
+          <p class="dz-start-title">
+            <span data-dz-i18n="startCreating"></span>
+          </p>
           <button type="button" class="btn btn-primary" id="dzStartBtn">
-            开始设计
+            <span data-dz-i18n="startDesigning"></span>
           </button>
           <button
             type="button"
@@ -2779,23 +2799,28 @@
             id="dzOpenProjectBtn"
             hidden
           >
-            从项目打开
+            <span data-dz-i18n="openFromProject"></span>
           </button>
         </div>
         <div class="design-cats" id="dzCats"></div>
         <div class="design-cards" id="dzCards"></div>
-        <p class="dz-empty" hidden="" id="dzCatEmpty">这个分类还没有内容</p>
+        <p class="dz-empty" hidden="" id="dzCatEmpty">
+          <span data-dz-i18n="thisCategoryIsEmpty"></span>
+        </p>
       </div>
       <!-- 文件预览视图（原型 design-preview-view，含完整工具条） -->
       <div class="design-preview-view" hidden="" id="dzViewPreview">
         <div class="dz-toolbar">
           <div class="dz-toolbar-left">
             <button
-              aria-label="刷新预览"
+              aria-label=""
+              data-dz-i18n-aria-label="refreshPreview"
               class="dz-iconbtn"
-              data-tip="刷新预览"
+              data-tip=""
+              data-dz-i18n-data-tip="refreshPreview"
               id="dzReload"
-              title="刷新预览"
+              title=""
+              data-dz-i18n-title="refreshPreview"
               type="button"
             >
               <svg
@@ -2812,7 +2837,12 @@
                 <path d="M20 4v4h-4"></path>
               </svg>
             </button>
-            <div aria-label="视图模式" class="dz-mode" role="tablist">
+            <div
+              aria-label=""
+              data-dz-i18n-aria-label="viewMode"
+              class="dz-mode"
+              role="tablist"
+            >
               <button
                 aria-selected="true"
                 class="dz-mode-tab active"
@@ -2834,7 +2864,9 @@
                   <rect height="15" rx="2.5" width="17" x="3.5" y="4.5"></rect>
                   <path d="M3.5 9h17"></path>
                   <path d="M7 13h6.5M7 16h9"></path></svg
-                ><span class="dz-mode-label">预览</span>
+                ><span class="dz-mode-label"
+                  ><span data-dz-i18n="preview"></span
+                ></span>
               </button>
               <button
                 aria-selected="false"
@@ -2855,7 +2887,9 @@
                   width="13"
                 >
                   <path d="m9 8-4 4 4 4M15 8l4 4-4 4"></path></svg
-                ><span class="dz-mode-label">代码</span>
+                ><span class="dz-mode-label"
+                  ><span data-dz-i18n="code"></span
+                ></span>
               </button>
             </div>
             <div class="dz-device">
@@ -2878,7 +2912,8 @@
                 >
                   <rect height="14" rx="2" width="18" x="3" y="4"></rect>
                   <path d="M2 20h20"></path></svg
-                ><span id="dzDeviceLabel">桌面端</span
+                ><span id="dzDeviceLabel"
+                  ><span data-dz-i18n="desktop"></span></span
                 ><svg
                   aria-hidden="true"
                   fill="none"
@@ -2912,7 +2947,7 @@
                   >
                     <rect height="14" rx="2" width="18" x="3" y="4"></rect>
                     <path d="M2 20h20"></path></svg
-                  >桌面端
+                  ><span data-dz-i18n="desktop"></span>
                 </button>
                 <button
                   class="dz-menu-item"
@@ -2932,7 +2967,7 @@
                   >
                     <rect height="18" rx="2" width="13" x="5.5" y="3"></rect>
                     <path d="M11 18h2"></path></svg
-                  >平板端
+                  ><span data-dz-i18n="tablet"></span>
                 </button>
                 <button
                   class="dz-menu-item"
@@ -2952,7 +2987,7 @@
                   >
                     <rect height="18" rx="2.5" width="11" x="6.5" y="3"></rect>
                     <path d="M11 18h2"></path></svg
-                  >移动端
+                  ><span data-dz-i18n="mobile"></span>
                 </button>
               </div>
             </div>
@@ -2960,11 +2995,14 @@
           <span class="sp"></span>
           <div class="dz-toolbar-actions">
             <button
-              aria-label="保存文档截图"
+              aria-label=""
+              data-dz-i18n-aria-label="saveDocumentScreenshot"
               class="dz-iconbtn"
-              data-tip="保存文档截图"
+              data-tip=""
+              data-dz-i18n-data-tip="saveDocumentScreenshot"
               id="dzShotBtn"
-              title="保存文档截图"
+              title=""
+              data-dz-i18n-title="saveDocumentScreenshot"
               type="button"
             >
               <svg
@@ -2984,11 +3022,14 @@
               </svg>
             </button>
             <button
-              aria-label="注释"
+              aria-label=""
+              data-dz-i18n-aria-label="comment"
               class="dz-iconbtn"
-              data-tip="注释"
+              data-tip=""
+              data-dz-i18n-data-tip="comment"
               id="dzCommentBtn"
-              title="注释"
+              title=""
+              data-dz-i18n-title="comment"
               type="button"
             >
               <svg
@@ -3003,11 +3044,14 @@
               </svg>
             </button>
             <button
-              aria-label="标记"
+              aria-label=""
+              data-dz-i18n-aria-label="markup"
               class="dz-iconbtn"
-              data-tip="标记"
+              data-tip=""
+              data-dz-i18n-data-tip="markup"
               id="dzDrawBtn"
-              title="标记"
+              title=""
+              data-dz-i18n-title="markup"
               type="button"
             >
               <svg
@@ -3025,11 +3069,14 @@
             </button>
             <span aria-hidden="true" class="dz-divider"></span>
             <button
-              aria-label="评论"
+              aria-label=""
+              data-dz-i18n-aria-label="comments"
               class="dz-iconbtn dz-comment-count"
-              data-tip="评论"
+              data-tip=""
+              data-dz-i18n-data-tip="comments"
               id="dzCommentListBtn"
-              title="评论"
+              title=""
+              data-dz-i18n-title="comments"
               type="button"
             >
               <svg
@@ -3052,9 +3099,11 @@
                 aria-expanded="false"
                 aria-haspopup="menu"
                 class="dz-zoom-trigger"
-                data-tip="缩放"
+                data-tip=""
+                data-dz-i18n-data-tip="zoom"
                 id="dzZoomBtn"
-                title="缩放"
+                title=""
+                data-dz-i18n-title="zoom"
                 type="button"
               >
                 <span id="dzZoomLabel">100%</span>
@@ -3115,11 +3164,14 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
-              aria-label="更多"
+              aria-label=""
+              data-dz-i18n-aria-label="more"
               class="dz-iconbtn"
-              data-tip="更多"
+              data-tip=""
+              data-dz-i18n-data-tip="more"
               id="dzMoreBtn"
-              title="更多"
+              title=""
+              data-dz-i18n-title="more"
               type="button"
             >
               <svg
@@ -3178,7 +3230,7 @@
                 >
                   <circle cx="12" cy="12" r="8.5"></circle>
                   <path d="M12 7.5V12l3 2"></path></svg
-                >版本历史
+                ><span data-dz-i18n="versionHistory"></span>
               </button>
               <div class="dz-menu-sep" role="separator"></div>
               <button
@@ -3199,7 +3251,7 @@
                 >
                   <rect height="14" rx="2" width="18" x="3" y="4"></rect>
                   <path d="M2 20h20"></path></svg
-                >桌面端
+                ><span data-dz-i18n="desktop"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -3219,7 +3271,7 @@
                 >
                   <rect height="18" rx="2" width="13" x="5.5" y="3"></rect>
                   <path d="M11 18h2"></path></svg
-                >平板端
+                ><span data-dz-i18n="tablet"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -3239,7 +3291,7 @@
                 >
                   <rect height="18" rx="2.5" width="11" x="6.5" y="3"></rect>
                   <path d="M11 18h2"></path></svg
-                >移动端
+                ><span data-dz-i18n="mobile"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -3261,7 +3313,7 @@
                     d="M15 8.5H6.5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2H8v2.7l3.3-2.7h3.7a2 2 0 0 0 2-2v-1.5"
                   ></path>
                   <path d="M18 3.2v4.6M15.7 5.5h4.6"></path></svg
-                >注释
+                ><span data-dz-i18n="comment"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -3280,7 +3332,7 @@
                   width="13"
                 >
                   <path d="m15.1 4.9 4 4L8.6 19.4l-4.5.5.5-4.5z"></path></svg
-                >标记
+                ><span data-dz-i18n="markup"></span>
               </button>
               <button
                 class="dz-menu-item"
@@ -3301,7 +3353,8 @@
                   <path
                     d="M20.7 11.6a8 8 0 0 1-8 8H3.7l2-3a8 8 0 1 1 15-5z"
                   ></path></svg
-                >评论<span class="dz-menu-sub" id="dzMoreCount">0</span>
+                ><span data-dz-i18n="comments"></span
+                ><span class="dz-menu-sub" id="dzMoreCount">0</span>
               </button>
               <div class="dz-menu-sep" role="separator"></div>
               <button
@@ -3434,7 +3487,8 @@
             id="dzProjectFrame"
             sandbox="allow-scripts"
             src="about:blank"
-            title="项目文件预览"
+            title=""
+            data-dz-i18n-title="projectFilePreview"
           ></iframe>
           <!-- 图片创作视图：图片 + 框选区域 + 提示词行（dz-project-mode 同层） -->
           <div class="dz-image-view" hidden="" id="dzImageView">
@@ -3444,22 +3498,25 @@
             </div>
             <div class="dz-image-actions">
               <button class="btn btn-quiet" id="dzImageSelClear" type="button">
-                清除选区
+                <span data-dz-i18n="clearSelection"></span>
               </button>
               <input
-                aria-label="图片修改提示词"
+                aria-label=""
+                data-dz-i18n-aria-label="imageEditPrompt"
                 class="dz-image-prompt"
                 id="dzImagePromptInput"
-                placeholder="描述这张图的修改…"
+                placeholder=""
+                data-dz-i18n-placeholder="describeTheChangesToThisImage"
                 type="text"
               />
               <button
                 class="btn dz-image-send"
                 id="dzImageSend"
                 type="button"
-                title="将图片和修改要求加入聊天输入框"
+                title=""
+                data-dz-i18n-title="addTheImageAndEditRequestToChat"
               >
-                <span>加入输入框</span>
+                <span><span data-dz-i18n="addToMessage"></span></span>
                 <svg
                   aria-hidden="true"
                   width="14"
@@ -3478,14 +3535,17 @@
           </div>
           <div class="dz-stage" id="dzStage">
             <div class="design-mock" id="dzMockDesktop">
-              <div class="mock-empty">尚无文档</div>
+              <div class="mock-empty">
+                <span data-dz-i18n="noDocument"></span>
+              </div>
               <iframe
                 class="dz-doc-frame"
                 hidden=""
                 id="dzDocFrame"
                 sandbox="allow-scripts"
                 src="about:blank"
-                title="设计文档预览"
+                title=""
+                data-dz-i18n-title="designDocumentPreview"
               ></iframe>
             </div>
             <div class="dz-phone" hidden="" id="dzMockPhone">
@@ -3506,7 +3566,8 @@
             role="tooltip"
           ></div>
           <div
-            aria-label="注释"
+            aria-label=""
+            data-dz-i18n-aria-label="comment"
             class="dz-note-composer"
             hidden=""
             id="dzNoteComposer"
@@ -3514,27 +3575,31 @@
           >
             <div class="dz-note-titlebar">
               <button
-                aria-label="移动注释框"
+                aria-label=""
+                data-dz-i18n-aria-label="moveCommentBox"
                 class="dz-note-grip"
                 id="dzNoteGrip"
-                title="移动注释框"
+                title=""
+                data-dz-i18n-title="moveCommentBox"
                 type="button"
               >
                 <span aria-hidden="true"></span>
               </button>
               <span class="dz-note-title" id="dzNoteTitle" title=""></span>
               <button class="dz-note-viewall" id="dzNoteViewAll" type="button">
-                查看全部评论
+                <span data-dz-i18n="viewAllComments"></span>
               </button>
             </div>
             <div class="dz-note-body">
               <div class="dz-note-rows" id="dzNoteRows"></div>
               <div class="dz-note-images" hidden="" id="dzNoteImages"></div>
               <textarea
-                aria-label="评论此元素"
+                aria-label=""
+                data-dz-i18n-aria-label="commentOnThisElement"
                 class="dz-note-input"
                 id="dzNoteInput"
-                placeholder="评论此元素…"
+                placeholder=""
+                data-dz-i18n-placeholder="commentOnThisElement222"
               ></textarea>
             </div>
             <div class="dz-note-actions">
@@ -3548,10 +3613,12 @@
                   type="file"
                 />
                 <button
-                  aria-label="添加图片"
+                  aria-label=""
+                  data-dz-i18n-aria-label="addImage"
                   class="dz-note-ic"
                   id="dzNoteAttach"
-                  title="添加图片"
+                  title=""
+                  data-dz-i18n-title="addImage"
                   type="button"
                 >
                   <svg
@@ -3570,11 +3637,13 @@
                   </svg>
                 </button>
                 <button
-                  aria-label="删除"
+                  aria-label=""
+                  data-dz-i18n-aria-label="delete"
                   class="dz-note-ic dz-note-danger"
                   hidden=""
                   id="dzNoteDelete"
-                  title="删除"
+                  title=""
+                  data-dz-i18n-title="delete"
                   type="button"
                 >
                   <svg
@@ -3594,10 +3663,12 @@
                   </svg>
                 </button>
                 <button
-                  aria-label="关闭"
+                  aria-label=""
+                  data-dz-i18n-aria-label="close"
                   class="dz-note-ic"
                   id="dzNoteClose"
-                  title="关闭"
+                  title=""
+                  data-dz-i18n-title="close"
                   type="button"
                 >
                   <svg
@@ -3615,7 +3686,7 @@
               </div>
               <div class="dz-note-actions-end">
                 <button class="btn btn-quiet" id="dzNoteSendChat" type="button">
-                  发送到聊天
+                  <span data-dz-i18n="sendToChat"></span>
                 </button>
                 <button
                   class="btn btn-primary"
@@ -3623,7 +3694,7 @@
                   type="button"
                   disabled=""
                 >
-                  评论
+                  <span data-dz-i18n="comments"></span>
                 </button>
               </div>
             </div>
@@ -3634,15 +3705,19 @@
             hidden=""
             id="dzDrawTools"
             role="toolbar"
-            aria-label="标记工具"
+            aria-label=""
+            data-dz-i18n-aria-label="markupTools"
           >
             <div class="dz-draw-seg">
               <button
-                aria-label="框选"
+                aria-label=""
+                data-dz-i18n-aria-label="rectangle"
                 class="dz-draw-tool active"
                 data-dz-dtool="box"
-                data-tip="框选"
-                title="框选"
+                data-tip=""
+                data-dz-i18n-data-tip="rectangle"
+                title=""
+                data-dz-i18n-title="rectangle"
                 type="button"
               >
                 <svg
@@ -3659,11 +3734,14 @@
                 </svg>
               </button>
               <button
-                aria-label="钢笔"
+                aria-label=""
+                data-dz-i18n-aria-label="pen"
                 class="dz-draw-tool"
                 data-dz-dtool="pen"
-                data-tip="钢笔"
-                title="钢笔"
+                data-tip=""
+                data-dz-i18n-data-tip="pen"
+                title=""
+                data-dz-i18n-title="pen"
                 type="button"
               >
                 <svg
@@ -3680,11 +3758,14 @@
                 </svg>
               </button>
               <button
-                aria-label="文字"
+                aria-label=""
+                data-dz-i18n-aria-label="text"
                 class="dz-draw-tool"
                 data-dz-dtool="text"
-                data-tip="文字"
-                title="文字"
+                data-tip=""
+                data-dz-i18n-data-tip="text"
+                title=""
+                data-dz-i18n-title="text"
                 type="button"
               >
                 <svg
@@ -3703,11 +3784,14 @@
             </div>
             <span aria-hidden="true" class="dz-divider"></span>
             <button
-              aria-label="撤销"
+              aria-label=""
+              data-dz-i18n-aria-label="undo"
               class="dz-draw-act"
-              data-tip="撤销"
+              data-tip=""
+              data-dz-i18n-data-tip="undo"
               id="dzDrawUndo"
-              title="撤销"
+              title=""
+              data-dz-i18n-title="undo"
               type="button"
             >
               <svg
@@ -3725,11 +3809,14 @@
               </svg>
             </button>
             <button
-              aria-label="重做"
+              aria-label=""
+              data-dz-i18n-aria-label="redo"
               class="dz-draw-act"
-              data-tip="重做"
+              data-tip=""
+              data-dz-i18n-data-tip="redo"
               id="dzDrawRedo"
-              title="重做"
+              title=""
+              data-dz-i18n-title="redo"
               type="button"
             >
               <svg
@@ -3755,11 +3842,14 @@
               type="file"
             />
             <button
-              aria-label="添加图片"
+              aria-label=""
+              data-dz-i18n-aria-label="addImage"
               class="dz-draw-act"
-              data-tip="添加图片"
+              data-tip=""
+              data-dz-i18n-data-tip="addImage"
               id="dzDrawAttach"
-              title="添加图片"
+              title=""
+              data-dz-i18n-title="addImage"
               type="button"
             >
               <svg
@@ -3779,18 +3869,23 @@
               </svg>
             </button>
             <input
-              aria-label="标记说明"
+              aria-label=""
+              data-dz-i18n-aria-label="markupDescription"
               class="dz-draw-note"
               id="dzDrawNote"
-              placeholder="为这个标记添加说明"
+              placeholder=""
+              data-dz-i18n-placeholder="describeThisMarkup"
               type="text"
             />
             <button
-              aria-label="加入输入框"
+              aria-label=""
+              data-dz-i18n-aria-label="addToMessage"
               class="dz-draw-act"
-              data-tip="加入输入框（不自动发送）"
+              data-tip=""
+              data-dz-i18n-data-tip="addToMessageWithoutSending"
               id="dzDrawDraft"
-              title="加入输入框（不自动发送）"
+              title=""
+              data-dz-i18n-title="addToMessageWithoutSending"
               type="button"
             >
               <svg
@@ -3808,11 +3903,14 @@
               </svg>
             </button>
             <button
-              aria-label="排队"
+              aria-label=""
+              data-dz-i18n-aria-label="queued"
               class="dz-draw-act"
-              data-tip="排队（当前任务结束后执行）"
+              data-tip=""
+              data-dz-i18n-data-tip="queueAfterTheCurrentTask"
               id="dzDrawQueue"
-              title="排队（当前任务结束后执行）"
+              title=""
+              data-dz-i18n-title="queueAfterTheCurrentTask"
               type="button"
             >
               <svg
@@ -3830,11 +3928,14 @@
               </svg>
             </button>
             <button
-              aria-label="发送"
+              aria-label=""
+              data-dz-i18n-aria-label="send"
               class="dz-draw-act primary"
-              data-tip="发送"
+              data-tip=""
+              data-dz-i18n-data-tip="send"
               id="dzDrawSend"
-              title="发送"
+              title=""
+              data-dz-i18n-title="send"
               type="button"
             >
               <svg
@@ -3852,11 +3953,14 @@
             </button>
             <span aria-hidden="true" class="dz-divider"></span>
             <button
-              aria-label="关闭标记"
+              aria-label=""
+              data-dz-i18n-aria-label="closeMarkup"
               class="dz-draw-act"
-              data-tip="关闭"
+              data-tip=""
+              data-dz-i18n-data-tip="close"
               id="dzDrawClose"
-              title="关闭"
+              title=""
+              data-dz-i18n-title="close"
               type="button"
             >
               <svg
@@ -3874,17 +3978,19 @@
           </div>
         </div>
         <aside
-          aria-label="评论列表"
+          aria-label=""
+          data-dz-i18n-aria-label="comments221"
           class="dz-comment-panel"
           hidden=""
           id="dzCommentPanel"
         >
           <div class="dz-comment-panel-head">
-            <strong>评论</strong
+            <strong><span data-dz-i18n="comments"></span></strong
             ><span class="dz-count-badge" id="dzPanelCount">0</span
             ><span class="sp"></span
             ><button
-              aria-label="关闭评论列表"
+              aria-label=""
+              data-dz-i18n-aria-label="closeComments"
               class="dz-panel-close"
               id="dzCommentPanelClose"
               type="button"
@@ -3903,43 +4009,52 @@
             </button>
           </div>
           <div class="dz-comment-selectall" hidden="" id="dzSelectAllWrap">
-            <button id="dzSelectAll" type="button">全选</button>
+            <button id="dzSelectAll" type="button">
+              <span data-dz-i18n="selectAll"></span>
+            </button>
           </div>
           <div class="dz-comment-list" id="dzCommentList"></div>
           <p class="dz-empty dz-comment-empty" id="dzCommentEmpty">
-            没有已保存的评论。
+            <span data-dz-i18n="noSavedComments"></span>
           </p>
           <div class="dz-comment-selectbar" hidden="" id="dzSelectBar">
-            <span class="dz-select-count" id="dzSelectCount">已选择 0 个</span>
+            <span class="dz-select-count" id="dzSelectCount"
+              ><span data-dz-i18n="0Selected"></span
+            ></span>
             <span class="sp"></span>
             <button class="dz-select-clear" id="dzClearSel" type="button">
-              清除
+              <span data-dz-i18n="clear"></span>
             </button>
             <button class="dz-select-send" id="dzSendSel" type="button">
-              发送到聊天
+              <span data-dz-i18n="sendToChat"></span>
             </button>
           </div>
         </aside>
         <div class="dz-confirm" hidden="" id="dzConfirm">
-          <strong id="dzConfirmTitle">恢复到这个版本？</strong>
-          <span class="card-sub">会存成一个新版本，不会丢现在的。</span>
+          <strong id="dzConfirmTitle"
+            ><span data-dz-i18n="restoreThisVersion"></span
+          ></strong>
+          <span class="card-sub"><span data-dz-i18n="restoreHint"></span></span>
           <div class="dz-confirm-actions">
             <span class="sp"></span
             ><button class="btn btn-quiet" id="dzConfirmCancel" type="button">
-              取消</button
+              <span data-dz-i18n="cancel"></span></button
             ><button class="btn btn-primary" id="dzConfirmOk" type="button">
-              恢复
+              <span data-dz-i18n="restore"></span>
             </button>
           </div>
         </div>
         <div class="dz-toast" hidden="" id="dzToast" role="status"></div>
         <div class="dz-history" hidden="" id="dzHistory">
-          <strong>版本历史</strong>
+          <strong><span data-dz-i18n="versionHistory"></span></strong>
           <div id="dzHistoryItems"></div>
-          <span class="card-sub">恢复会存成一个新版本，不会丢现在的。</span>
+          <span class="card-sub"
+            ><span data-dz-i18n="historyRestoreHint"></span
+          ></span>
         </div>
         <div
-          aria-label="演示模式"
+          aria-label=""
+          data-dz-i18n-aria-label="presentationMode"
           class="dz-present"
           hidden=""
           id="dzPresentLayer"
@@ -3947,10 +4062,13 @@
         >
           <div class="dz-present-bar">
             <span class="dz-present-title" id="dzPresentTitle"></span>
-            <span class="card-sub">按 Esc 退出演示</span>
+            <span class="card-sub"
+              ><span data-dz-i18n="pressEscToExitPresentation"></span
+            ></span>
             <span class="sp"></span>
             <button
-              aria-label="退出演示"
+              aria-label=""
+              data-dz-i18n-aria-label="exitPresentation"
               class="dz-iconbtn"
               id="dzPresentExit"
               type="button"
@@ -3992,6 +4110,114 @@
           }
 
           var dzPanel = document.querySelector(".design-panel-root");
+          var dzLocale = "en";
+          var dzMessages = {};
+          function dzText(key, values) {
+            var template = dzMessages[key] || "";
+            return template.replace(
+              /\{\{(\w+)\}\}/g,
+              function (placeholder, name) {
+                if (!values || values[name] === undefined) return placeholder;
+                var value = values[name];
+                var text =
+                  typeof value === "number"
+                    ? new Intl.NumberFormat(dzLocale).format(value)
+                    : String(value);
+                return dzLocale === "ar" && typeof value === "string"
+                  ? "\u2068" + text + "\u2069"
+                  : text;
+              },
+            );
+          }
+          function dzMarkup(markup) {
+            return markup
+              .replace(
+                /(<span data-dz-i18n="([^"]+)">)<\/span>/g,
+                function (_match, opening, key) {
+                  return opening + dzEscape(dzText(key)) + "</span>";
+                },
+              )
+              .replace(
+                /([\w-]+)="" (data-dz-i18n-[\w-]+)="([^"]+)"/g,
+                function (_match, attr, marker, key) {
+                  return (
+                    attr +
+                    '="' +
+                    dzEscape(dzText(key)) +
+                    '" ' +
+                    marker +
+                    '="' +
+                    key +
+                    '"'
+                  );
+                },
+              );
+          }
+          function dzEscape(value) {
+            return String(value).replace(/[&<>"']/g, function (c) {
+              return {
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#39;",
+              }[c];
+            });
+          }
+          function dzApplyMessages(root) {
+            var nodes = root.querySelectorAll(
+              dzMarkup(
+                "[data-dz-i18n], [data-dz-i18n-aria-label], [data-dz-i18n-title], [data-dz-i18n-placeholder], [data-dz-i18n-data-tip]",
+              ),
+            );
+            var apply = function (node) {
+              if (node.hasAttribute(dzMarkup("data-dz-i18n")))
+                node.textContent = dzText(
+                  node.getAttribute(dzMarkup("data-dz-i18n")),
+                );
+              ["aria-label", "title", "placeholder", "data-tip"].forEach(
+                function (attr) {
+                  var key = node.getAttribute(dzMarkup("data-dz-i18n-") + attr);
+                  if (key) node.setAttribute(attr, dzText(key));
+                },
+              );
+            };
+            if (root.nodeType === 1) apply(root);
+            Array.prototype.forEach.call(nodes, apply);
+          }
+          new MutationObserver(function (records) {
+            records.forEach(function (record) {
+              Array.prototype.forEach.call(record.addedNodes, function (node) {
+                if (node.nodeType === 1) dzApplyMessages(node);
+              });
+            });
+          }).observe(document.body, { childList: true, subtree: true });
+          function dzSetLocale(data) {
+            if (
+              typeof data.locale !== "string" ||
+              !data.messages ||
+              typeof data.messages !== "object"
+            )
+              return;
+            if (
+              dzLocale === data.locale &&
+              !dzPanel.hasAttribute("data-localizing")
+            )
+              return;
+            dzLocale = data.locale;
+            dzMessages = data.messages;
+            document.documentElement.lang = dzLocale;
+            document.documentElement.dir =
+              data.direction === "rtl" ? "rtl" : "ltr";
+            dzApplyMessages(document);
+            dzPanel.removeAttribute("data-localizing");
+            dzLastSnapshotSig = "";
+            dzRenderFiles(dzLastDocs || [], dzLastProjectFiles || []);
+            dzSetDevice(dzDevice);
+            dzRenderComments();
+            if (!$("#dzHistory").hidden) dzRenderHistoryList();
+          }
+
           var dzViewFiles = $("#dzViewFiles");
           var dzViewPreview = $("#dzViewPreview");
           var dzFilesTab = $("#dzTabFiles");
@@ -4094,21 +4320,21 @@
                 $(selector).disabled = !ready;
                 $(selector).title = ready
                   ? $(selector).dataset.tip
-                  : "请先打开并加载设计文档";
+                  : dzText("openDocumentFirst");
               },
             );
           }
           $("#dzStartBtn").addEventListener("click", function () {
-            if (!hostPort) return dzToast("设计面板尚未连接，请稍后重试");
+            if (!hostPort) return dzToast(dzText("notConnected"));
             pendingNewDesign = true;
             dzPostCandidate({
               autoSend: false,
-              text: "请使用设计工具创建一份可预览的设计文档。我的需求是：",
+              text: dzText("newDesignPrompt"),
             });
-            dzToast("需求草稿已加入聊天输入框，请补充需求后发送");
+            dzToast(dzText("draftAdded"));
           });
           $("#dzOpenProjectBtn").addEventListener("click", function () {
-            if (!hostPort) return dzToast("设计面板尚未连接，请稍后重试");
+            if (!hostPort) return dzToast(dzText("notConnected"));
             hostPort.postMessage({ type: "open-project-file-request" });
           });
           function dzToast(message) {
@@ -4243,7 +4469,9 @@
             tab.innerHTML =
               dzFileTabIcon(file) +
               '<span class="design-ws-label"></span>' +
-              '<span aria-label="关闭标签页" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>';
+              dzMarkup(
+                '<span aria-label="" data-dz-i18n-aria-label="closeTab" class="design-ws-x" role="button"><svg fill="none" height="9" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="9"><path d="M6 6l12 12M18 6L6 18"></path></svg></span>',
+              );
             // tab 名用文件短名（去目录）；全路径走页面内 data-tip 气泡
             //（WebContentsView 内原生 title 不渲染）
             var base = file.split("/").pop();
@@ -4332,9 +4560,9 @@
           /* 保守白名单：项目扫描只收 页面+图片（宿主 scanProjectDesignFiles
      同步此表），设计文档（runtime 产物）不受限、始终按名归类。 */
           var DZ_SECTION_ORDER = [
-            ["html", "页面", "HTML 页面"],
-            ["image", "图片", "图片"],
-            ["binary", "其它", "文件"],
+            ["html", "page", "htmlPage"],
+            ["image", "images", "images"],
+            ["binary", "other", "files"],
           ];
           function dzKindFor(name) {
             var n = String(name || "");
@@ -4360,7 +4588,7 @@
           }
           function dzExtLabel(name) {
             var m = /\.([a-z0-9]+)$/i.exec(String(name || ""));
-            return m ? m[1].toUpperCase().slice(0, 4) : "文件";
+            return m ? m[1].toUpperCase().slice(0, 4) : dzText("files");
           }
           /* 卡片副行时间（OD relativeTime 同款文案：刚刚/N 分钟前/…） */
           function dzRelativeTime(iso) {
@@ -4371,11 +4599,17 @@
             var min = 60000,
               hr = 3600000,
               day = 86400000;
-            if (diff < min) return "刚刚";
-            if (diff < hr) return Math.floor(diff / min) + " 分钟前";
-            if (diff < day) return Math.floor(diff / hr) + " 小时前";
-            if (diff < 30 * day) return Math.floor(diff / day) + " 天前";
-            return new Date(t).toLocaleDateString();
+            var relative = new Intl.RelativeTimeFormat(dzLocale, {
+              numeric: "auto",
+            });
+            if (diff < min) return relative.format(0, "second");
+            if (diff < hr)
+              return relative.format(-Math.floor(diff / min), "minute");
+            if (diff < day)
+              return relative.format(-Math.floor(diff / hr), "hour");
+            if (diff < 30 * day)
+              return relative.format(-Math.floor(diff / day), "day");
+            return new Date(t).toLocaleDateString(dzLocale);
           }
 
           /* ============ 虚拟文件夹（OD 目录树的账本等价物）============
@@ -4599,7 +4833,7 @@
             return parts.length === 2 ? parts[0] : parts.slice(0, 2).join("/");
           }
           function dzGroupLabelOf(key) {
-            return key === "__root__" ? "根目录/" : key + "/";
+            return key === "__root__" ? dzText("root") : key + "/";
           }
           function dzRegroupByFolder() {
             var host = $("#dzCards");
@@ -4767,14 +5001,14 @@
             cats.replaceChildren();
             var tabs = [];
             if (folders.length)
-              tabs.push(["folders", "文件夹", folders.length]);
+              tabs.push(["folders", dzText("folder"), folders.length]);
             DZ_SECTION_ORDER.forEach(function (def) {
               var count =
                 (buckets[def[0]] ? buckets[def[0]].length : 0) +
                 projectRows.filter(function (f) {
                   return dzKindFor(f.name) === def[0];
                 }).length;
-              if (count) tabs.push([def[0], def[1], count]);
+              if (count) tabs.push([def[0], dzText(def[1]), count]);
             });
             // 图片创作目录的图片并入「图片」胶囊计数（渲染为创作卡）。
             var imageCount = dzCurrentFolder ? 0 : dzLastImages.length;
@@ -4783,7 +5017,7 @@
                 return tab[0] === "image";
               });
               if (existing) existing[2] += imageCount;
-              else tabs.push(["image", "图片", imageCount]);
+              else tabs.push(["image", dzText("images"), imageCount]);
               // 保序：图片胶囊应在页面之后（SECTION_ORDER 语义）
               tabs.sort(function (a, b) {
                 return (
@@ -4836,7 +5070,7 @@
               back.type = "button";
               back.textContent = parent
                 ? "← " + parent.split("/").pop()
-                : "← 全部文件";
+                : dzText("allFiles");
               back.addEventListener("click", function () {
                 dzCurrentFolder = parent || null;
                 // 返回后回到「文件夹」胶囊：父层仍可能有下级目录；
@@ -4888,13 +5122,19 @@
             var arrowLeft = document.createElement("button");
             arrowLeft.className = "dz-cat-arrow left";
             arrowLeft.type = "button";
-            arrowLeft.setAttribute("aria-label", "向左滚动分类");
+            arrowLeft.setAttribute(
+              "aria-label",
+              dzText("scrollCategoriesLeft"),
+            );
             arrowLeft.innerHTML =
               '<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="13"><path d="m14 7-5 5 5 5"></path></svg>';
             var arrowRight = document.createElement("button");
             arrowRight.className = "dz-cat-arrow right";
             arrowRight.type = "button";
-            arrowRight.setAttribute("aria-label", "向右滚动分类");
+            arrowRight.setAttribute(
+              "aria-label",
+              dzText("scrollCategoriesRight"),
+            );
             arrowRight.innerHTML =
               '<svg aria-hidden="true" fill="none" height="13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewbox="0 0 24 24" width="13"><path d="m10 7 5 5-5 5"></path></svg>';
             segWrap.appendChild(arrowLeft);
@@ -4940,8 +5180,8 @@
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
                 "" +
                 '</span><span class="dz-row-sub">' +
-                folder.count +
-                " 个文件</span></span>";
+                dzEscape(dzText("countFiles", { count: folder.count })) +
+                "</span></span>";
               row.querySelector(".dz-row-name").textContent = folder.name;
               row.addEventListener("click", function () {
                 dzCurrentFolder = dzCurrentFolder
@@ -4975,10 +5215,12 @@
                   '<span class="design-file-meta"><span class="design-file-meta-text"><span class="design-file-name">' +
                   name +
                   '</span><span class="design-file-sub">' +
-                  meta[2] +
+                  dzText(meta[2]) +
                   subSuffix +
                   "</span></span>" +
-                  '<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span></span>';
+                  dzMarkup(
+                    '<span aria-label="" data-dz-i18n-aria-label="fileMenu" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span></span>',
+                  );
                 card.addEventListener("click", function () {
                   dzOpenDocument(doc, false);
                 });
@@ -5012,7 +5254,7 @@
                   '<span class="dz-row-copy"><span class="dz-row-name">' +
                   name +
                   '</span><span class="dz-row-sub">' +
-                  meta[2] +
+                  dzText(meta[2]) +
                   subSuffix +
                   "</span></span>";
                 row.addEventListener("click", function () {
@@ -5043,19 +5285,26 @@
                   '<span class="design-file-meta"><span class="design-file-meta-text">' +
                   '<span class="design-file-name"></span>' +
                   '<span class="dz-file-subrow"><span class="design-file-sub"></span>' +
-                  '<span class="dz-file-open" role="button" tabindex="0">前往</span></span></span></span>';
+                  dzMarkup(
+                    '<span class="dz-file-open" role="button" tabindex="0"><span data-dz-i18n="goTo"></span></span></span></span></span>',
+                  );
                 // 名称/路径走 textContent 与 dataset：文件名可能含引号
                 var nameEl = card.querySelector(".design-file-name");
                 nameEl.textContent = cardBase;
                 nameEl.dataset.tip = name;
                 card.querySelector(".design-file-sub").textContent =
-                  meta[2] + subSuffix + (kb ? " · " + kb : "") + " · 项目";
+                  dzText(meta[2]) +
+                  subSuffix +
+                  (kb ? " · " + kb : "") +
+                  dzText("project");
                 card
                   .querySelector(".dz-file-open")
                   .setAttribute("data-dz-goto", name);
                 card.insertAdjacentHTML(
                   "beforeend",
-                  '<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>',
+                  dzMarkup(
+                    '<span aria-label="" data-dz-i18n-aria-label="fileMenu" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>',
+                  ),
                 );
                 var menuBtn = card.querySelector(".design-file-menu");
                 menuBtn.addEventListener("click", function (e) {
@@ -5088,7 +5337,9 @@
                   '<span class="design-file-meta"><span class="design-file-meta-text">' +
                   '<span class="design-file-name"></span>' +
                   '<span class="dz-file-subrow"><span class="design-file-sub"></span>' +
-                  '<span class="dz-file-open" role="button" tabindex="0">前往</span></span></span></span>';
+                  dzMarkup(
+                    '<span class="dz-file-open" role="button" tabindex="0"><span data-dz-i18n="goTo"></span></span></span></span></span>',
+                  );
                 // 名称/路径走 textContent 与 dataset：文件名可能含引号
                 imgCard.querySelector(".dz-image-thumb").dataset.dzImage =
                   "project:" + file.name;
@@ -5096,13 +5347,18 @@
                 pNameEl.textContent = imgCardBase;
                 pNameEl.dataset.tip = name;
                 imgCard.querySelector(".design-file-sub").textContent =
-                  meta[2] + subSuffix + (kb ? " · " + kb : "") + " · 项目";
+                  dzText(meta[2]) +
+                  subSuffix +
+                  (kb ? " · " + kb : "") +
+                  dzText("project");
                 imgCard
                   .querySelector(".dz-file-open")
                   .setAttribute("data-dz-goto", name);
                 imgCard.insertAdjacentHTML(
                   "beforeend",
-                  '<span aria-label="文件菜单" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>',
+                  dzMarkup(
+                    '<span aria-label="" data-dz-i18n-aria-label="fileMenu" class="design-file-menu" role="button" tabindex="0"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-width="1.8" viewbox="0 0 24 24" width="14"><circle cx="5" cy="12" r="1.4"></circle><circle cx="12" cy="12" r="1.4"></circle><circle cx="19" cy="12" r="1.4"></circle></svg></span>',
+                  ),
                 );
                 var imgMenuBtn = imgCard.querySelector(".design-file-menu");
                 imgMenuBtn.addEventListener("click", function (e) {
@@ -5139,9 +5395,9 @@
                 '<span class="dz-row-copy"><span class="dz-row-name">' +
                 "" +
                 '</span><span class="dz-row-sub">' +
-                meta[2] +
+                dzText(meta[2]) +
                 (kb ? " · " + kb : "") +
-                " · 项目</span></span>";
+                dzMarkup('<span data-dz-i18n="project"></span></span></span>');
               row.querySelector(".dz-row-name").textContent = name;
               row.addEventListener("click", function () {
                 dzOpenProjectFile(file.name);
@@ -5174,7 +5430,7 @@
                 nameEl.textContent = imgDirBase;
                 nameEl.dataset.tip = img.path;
                 card.querySelector(".design-file-sub").textContent =
-                  "图片" + (kb ? " · " + kb : "");
+                  dzText("images") + (kb ? " · " + kb : "");
                 card.addEventListener("click", function () {
                   dzOpenImage(img);
                 });
@@ -5192,7 +5448,9 @@
               guide.setAttribute("data-dz-cat", "image");
               guide.innerHTML =
                 '<span aria-hidden="true" class="dz-row-icon"><svg fill="none" height="14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" viewbox="0 0 24 24" width="14"><rect height="14" rx="2" width="14" x="5" y="5"></rect><path d="M5 10h14M10 5v14"></path></svg></span>' +
-                '<span class="dz-row-copy"><span class="dz-row-name">指定图片文件夹</span><span class="dz-row-sub">选择项目或本机文件夹，开始图片创作</span></span>';
+                dzMarkup(
+                  '<span class="dz-row-copy"><span class="dz-row-name"><span data-dz-i18n="chooseImageFolder"></span></span><span class="dz-row-sub"><span data-dz-i18n="imageFolderHint"></span></span></span>',
+                );
               guide.addEventListener("click", function () {
                 dzPickImageFolder();
               });
@@ -5208,7 +5466,7 @@
      （提示词自动附带该图作为附件 + 区域裁剪信息），复用批注 composer
      通路。目录选择经宿主 IPC 持久记住。 */
           function dzPickImageFolder() {
-            if (!hostPort) return dzToast("设计面板尚未连接，请稍后重试");
+            if (!hostPort) return dzToast(dzText("notConnected"));
             hostPort.postMessage({ type: "pick-image-folder-request" });
           }
           /* key=完整读取键（image-dir: / project: 前缀），与宿主 read-image-result
@@ -5337,14 +5595,14 @@
             });
             $("#dzImageSend").addEventListener("click", function () {
               var key = $("#dzImageEl").dataset.dzImageKey || "";
-              if (!key) return dzToast("未打开图片");
+              if (!key) return dzToast(dzText("noImageOpen"));
               dzSendImagePrompt(key, dzImageSelection);
             });
             $("#dzImagePromptInput").addEventListener("keydown", function (e) {
               if (e.key !== "Enter" || e.isComposing) return;
               e.preventDefault();
               var key = $("#dzImageEl").dataset.dzImageKey || "";
-              if (!key) return dzToast("未打开图片");
+              if (!key) return dzToast(dzText("noImageOpen"));
               dzSendImagePrompt(key, dzImageSelection);
             });
           })();
@@ -5352,9 +5610,9 @@
           function dzSendImagePrompt(imageKey, selection) {
             var input = $("#dzImagePromptInput");
             var text = ((input && input.value) || "").trim();
-            if (!text) return dzToast("请先输入提示词");
+            if (!text) return dzToast(dzText("enterAPromptFirst"));
             var spec = selection
-              ? "（修改区域 x:" +
+              ? dzText("editRegionX") +
                 Math.round(selection.x * 100) +
                 "%-" +
                 Math.round((selection.x + selection.w) * 100) +
@@ -5366,14 +5624,16 @@
               : "";
             var payload = {
               autoSend: false,
-              text: "图片修改：" + text + spec,
+              text: dzText("imageEdit") + text + spec,
             };
             var dataUrl = dzImageDataUrls[imageKey];
-            if (!dataUrl) return dzToast("图片尚未加载或无法读取，请重试");
+            if (!dataUrl) return dzToast(dzText("imageReadFailed"));
             if (dataUrl.startsWith("data:image/avif;")) {
               var image = $("#dzImageEl");
               if (!image.complete || !image.naturalWidth)
-                return dzToast("图片尚未加载，请重试");
+                return dzToast(
+                  dzText("theImageIsNotLoadedOrCannotBeReadTryAgain223"),
+                );
               var canvas = document.createElement("canvas");
               var scale = Math.min(
                 1,
@@ -5393,14 +5653,14 @@
               dataUrl = canvas.toDataURL("image/png");
             }
             if (dataUrl.length > 10 * 1024 * 1024)
-              return dzToast("图片过大，请缩小后重试");
+              return dzToast(dzText("imageTooLarge"));
             payload.images = [dataUrl];
             dzPostCandidate(payload);
             if (input) input.value = "";
             dzImageSelection = null;
             var box = $("#dzImageSelRect");
             if (box) box.hidden = true;
-            dzToast("图片修改提示已加入输入框");
+            dzToast(dzText("imagePromptAdded"));
           }
 
           /* 项目文件预览：HTML 页面渲染进沙箱项目帧（#dzProjectFrame，宿主已把
@@ -5973,10 +6233,10 @@
             dzFileMenuPop.className = "dz-menu dz-file-menu-pop";
             dzFileMenuPop.setAttribute("role", "menu");
             [
-              ["打开", "open"],
-              ["下载", "download"],
-              ["导出", "export"],
-              ["删除", "delete"],
+              [dzText("open"), "open"],
+              [dzText("download"), "download"],
+              [dzText("export"), "export"],
+              [dzText("delete"), "delete"],
             ].forEach(function (pair) {
               var item = document.createElement("button");
               item.className =
@@ -5992,7 +6252,7 @@
                   /* 持久删除：宿主删版本目录+写账本墓碑，成功后快照推送刷新；
                    * 失败则把卡片放回并报错（不再假装只隐藏卡片）。 */
                   if (!hostPort) {
-                    dzToast("删除需要宿主连接");
+                    dzToast(dzText("connectToArtemisToDelete"));
                     return;
                   }
                   card.hidden = true;
@@ -6010,12 +6270,12 @@
                       documentId: doc.documentId,
                       revision: doc.headRevision,
                     });
-                    dzToast("已请求导出 " + doc.name);
+                    dzToast(dzText("exportRequestedName", { name: doc.name }));
                   } else
                     dzToast(
                       currentDocument
-                        ? "导出需要宿主连接"
-                        : "请先打开要导出的文档",
+                        ? dzText("connectToArtemisToExport")
+                        : dzText("openToExport"),
                     );
                 }
                 /* 下载与导出同路：宿主弹保存对话框由用户选目的地（真实下载）。 */
@@ -6026,8 +6286,10 @@
                       documentId: doc.documentId,
                       revision: doc.headRevision,
                     });
-                    dzToast("已请求下载 " + doc.name);
-                  } else dzToast("下载需要宿主连接");
+                    dzToast(
+                      dzText("downloadRequestedName", { name: doc.name }),
+                    );
+                  } else dzToast(dzText("connectToArtemisToDownload"));
                 }
               });
               dzFileMenuPop.appendChild(item);
@@ -6064,7 +6326,8 @@
             dzUnmountDocumentFrame();
             dzSource.replaceChildren();
             var empty = dzMockDesktop.querySelector(".mock-empty");
-            if (empty) empty.textContent = "正在加载 " + doc.name + "…";
+            if (empty)
+              empty.textContent = dzText("loadingName", { name: doc.name });
             if (hostPort) {
               hostPort.postMessage({
                 type: "read-document-request",
@@ -6259,10 +6522,10 @@
             dzDevice = id;
             $("#dzDeviceLabel").textContent =
               id === "mobile"
-                ? "移动端"
+                ? dzText("mobile")
                 : id === "tablet"
-                  ? "平板端"
-                  : "桌面端";
+                  ? dzText("tablet")
+                  : dzText("desktop");
             $$(".dz-menu [data-dz-device]").forEach(function (o) {
               o.classList.toggle("active", o.dataset.dzDevice === id);
             });
@@ -6316,7 +6579,7 @@
             // 文件列表视图：重拉工作区清单（外部新增/删除文件后手动刷新）
             if (dzViewFiles && !dzViewFiles.hidden && hostPort) {
               hostPort.postMessage({ type: "snapshot-request" });
-              dzToast("已刷新文件列表");
+              dzToast(dzText("fileListRefreshed"));
               return;
             }
             if (currentDocument && hostPort) {
@@ -6659,11 +6922,11 @@
               item.className = "dz-note-img";
               var img = document.createElement("img");
               img.src = src;
-              img.alt = "评论附件";
+              img.alt = dzText("commentAttachments");
               var x = document.createElement("button");
               x.type = "button";
-              x.setAttribute("aria-label", "移除图片");
-              x.title = "移除图片";
+              x.setAttribute("aria-label", dzText("removeImage"));
+              x.title = dzText("removeImage");
               x.textContent = "✕";
               x.addEventListener("click", function () {
                 dzComposerImages.splice(i, 1);
@@ -6790,10 +7053,10 @@
             dzRenderPins();
           }
           function dzDisplayLabel(c) {
-            if (c.free) return "图钉";
-            if (c.kind === "control") return "控件";
-            if (c.kind === "text") return "文本";
-            return "区域";
+            if (c.free) return dzText("pin");
+            if (c.kind === "control") return dzText("control");
+            if (c.kind === "text") return dzText("text92");
+            return dzText("region");
           }
           function dzRenderComments() {
             var list = $("#dzCommentList");
@@ -6819,8 +7082,9 @@
               dzSelectedComments.size === dzComments.length &&
               dzComments.length > 0;
             $("#dzSelectBar").hidden = dzSelectedComments.size === 0;
-            $("#dzSelectCount").textContent =
-              "已选择 " + dzSelectedComments.size + " 个";
+            $("#dzSelectCount").textContent = dzText("countSelected", {
+              count: dzSelectedComments.size,
+            });
             list.replaceChildren();
             empty.hidden = dzComments.length > 0;
             dzComments.forEach(function (c) {
@@ -6842,9 +7106,10 @@
               check.type = "button";
               check.setAttribute(
                 "aria-label",
-                (dzSelectedComments.has(c.id) ? "取消选择" : "选择") +
-                  "评论 " +
-                  c.seq,
+                (dzSelectedComments.has(c.id)
+                  ? dzText("deselect")
+                  : dzText("select")) +
+                  dzText("commentNumber", { number: c.seq }),
               );
               check.setAttribute(
                 "aria-pressed",
@@ -6869,7 +7134,7 @@
                 c.images.forEach(function (src) {
                   var img = document.createElement("img");
                   img.src = src;
-                  img.alt = "评论附件";
+                  img.alt = dzText("commentAttachments");
                   atts.appendChild(img);
                 });
                 item.appendChild(atts);
@@ -6904,7 +7169,7 @@
             });
             if (!picked.length) return;
             if (!hostPort) {
-              dzToast("发送需要宿主连接");
+              dzToast(dzText("connectToArtemisToSend"));
               return;
             }
             var annotations = picked.map(dzAnnotationOf);
@@ -6945,7 +7210,9 @@
             dzSelectedComments.clear();
             dzRenderComments();
             dzRenderPins();
-            dzToast("已把 " + picked.length + " 条评论发送到对话");
+            dzToast(
+              dzText("sentCountCommentsToChat", { count: picked.length }),
+            );
           });
           function dzRenderPins() {
             var layer = $("#dzPinLayer");
@@ -6960,7 +7227,10 @@
               pin.title = c.seq + ". " + dzDisplayLabel(c) + "：" + c.text;
               pin.setAttribute(
                 "aria-label",
-                "打开评论 " + c.seq + "（" + dzDisplayLabel(c) + "）",
+                dzText("commentNumber", { number: c.seq }) +
+                  " (" +
+                  dzDisplayLabel(c) +
+                  ")",
               );
               pin.addEventListener("click", function (e) {
                 e.stopPropagation();
@@ -6980,7 +7250,7 @@
             if (dzEditTarget) {
               dzEditTarget.text = text;
               dzEditTarget.images = dzComposerImages.slice();
-              dzEditTarget.at = "刚刚";
+              dzEditTarget.at = dzText("justNow");
             } else {
               dzSeq += 1;
               var ctxEl = dzComposerCtx.el;
@@ -7005,7 +7275,7 @@
                 selector: dzTargetSelector(ctxEl),
                 text: text,
                 images: dzComposerImages.slice(),
-                at: "刚刚",
+                at: dzText("justNow"),
               };
               var tech = dzAnnotationTech(ctxEl);
               if (tech) Object.assign(entry, tech);
@@ -7026,10 +7296,10 @@
               }
               dzComments.push(entry);
             }
-            dzToast("评论已保存");
+            dzToast(dzText("commentSaved"));
             dzCloseComposer();
             // 保持注释模式（OD 语义）：连续标注多个元素不必每次重开工具
-            dzHint("点击要注释的元素");
+            dzHint(dzText("clickAnElementToComment"));
           }
           $("#dzNoteInput").addEventListener("input", dzSyncComposerButtons);
           $("#dzNoteInput").addEventListener("keydown", function (e) {
@@ -7179,7 +7449,7 @@
           $("#dzNoteDelete").addEventListener("click", function () {
             if (!dzEditTarget) return;
             dzDeleteComment(dzEditTarget.id);
-            dzToast("评论已删除");
+            dzToast(dzText("commentDeleted"));
           });
           $("#dzNoteSendChat").addEventListener("click", function () {
             var text = $("#dzNoteInput").value.trim();
@@ -7190,13 +7460,13 @@
               // OD 语义：任务文本=批注原文（无前缀包装）；文档与元素身份全部
               // 走结构化批注块，由宿主在发送边界拼进模型输入。图片随候选走。
               dzPostCandidate({
-                text: text || "请查看附图",
+                text: text || dzText("pleaseReviewTheAttachedImage"),
                 annotations: [ann],
                 document: dzCurrentDocumentPayload(),
                 images: dzComposerImages.slice(),
               });
             }
-            if (text) dzToast("已发送到对话，任务将自动开始");
+            if (text) dzToast(dzText("sent"));
             if (dzEditTarget) {
               // 发送到聊天 = 该评论转为对话内容，从面板移除并重排编号
               var sentId = dzEditTarget.id;
@@ -7255,7 +7525,7 @@
               }
               dzDrawExit(false);
               dzSetPicking(true);
-              dzHint("点击要注释的元素");
+              dzHint(dzText("clickAnElementToComment"));
             } else {
               dzCloseComposer();
               dzSetPicking(false);
@@ -7274,7 +7544,7 @@
               dzToolState($("#dzCommentBtn"), true);
               dzDrawExit(false);
               dzPostBridgeMode(true);
-              dzHint("点击要注释的元素");
+              dzHint(dzText("clickAnElementToComment"));
             } else {
               dzCommentMode = false;
               dzToolState($("#dzCommentBtn"), false);
@@ -7332,10 +7602,10 @@
             var s = dzScale();
             var kindName =
               op.type === "path"
-                ? "钢笔标记"
+                ? dzText("penMarkup")
                 : op.type === "rect"
-                  ? "框选标记"
-                  : "文字标记";
+                  ? dzText("rectangleMarkup")
+                  : dzText("textMarkup");
             var markKind =
               op.type === "path"
                 ? "stroke"
@@ -7545,7 +7815,9 @@
                 if (dzDrawImages.length >= 6) return;
                 dzDrawImages.push(String(reader.result));
                 dzToolState($("#dzDrawAttach"), true);
-                dzToast("已附加 " + dzDrawImages.length + " 张图片");
+                dzToast(
+                  dzText("countImagesAttached", { count: dzDrawImages.length }),
+                );
               };
               reader.readAsDataURL(f);
             });
@@ -7583,7 +7855,7 @@
               (marks.length === 0 && dzDrawImages.length === 0)
             ) {
               if (marks.length === 0 && dzDrawImages.length === 0)
-                dzToast("还没有标记");
+                dzToast(dzText("noMarkupYet"));
               return;
             }
             var note = $("#dzDrawNote").value.trim();
@@ -7595,8 +7867,8 @@
                 text:
                   note ||
                   (marks.length > 0
-                    ? "请按画板上的 " + marks.length + " 处标记修改设计"
-                    : "请查看附图"),
+                    ? dzText("markupPrompt", { count: marks.length })
+                    : dzText("pleaseReviewTheAttachedImage")),
                 annotations: marks,
                 document: dzCurrentDocumentPayload(),
                 images: images,
@@ -7604,10 +7876,10 @@
               });
               dzToast(
                 autoSend === false
-                  ? "已加入输入框"
+                  ? dzText("addedToMessage")
                   : queued
-                    ? "已提交，将在当前任务后执行"
-                    : "标记已发送，任务将自动开始",
+                    ? dzText("queued")
+                    : dzText("sentToChatTheTaskWillStartAutomatically224"),
               );
               dzDrawExit();
             });
@@ -7625,7 +7897,7 @@
           $("#dzDrawClose").addEventListener("click", function () {
             var had = dzDrawOps.length > 0;
             dzDrawExit();
-            if (had) dzToast("标记已清除");
+            if (had) dzToast(dzText("markupCleared"));
           });
           $("#dzDrawNote").addEventListener("keydown", function (e) {
             if (e.key !== "Enter") return;
@@ -7637,7 +7909,7 @@
             if ($("#dzDrawBtn").classList.contains("active")) {
               var had = dzDrawOps.length > 0;
               dzDrawExit();
-              if (had) dzToast("标记已清除");
+              if (had) dzToast(dzText("markupCleared"));
               return;
             }
             dzToolState($("#dzDrawBtn"), true);
@@ -7654,7 +7926,7 @@
             }
             drawViewport.classList.add("dz-drawing");
             $("#dzDrawTools").hidden = false;
-            dzHint("在预览上标记：框选或钢笔");
+            dzHint(dzText("markupHint"));
           });
 
           /* ============ 更多菜单（汇聚工具） ============ */
@@ -7722,11 +7994,13 @@
               });
             } else {
               dzToast(
-                currentDocument ? "截图需要宿主连接" : "请先打开要截图的文档",
+                currentDocument
+                  ? dzText("connectToArtemisToTakeAScreenshot")
+                  : dzText("openToCapture"),
               );
               return;
             }
-            dzToast("截图已请求宿主");
+            dzToast(dzText("screenshotRequested"));
           });
 
           /* ============ 版本历史（真实数据 + 恢复确认） ============ */
@@ -7747,8 +8021,7 @@
             if (!lastVersions.length && dzProjectView) {
               var emptyNote = document.createElement("p");
               emptyNote.className = "dz-empty";
-              emptyNote.textContent =
-                "此文件还没有快照历史：修改一次后自动记录，之后可在此恢复。";
+              emptyNote.textContent = dzText("historyEmpty");
               wrap.appendChild(emptyNote);
               return;
             }
@@ -7779,7 +8052,8 @@
               var copy = document.createElement("span");
               copy.className = "dz-history-copy";
               var b = document.createElement("b");
-              b.textContent = "v" + v.sequence + (isHead ? " · 当前" : "");
+              b.textContent =
+                "v" + v.sequence + (isHead ? dzText("current") : "");
               copy.append(b);
               var id = document.createElement("span");
               id.className = "mono dz-history-id";
@@ -7792,7 +8066,7 @@
                 if (isHead) {
                   pendingRestoreRevision = null;
                   $("#dzConfirm").hidden = true;
-                  dzToast("这已经是当前版本");
+                  dzToast(dzText("thisIsAlreadyTheCurrentVersion"));
                   return;
                 }
                 pendingRestoreRevision = v.revision;
@@ -7844,7 +8118,9 @@
                 });
                 restoreRequested = true;
                 showToast2(
-                  "已请求恢复到 " + pendingRestoreRevision.slice(0, 8),
+                  dzText("restoreRequestedVersion", {
+                    version: pendingRestoreRevision.slice(0, 8),
+                  }),
                 );
               }
             }
@@ -7902,7 +8178,8 @@
               );
             var file = $(".design-ws-tab.active .design-ws-label");
             $("#dzPresentTitle").textContent =
-              (file ? file.textContent : "文档") + " · 演示中";
+              (file ? file.textContent : dzText("document")) +
+              dzText("presenting");
             // 项目页的可见内容是 viewport 里的项目帧（不是 stage），整搬。
             var presentPayload = dzProjectView
               ? document.querySelector(".dz-viewport")
@@ -7954,11 +8231,16 @@
               var stageCss = dzCollectStageCss();
               var stageClone = dzStage.outerHTML.replace(/ id="dz[^"]*"/g, "");
               var doc =
-                '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">' +
+                '<!doctype html><html lang="' +
+                dzLocale +
+                '" dir="' +
+                document.documentElement.dir +
+                '"><head><meta charset="utf-8">' +
                 '<meta name="viewport" content="width=device-width, initial-scale=1">' +
                 "<title>" +
                 name +
-                " · 演示</title><style>" +
+                dzEscape(dzText("presentation")) +
+                "</title><style>" +
                 "html,body{margin:0;min-height:100%}" +
                 "body{display:flex;flex-direction:column;background:#f5f5f7;color:#27272a;font-family:system-ui}" +
                 ".pd-bar{flex:none;display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:12.5px;font-weight:600;background:#fff;border-bottom:1px solid rgba(0,0,0,.1)}" +
@@ -7969,7 +8251,9 @@
                 "</style></head><body>" +
                 '<div class="pd-bar"><span>' +
                 name +
-                " · 演示</span><small>设计面板生成的静态页面</small></div>" +
+                dzMarkup(
+                  '<span data-dz-i18n="presentation"></span></span><small><span data-dz-i18n="staticPageGeneratedByTheDesignPanel"></span></small></div>',
+                ) +
                 '<div class="pd-body">' +
                 stageClone +
                 "</div></body></html>";
@@ -7978,7 +8262,7 @@
               );
               if (window.open(url, "_blank")) return;
               dzPresentEnter(false);
-              dzToast("弹窗被拦截，已改为当前标签页演示");
+              dzToast(dzText("popupBlocked"));
             }
           });
           $("#dzPresentExit").addEventListener("click", dzPresentExit);
@@ -8024,17 +8308,19 @@
                   type: "export-project-request",
                   path: dzProjectView.path,
                 });
-                dzToast("已请求宿主导出");
+                dzToast(dzText("exportRequested"));
               } else if (hostPort && currentDocument) {
                 hostPort.postMessage({
                   type: "export-request",
                   documentId: currentDocument.documentId,
                   revision: currentDocument.headRevision,
                 });
-                dzToast("已请求宿主导出");
+                dzToast(dzText("exportRequested"));
               } else
                 dzToast(
-                  currentDocument ? "导出需要宿主连接" : "请先打开要导出的文档",
+                  currentDocument
+                    ? dzText("connectToArtemisToExport")
+                    : dzText("openToExport"),
                 );
             } else if (item.dataset.dzExport === "shot") {
               $("#dzShotBtn").click();
@@ -8086,6 +8372,10 @@
           function bindPortListener(port) {
             port.addEventListener("message", function (event) {
               var data = event.data || {};
+              if (data.type === "locale") {
+                dzSetLocale(data);
+                return;
+              }
               if (data.type === "open-project-file-result") {
                 if (data.error) dzToast(data.error);
                 else if (data.path) dzOpenProjectFile(data.path);
@@ -8197,7 +8487,8 @@
               }
               if (data.type === "pick-image-folder-result") {
                 if (data.error) dzToast(data.error);
-                else if (data.imageDir) dzToast("图片文件夹已记住");
+                else if (data.imageDir)
+                  dzToast(dzText("imageFolderRemembered"));
                 if (hostPort)
                   hostPort.postMessage({ type: "snapshot-request" });
                 return;
@@ -8220,11 +8511,12 @@
                   var empty = dzMockDesktop.querySelector(".mock-empty");
                   if (empty)
                     empty.textContent =
-                      "无法加载 " +
-                      currentDocument.name +
-                      "：" +
-                      String(data.error || "文档不存在") +
-                      "。请重新打开文档重试。";
+                      dzText("loadFailed", {
+                        name: currentDocument.name,
+                        error: String(data.error || dzText("documentNotFound")),
+                      }) +
+                      " " +
+                      dzText("reopenDocument");
                   return;
                 }
                 dzRenderDocument(data.html, data.name, data.subtitle);
@@ -8259,7 +8551,7 @@
                     String(data.error).replace(/[<>&]/g, "") +
                     "</div>",
                   data.path,
-                  "项目文件 · 只读",
+                  dzText("projectFileReadOnly"),
                 );
                 return;
               }
@@ -8317,11 +8609,10 @@
                 dzSetMockEmpty(true);
                 var empty = dzMockDesktop.querySelector(".mock-empty");
                 if (empty)
-                  empty.textContent =
-                    "无法加载 " +
-                    data.path +
-                    "：" +
-                    String(data.error || "文件不存在");
+                  empty.textContent = dzText("loadFailed", {
+                    name: data.path,
+                    error: String(data.error || dzText("fileNotFound")),
+                  });
               }
               if (data.type === "thumb" && data.documentId) {
                 // 页面卡缩略图回包：不进舞台，只挂卡片
@@ -8340,20 +8631,25 @@
                 dzDrainThumbs();
               }
               if (data.type === "export-result") {
-                if (data.canceled) dzToast("已取消导出");
-                else if (data.path) dzToast("已导出：" + data.path);
+                if (data.canceled) dzToast(dzText("exportCancelled"));
+                else if (data.path)
+                  dzToast(dzText("exportedPath", { path: data.path }));
               }
               if (data.type === "delete-document-result") {
                 var pendingCard = dzDeletePendingCards[data.documentId];
                 delete dzDeletePendingCards[data.documentId];
-                if (data.ok) dzToast("已删除文档");
+                if (data.ok) dzToast(dzText("documentDeleted"));
                 else {
                   if (pendingCard) pendingCard.hidden = false;
-                  dzToast(data.error || "删除失败");
+                  dzToast(data.error || dzText("couldNotDelete"));
                 }
               }
               if (data.type === "screenshot-result") {
-                dzToast(data.path ? "截图已保存：" + data.path : "截图失败");
+                dzToast(
+                  data.path
+                    ? dzText("screenshotSavedPath", { path: data.path })
+                    : dzText("couldNotTakeAScreenshot"),
+                );
               }
               if (data.type === "versions" && data.versions) {
                 var out = {};
@@ -8370,20 +8666,32 @@
                 if (data.ok && data.documentHtml) {
                   if (dzProjectView) {
                     // 项目页面恢复走工作区文件管线：重读重挂项目帧
-                    dzToast("已恢复，并存成一个新版本");
+                    dzToast(dzText("restoredAsANewVersion"));
                     dzRequestProjectFile(dzProjectView.path);
                   } else {
                     var restoredName =
                       (currentDocument && currentDocument.name) || data.name;
-                    dzRenderDocument(data.documentHtml, restoredName, "已恢复");
-                    dzToast("已恢复，并存成一个新版本");
+                    dzRenderDocument(
+                      data.documentHtml,
+                      restoredName,
+                      dzText("restored"),
+                    );
+                    dzToast(dzText("restoredAsANewVersion"));
                   }
                 } else {
-                  dzToast("恢复失败：" + (data.error || "未知原因"));
+                  dzToast(
+                    dzText("restoreFailedError", {
+                      error: data.error || dzText("unknownReason"),
+                    }),
+                  );
                 }
               }
               if (data.type === "handoff-result") {
-                dzToast(data.created ? "编码任务已创建" : "编码任务已存在");
+                dzToast(
+                  data.created
+                    ? dzText("codingTaskCreated")
+                    : dzText("codingTaskAlreadyExists"),
+                );
               }
               if (
                 data.type === "theme" &&

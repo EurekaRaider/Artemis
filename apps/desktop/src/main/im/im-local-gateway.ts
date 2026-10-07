@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
-import { ArtemisGateway } from "@artemis/gateway";
+import type { AppLocale } from "@artemis/protocol";
+import { imText, ArtemisGateway } from "@artemis/gateway";
 import type { SafeStorageAdapter } from "../settings/encrypted-settings-store.js";
 
 const secretsSchema = z
@@ -22,6 +23,7 @@ export class LocalImGateway {
   constructor(
     private readonly directory: string,
     private readonly secure: SafeStorageAdapter,
+    private readonly locale: () => AppLocale = () => "zh-CN",
   ) {}
   get url(): string | undefined {
     return this.credential?.url;
@@ -38,7 +40,7 @@ export class LocalImGateway {
   }
   private async initialize(): Promise<{ url: string; token: string }> {
     if (!this.secure.isEncryptionAvailable())
-      throw new Error("系统凭据加密不可用，无法启动内置 Gateway。");
+      throw new Error(imText(this.locale(), "gatewayEncryptionUnavailable"));
     await mkdir(this.directory, { recursive: true, mode: 0o700 });
     const file = join(this.directory, "credentials.enc");
     let secrets: z.infer<typeof secretsSchema>;
@@ -48,9 +50,7 @@ export class LocalImGateway {
       );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        throw new Error(
-          "内置 Gateway 凭据无法解密，请恢复原系统钥匙串；不会覆盖已有凭据。",
-        );
+        throw new Error(imText(this.locale(), "gatewayKeychainUnreadable"));
       secrets = {
         version: 1,
         adminToken: randomBytes(32).toString("hex"),

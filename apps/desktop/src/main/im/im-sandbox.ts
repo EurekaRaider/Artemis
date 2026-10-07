@@ -3,7 +3,8 @@ import { spawn } from "node:child_process";
 import { lstat, realpath, readdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ImShellRuntime } from "./im-shell-runtime.js";
-import type { RunMode } from "@artemis/protocol";
+import { imText } from "@artemis/gateway";
+import type { AppLocale, RunMode } from "@artemis/protocol";
 import {
   normalizeImPath,
   isImProtectedPath,
@@ -119,6 +120,7 @@ export interface ImShellLinkPolicy {
 export async function validateImShellScope(
   workspace: string,
   scope: ImDataScope,
+  locale: AppLocale = "zh-CN",
 ): Promise<ImShellLinkPolicy> {
   const root = await realpath(workspace);
   const policy: ImShellLinkPolicy = { denyRead: [], denyWrite: [] };
@@ -155,7 +157,7 @@ export async function validateImShellScope(
       inodes.set(key, inode);
     }
     if (info.isDirectory() && scope.filePaths?.includes(path))
-      throw new Error("授权文件已被替换为目录。");
+      throw new Error(imText(locale, "fileReplacedByDirectory"));
     if (info.isDirectory())
       for (const name of await readdir(full))
         await visit(path ? `${path}/${name}` : name);
@@ -188,14 +190,13 @@ export function buildScopedImShellLaunch(
   platform: NodeJS.Platform = process.platform,
   links: ImShellLinkPolicy = { denyRead: [], denyWrite: [] },
   runtime?: ImShellRuntime,
+  locale: AppLocale = "zh-CN",
 ): SandboxLaunch {
   // Windows' current SandboxSpec only has allow trees; classic AppContainer also
   // inherits directory ACLs. Neither can enforce protection of future credential
   // files beneath an allowed directory. Keep commands closed until supported.
   if (platform !== "darwin")
-    throw new Error(
-      "此平台尚不能强制执行细粒度 IM 命令范围；可继续使用授权的文件读写。",
-    );
+    throw new Error(imText(locale, "commandScopeUnsupported"));
   const quote = (s: string) =>
     `"${s.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
   const roots = (paths: string[]) =>

@@ -18,7 +18,11 @@ describe("IM system message translations", () => {
         expect(placeholders(value), `${locale}:${key}`).toEqual(
           placeholders(source),
         );
-        if (locale !== "en") expect(value, `${locale}:${key}`).not.toBe(source);
+        if (
+          locale !== "en" &&
+          !["wecomBrand", "feishuBrand", "computerLabel"].includes(key)
+        )
+          expect(value, `${locale}:${key}`).not.toBe(source);
       }
     },
   );

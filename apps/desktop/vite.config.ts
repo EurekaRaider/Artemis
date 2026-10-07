@@ -4,9 +4,10 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import { desktopCssOptimization } from "../../scripts/build/desktop-css-optimization.mjs";
+import { desktopLocaleOptimization } from "../../scripts/build/desktop-locale-optimization.mjs";
 
 export default defineConfig({
-  plugins: [react(), desktopCssOptimization()],
+  plugins: [react(), desktopCssOptimization(), desktopLocaleOptimization()],
   base: "./",
   build: {
     assetsInlineLimit(filePath) {

@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import {
   dialog,
   nativeTheme,
@@ -10,7 +11,11 @@ import {
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { computerActSchema, type ComputerTarget } from "@artemis/protocol";
+import {
+  computerActSchema,
+  type AppLocale,
+  type ComputerTarget,
+} from "@artemis/protocol";
 import { IPC, type ComputerPermission } from "../../shared/api.js";
 import { ComputerBrowserDriver } from "./browser-driver.js";
 import { ComputerNativeDriver } from "./native-driver.js";
@@ -60,13 +65,13 @@ export class ComputerUseHost {
       helperPath: string;
       permissionsPath: string;
       window(): BrowserWindow | undefined;
-      chinese(): boolean;
+      locale(): AppLocale;
     },
   ) {
     this.native = new ComputerNativeDriver(
       options.helperPath,
       (reason) => this.service.stopDesktop(reason),
-      () => (options.chinese() ? "停止" : "Stop"),
+      () => uiText(options.locale(), "App_copy.stop"),
       () => nativeTheme.shouldUseDarkColors,
     );
     this.browser = new ComputerBrowserDriver(
@@ -236,34 +241,28 @@ export class ComputerUseHost {
       !this.permission(target, context) &&
       !(this.grants[key] && this.legacyChoices.has(legacy))
     ) {
-      const zh = this.options.chinese();
+      const locale = this.options.locale();
       const result = await this.ask(target, context, signal, "access", {
         type: "question",
-        title: "Computer Use",
-        message: zh
-          ? `允许 Artemis 操作 ${target.name}？`
-          : `Allow Artemis to use ${target.name}?`,
-        detail: zh
-          ? "可读取窗口、截图和操作控件。本任务自主操作：在当前 Artemis 运行期间跨轮有效，明确属于你请求的操作由模型判断风险后执行。仅本轮或长期应用访问继续使用现有审批规则。可随时停止或在设置中撤销。前台操作会打断你当前的输入。"
-          : "Allow window reading, screenshots and control. Task autonomy lasts across turns until Artemis exits: the model checks risk before performing actions explicitly covered by your request. Turn-only or remembered app access keeps the existing approval policy. Stop anytime or revoke in Settings. Foreground control interrupts your input.",
-        buttons: zh
-          ? [
-              this.grants[key] ? "沿用已有应用授权" : "仅本轮允许",
-              "允许本任务自主操作",
-              "记住应用访问许可",
-              "拒绝",
-            ]
-          : [
-              this.grants[key] ? "Use existing app access" : "Allow this turn",
-              "Allow task autonomy",
-              "Remember app access",
-              "Deny",
-            ],
+        title: uiText(this.options.locale(), "ComputerUse.title"),
+        message: uiText(locale, "ComputerUse.allowArtemisToUseName", {
+          name: target.name,
+        }),
+        detail: uiText(locale, "ComputerUse.accessDetail"),
+        buttons: [
+          this.grants[key]
+            ? uiText(locale, "ComputerUse.useExistingAppAccess")
+            : uiText(locale, "ComputerUse.allowThisTurn"),
+          uiText(locale, "ComputerUse.allowTaskAutonomy"),
+          uiText(locale, "ComputerUse.rememberAppAccess"),
+          uiText(locale, "App_copy.deny"),
+        ],
         ...(target.kind === "desktop"
           ? {
-              checkboxLabel: zh
-                ? "同时允许前台操作（本轮或本任务有效）"
-                : "Also allow foreground control (for this turn or task)",
+              checkboxLabel: uiText(
+                locale,
+                "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask",
+              ),
               checkboxChecked: false,
             }
           : {}),
@@ -341,19 +340,18 @@ export class ComputerUseHost {
     const window = this.options.window();
     if (!window || window.isDestroyed()) return false;
     signal.throwIfAborted();
-    const zh = this.options.chinese();
+    const locale = this.options.locale();
     const result = await this.ask(target, context, signal, "foreground", {
       type: "question",
       title: "Computer Use",
-      message: zh
-        ? `允许将 ${target.name} 切到前台操作？`
-        : `Allow foreground control of ${target.name}?`,
-      detail: zh
-        ? "此操作需要前台键盘或坐标输入，会打断你当前的操作。仅本轮有效；保持后台将跳过此操作。"
-        : "This action needs foreground keyboard or coordinate input and will interrupt your work. Permission lasts for this turn only. Keeping background mode skips the action.",
-      buttons: zh
-        ? ["保持后台", "允许本轮前台操作"]
-        : ["Keep background mode", "Allow foreground this turn"],
+      message: uiText(locale, "ComputerUse.allowForegroundControlOfName", {
+        name: target.name,
+      }),
+      detail: uiText(locale, "ComputerUse.foregroundDetail"),
+      buttons: [
+        uiText(locale, "ComputerUse.keepBackgroundMode"),
+        uiText(locale, "ComputerUse.allowForegroundThisTurn"),
+      ],
       defaultId: 0,
       cancelId: 0,
       noLink: true,

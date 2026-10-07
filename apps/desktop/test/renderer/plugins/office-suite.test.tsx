@@ -102,7 +102,7 @@ it("offers one Office installation, hides legacy basic plugins, and refreshes af
       onSettingsChange={() => {}}
     />,
   );
-  const title = await screen.findByText("Office 套件");
+  const title = await screen.findByText("Office");
   const card = within(title.closest(".office-pack-card") as HTMLElement);
   await waitFor(() =>
     expect(card.getByRole("button", { name: "安装" })).toBeEnabled(),

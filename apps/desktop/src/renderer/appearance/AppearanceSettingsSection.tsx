@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@artemis/ui/actions";
 import { Select } from "@artemis/ui/forms";
@@ -21,7 +22,6 @@ function ConnectedAppearanceSettingsSection({
   const controller = getAppearanceController();
   const view = useSyncExternalStore(controller.subscribe, controller.snapshot);
   const [error, setError] = useState("");
-  const chinese = locale.startsWith("zh");
   const selected =
     view.preview === undefined ? view.state?.selection : view.preview;
   const value = selected
@@ -46,21 +46,21 @@ function ConnectedAppearanceSettingsSection({
   return (
     <div className="appearance-settings">
       <div className="settings-row-label">
-        {chinese ? "视觉皮肤" : "Visual skin"}
+        {uiText(locale, "Appearance.visualSkin")}
       </div>
       <Select<string>
-        label={chinese ? "视觉皮肤" : "Visual skin"}
+        label={uiText(locale, "Appearance.visualSkin")}
         labelVisibility="hidden"
         value={value}
         disabled={view.busy}
         options={[
           {
             value: "default",
-            label: chinese ? "Artemis 默认" : "Artemis default",
+            label: uiText(locale, "Appearance.artemisDefault"),
           },
           ...view.state.catalog.map((s) => ({
             value: `${s.pluginId}/${s.id}`,
-            label: `${s.name} · ${s.version} · ${s.pluginName}${s.available ? "" : chinese ? "（不可用）" : " (unavailable)"}`,
+            label: `${s.name} · ${s.version} · ${s.pluginName}${s.available ? "" : uiText(locale, "Appearance.unavailable")}`,
             disabled: !s.available,
           })),
         ]}
@@ -80,21 +80,21 @@ function ConnectedAppearanceSettingsSection({
           disabled={view.busy || view.preview === undefined}
           onClick={() => void run(() => controller.confirmPreview())}
         >
-          {chinese ? "应用皮肤" : "Apply skin"}
+          {uiText(locale, "Appearance.applySkin")}
         </Button>
         <Button
           disabled={view.busy || view.preview === undefined}
           variant="quiet"
           onClick={() => void run(() => controller.cancelPreview())}
         >
-          {chinese ? "取消预览" : "Cancel preview"}
+          {uiText(locale, "Appearance.cancelPreview")}
         </Button>
         <Button
           disabled={view.busy}
           variant="quiet"
           onClick={() => void run(() => controller.reset())}
         >
-          {chinese ? "恢复默认" : "Restore default"}
+          {uiText(locale, "Appearance.restoreDefault")}
         </Button>
       </div>
       {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}
@@ -104,9 +104,7 @@ function ConnectedAppearanceSettingsSection({
         </InlineNotice>
       ))}
       <p className="appearance-settings-hint">
-        {chinese
-          ? "预览仅作用于当前窗口；应用后将在重启时恢复。皮肤来自已安装插件，可在资源中心管理。"
-          : "Preview applies to this window. Applied skins are restored at startup. Manage skin plugins in Resources."}
+        {uiText(locale, "Appearance.hint")}
       </p>
     </div>
   );
