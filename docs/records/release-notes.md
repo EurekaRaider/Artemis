@@ -10,6 +10,7 @@
 - 将插件市场来源名称及重新获取引导统一为“Artemis 插件”，同步全部 14 种界面语言，并保持内部来源与安装逻辑。
 
 - 修复浅色/深色界面的文字对比度：输入框提示、项目分组与会话时间、增删数字、文件状态、MCP 调用次数和快捷键提示使用对应的文字颜色，并增加双主题对比度回归检查。
+- 修复浏览器初始加载状态被较旧的打开响应覆盖的问题；界面保留已收到的最新加载事件，并修正重新打开页签的验收等待顺序。
 
 ## English
 
@@ -21,6 +22,7 @@
 - Rename the marketplace source and reinstall guidance to “Artemis plugins” in all 14 interface languages, preserving internal source and installation behavior.
 
 - Improve light and dark text contrast for input placeholders, project groups and conversation timestamps, change counts, file statuses, MCP call counts and keyboard hints, with regression checks for both themes.
+- Keep newer browser load events when an older initial open response arrives, and wait for the remounted browser during workspace acceptance.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
 Release acceptance is established by the associated CI, final artifact checks and recorded platform tests, not by these change notes alone.

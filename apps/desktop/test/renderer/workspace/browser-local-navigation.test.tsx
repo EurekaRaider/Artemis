@@ -1,5 +1,12 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import type { BrowserSessionSnapshot } from "@artemis/protocol";
 import { expect, it, vi } from "vitest";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 import { WorkspaceBrowserPanel } from "../../../src/renderer/workspace/WorkspacePreviewPanel.js";
@@ -71,4 +78,60 @@ it("opens the displayed local HTML label using its preview URL and still accepts
     tabId: "preview",
     url: "https://example.com/",
   });
+});
+
+it("keeps a newer ready event when the initial open response arrives late", async () => {
+  const ready: BrowserSessionSnapshot = {
+    threadId: "task",
+    tabId: "browser",
+    sessionId: crypto.randomUUID(),
+    contentsId: 1,
+    url: "about:blank",
+    title: "",
+    canGoBack: false,
+    canGoForward: false,
+    loading: false,
+    width: 1280,
+    height: 720,
+  };
+  let publish: (value: BrowserSessionSnapshot) => void;
+  let finishOpen: (value: BrowserSessionSnapshot) => void;
+  stubWindowArtemis({
+    browserSession: vi.fn(
+      () => new Promise((resolve) => (finishOpen = resolve)),
+    ),
+    onBrowserSession: (listener) => {
+      publish = listener;
+      return () => {};
+    },
+    browserPreview: vi.fn().mockResolvedValue({ entries: [] }),
+  });
+  const { container } = render(
+    <WorkspaceBrowserPanel
+      threadId="task"
+      tabId="browser"
+      title="Browser"
+      emptyMessage="Empty"
+      refreshLabel="Refresh"
+      addressPlaceholder="Address"
+      backLabel="Back"
+      forwardLabel="Forward"
+      goLabel="Go"
+      locale="en"
+    />,
+  );
+  await act(async () => {
+    publish!(ready);
+  });
+  expect(container.querySelector(".browser-panel")).toHaveAttribute(
+    "data-state",
+    "ready",
+  );
+  await act(async () => {
+    finishOpen!({ ...ready, loading: true });
+  });
+  expect(container.querySelector(".browser-panel")).toHaveAttribute(
+    "data-state",
+    "ready",
+  );
 });

@@ -162,9 +162,11 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   useEffect(() => {
     if (!props.threadId) return;
     let active = true;
+    let latestEvent: typeof session;
     const unsubscribe = window.artemis.onBrowserSession((value) => {
       if (value.threadId !== props.threadId || value.tabId !== props.tabId)
         return;
+      latestEvent = value;
       setSession(value);
       setError(value.error);
       setAddress(value.url === "about:blank" ? "" : value.url);
@@ -180,9 +182,11 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
       })
       .then((value) => {
         if (active && value) {
-          setSession(value);
+          // A live event can arrive before the older IPC response.
+          const latest = latestEvent ?? value;
+          setSession(latest);
           setAddress(
-            props.path ?? (value.url === "about:blank" ? "" : value.url),
+            props.path ?? (latest.url === "about:blank" ? "" : latest.url),
           );
         }
       })

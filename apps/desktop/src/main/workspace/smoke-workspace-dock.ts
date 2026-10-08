@@ -432,6 +432,7 @@ export async function driveSmokeWorkspaceDockEvidence(
     const node = document.querySelector('.browser-frame');
     const threadId = node?.dataset.browserThread, tabId = node?.dataset.browserTab;
     let current = await window.artemis.browserSession({action:'snapshot',threadId,tabId});
+    window.__workspaceDockInteraction.initialBrowserSession = current;
     const frame = {
       loadURL: async (url) => { current = await window.artemis.browserSession({action:'navigate',threadId,tabId,url}); },
       getURL: () => current.url,
