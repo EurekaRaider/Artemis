@@ -14,9 +14,9 @@
 #include <thread>
 using Microsoft::WRL::ComPtr;
 using namespace winrt;
-using namespace Windows::Graphics::Capture;
-using namespace Windows::Graphics::DirectX;
-using namespace Windows::Graphics::DirectX::Direct3D11;
+using namespace winrt::Windows::Graphics::Capture;
+using namespace winrt::Windows::Graphics::DirectX;
+using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 using ::Windows::Graphics::DirectX::Direct3D11::IDirect3DDxgiInterfaceAccess;
 static std::string processInstance(DWORD pid) {
   HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);

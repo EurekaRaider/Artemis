@@ -298,6 +298,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         <BrowserViewport className="browser-viewport" label={props.title}>
           {session && (
             <PreviewCanvas
+              key={session.sessionId}
               sessionId={session.sessionId}
               browser={session}
               label={props.title}
