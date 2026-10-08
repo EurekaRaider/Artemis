@@ -404,9 +404,9 @@ export async function driveSmokeWorkspaceDockEvidence(
 
   const browserServer = createServer((request, response) => {
     const marker = request.url === "/one" ? "one" : "two";
-    response.setHeader("Content-Type", "text/html");
+    response.setHeader("Content-Type", "text/html; charset=utf-8");
     response.end(
-      `<title>Artemis ${marker}</title><style>html,body{background:white;color:black}</style><p>artemis-browser-${marker}</p>`,
+      `<title>Artemis ${marker}</title><p>artemis-browser-${marker}</p>`,
     );
   });
   await new Promise<void>((resolve) =>
