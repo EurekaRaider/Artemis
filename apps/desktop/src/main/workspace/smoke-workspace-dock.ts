@@ -332,20 +332,6 @@ export async function driveSmokeWorkspaceDockEvidence(
     const initial = window.__workspaceDockInitial;
     const tabSelector = '[data-artemis-component="workspace-tab"]';
     const resizerSelector = '[data-artemis-component="workspace-dock-resizer"]';
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const browserReady =
-        document.querySelector(
-          '[data-artemis-component="browser-surface"][data-state="ready"]',
-        ) !== null &&
-        document.querySelector('.browser-refresh-button')?.hasAttribute(
-          'disabled',
-        ) === false &&
-        document.querySelector('.browser-go-button')?.hasAttribute(
-          'disabled',
-        ) === false;
-      if (browserReady) break;
-      await wait(120);
-    }
     const multiTab = capture();
     const firstTab = document.querySelector(tabSelector);
     const firstSelect = firstTab?.querySelector(':scope > [data-part="select"]');
@@ -360,6 +346,21 @@ export async function driveSmokeWorkspaceDockEvidence(
     }
     firstClose.click();
     await wait(360);
+    // Closing Review remounts Browser; wait on the instance we capture.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const browserReady =
+        document.querySelector(
+          '[data-artemis-component="browser-surface"][data-state="ready"]',
+        ) !== null &&
+        document.querySelector('.browser-refresh-button')?.hasAttribute(
+          'disabled',
+        ) === false &&
+        document.querySelector('.browser-go-button')?.hasAttribute(
+          'disabled',
+        ) === false;
+      if (browserReady) break;
+      await wait(120);
+    }
     const afterClose = capture();
     const resizer = document.querySelector(resizerSelector);
     const bounds = resizer?.getBoundingClientRect();
