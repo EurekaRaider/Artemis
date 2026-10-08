@@ -616,6 +616,22 @@ export async function driveSmokeWorkspaceDockEvidence(
       browserOwner.threadId,
       browserOwner.tabId,
     ).window.webContents;
+    const preferences = browserContents.getLastWebPreferences();
+    const browserSecurity = {
+      allowRunningInsecureContent: preferences.allowRunningInsecureContent,
+      contextIsolation: preferences.contextIsolation,
+      offscreen: browserContents.isOffscreen(),
+      navigationAllowed: /^https?:/u.test(browserContents.getURL()),
+      nodeIntegration: preferences.nodeIntegration,
+      nodeIntegrationInSubFrames: preferences.nodeIntegrationInSubFrames,
+      partition: preferences.partition,
+      preloadPresent: Boolean(preferences.preload),
+      sandbox: preferences.sandbox,
+      webSecurity: preferences.webSecurity,
+    };
+    await evaluate(
+      `window.__workspaceDockInteraction.browserSecurity=${JSON.stringify(browserSecurity)}`,
+    );
     const documentCanvas = await browserContents.executeJavaScript(
       "(() => { const html=getComputedStyle(document.documentElement),body=getComputedStyle(document.body);return {bodyBackground:body.backgroundColor,bodyColor:body.color,htmlBackground:html.backgroundColor,text:document.body.textContent?.trim()??''}; })()",
     );
