@@ -6,8 +6,18 @@ import { IPC } from "../../shared/api.js";
 import type { ComputerPreviewHost } from "./preview-host.js";
 
 const document = `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'"><style>
-body{margin:0;background:#171b23;color:#f4f6fa;font:12px system-ui;display:flex;flex-direction:column;height:100vh}header{display:flex;align-items:center;gap:6px;padding:8px;-webkit-app-region:drag}#name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}button{-webkit-app-region:no-drag;font:inherit;border:0;border-radius:6px;background:#ffffff18;color:inherit;padding:5px;cursor:pointer}#hide{font-size:20px;line-height:1;padding:3px 7px}canvas{width:100%;min-height:0;flex:1;object-fit:contain;background:#10141b;cursor:zoom-in}footer{display:flex;align-items:center;padding:6px;gap:6px}#status{flex:1;font-size:10px}</style>
-<header><button id="hide">×</button><span id="name"></span><button id="expand"></button></header><canvas id="computer-preview-floating-canvas" role="button" tabindex="0"></canvas><footer><span id="status"></span><button id="control"></button></footer>`;
+html,body{margin:0;height:100%;background:transparent;color:#e5e5e5;font:12px system-ui}
+body{box-sizing:border-box;padding:8px;padding-left:16px;padding-top:16px;-webkit-app-region:drag}
+body::after{content:"";position:absolute;left:16px;top:16px;width:196px;height:128px;border-radius:4px;z-index:1;pointer-events:none;backdrop-filter:blur(10px);mask-image:radial-gradient(ellipse at 30% 30%,#000 30%,transparent 72%);opacity:0;transition:opacity 120ms ease}
+button{position:absolute;left:0;top:0;width:32px;height:32px;padding:4px;border:0;border-radius:6px;background:transparent;color:#b8b8b8;cursor:pointer;z-index:2;opacity:0;pointer-events:none;transition:opacity 120ms ease;-webkit-app-region:no-drag}
+button:hover{color:#f4f4f4}body:hover::after,body:has(:focus-visible)::after,body:hover button,body:has(:focus-visible) button{opacity:1}body:hover button,body:has(:focus-visible) button{pointer-events:auto}button:focus-visible,canvas:focus-visible{outline:2px solid #aaa;outline-offset:-2px}
+svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+canvas{display:block;width:100%;height:100%;object-fit:contain;background:#151515;border-radius:4px;box-shadow:0 6px 24px #0002;cursor:grab;touch-action:none;-webkit-app-region:no-drag}canvas:active{cursor:grabbing}
+#status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+#status.visible{inset-inline:16px;top:50%;width:auto;height:auto;clip-path:none;white-space:normal;text-align:center;pointer-events:none}
+#resize{position:absolute;inset-inline-end:8px;bottom:8px;width:16px;height:16px;cursor:nwse-resize;touch-action:none;-webkit-app-region:no-drag}
+#resize:hover{border-inline-end:2px solid #ffffff80;border-bottom:2px solid #ffffff80;box-sizing:border-box}
+</style><button id="hide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 16M20 4 4 20"/></svg></button><canvas id="computer-preview-floating-canvas" role="button" tabindex="0"></canvas><span id="status" role="status"></span><div id="resize" aria-hidden="true"></div>`;
 
 export class ComputerPreviewWindow {
   private window: BrowserWindow | undefined;
@@ -23,12 +33,21 @@ export class ComputerPreviewWindow {
       main(): BrowserWindow | undefined;
       host(): ComputerPreviewHost | undefined;
       locale(): AppLocale;
-      control(action: "stop" | "resume", threadId: string): void;
     },
   ) {
     ipcMain.on(
       IPC.computerPreviewFloating,
-      (event, input: { action?: string; sessionId?: string }) => {
+      (
+        event,
+        input: {
+          action?: string;
+          sessionId?: string;
+          width?: number;
+          height?: number;
+          x?: number;
+          y?: number;
+        },
+      ) => {
         if (
           !this.window ||
           event.sender !== this.window.webContents ||
@@ -43,9 +62,39 @@ export class ComputerPreviewWindow {
           return;
         }
         if (!this.current || input.sessionId !== this.current.sessionId) return;
-        if (input.action === "stop" || input.action === "resume")
-          this.options.control(input.action, this.current.threadId);
-        else if (input.action === "hide" || input.action === "expand")
+        if (input.action === "move") {
+          if (!Number.isSafeInteger(input.x) || !Number.isSafeInteger(input.y))
+            return;
+          const bounds = this.window.getBounds();
+          const workArea = screen.getDisplayMatching({
+            ...bounds,
+            x: input.x!,
+            y: input.y!,
+          }).workArea;
+          this.window.setPosition(
+            Math.max(
+              workArea.x,
+              Math.min(input.x!, workArea.x + workArea.width - bounds.width),
+            ),
+            Math.max(
+              workArea.y,
+              Math.min(input.y!, workArea.y + workArea.height - bounds.height),
+            ),
+          );
+        } else if (input.action === "resize") {
+          if (
+            !Number.isSafeInteger(input.width) ||
+            !Number.isSafeInteger(input.height)
+          )
+            return;
+          const workArea = screen.getDisplayMatching(
+            this.window.getBounds(),
+          ).workArea;
+          this.window.setSize(
+            Math.max(272, Math.min(input.width!, workArea.width)),
+            Math.max(168, Math.min(input.height!, workArea.height)),
+          );
+        } else if (input.action === "hide" || input.action === "expand")
           this.options
             .host()
             ?.command(
@@ -109,15 +158,19 @@ export class ComputerPreviewWindow {
       const workArea = screen.getDisplayMatching(main.getBounds()).workArea;
       this.window = new BrowserWindow({
         show: false,
-        width: 360,
-        height: 260,
-        minWidth: 260,
-        minHeight: 200,
-        x: workArea.x + workArea.width - 384,
-        y: workArea.y + workArea.height - 284,
+        width: 368,
+        height: 244,
+        minWidth: 272,
+        minHeight: 168,
+        x: workArea.x + workArea.width - 392,
+        y: workArea.y + workArea.height - 268,
         frame: false,
+        transparent: true,
+        backgroundColor: "#00000000",
+        hasShadow: false,
         focusable: false,
-        resizable: true,
+        // Transparent windows use the small custom resize corner on both platforms.
+        resizable: false,
         alwaysOnTop: true,
         skipTaskbar: true,
         webPreferences: {
@@ -158,6 +211,7 @@ export class ComputerPreviewWindow {
         state,
         token: this.token,
         locale: this.options.locale(),
+        position: this.window.getPosition(),
       });
       this.options.host()?.command(
         {
@@ -172,6 +226,7 @@ export class ComputerPreviewWindow {
         state,
         token: this.token,
         locale: this.options.locale(),
+        position: this.window.getPosition(),
       });
     if (!this.window.isVisible()) this.window.showInactive();
   }

@@ -41,6 +41,28 @@ it.each(["desktop", "browser"] as const)(
     });
     render(<ComputerPreview locale="zh-CN" threadId="task" />);
     const canvas = await screen.findByLabelText("Preview pixels");
+    canvas.parentElement!.setPointerCapture = vi.fn();
+    expect(screen.queryByText("Test app")).not.toBeInTheDocument();
+    expect(screen.queryByText(/帧\/秒/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "停止" }),
+    ).not.toBeInTheDocument();
+    await user.pointer([
+      {
+        keys: "[MouseLeft>]",
+        target: canvas,
+        coords: { clientX: 100, clientY: 100 },
+      },
+      { target: canvas, coords: { clientX: 140, clientY: 130 } },
+      {
+        keys: "[/MouseLeft]",
+        target: canvas,
+        coords: { clientX: 140, clientY: 130 },
+      },
+    ]);
+    expect(screen.getByRole("complementary").style.left).toBe("40px");
+    expect(screen.getByRole("complementary").style.top).toBe("30px");
+    expect(command).not.toHaveBeenCalled();
     await user.click(canvas);
     if (kind === "desktop")
       expect(screen.getByRole("complementary")).toHaveClass(

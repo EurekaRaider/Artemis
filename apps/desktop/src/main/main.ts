@@ -24185,14 +24185,6 @@ app
         main: () => mainWindow,
         host: () => computerPreviewHost,
         locale: currentLocale,
-        control: (action, threadId) => {
-          if (action === "stop")
-            computerUseHost?.service.stopThread(
-              threadId,
-              "User paused control",
-            );
-          else computerUseHost?.service.resumeThread(threadId);
-        },
       });
       computerPreviewWindow.setEnabled(
         await settingsStore!.computerPreviewFloatingPreference(),

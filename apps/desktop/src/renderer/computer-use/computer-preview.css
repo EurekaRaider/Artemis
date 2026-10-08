@@ -30,62 +30,110 @@
   position: fixed;
   inset-inline-end: 28px;
   bottom: 100px;
-  width: 360px;
-  height: 264px;
-  min-width: 260px;
-  min-height: 200px;
+  width: 368px;
+  height: 244px;
+  min-width: 272px;
+  min-height: 168px;
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
   resize: both;
   overflow: hidden;
   z-index: 35;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border-color, #8885);
-  border-radius: 14px;
-  background: var(--panel-bg, #f7f7f8);
-  box-shadow: 0 8px 28px #0003;
+  box-sizing: border-box;
+  padding: 8px;
+  padding-left: 16px;
+  padding-top: 16px;
+  border: 0;
+  background: transparent;
 }
-.computer-preview-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  cursor: move;
-  flex: none;
-  touch-action: none;
+.computer-preview-card::-webkit-resizer {
+  background: transparent;
 }
-.computer-preview-header > span {
-  flex: 1;
+.computer-preview-card::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 196px;
+  height: 128px;
+  border-radius: 4px;
+  z-index: 1;
+  pointer-events: none;
+  backdrop-filter: blur(10px);
+  mask-image: radial-gradient(ellipse at 30% 30%, #000 30%, transparent 72%);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.computer-preview-card .computer-preview-close {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 32px;
+  height: 32px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, #b8b8b8);
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.computer-preview-card .computer-preview-close:hover {
+  background: transparent;
+  color: var(--text-primary, #f4f4f4);
+}
+.computer-preview-card:hover::after,
+.computer-preview-card:has(:focus-visible)::after,
+.computer-preview-card:hover .computer-preview-close,
+.computer-preview-card:has(:focus-visible) .computer-preview-close {
+  opacity: 1;
+}
+.computer-preview-card:hover .computer-preview-close,
+.computer-preview-card:has(:focus-visible) .computer-preview-close {
+  pointer-events: auto;
+}
+.computer-preview-close svg {
+  width: 24px;
+  height: 24px;
 }
 .computer-preview-open {
-  flex: 1;
-  min-height: 0;
-  cursor: zoom-in;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow: 0 6px 24px #0002;
+  cursor: grab;
+  touch-action: none;
+}
+.computer-preview-open:active {
+  cursor: grabbing;
 }
 .computer-preview-expanded .computer-preview-open {
-  cursor: default;
+  cursor: zoom-out;
 }
-.computer-preview-footer {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  flex: none;
-  font-size: 10px;
+.computer-preview-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-.computer-preview-footer > span {
-  flex: 1;
-}
-.computer-preview-card > p {
-  margin: 4px 8px;
-  font-size: 11px;
-  overflow-wrap: anywhere;
+.computer-preview-status-visible {
+  inset-inline: 16px;
+  top: 50%;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  white-space: normal;
+  text-align: center;
+  color: #d8d8d8;
+  font-size: 12px;
+  pointer-events: none;
 }
 .computer-preview-expanded {
   inset: 5vh 5vw !important;

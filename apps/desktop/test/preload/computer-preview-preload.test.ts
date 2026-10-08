@@ -12,7 +12,7 @@ vi.mock("../../src/preload/preview-textures.js", () => ({
 
 it("expands on picture click while X hides only the current preview", async () => {
   document.body.innerHTML =
-    '<header><button id="hide">×</button><span id="name"></span><button id="expand"></button></header><canvas id="computer-preview-floating-canvas"></canvas><span id="status"></span><button id="control"></button>';
+    '<button id="hide"></button><canvas id="computer-preview-floating-canvas"></canvas><span id="status"></span><div id="resize"></div>';
   const listen = vi.spyOn(window, "addEventListener");
   await import("../../src/preload/computer-preview-preload.js");
   const ready = listen.mock.calls.find(
@@ -46,8 +46,49 @@ it("expands on picture click while X hides only the current preview", async () =
     "expand",
     "hide",
   ]);
+  const resize = document.getElementById("resize")!;
+  resize.setPointerCapture = vi.fn();
+  Object.defineProperty(document.documentElement, "clientWidth", {
+    configurable: true,
+    value: 392,
+  });
+  Object.defineProperty(document.documentElement, "clientHeight", {
+    configurable: true,
+    value: 236,
+  });
+  resize.dispatchEvent(
+    new MouseEvent("pointerdown", { screenX: 100, screenY: 100 }),
+  );
+  resize.dispatchEvent(
+    new MouseEvent("pointermove", { screenX: 180, screenY: 140 }),
+  );
+  expect(native.send).toHaveBeenLastCalledWith(IPC.computerPreviewFloating, {
+    action: "resize",
+    sessionId: state.sessionId,
+    width: 472,
+    height: 276,
+  });
+  resize.dispatchEvent(new Event("pointerup"));
+  const canvas = document.querySelector("canvas")!;
+  canvas.setPointerCapture = vi.fn();
+  update({}, { state, locale: "zh-CN", position: [100, 200] });
+  canvas.dispatchEvent(
+    new MouseEvent("pointerdown", { screenX: 100, screenY: 100, button: 0 }),
+  );
+  canvas.dispatchEvent(
+    new MouseEvent("pointermove", { screenX: 120, screenY: 130 }),
+  );
+  expect(native.send).toHaveBeenLastCalledWith(IPC.computerPreviewFloating, {
+    action: "move",
+    sessionId: state.sessionId,
+    x: 120,
+    y: 230,
+  });
+  canvas.dispatchEvent(new Event("pointerup"));
+  canvas.click();
+  expect(native.send).toHaveBeenCalledTimes(4);
   update({}, { locale: "zh-CN" });
   document.getElementById("hide")!.click();
-  expect(native.send).toHaveBeenCalledTimes(2);
+  expect(native.send).toHaveBeenCalledTimes(4);
   listen.mockRestore();
 });

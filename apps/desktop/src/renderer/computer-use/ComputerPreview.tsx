@@ -3,7 +3,6 @@ import { Button, IconButton } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import type { AppLocale, ComputerPreviewState } from "@artemis/protocol";
 import { COMPUTER_PREVIEW_RESOURCES } from "../../shared/i18n/computer-preview-resources.js";
-import { COMPUTER_USE_RESOURCES } from "../../shared/i18n/computer-use-resources.js";
 import { PreviewCanvas } from "./PreviewCanvas.js";
 import "./computer-preview.css";
 
@@ -14,12 +13,12 @@ export function ComputerPreview({
   locale: AppLocale;
   threadId?: string | undefined;
 }) {
-  const copy = COMPUTER_PREVIEW_RESOURCES[locale],
-    controls = COMPUTER_USE_RESOURCES[locale];
+  const copy = COMPUTER_PREVIEW_RESOURCES[locale];
   const [states, setStates] = useState<ComputerPreviewState[]>([]);
   const [expanded, setExpanded] = useState<string>();
   const card = useRef<HTMLElement>(null);
   const dragCleanup = useRef<(() => void) | undefined>(undefined);
+  const dragging = useRef(false);
   useEffect(() => () => dragCleanup.current?.(), []);
   useEffect(() => {
     let active = true,
@@ -59,7 +58,7 @@ export function ComputerPreview({
         {copy.show}
       </Button>
     );
-  const label =
+  const status =
     state.state === "paused"
       ? copy.paused
       : state.state === "unavailable"
@@ -81,11 +80,30 @@ export function ComputerPreview({
       className={`computer-preview-card${fullscreen ? " computer-preview-expanded" : ""}`}
       aria-label={copy.title}
     >
+      <IconButton
+        className="computer-preview-close"
+        label={copy.hide}
+        icon={
+          <ArtemisIcon
+            name="close"
+            strokeWidth={3}
+            fallback={<path d="m4 4 16 16M20 4 4 20" />}
+          />
+        }
+        onClick={() => {
+          setExpanded(undefined);
+          command("hide");
+        }}
+      />
       <div
-        className="computer-preview-header"
+        className="computer-preview-open"
+        role="button"
+        tabIndex={0}
+        aria-label={fullscreen ? copy.close : copy.expand}
+        title={`${state.target.name} · ${copy.readOnly}`}
         onPointerDown={(event) => {
-          if (fullscreen || (event.target as HTMLElement).closest("button"))
-            return;
+          dragging.current = false;
+          if (fullscreen || event.button !== 0) return;
           const element = card.current!,
             start = element.getBoundingClientRect(),
             x = event.clientX,
@@ -93,6 +111,12 @@ export function ComputerPreview({
           dragCleanup.current?.();
           event.currentTarget.setPointerCapture(event.pointerId);
           const move = (next: PointerEvent) => {
+            if (
+              !dragging.current &&
+              Math.hypot(next.clientX - x, next.clientY - y) < 4
+            )
+              return;
+            dragging.current = true;
             element.style.left = `${Math.max(0, Math.min(window.innerWidth - start.width, start.left + next.clientX - x))}px`;
             element.style.top = `${Math.max(0, Math.min(window.innerHeight - start.height, start.top + next.clientY - y))}px`;
             element.style.right = "auto";
@@ -101,41 +125,27 @@ export function ComputerPreview({
           const stop = () => {
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", stop);
+            window.removeEventListener("pointercancel", stop);
             dragCleanup.current = undefined;
           };
           dragCleanup.current = stop;
           window.addEventListener("pointermove", move);
           window.addEventListener("pointerup", stop, { once: true });
+          window.addEventListener("pointercancel", stop, { once: true });
         }}
-      >
-        <IconButton
-          label={copy.hide}
-          icon={<ArtemisIcon name="close" />}
-          onClick={() => {
-            setExpanded(undefined);
-            command("hide");
-          }}
-        />
-        <span title={state.target.name}>{state.target.name}</span>
-        <IconButton
-          label={fullscreen ? copy.close : copy.expand}
-          icon={<ArtemisIcon name={fullscreen ? "close" : "expand"} />}
-          onClick={toggleExpanded}
-        />
-      </div>
-      <div
-        className="computer-preview-open"
-        role={fullscreen ? undefined : "button"}
-        tabIndex={fullscreen ? undefined : 0}
-        aria-label={fullscreen ? undefined : copy.expand}
         onClick={() => {
-          if (!fullscreen) toggleExpanded();
+          if (dragging.current) {
+            dragging.current = false;
+            return;
+          }
+          toggleExpanded();
         }}
         onKeyDown={(event) => {
-          if (!fullscreen && (event.key === "Enter" || event.key === " ")) {
+          if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
             toggleExpanded();
           }
+          if (fullscreen && event.key === "Escape") setExpanded(undefined);
         }}
       >
         <PreviewCanvas
@@ -145,28 +155,13 @@ export function ComputerPreview({
           label={`${copy.readOnly}: ${state.target.name}`}
         />
       </div>
-      <div className="computer-preview-footer">
-        <span role="status" title={state.reason}>
-          {label} · {state.actualFps.toFixed(1)} {copy.fps}
-          {state.p95LatencyMs !== undefined
-            ? ` · ${copy.latency} ${Math.round(state.p95LatencyMs)} ms`
-            : ""}
-        </span>
-        <Button
-          variant="quiet"
-          onClick={() =>
-            void window.artemis.controlComputer(
-              state.state === "paused" ? "resume" : "stop",
-              state.threadId,
-            )
-          }
-        >
-          {state.state === "paused" ? controls.resume : controls.stop}
-        </Button>
-      </div>
-      {state.state === "unavailable" && state.reason && (
-        <p role="alert">{state.reason}</p>
-      )}
+      <span
+        className={`computer-preview-status${state.state === "starting" || state.state === "unavailable" ? " computer-preview-status-visible" : ""}`}
+        role={state.state === "unavailable" ? "alert" : "status"}
+        title={state.reason}
+      >
+        {status}
+      </span>
     </aside>
   );
 }

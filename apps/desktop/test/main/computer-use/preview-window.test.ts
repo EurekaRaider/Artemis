@@ -35,6 +35,10 @@ vi.mock("electron", () => ({
       this.visible = false;
     });
     loadURL = vi.fn(async () => {});
+    getBounds = vi.fn(() => ({ x: 100, y: 100, width: 392, height: 236 }));
+    getPosition = vi.fn(() => [100, 100]);
+    setPosition = vi.fn();
+    setSize = vi.fn();
     constructor(readonly options: unknown) {
       super();
       native.windows.push(this);
@@ -65,13 +69,11 @@ it("uses a frameless readonly window and follows foreground state without steali
     getBounds: () => ({ x: 0, y: 0, width: 1000, height: 800 }),
   });
   const command = vi.fn(),
-    removeContents = vi.fn(),
-    control = vi.fn();
+    removeContents = vi.fn();
   const floating = new ComputerPreviewWindow({
     main: () => main as unknown as BrowserWindow,
     host: () => ({ command, removeContents }) as unknown as ComputerPreviewHost,
     locale: () => "zh-CN",
-    control,
   });
   const state: ComputerPreviewState = {
     version: 1,
@@ -91,8 +93,10 @@ it("uses a frameless readonly window and follows foreground state without steali
   const window = native.windows[0]!;
   expect(window.options).toMatchObject({
     frame: false,
+    transparent: true,
+    hasShadow: false,
     focusable: false,
-    resizable: true,
+    resizable: false,
     alwaysOnTop: true,
     webPreferences: {
       sandbox: true,
@@ -117,7 +121,9 @@ it("uses a frameless readonly window and follows foreground state without steali
     window.webContents,
   );
   handler(event, { action: "stop", sessionId: "session" });
-  expect(control).not.toHaveBeenCalled();
+  expect(command.mock.calls.every(([input]) => input.action !== "stop")).toBe(
+    true,
+  );
   floating.setThread("task");
   expect(window.isVisible()).toBe(true);
   expect(window.showInactive).toHaveBeenCalledTimes(2);
@@ -126,15 +132,51 @@ it("uses a frameless readonly window and follows foreground state without steali
     { action: "hide", sessionId: "session" },
     window.webContents,
   );
-  expect(control).not.toHaveBeenCalled();
   handler(
     { ...event, senderFrame: {} },
     { action: "stop", sessionId: "session" },
   );
   handler(event, { action: "stop", sessionId: "old-session" });
-  expect(control).not.toHaveBeenCalled();
   handler(event, { action: "stop", sessionId: "session" });
-  expect(control).toHaveBeenCalledWith("stop", "task");
+  expect(command.mock.calls.every(([input]) => input.action !== "stop")).toBe(
+    true,
+  );
+  handler(event, {
+    action: "resize",
+    sessionId: "old-session",
+    width: 500,
+    height: 300,
+  });
+  handler(
+    { ...event, senderFrame: {} },
+    { action: "resize", sessionId: "session", width: 500, height: 300 },
+  );
+  handler(event, {
+    action: "resize",
+    sessionId: "session",
+    width: NaN,
+    height: 300,
+  });
+  expect(window.setSize).not.toHaveBeenCalled();
+  handler(event, {
+    action: "resize",
+    sessionId: "session",
+    width: 500,
+    height: 300,
+  });
+  expect(window.setSize).toHaveBeenLastCalledWith(500, 300);
+  handler(event, {
+    action: "resize",
+    sessionId: "session",
+    width: 10000,
+    height: -1,
+  });
+  expect(window.setSize).toHaveBeenLastCalledWith(1920, 168);
+  handler(event, { action: "move", sessionId: "old-session", x: 100, y: 100 });
+  handler(event, { action: "move", sessionId: "session", x: NaN, y: 100 });
+  expect(window.setPosition).not.toHaveBeenCalled();
+  handler(event, { action: "move", sessionId: "session", x: -100, y: 2000 });
+  expect(window.setPosition).toHaveBeenLastCalledWith(0, 844);
   focused = true;
   main.emit("focus");
   expect(command).toHaveBeenLastCalledWith(
