@@ -7,6 +7,7 @@ import { app, BrowserWindow, screen, type WebContents } from "electron";
 import { ComputerBrowserDriver } from "../../src/main/computer-use/browser-driver.js";
 import { ComputerNativeDriver } from "../../src/main/computer-use/native-driver.js";
 import { ComputerUseService } from "../../src/main/computer-use/service.js";
+import { verifyNativeSecurity } from "./computer-use-native-security.js";
 
 async function main() {
   const [helper, evidence, fixtureApp, fixtureBundle] = process.argv.slice(2);
@@ -16,6 +17,10 @@ async function main() {
   if (process.env.ARTEMIS_VERIFY_ELECTRON === "1")
     app.setAccessibilitySupportEnabled(true);
   console.log("Computer Use: Electron ready");
+  const nativeSecurityChecks =
+    process.platform === "win32"
+      ? await verifyNativeSecurity(helper!, evidence!)
+      : [];
   const errors: string[] = [];
   const fixture = createServer((_request, response) => {
     response.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -77,17 +82,23 @@ async function main() {
     if (event.level === "error") errors.push(event.message);
   });
   let service: ComputerUseService;
+  let nativeForegroundGranted = false;
+  let foregroundRequests = 0;
+  let longNativeBatchMs: number | undefined;
   const verifyCalculator = process.env.ARTEMIS_VERIFY_CALCULATOR === "1";
   const verifyElectron = process.env.ARTEMIS_VERIFY_ELECTRON === "1";
-  const electronBundle = execFileSync(
-    "/usr/libexec/PlistBuddy",
-    [
-      "-c",
-      "Print:CFBundleIdentifier",
-      join(dirname(dirname(process.execPath)), "Info.plist"),
-    ],
-    { encoding: "utf8" },
-  ).trim();
+  const electronBundle =
+    process.platform === "darwin"
+      ? execFileSync(
+          "/usr/libexec/PlistBuddy",
+          [
+            "-c",
+            "Print:CFBundleIdentifier",
+            join(dirname(dirname(process.execPath)), "Info.plist"),
+          ],
+          { encoding: "utf8" },
+        ).trim()
+      : "";
   const inputDiagnostics: Record<string, unknown>[] = [];
   const browser = new ComputerBrowserDriver(
     async () => page,
@@ -110,12 +121,22 @@ async function main() {
     drivers: { browser, desktop: native },
     authorize: async (target) =>
       target.kind === "browser" ||
-      target.bundleId === fixtureBundle ||
+      (target.appId ?? target.bundleId) === fixtureBundle ||
       (verifyElectron && target.bundleId === electronBundle) ||
       (verifyCalculator && target.bundleId === "com.apple.calculator"),
-    authorizeForeground: async (target) =>
-      target.bundleId === fixtureBundle ||
-      (verifyElectron && target.bundleId === electronBundle),
+    foregroundGranted: (target) =>
+      (target.appId ?? target.bundleId) === fixtureBundle &&
+      nativeForegroundGranted,
+    authorizeForeground: async (target) => {
+      const allowed =
+        (target.appId ?? target.bundleId) === fixtureBundle ||
+        (verifyElectron && target.bundleId === electronBundle);
+      if (allowed) {
+        nativeForegroundGranted = true;
+        foregroundRequests++;
+      }
+      return allowed;
+    },
     publish: () => {},
   });
   const context = {
@@ -284,9 +305,19 @@ async function main() {
     const permissions = await native.permissions(); // Reads state only; never prompts or captures personal apps.
     let nativeVerified = false;
     if (permissions.accessibility && permissions.screenRecording) {
-      nativeFixture = spawn(`${fixtureApp}/Contents/MacOS/fixture`, [], {
-        stdio: ["ignore", "pipe", "inherit"],
-      });
+      nativeFixture = spawn(
+        process.platform === "win32"
+          ? fixtureApp!
+          : `${fixtureApp}/Contents/MacOS/fixture`,
+        [],
+        {
+          stdio: [
+            process.platform === "win32" ? "pipe" : "ignore",
+            "pipe",
+            "inherit",
+          ],
+        },
+      );
       await new Promise<void>((resolve, reject) => {
         nativeFixture!.once("error", reject);
         nativeFixture!.stdout!.on("data", (chunk) => {
@@ -301,15 +332,65 @@ async function main() {
       );
       assert(nativeObservation?.image);
       assert.equal(nativeObservation.foreground, false);
+      assert(
+        !JSON.stringify(nativeObservation).includes("PRIVATE_FIXTURE_VALUE"),
+      );
+      if (process.platform === "win32") {
+        assert.equal(nativeObservation.target.appId, fixtureBundle);
+        assert.equal(nativeObservation.target.bundleId, undefined);
+      }
       console.log("Computer Use: native background fill and click");
       const input = nativeObservation.elements.find(
-        (element) => element.role === "AXTextField",
+        (element) =>
+          element.role ===
+          (process.platform === "win32" ? "UIA:50004" : "AXTextField"),
       );
       assert(input);
+      let editingObservation = nativeObservation;
+      if (process.platform === "win32") {
+        await assert.rejects(
+          native.act(
+            nativeObservation.target,
+            { type: "fill", elementId: input.id, text: "Unapproved" },
+            new AbortController().signal,
+          ),
+          /foreground-required/,
+        );
+        const unchanged = await native.observe(
+          nativeObservation.target,
+          false,
+          new AbortController().signal,
+        );
+        assert.equal(unchanged.foreground, false);
+        assert.equal(
+          unchanged.elements.find((element) => element.id === input.id)?.value,
+          "",
+        );
+        const button = unchanged.elements.find(
+          (element) => element.label === "Save draft",
+        );
+        assert(button);
+        await assert.rejects(
+          native.act(
+            nativeObservation.target,
+            { type: "click", elementId: button.id },
+            new AbortController().signal,
+          ),
+          /foreground-required/,
+        );
+        editingObservation = await service.act(
+          {
+            targetId: nativeObservation.target.id,
+            observationId: nativeObservation.observationId,
+            actions: [{ type: "key", key: "Tab" }],
+          },
+          nativeContext,
+        );
+      }
       const filledNative = await service.act(
         {
-          targetId: nativeObservation.target.id,
-          observationId: nativeObservation.observationId,
+          targetId: editingObservation.target.id,
+          observationId: editingObservation.observationId,
           actions: [
             { type: "fill", elementId: input.id, text: "Artemis 原生验证" },
           ],
@@ -320,14 +401,16 @@ async function main() {
         filledNative.elements.find((element) => element.id === input.id)?.value,
         "Artemis 原生验证",
       );
-      const save = filledNative.elements.find(
+      assert.equal(filledNative.foreground, process.platform === "win32");
+      const clickObservation = filledNative;
+      const save = clickObservation.elements.find(
         (element) => element.label === "Save draft",
       );
       assert(save);
       const saved = await service.act(
         {
-          targetId: filledNative.target.id,
-          observationId: filledNative.observationId,
+          targetId: clickObservation.target.id,
+          observationId: clickObservation.observationId,
           actions: [{ type: "click", elementId: save.id }],
         },
         nativeContext,
@@ -337,7 +420,7 @@ async function main() {
           element.label.includes("Saved: Artemis 原生验证"),
         ),
       );
-      assert.equal(saved.foreground, false);
+      assert.equal(saved.foreground, process.platform === "win32");
       console.log("Computer Use: native dynamic container batch");
       const toggle = saved.elements.find((e) => e.label === "Toggle container");
       assert(toggle);
@@ -375,7 +458,7 @@ async function main() {
             new AbortController().signal,
           )
         ).foreground,
-        false,
+        process.platform === "win32",
       );
       await writeFile(
         `${evidence}/native.jpg`,
@@ -399,6 +482,176 @@ async function main() {
         );
         assert.equal(foreground.completed, 2);
         assert.equal(service.status().state, "observing");
+      }
+      if (process.platform === "win32") {
+        console.log(
+          "Computer Use: long native batch and four scroll directions",
+        );
+        const began = performance.now();
+        foreground = await service.act(
+          {
+            targetId: foreground.target.id,
+            observationId: foreground.observationId,
+            actions: Array.from({ length: 16 }, () => ({
+              type: "key" as const,
+              key: "Tab" as const,
+            })),
+          },
+          nativeContext,
+        );
+        longNativeBatchMs = performance.now() - began;
+        assert.equal(foreground.completed, 16);
+        foreground = await service.act(
+          {
+            targetId: foreground.target.id,
+            observationId: foreground.observationId,
+            actions: (["up", "down", "left", "right"] as const).map(
+              (direction) => ({
+                type: "scroll" as const,
+                direction,
+                amount: 1,
+              }),
+            ),
+          },
+          nativeContext,
+        );
+        assert.equal(foreground.completed, 4);
+        const field = foreground.elements.find(
+          (element) => element.id === input.id,
+        );
+        assert(field?.bounds);
+        foreground = await service.act(
+          {
+            targetId: foreground.target.id,
+            observationId: foreground.observationId,
+            actions: [
+              {
+                type: "click_at",
+                x: field.bounds.x + field.bounds.width / 2,
+                y: field.bounds.y + field.bounds.height / 2,
+              },
+            ],
+          },
+          nativeContext,
+        );
+        assert.equal(foreground.completed, 1);
+        console.log("Computer Use: stale window movement and modal boundaries");
+        const move = foreground.elements.find(
+          (element) => element.label === "Move window",
+        );
+        assert(move);
+        await native.act(
+          foreground.target,
+          { type: "click", elementId: move.id },
+          new AbortController().signal,
+          true,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await assert.rejects(
+          native.act(
+            foreground.target,
+            { type: "key", key: "Tab" },
+            new AbortController().signal,
+            true,
+          ),
+          /Window moved/,
+        );
+        foreground = (await service.call(
+          "computer_observe",
+          { targetId: foreground.target.id },
+          nativeContext,
+        )) as typeof foreground;
+        const modal = foreground.elements.find(
+          (element) => element.label === "Open modal",
+        );
+        assert(modal);
+        await native.act(
+          foreground.target,
+          { type: "click", elementId: modal.id },
+          new AbortController().signal,
+          true,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await assert.rejects(
+          native.act(
+            foreground.target,
+            { type: "key", key: "Tab" },
+            new AbortController().signal,
+            true,
+          ),
+          /Modal window changed/,
+        );
+        foreground = (await service.call(
+          "computer_observe",
+          { targetId: foreground.target.id },
+          nativeContext,
+        )) as typeof foreground;
+        const close = foreground.elements.find(
+          (element) => element.label === "Close modal",
+        );
+        assert(close);
+        await native.act(
+          foreground.target,
+          { type: "click", elementId: close.id },
+          new AbortController().signal,
+          true,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        foreground = (await service.call(
+          "computer_observe",
+          { targetId: foreground.target.id },
+          nativeContext,
+        )) as typeof foreground;
+        console.log(
+          "Computer Use: native Stop button and external input takeover",
+        );
+        const helperPid = inputDiagnostics.find(
+          (event) => event.event === "helper-start",
+        )?.pid;
+        assert.equal(typeof helperPid, "number");
+        nativeFixture!.stdin!.write("stop:" + helperPid + "\n");
+        for (
+          let attempt = 0;
+          service.status().state !== "paused" && attempt < 40;
+          attempt++
+        )
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        assert.equal(service.status().state, "paused");
+        assert.match(service.status().reason ?? "", /Stop button/);
+        await assert.rejects(
+          service.act(
+            {
+              targetId: foreground.target.id,
+              observationId: foreground.observationId,
+              actions: [{ type: "key", key: "Tab" }],
+            },
+            nativeContext,
+          ),
+          /paused/,
+        );
+        service.resumeThread(context.threadId);
+        foreground = (await service.open(
+          { target: fixtureBundle! },
+          nativeContext,
+        )) as typeof foreground;
+        assert.equal(foregroundRequests, 1);
+        await service.act(
+          {
+            targetId: foreground.target.id,
+            observationId: foreground.observationId,
+            actions: [{ type: "key", key: "Tab" }],
+          },
+          nativeContext,
+        );
+        nativeFixture!.stdin!.write("input-key\n");
+        for (
+          let attempt = 0;
+          service.status().state !== "paused" && attempt < 40;
+          attempt++
+        )
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        assert.equal(service.status().state, "paused");
+        assert.match(service.status().reason ?? "", /User input/);
       }
       nativeVerified = true;
     }
@@ -555,6 +808,7 @@ async function main() {
     }
     const result = {
       checks: [
+        ...nativeSecurityChecks,
         "real Chromium AX observation",
         "embedded webview fills three fields without system focus or pointer changes",
         "replaces an existing value instead of appending",
@@ -566,10 +820,21 @@ async function main() {
         "native private-pipe status",
         ...(nativeVerified
           ? [
-              "native delayed window readiness and background AX fill/click",
+              process.platform === "win32"
+                ? "native UIA private password exclusion and legacy foreground requirement"
+                : "native delayed window readiness and background AX fill/click",
               "native foreground input denied without host approval",
-              "native stable element IDs across transient unlabelled AX containers",
+              "native stable element IDs across transient unlabelled containers",
               "three native foreground key/scroll batches without false takeover",
+            ]
+          : []),
+        ...(process.platform === "win32" && nativeVerified
+          ? [
+              "16 native actions in one batch",
+              "four native scroll directions and coordinate click",
+              "window movement and modal stale observations rejected",
+              "native Stop button and resume reuse authorization",
+              "external keyboard input pauses native control",
             ]
           : []),
         ...(electronVerified
@@ -587,6 +852,10 @@ async function main() {
       fillBatchMs,
       captureRecoveries,
       calculatorBatchMs,
+      platform: process.platform,
+      architecture: process.arch,
+      longNativeBatchMs,
+      foregroundRequests,
       nativePermissions: permissions,
       nativeVerified,
       electronVerified,

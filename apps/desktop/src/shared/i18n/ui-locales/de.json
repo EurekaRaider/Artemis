@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Für diesen Durchlauf erlauben",
   "ComputerUse.allowTaskAutonomy": "Autonome Bedienung für diese Aufgabe erlauben",
   "ComputerUse.rememberAppAccess": "App-Zugriff merken",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Auch Vordergrundsteuerung für diesen Durchlauf oder diese Aufgabe erlauben",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Vordergrundbedienung auch im gewählten Berechtigungsumfang erlauben",
   "ComputerUse.allowForegroundControlOfName": "Vordergrundsteuerung von {{name}} erlauben?",
   "ComputerUse.keepBackgroundMode": "Im Hintergrund bleiben",
   "ComputerUse.allowForegroundThisTurn": "Vordergrund für diesen Durchlauf erlauben",

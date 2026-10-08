@@ -13,6 +13,7 @@ final class Fixture: NSObject, NSApplicationDelegate {
   var window: NSWindow!
   let input = NSTextField(string: "")
   let output = NSTextField(labelWithString: "Ready")
+  let password = NSSecureTextField(string: "PRIVATE_FIXTURE_VALUE")
   let spacer = NSView()
   var controls: [NSView] = []
   var expanded = false
@@ -35,13 +36,16 @@ final class Fixture: NSObject, NSApplicationDelegate {
     let toggle = NSButton(
       title: "Toggle container", target: self, action: #selector(toggleContainer))
     toggle.frame = CGRect(x: 30, y: 40, width: 160, height: 32)
+    password.frame = CGRect(x: 250, y: 44, width: 200, height: 26)
+    password.setAccessibilityLabel("Password fixture")
+    window.contentView?.addSubview(password)
     spacer.setAccessibilityElement(true)
     spacer.setAccessibilityRole(.group)
     window.contentView?.addSubview(input)
     window.contentView?.addSubview(button)
     window.contentView?.addSubview(output)
     window.contentView?.addSubview(toggle)
-    controls = [input, button, output, toggle]
+    controls = [input, button, output, toggle, password]
     window.contentView?.setAccessibilityChildren(controls)
     window.orderBack(nil)
     print(

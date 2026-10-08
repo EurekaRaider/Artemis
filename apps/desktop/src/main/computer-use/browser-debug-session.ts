@@ -146,9 +146,54 @@ export class BrowserDebugSession {
     signal: AbortSignal,
   ): Promise<T> {
     signal.throwIfAborted();
-    await this.connect();
-    this.check();
-    const result = await this.contents.debugger.sendCommand(method, params);
+    const result = await new Promise<unknown>((resolve, reject) => {
+      let ended = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", abort);
+      };
+      const fail = (error: unknown) => {
+        if (ended) return;
+        ended = true;
+        cleanup();
+        reject(error);
+        if (
+          !this.contents.isDestroyed() &&
+          !this.contents.isDevToolsOpened() &&
+          this.debug.isAttached()
+        )
+          this.debug.detach();
+      };
+      const abort = () =>
+        fail(signal.reason ?? new Error("Browser command cancelled"));
+      const timer = setTimeout(
+        () => fail(new Error("Browser command timed out: " + method)),
+        5000,
+      );
+      signal.addEventListener("abort", abort, { once: true });
+      void (async () => {
+        await this.connect();
+        if (ended) return;
+        signal.throwIfAborted();
+        this.check();
+        return this.debug.sendCommand(method, params);
+      })().then(
+        (value) => {
+          if (!ended) {
+            ended = true;
+            cleanup();
+            resolve(value);
+          }
+        },
+        (error) => {
+          if (!ended) {
+            ended = true;
+            cleanup();
+            reject(error);
+          }
+        },
+      );
+    });
     signal.throwIfAborted();
     this.check();
     return result as T;

@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "このターンのみ許可",
   "ComputerUse.allowTaskAutonomy": "このタスクの自律操作を許可",
   "ComputerUse.rememberAppAccess": "アプリのアクセス許可を記憶",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "このターンまたはタスクの前面操作も許可",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "選択した許可の範囲でフォアグラウンド操作も許可",
   "ComputerUse.allowForegroundControlOfName": "{{name}} の前面操作を許可しますか？",
   "ComputerUse.keepBackgroundMode": "バックグラウンドを維持",
   "ComputerUse.allowForegroundThisTurn": "このターンの前面操作を許可",

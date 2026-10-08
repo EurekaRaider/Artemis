@@ -26,6 +26,11 @@ import { isExecutionMode } from "@artemis/protocol";
 import { AppearanceService } from "./appearance/appearance-service.js";
 import { HooksService, type HookContext } from "./hooks/hooks-service.js";
 import { migratePluginUserData } from "./plugins/plugin-data-migration.js";
+import {
+  ComputerUseRuntime,
+  computerUseVerificationCatalog,
+} from "./computer-use/runtime.js";
+import type { OfficeRuntimeCatalog } from "./office/office-capability-updates.js";
 import { ComputerUseHost } from "./computer-use/host.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
 import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
@@ -569,6 +574,8 @@ let resolvedLocalePreference: AppLocale = "en";
 let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
 let computerUseHost: ComputerUseHost | undefined;
+let computerUseRuntime: ComputerUseRuntime | undefined;
+let computerUseCalls = 0;
 let computerUseServerId: string | undefined;
 const activeMcpCalls = new Map<
   string,
@@ -6266,6 +6273,7 @@ async function executeApprovedMcp(
     controller,
   });
   let releaseComputerGrant: (() => unknown) | undefined;
+  let computerCall = false;
   try {
     if (!isExecutionMode(request.mode)) {
       throw new Error(`${request.mode} mode rejects MCP calls.`);
@@ -6310,6 +6318,16 @@ async function executeApprovedMcp(
           severity: "info",
           message: `Computer Use local approval: task ${request.threadId}, task permission ${computerTaskGrant}.`,
         });
+      if (
+        request.toolName === "computer_open" ||
+        request.toolName === "computer_targets"
+      )
+        await computerUseRuntime?.ensure(controller.signal);
+      controller.signal.throwIfAborted();
+      if (activeTurns.get(request.threadId) !== request.turnId)
+        throw new Error("Computer Use task ended during runtime installation.");
+      computerUseCalls++;
+      computerCall = true;
       const grant = computerUseHost.server.authorize(
         {
           threadId: request.threadId,
@@ -6352,6 +6370,14 @@ async function executeApprovedMcp(
     });
   } finally {
     releaseComputerGrant?.();
+    if (computerCall) {
+      computerUseCalls--;
+      void computerUseRuntime
+        ?.finishUpdate()
+        .catch((error) =>
+          console.error("Computer Use activation failed", error),
+        );
+    }
     activeMcpCalls.delete(workerRequestId);
   }
 }
@@ -9684,6 +9710,24 @@ function registerIpc(): void {
       return installedSkillsWithState();
     },
   );
+  ipcMain.handle(IPC.computerRuntimeStatus, async () => {
+    if (!computerUseRuntime) return undefined;
+    const status = await computerUseRuntime.status();
+    const legacy = (await artemisPluginService?.listInstalled())?.some(
+      (plugin) => plugin.source.kind === "builtin",
+    );
+    return {
+      ...status,
+      migrationRequired: Boolean(legacy && !status.activeVersion),
+    };
+  });
+  ipcMain.handle(IPC.computerRuntimeCheck, async () => {
+    await computerUseRuntime?.check();
+    return computerUseRuntime?.status();
+  });
+  ipcMain.handle(IPC.computerRuntimeCancel, () => {
+    computerUseRuntime?.cancel();
+  });
   ipcMain.handle(
     IPC.resourcePluginList,
     async (): Promise<InstalledArtemisPlugin[]> => {
@@ -10046,6 +10090,25 @@ function registerIpc(): void {
           percent,
         });
       publish(5);
+      if (source.kind === "builtin" && source.pluginName === "computer-use") {
+        if (!computerUseRuntime)
+          throw new Error("Computer Use is unavailable on this platform.");
+        await computerUseRuntime.install();
+        const installed = (await artemisPluginService.listInstalled()).find(
+          (plugin) => plugin.source.kind === "builtin",
+        );
+        if (installed) {
+          await enableManagedPluginSkills(installed.skillNames);
+          await reconnectEnabledMcpServers(
+            (await mcpConfigStore!.list()).filter((config) =>
+              installed.mcpServerIds.includes(config.id),
+            ),
+          );
+        }
+        await applyAgentRuntime();
+        publish(100);
+        return artemisPluginMutationResult([]);
+      }
       const installed = await artemisPluginService.install(source, (percent) =>
         publish(10 + percent * 0.8),
       );
@@ -10081,6 +10144,17 @@ function registerIpc(): void {
           resourceId: existing.displayName,
           percent,
         });
+      if (
+        existing.source.kind === "builtin" &&
+        existing.source.pluginName === "computer-use"
+      ) {
+        if (!computerUseRuntime)
+          throw new Error("Computer Use is unavailable on this platform.");
+        await computerUseRuntime.install();
+        await applyAgentRuntime();
+        publish(100);
+        return artemisPluginMutationResult([]);
+      }
       const before = await mcpConfigStore.list();
       const scopedIds = new Set(existing.mcpServerIds);
       const existingSkillNames = new Set(existing.skillNames);
@@ -10238,6 +10312,11 @@ function registerIpc(): void {
       const scopedIds = new Set(existing.mcpServerIds);
       await disconnectMcpServers(existing.mcpServerIds);
       try {
+        if (
+          existing.source.kind === "builtin" &&
+          existing.source.pluginName === "computer-use"
+        )
+          await computerUseRuntime?.uninstall();
         const removed = await artemisPluginService.remove(pluginId);
         const after = await mcpConfigStore.list();
         await cleanupRemovedMcpAuthentication(before, after, scopedIds);
@@ -23891,14 +23970,11 @@ app
           .catch((error) => console.error("Appearance refresh failed", error));
       },
       bundledArtifactRoot: bundledArtifactPluginsPath(),
-      ...(process.platform === "darwin"
-        ? {
-            computerUseRoot: join(
-              dirname(bundledArtifactPluginsPath()),
-              "computer-use",
-            ),
-          }
-        : {}),
+      computerUseRoot: join(
+        dirname(bundledArtifactPluginsPath()),
+        "computer-use",
+      ),
+      computerUseManagedRuntime: true,
       fetcher: (url, init) => net.fetch(url, init),
     });
     appearanceService = new AppearanceService({
@@ -23933,24 +24009,54 @@ app
     });
     for (const warning of await artemisPluginService.upgradeMigratedBundledPlugins())
       console.warn(warning);
-    if (process.platform === "darwin")
+    if (process.platform === "darwin" || process.platform === "win32") {
+      const computerResources = join(
+        dirname(bundledArtifactPluginsPath()),
+        "computer-use",
+      );
+      const catalog = JSON.parse(
+        await readFile(join(computerResources, "catalog.json"), "utf8"),
+      ) as OfficeRuntimeCatalog;
+      computerUseRuntime = new ComputerUseRuntime({
+        userData: app.getPath("userData"),
+        catalog: computerUseVerificationCatalog(
+          catalog,
+          process.env.ARTEMIS_COMPUTER_USE_CANDIDATE_VERSION,
+        ),
+        hostVersion: app.getVersion(),
+        fetch: (url, init) =>
+          net.fetch(url instanceof URL ? url.toString() : url, init),
+        activated: () => applyAgentRuntime(),
+        busy: () =>
+          Boolean(computerUseHost?.service.hasTargets()) ||
+          computerUseCalls > 0,
+        stopHelper: async () => {
+          await computerUseHost?.native.close();
+        },
+        commitPlugin: async (root, version) => {
+          await artemisPluginService!.installComputerUseFromRoot(root, version);
+        },
+      });
       computerUseHost = new ComputerUseHost({
-        helperPath: app.isPackaged
-          ? join(process.resourcesPath, "computer-use", "artemis-computer-use")
-          : join(
-              app.getAppPath(),
-              "build",
-              "computer-use",
-              "development",
-              "artemis-computer-use",
-            ),
+        helperPath: () => computerUseRuntime!.helper(),
         permissionsPath: join(
           app.getPath("userData"),
           "computer-use-permissions.json",
         ),
         window: () => mainWindow,
         locale: currentLocale,
+        idle: () => {
+          void computerUseRuntime
+            ?.finishUpdate()
+            .catch((error) =>
+              console.error("Computer Use activation failed", error),
+            );
+        },
       });
+      await computerUseRuntime
+        .initialize()
+        .catch((error) => console.error("Computer Use recovery failed", error));
+    }
     configurationImportService = new ConfigurationImportService({
       homePath: app.getPath("home"),
       skillsPath: join(app.getPath("home"), ".pi", "agent", "skills"),

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "publicKeys": {
+    "artemis-office-release-2026-09": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAc1P2TQIuspA6pWz9L8dYLjox/bTnqyl5XcRRMck49ZI=\n-----END PUBLIC KEY-----\n"
+  },
+  "manifests": [],
+  "updateUrl": "https://github.com/EurekaRaider/Artemis/releases/download/computer-use-stable/catalog.json"
+}

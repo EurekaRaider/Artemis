@@ -874,6 +874,13 @@ export interface ArtemisApi {
     command: import("@artemis/protocol").BrowserPreviewCommand,
   ): Promise<import("@artemis/protocol").BrowserPreviewSnapshot>;
   registerComputerBrowser(threadId: string, contentsId: number): Promise<void>;
+  computerRuntimeStatus(): Promise<
+    import("@artemis/protocol").ComputerUseRuntimeStatus | undefined
+  >;
+  checkComputerRuntimeUpdates(): Promise<
+    import("@artemis/protocol").ComputerUseRuntimeStatus | undefined
+  >;
+  cancelComputerRuntimeDownload(): Promise<void>;
   getComputerState(): Promise<import("@artemis/protocol").ComputerControlState>;
   controlComputer(
     action: "stop" | "resume" | "revoke-task",
@@ -1474,6 +1481,9 @@ export const IPC = {
   browserPreview: "artemis:browser-preview",
   computerControl: "artemis:computer-control",
   computerPermissions: "artemis:computer-permissions",
+  computerRuntimeStatus: "artemis:computer-runtime-status",
+  computerRuntimeCheck: "artemis:computer-runtime-check",
+  computerRuntimeCancel: "artemis:computer-runtime-cancel",
   computerRevokePermission: "artemis:computer-revoke-permission",
   computerBrowserOpen: "artemis:computer-browser-open",
   hooksList: "artemis:hooks-list",

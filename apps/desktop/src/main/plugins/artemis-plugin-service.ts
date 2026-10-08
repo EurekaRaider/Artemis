@@ -296,6 +296,7 @@ export interface ArtemisPluginServiceOptions {
   mcpStore: McpConfigStore;
   bundledArtifactRoot?: string;
   computerUseRoot?: string;
+  computerUseManagedRuntime?: boolean;
   /**
    * Design-plugin revision store root. Defaults to the legacy
    * plugins/plugin-revisions location; production passes the
@@ -2276,6 +2277,9 @@ export class ArtemisPluginService {
           );
         }
         if (this.options.computerUseRoot) {
+          marketplace.plugins = marketplace.plugins.filter(
+            (plugin) => plugin.name !== "computer-use",
+          );
           marketplace.plugins.push(
             this.preview(
               await this.resolveSource(
@@ -2292,11 +2296,38 @@ export class ArtemisPluginService {
     });
   }
 
+  /** Host-only entry, called with the root of a verified native capability pack. */
+  async installComputerUseFromRoot(
+    root: string,
+    version: string,
+  ): Promise<InstalledArtemisPlugin> {
+    return this.exclusive(async () => {
+      const parsed = await this.parsePlugin(
+        await canonicalDirectory(root),
+        { kind: "builtin", pluginName: "computer-use" },
+        true,
+      );
+      if (parsed.name !== "computer-use" || parsed.version !== version)
+        throw new Error("Computer Use plugin and helper versions must match.");
+      const store = await this.loadStore();
+      const existing = store.plugins.find((plugin) => plugin.id === parsed.id);
+      const installed = await this.commitInstall(parsed, existing);
+      return installed.plugin;
+    });
+  }
+
   async install(
     sourceInput: ArtemisPluginSource,
     onProgress?: ProgressReporter,
   ): Promise<{ plugin: InstalledArtemisPlugin; warnings: string[] }> {
     return this.exclusive(async () => {
+      if (
+        this.options.computerUseManagedRuntime &&
+        sourceInput.kind === "builtin"
+      )
+        throw new Error(
+          "Computer Use must be installed through its verified native runtime.",
+        );
       const parsed = await this.resolveSource(
         validateSource(sourceInput),
         false,
@@ -2322,6 +2353,13 @@ export class ArtemisPluginService {
         (plugin) => plugin.id === pluginIdentifier,
       );
       if (!existing) throw new Error("Installed plugin was not found.");
+      if (
+        this.options.computerUseManagedRuntime &&
+        existing.source.kind === "builtin"
+      )
+        throw new Error(
+          "Computer Use must be updated through its verified native runtime.",
+        );
       if (existing.source.kind === "git") {
         const gitSource = existing.source;
         const trustedSource = (await this.loadMarketplaceStore()).sources.find(
@@ -3106,7 +3144,9 @@ export class ArtemisPluginService {
   ): Promise<ParsedPlugin> {
     if (source.kind === "builtin") {
       if (!this.options.computerUseRoot)
-        throw new Error("Computer Use requires the macOS Artemis app.");
+        throw new Error(
+          "Computer Use requires the macOS or Windows Artemis app.",
+        );
       return this.parsePlugin(
         await canonicalDirectory(this.options.computerUseRoot),
         source,

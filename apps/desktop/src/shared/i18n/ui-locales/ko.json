@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "이번 턴만 허용",
   "ComputerUse.allowTaskAutonomy": "이 작업의 자율 조작 허용",
   "ComputerUse.rememberAppAccess": "앱 접근 권한 기억",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "이번 턴 또는 작업의 전경 조작도 허용",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "선택한 권한 범위에서 전경 조작도 허용",
   "ComputerUse.allowForegroundControlOfName": "{{name}}의 전경 조작을 허용할까요?",
   "ComputerUse.keepBackgroundMode": "백그라운드 유지",
   "ComputerUse.allowForegroundThisTurn": "이번 턴 전경 조작 허용",

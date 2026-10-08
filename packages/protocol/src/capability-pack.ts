@@ -188,9 +188,12 @@ const softwareReleaseHost =
 const softwareCapabilityPackManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
-    id: capabilityPackIdSchema.refine((id) => id !== "office-core", {
-      message: "Reserved capability pack id",
-    }),
+    id: capabilityPackIdSchema.refine(
+      (id) => !["office-core", "computer-use"].includes(id),
+      {
+        message: "Reserved capability pack id",
+      },
+    ),
     version,
     hostRange: z.string().min(1).max(100),
     platform: z.enum(["darwin", "win32"]),
@@ -221,8 +224,94 @@ const softwareCapabilityPackManifestSchema = z
       ctx.addIssue({ code: "custom", message: "Release version mismatch" });
   });
 
+export const computerUsePackManifestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: z.literal("computer-use"),
+    version,
+    hostRange: z.string().min(1).max(100),
+    platform: z.enum(["darwin", "win32"]),
+    arch: z.enum(["arm64", "x64"]),
+    minimumOS: z.enum(["11", "14"]),
+    helperProtocol: z.literal(1),
+    sourceDigest: digest,
+    entrypoint: capabilityPathSchema,
+    pluginRoot: capabilityPathSchema,
+    archive: z
+      .object({
+        url: z
+          .url()
+          .refine((value) =>
+            /^https:\/\/github\.com\/EurekaRaider\/Artemis\/releases\/download\/computer-use-v\d+\.\d+\.\d+\/[^/?#]+\.zip$/u.test(
+              value,
+            ),
+          ),
+        sha256: digest,
+        downloadBytes: z.number().int().positive().max(134_217_728),
+        unpackedBytes: z.number().int().positive().max(268_435_456),
+      })
+      .strict(),
+    files: capabilityFilesSchema,
+    native: z
+      .object({
+        signer: z.string().min(1).max(200).nullable(),
+        notarization: z.enum(["accepted-stapled", "not-applicable"]),
+      })
+      .strict(),
+    signature: capabilitySignatureSchema,
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    checkSharedInventory(value, ctx);
+    if (
+      !value.files.some(
+        (file) => file.path === value.entrypoint && file.executable,
+      )
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Executable is not in signed inventory",
+      });
+    if (
+      !value.files.some(
+        (file) =>
+          file.path === value.pluginRoot + "/artemis.plugin.json" &&
+          !file.executable,
+      )
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Plugin manifest is not in signed inventory",
+      });
+    if (!value.archive.url.includes(`/computer-use-v${value.version}/`))
+      ctx.addIssue({ code: "custom", message: "Release version mismatch" });
+    if (
+      value.platform === "darwin"
+        ? value.arch !== "arm64" ||
+          value.minimumOS !== "14" ||
+          !value.native.signer ||
+          value.native.notarization !== "accepted-stapled" ||
+          value.entrypoint !==
+            "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use"
+        : value.arch !== "x64" ||
+          value.minimumOS !== "11" ||
+          value.native.notarization !== "not-applicable" ||
+          value.entrypoint !== "artemis-computer-use.exe" ||
+          (value.native.signer !== null &&
+            !/^[A-Fa-f0-9]{40}$/u.test(value.native.signer))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Unsupported Computer Use native target",
+      });
+  });
+export type ComputerUsePackManifest = z.infer<
+  typeof computerUsePackManifestSchema
+>;
+
 export const capabilityPackManifestSchema = z.union([
   officeCapabilityPackManifestSchema,
+  computerUsePackManifestSchema,
   softwareCapabilityPackManifestSchema,
 ]);
 export type CapabilityPackManifest = z.infer<

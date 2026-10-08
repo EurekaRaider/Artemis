@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Izinkan giliran ini",
   "ComputerUse.allowTaskAutonomy": "Izinkan otonomi tugas ini",
   "ComputerUse.rememberAppAccess": "Ingat akses aplikasi",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Izinkan juga kontrol latar depan untuk giliran atau tugas ini",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Izinkan juga kontrol latar depan dalam cakupan izin yang dipilih",
   "ComputerUse.allowForegroundControlOfName": "Izinkan kontrol latar depan {{name}}?",
   "ComputerUse.keepBackgroundMode": "Tetap di latar belakang",
   "ComputerUse.allowForegroundThisTurn": "Izinkan latar depan giliran ini",

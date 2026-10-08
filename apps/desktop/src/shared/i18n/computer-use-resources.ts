@@ -228,3 +228,80 @@ export const COMPUTER_USE_RESOURCES: Record<AppLocale, ComputerUseCopy> = {
     backgroundOnly: "僅背景操作",
   },
 };
+
+/** Store runtime states use the same product terminology on both platforms. */
+export const COMPUTER_USE_RUNTIME_RESOURCES: Record<
+  AppLocale,
+  { waiting: string; migration: string; supported: string }
+> = {
+  en: {
+    waiting: "v{version} is ready; waiting for tasks to finish",
+    migration: "Download the runtime to continue using Computer Use",
+    supported: "Requires macOS 14+ arm64 or Windows 11 x64",
+  },
+  "zh-CN": {
+    waiting: "v{version} 已就绪，等待任务结束后切换",
+    migration: "下载运行时后可继续使用 Computer Use",
+    supported: "需要 macOS 14+ arm64 或 Windows 11 x64",
+  },
+  "zh-TW": {
+    waiting: "v{version} 已就緒，等待任務結束後切換",
+    migration: "下載執行環境後可繼續使用 Computer Use",
+    supported: "需要 macOS 14+ arm64 或 Windows 11 x64",
+  },
+  ja: {
+    waiting: "v{version} は準備完了です。タスクの終了を待っています",
+    migration: "Computer Use を続けるにはランタイムをダウンロードしてください",
+    supported: "macOS 14+ arm64 または Windows 11 x64 が必要です",
+  },
+  ko: {
+    waiting: "v{version} 준비 완료, 작업 종료 대기 중",
+    migration: "Computer Use를 계속하려면 런타임을 다운로드하세요",
+    supported: "macOS 14+ arm64 또는 Windows 11 x64 필요",
+  },
+  de: {
+    waiting: "v{version} ist bereit; laufende Aufgaben werden abgewartet",
+    migration: "Laufzeit herunterladen, um Computer Use weiter zu verwenden",
+    supported: "Erfordert macOS 14+ arm64 oder Windows 11 x64",
+  },
+  es: {
+    waiting: "v{version} está lista; esperando que terminen las tareas",
+    migration: "Descarga el entorno para seguir usando Computer Use",
+    supported: "Requiere macOS 14+ arm64 o Windows 11 x64",
+  },
+  fr: {
+    waiting: "v{version} est prête ; attente de la fin des tâches",
+    migration: "Téléchargez le runtime pour continuer à utiliser Computer Use",
+    supported: "Nécessite macOS 14+ arm64 ou Windows 11 x64",
+  },
+  "pt-BR": {
+    waiting: "v{version} está pronta; aguardando o fim das tarefas",
+    migration: "Baixe o ambiente para continuar usando o Computer Use",
+    supported: "Requer macOS 14+ arm64 ou Windows 11 x64",
+  },
+  ru: {
+    waiting: "v{version} готова; ожидание завершения задач",
+    migration: "Загрузите среду выполнения, чтобы продолжить Computer Use",
+    supported: "Требуется macOS 14+ arm64 или Windows 11 x64",
+  },
+  ar: {
+    waiting: "الإصدار {version} جاهز؛ في انتظار انتهاء المهام",
+    migration: "نزّل بيئة التشغيل لمتابعة استخدام Computer Use",
+    supported: "يتطلب macOS 14+ arm64 أو Windows 11 x64",
+  },
+  hi: {
+    waiting: "v{version} तैयार है; कार्यों के समाप्त होने की प्रतीक्षा है",
+    migration: "Computer Use जारी रखने के लिए रनटाइम डाउनलोड करें",
+    supported: "macOS 14+ arm64 या Windows 11 x64 आवश्यक है",
+  },
+  it: {
+    waiting: "v{version} è pronta; in attesa della fine delle attività",
+    migration: "Scarica il runtime per continuare a usare Computer Use",
+    supported: "Richiede macOS 14+ arm64 o Windows 11 x64",
+  },
+  id: {
+    waiting: "v{version} siap; menunggu tugas selesai",
+    migration: "Unduh runtime untuk melanjutkan Computer Use",
+    supported: "Memerlukan macOS 14+ arm64 atau Windows 11 x64",
+  },
+};

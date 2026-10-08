@@ -25,6 +25,11 @@ function fixture() {
     activeMcpCalls: new Map(),
     mcpConfigStore: { list: async () => [{ id: "builtin", enabled: true }] },
     computerUseServerId: "builtin",
+    computerUseCalls: 0,
+    computerUseRuntime: {
+      ensure: vi.fn(async () => {}),
+      finishUpdate: vi.fn(async () => {}),
+    },
     artemisPluginService: {
       isComputerUseServer: vi.fn(
         () =>

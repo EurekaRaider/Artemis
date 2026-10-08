@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Разрешить на этот ход",
   "ComputerUse.allowTaskAutonomy": "Разрешить автономные действия задачи",
   "ComputerUse.rememberAppAccess": "Запомнить доступ к приложению",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Также разрешить управление на переднем плане на этот ход или задачу",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Также разрешить управление на переднем плане в выбранных пределах",
   "ComputerUse.allowForegroundControlOfName": "Разрешить управление {{name}} на переднем плане?",
   "ComputerUse.keepBackgroundMode": "Оставить в фоне",
   "ComputerUse.allowForegroundThisTurn": "Разрешить передний план на этот ход",

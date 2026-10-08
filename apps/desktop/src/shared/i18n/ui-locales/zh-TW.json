@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "僅本輪允許",
   "ComputerUse.allowTaskAutonomy": "允許本任務自主操作",
   "ComputerUse.rememberAppAccess": "記住應用存取許可",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "同時允許前景操作，本輪或本任務有效",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "同時允許前景操作，有效期與所選應用程式授權一致",
   "ComputerUse.allowForegroundControlOfName": "允許將 {{name}} 切換至前景操作？",
   "ComputerUse.keepBackgroundMode": "保持背景",
   "ComputerUse.allowForegroundThisTurn": "允許本輪前景操作",

@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Consenti per questo turno",
   "ComputerUse.allowTaskAutonomy": "Consenti autonomia per questa attività",
   "ComputerUse.rememberAppAccess": "Ricorda accesso all’app",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Consenti anche controllo in primo piano per questo turno o attività",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Consenti anche il controllo in primo piano nell’ambito scelto",
   "ComputerUse.allowForegroundControlOfName": "Consentire il controllo di {{name}} in primo piano?",
   "ComputerUse.keepBackgroundMode": "Mantieni in background",
   "ComputerUse.allowForegroundThisTurn": "Consenti primo piano per questo turno",

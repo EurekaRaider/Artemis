@@ -1,17 +1,25 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import type {
   ComputerAction,
   ComputerFrame,
+  ComputerNativeReadiness,
   ComputerOpen,
   ComputerTarget,
 } from "@artemis/protocol";
 import type { ComputerContext, ComputerDriver } from "./service.js";
 
+export interface ComputerHelperLease {
+  path: string;
+  release(): void;
+}
 export class ComputerNativeDriver implements ComputerDriver {
   private child: ChildProcess | undefined;
+  private starting: Promise<ChildProcess> | undefined;
+  private lease: ComputerHelperLease | undefined;
+  private generation = 0;
+  private readonly retiring = new Set<Promise<void>>();
   private readonly pending = new Map<
     string,
     {
@@ -21,91 +29,134 @@ export class ComputerNativeDriver implements ComputerDriver {
     }
   >();
   constructor(
-    private readonly path: string,
+    private readonly source: string | (() => Promise<ComputerHelperLease>),
     private readonly takeover: (reason: string) => void,
     private readonly stopLabel: () => string = () => "Stop",
     private readonly darkAppearance?: () => boolean,
     private readonly diagnostics?: (event: Record<string, unknown>) => void,
   ) {}
-  private start() {
-    if (this.child) return this.child;
-    if (process.platform !== "darwin")
-      throw new Error("Desktop Computer Use currently requires macOS.");
-    const child = spawn(this.path, [], {
-      stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"],
-      env: {
-        PATH: "/usr/bin:/bin",
-        LANG: "en_US.UTF-8",
-        ...(this.diagnostics ? { ARTEMIS_COMPUTER_DIAGNOSTICS: "1" } : {}),
-      },
-    });
-    this.child = child;
-    const lines = createInterface({ input: child.stdio[4] as Readable });
-    lines.on("line", (line) => {
-      if (this.child !== child) return;
-      if (line.length > 2 * 1024 * 1024) {
-        this.dispose();
-        return;
+  private start(): Promise<ChildProcess> {
+    if (this.starting) return this.starting;
+    if (this.child) return Promise.resolve(this.child);
+    const generation = this.generation;
+    this.starting = (async () => {
+      if (!["darwin", "win32"].includes(process.platform))
+        throw new Error("Desktop Computer Use requires macOS or Windows 11.");
+      const lease =
+        typeof this.source === "string"
+          ? { path: this.source, release() {} }
+          : await this.source();
+      if (generation !== this.generation) {
+        lease.release();
+        throw new Error("Computer Use cancelled.");
       }
-      try {
-        const message = JSON.parse(line);
-        if (message.event === "input-diagnostic") {
-          this.diagnostics?.(message);
-          return;
+      this.lease = lease;
+      const child = spawn(lease.path, [], {
+        stdio: ["pipe", "pipe", "ignore"],
+        windowsHide: true,
+        env: {
+          ...(process.platform === "win32"
+            ? { SystemRoot: process.env.SystemRoot ?? "C:\\Windows" }
+            : { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8" }),
+          ARTEMIS_COMPUTER_PARENT: process.execPath,
+          ...(this.diagnostics ? { ARTEMIS_COMPUTER_DIAGNOSTICS: "1" } : {}),
+        },
+      });
+      this.child = child;
+      this.diagnostics?.({ event: "helper-start", pid: child.pid });
+      let buffer = Buffer.alloc(0);
+      const failed = (
+        error = new Error(
+          "Computer Use helper stopped. Reopen the target and check native permissions.",
+        ),
+      ) => {
+        if (this.child !== child) return;
+        this.dispose(error);
+        this.takeover("Native helper exited unexpectedly");
+      };
+      (child.stdio[1] as Readable).on("data", (chunk: Buffer) => {
+        if (this.child !== child) return;
+        buffer = Buffer.concat([buffer, chunk]);
+        for (;;) {
+          const newline = buffer.indexOf(10);
+          if (newline < 0) break;
+          if (newline > 2 * 1024 * 1024) {
+            failed();
+            return;
+          }
+          const line = buffer.subarray(0, newline).toString("utf8");
+          buffer = buffer.subarray(newline + 1);
+          try {
+            const message = JSON.parse(line);
+            if (!message || typeof message !== "object")
+              throw new Error("Invalid helper message");
+            if (message.event === "input-diagnostic") {
+              this.diagnostics?.(message);
+              continue;
+            }
+            if (message.event === "takeover") {
+              this.diagnostics?.(message);
+              this.takeover(
+                typeof message.reason === "string"
+                  ? message.reason.slice(0, 300)
+                  : "Native control was stopped",
+              );
+              continue;
+            }
+            const request = this.pending.get(message.id);
+            if (!request) continue;
+            this.pending.delete(message.id);
+            request.cleanup();
+            if (typeof message.error === "string")
+              request.reject(new Error(message.error));
+            else request.resolve(message.result);
+          } catch {
+            failed();
+            return;
+          }
         }
-        if (message.event === "takeover") {
-          this.takeover(
-            typeof message.reason === "string"
-              ? message.reason.slice(0, 300)
-              : "Native control was stopped",
+        if (buffer.length > 2 * 1024 * 1024) failed();
+      });
+      child.once("error", (error) => failed(error));
+      child.once("exit", (code, signal) => {
+        this.diagnostics?.({ event: "helper-exit", code, signal });
+        failed();
+      });
+      (child.stdio[0] as Writable).on("error", (error) => failed(error));
+      (child.stdio[1] as Readable).on("error", (error) => failed(error));
+      const hello = await this.send<{
+        helperProtocol: number;
+        platform: string;
+      }>(child, "hello", {});
+      if (hello.helperProtocol !== 1 || hello.platform !== process.platform)
+        throw new Error("Computer Use helper protocol or platform mismatch.");
+      return child;
+    })()
+      .catch((error) => {
+        if (generation === this.generation)
+          this.dispose(
+            error instanceof Error ? error : new Error(String(error)),
           );
-          return;
-        }
-        const pending = this.pending.get(message.id);
-        if (!pending) return;
-        this.pending.delete(message.id);
-        pending.cleanup();
-        if (typeof message.error === "string")
-          pending.reject(new Error(message.error));
-        else pending.resolve(message.result);
-      } catch {
-        this.dispose();
-      }
-    });
-    const failed = () => {
-      if (this.child !== child) return;
-      this.child = undefined;
-      lines.close();
-      child.kill("SIGKILL");
-      for (const pending of this.pending.values()) {
-        pending.cleanup();
-        pending.reject(
-          new Error(
-            "Computer Use helper stopped. Reopen the target; check the signed app and macOS permissions.",
-          ),
-        );
-      }
-      this.pending.clear();
-      this.takeover("Native helper exited unexpectedly");
-    };
-    child.once("error", failed);
-    child.once("exit", failed);
-    (child.stdio[3] as Writable).on("error", failed);
-    (child.stdio[4] as Readable).on("error", failed);
-    return child;
+        throw error;
+      })
+      .finally(() => {
+        if (generation === this.generation) this.starting = undefined;
+      });
+    return this.starting;
   }
-  request<T>(
+  private send<T>(
+    child: ChildProcess,
     method: string,
     args: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<T> {
     signal?.throwIfAborted();
-    const child = this.start();
     const id = randomUUID();
     return new Promise<T>((resolve, reject) => {
       const abort = () => this.dispose();
       const timer = setTimeout(() => {
-        const reason = `Native helper ${method} request timed out after 20 seconds`;
+        const reason =
+          "Native helper " + method + " request timed out after 20 seconds";
         this.dispose(new Error(reason));
         this.takeover(reason);
       }, 20000);
@@ -119,34 +170,55 @@ export class ComputerNativeDriver implements ComputerDriver {
         cleanup,
       });
       signal?.addEventListener("abort", abort, { once: true });
-      (child.stdio[3] as Writable).write(
-        `${JSON.stringify({ id, method, args })}\n`,
-      );
+      const encoded = JSON.stringify({ id, method, args }) + "\n";
+      if (Buffer.byteLength(encoded) > 131072) {
+        this.pending.delete(id);
+        cleanup();
+        reject(new Error("Native request is too large"));
+        return;
+      }
+      (child.stdio[0] as Writable).write(encoded);
     });
   }
-  async permissions(request = false, signal?: AbortSignal) {
-    return this.request<{ accessibility: boolean; screenRecording: boolean }>(
+  async request<T>(
+    method: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    signal?.throwIfAborted();
+    const abort = () => this.dispose();
+    signal?.addEventListener("abort", abort, { once: true });
+    try {
+      return await this.send<T>(await this.start(), method, args, signal);
+    } finally {
+      signal?.removeEventListener("abort", abort);
+    }
+  }
+  permissions(request = false, signal?: AbortSignal) {
+    return this.request<ComputerNativeReadiness>(
       request ? "permissions" : "status",
       {},
       signal,
     );
   }
-  async targets(_context: ComputerContext) {
+  targets(_context: ComputerContext) {
     return this.request<ComputerTarget[]>("targets", {});
   }
-  async open(
-    input: ComputerOpen,
-    _context: ComputerContext,
-    signal: AbortSignal,
-  ) {
+  open(input: ComputerOpen, _context: ComputerContext, signal: AbortSignal) {
     return this.request<ComputerTarget>("open", input, signal);
   }
-  async observe(target: ComputerTarget, image: boolean, signal: AbortSignal) {
+  observe(
+    target: ComputerTarget,
+    image: boolean,
+    signal: AbortSignal,
+    allowForeground = false,
+  ) {
     return this.request<ComputerFrame>(
       "observe",
       {
         id: target.id,
         image,
+        allowForeground,
         stopLabel: this.stopLabel(),
         darkAppearance: this.darkAppearance?.(),
       },
@@ -168,14 +240,51 @@ export class ComputerNativeDriver implements ComputerDriver {
   async release(target: ComputerTarget) {
     if (this.child) await this.request("release", { id: target.id });
   }
+  async close(): Promise<void> {
+    this.dispose();
+    if (!this.retiring.size) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all([...this.retiring]),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  "Computer Use helper did not close; runtime switch was deferred.",
+                ),
+              ),
+            5000,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
   dispose(error = new Error("Computer Use cancelled.")) {
+    this.generation++;
     const child = this.child;
+    const lease = this.lease;
     this.child = undefined;
-    for (const pending of this.pending.values()) {
-      pending.cleanup();
-      pending.reject(error);
+    this.lease = undefined;
+    this.starting = undefined;
+    for (const request of this.pending.values()) {
+      request.cleanup();
+      request.reject(error);
     }
     this.pending.clear();
-    child?.kill("SIGKILL");
+    if (child) {
+      const closed = new Promise<void>((resolve) => {
+        child.once("close", () => {
+          lease?.release();
+          resolve();
+        });
+      });
+      this.retiring.add(closed);
+      void closed.then(() => this.retiring.delete(closed));
+      child.kill("SIGKILL");
+    } else lease?.release();
   }
 }

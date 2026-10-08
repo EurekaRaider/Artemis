@@ -185,3 +185,52 @@ it("renders console formatting without CSS arguments and preserves warnings", ()
   expect(f.session.snapshot().entries[0]?.level).toBe("warning");
   f.session.dispose();
 });
+
+it("bounds an unresponsive browser command and pauses by detaching its debugger", async () => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture();
+    f.debug.sendCommand.mockImplementation(async (method: string) =>
+      method === "Page.captureScreenshot" ? new Promise(() => {}) : {},
+    );
+    const controller = new AbortController();
+    const pending = f.session.command(
+      "Page.captureScreenshot",
+      {},
+      controller.signal,
+    );
+    const rejected = expect(pending).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(5000);
+    await rejected;
+    expect(f.debug.detach).toHaveBeenCalledOnce();
+    expect(f.pause).toHaveBeenCalledOnce();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it("cancels a blocked connection before it can dispatch later input", async () => {
+  const f = fixture();
+  let complete!: () => void;
+  f.debug.sendCommand.mockImplementation(async (method: string) =>
+    method === "Runtime.enable"
+      ? new Promise<void>((resolve) => {
+          complete = resolve;
+        })
+      : {},
+  );
+  const controller = new AbortController();
+  const pending = f.session.command(
+    "Input.dispatchKeyEvent",
+    { type: "keyDown", key: "Enter" },
+    controller.signal,
+  );
+  await vi.waitFor(() => expect(complete).toBeTypeOf("function"));
+  controller.abort(new Error("User stopped control"));
+  await expect(pending).rejects.toThrow("User stopped control");
+  complete();
+  await Promise.resolve();
+  expect(f.debug.sendCommand).not.toHaveBeenCalledWith(
+    "Input.dispatchKeyEvent",
+    expect.anything(),
+  );
+});

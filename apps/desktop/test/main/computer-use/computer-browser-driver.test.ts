@@ -17,6 +17,8 @@ async function fixture() {
     getTitle: vi.fn(() => "Form"),
     loadURL: vi.fn(async () => {}),
     invalidate: vi.fn(),
+    getBackgroundThrottling: () => false,
+    setBackgroundThrottling: vi.fn(),
     capturePage: vi.fn(async () => image),
     enableDeviceEmulation: vi.fn(),
     disableDeviceEmulation: vi.fn(),
@@ -147,6 +149,8 @@ it("pauses for active browser input but ignores a released browser during native
 
 it("recovers transient compositor failures inside one observation without replaying navigation or input", async () => {
   const { driver, page, target, controller } = await fixture();
+  const host = { isDestroyed: () => false, invalidate: vi.fn() };
+  Object.assign(page, { hostWebContents: host });
   page.capturePage
     .mockRejectedValueOnce(new Error("UnknownVizError"))
     .mockRejectedValueOnce(
@@ -156,6 +160,11 @@ it("recovers transient compositor failures inside one observation without replay
   expect(frame.image?.data).toBe(Buffer.from("frame").toString("base64"));
   expect(page.capturePage).toHaveBeenCalledTimes(4);
   expect(page.invalidate).toHaveBeenCalledTimes(2);
+  expect(host.invalidate).toHaveBeenCalledTimes(2);
+  expect(page.capturePage).toHaveBeenCalledWith(undefined, {
+    stayHidden: true,
+    stayAwake: true,
+  });
   expect(page.loadURL).toHaveBeenCalledOnce();
   expect(
     page.debugger.sendCommand.mock.calls.slice(-2).map(([method]) => method),

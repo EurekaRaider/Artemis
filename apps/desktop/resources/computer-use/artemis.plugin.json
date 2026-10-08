@@ -1,22 +1,108 @@
 {
   "schemaVersion": 1,
   "name": "computer-use",
-  "version": "1.1.0",
-  "description": "Work with websites and macOS applications through their visual interfaces. Artemis provides the browser, native helper and current model.",
+  "version": "1.2.0",
+  "description": "Work with websites and macOS or Windows applications through their visual interfaces. Install and update the native runtime independently.",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Computer Use",
-    "shortDescription": "Use websites and macOS apps",
+    "shortDescription": "Use websites and desktop apps",
     "category": "Productivity",
-    "longDescription": "Use Artemis Browser and macOS applications through observed controls and screenshots. The host provides a bundled native helper, per-application permissions, task ownership and a visible Stop control. Requires macOS and a model with image input.",
+    "longDescription": "Use Artemis Browser and desktop applications through observed controls and screenshots, with per-application permissions, task ownership and a visible Stop control. Native runtime requires macOS 14+ arm64 or Windows 11 x64 and a model with image input.",
     "developerName": "Artemis",
     "defaultPrompt": [
-      "Help me complete a task in a website or macOS application."
+      "Help me complete a task in a website or desktop application."
     ],
     "capabilities": ["interactive", "read", "write"]
   },
   "author": {
     "name": "Artemis"
+  },
+  "localizations": {
+    "en": {
+      "displayName": "Computer Use",
+      "shortDescription": "Use websites and desktop apps",
+      "description": "Work with websites and macOS or Windows applications through observed controls and screenshots. Download and update the native runtime independently, with per-app permissions and a visible Stop control.",
+      "longDescription": "Work with websites and macOS or Windows applications through observed controls and screenshots. Download and update the native runtime independently, with per-app permissions and a visible Stop control. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "zh-CN": {
+      "displayName": "Computer Use",
+      "shortDescription": "操作网站与桌面应用",
+      "description": "通过观察控件和截图操作网站及 macOS、Windows 应用。原生运行时独立下载和更新，支持逐应用授权及可见的停止按钮。",
+      "longDescription": "通过观察控件和截图操作网站及 macOS、Windows 应用。原生运行时独立下载和更新，支持逐应用授权及可见的停止按钮。 需要 macOS 14+ arm64 或 Windows 11 x64，并使用支持图片输入的模型。"
+    },
+    "zh-TW": {
+      "displayName": "Computer Use",
+      "shortDescription": "操作網站與桌面應用",
+      "description": "透過觀察控制項和截圖操作網站及 macOS、Windows 應用程式。原生執行階段獨立下載和更新，支援逐應用程式授權及可見的停止按鈕。",
+      "longDescription": "透過觀察控制項和截圖操作網站及 macOS、Windows 應用程式。原生執行階段獨立下載和更新，支援逐應用程式授權及可見的停止按鈕。 需要 macOS 14+ arm64 或 Windows 11 x64，並使用支援圖片輸入的模型。"
+    },
+    "ja": {
+      "displayName": "Computer Use",
+      "shortDescription": "ウェブサイトとデスクトップアプリを操作",
+      "description": "コントロールとスクリーンショットを確認し、ウェブサイトや macOS、Windows アプリを操作します。ネイティブランタイムは個別にダウンロード・更新され、アプリごとの許可と停止ボタンを提供します。",
+      "longDescription": "コントロールとスクリーンショットを確認し、ウェブサイトや macOS、Windows アプリを操作します。ネイティブランタイムは個別にダウンロード・更新され、アプリごとの許可と停止ボタンを提供します。 macOS 14+ arm64 / Windows 11 x64."
+    },
+    "ko": {
+      "displayName": "Computer Use",
+      "shortDescription": "웹사이트와 데스크톱 앱 사용",
+      "description": "컨트롤과 스크린샷을 확인하며 웹사이트 및 macOS, Windows 앱을 조작합니다. 네이티브 런타임은 별도로 다운로드하고 업데이트하며, 앱별 권한과 표시되는 중지 버튼을 제공합니다.",
+      "longDescription": "컨트롤과 스크린샷을 확인하며 웹사이트 및 macOS, Windows 앱을 조작합니다. 네이티브 런타임은 별도로 다운로드하고 업데이트하며, 앱별 권한과 표시되는 중지 버튼을 제공합니다. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "de": {
+      "displayName": "Computer Use",
+      "shortDescription": "Websites und Desktop-Apps bedienen",
+      "description": "Websites sowie macOS- und Windows-Apps anhand von Steuerelementen und Bildschirmaufnahmen bedienen. Die native Laufzeit wird separat heruntergeladen und aktualisiert, mit Berechtigungen pro App und sichtbarer Stopp-Schaltfläche.",
+      "longDescription": "Websites sowie macOS- und Windows-Apps anhand von Steuerelementen und Bildschirmaufnahmen bedienen. Die native Laufzeit wird separat heruntergeladen und aktualisiert, mit Berechtigungen pro App und sichtbarer Stopp-Schaltfläche. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "fr": {
+      "displayName": "Computer Use",
+      "shortDescription": "Utiliser les sites et applications",
+      "description": "Utilisez les sites et applications macOS ou Windows à partir des contrôles observés et des captures. Le moteur natif se télécharge et se met à jour séparément, avec des autorisations par application et un bouton Arrêter visible.",
+      "longDescription": "Utilisez les sites et applications macOS ou Windows à partir des contrôles observés et des captures. Le moteur natif se télécharge et se met à jour séparément, avec des autorisations par application et un bouton Arrêter visible. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "es": {
+      "displayName": "Computer Use",
+      "shortDescription": "Usar sitios y aplicaciones de escritorio",
+      "description": "Use sitios y aplicaciones de macOS o Windows mediante controles observados y capturas. El motor nativo se descarga y actualiza por separado, con permisos por aplicación y un botón Detener visible.",
+      "longDescription": "Use sitios y aplicaciones de macOS o Windows mediante controles observados y capturas. El motor nativo se descarga y actualiza por separado, con permisos por aplicación y un botón Detener visible. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "it": {
+      "displayName": "Computer Use",
+      "shortDescription": "Usa siti e app desktop",
+      "description": "Usa siti e app macOS o Windows tramite controlli osservati e schermate. Il runtime nativo si scarica e si aggiorna separatamente, con autorizzazioni per app e un pulsante Interrompi visibile.",
+      "longDescription": "Usa siti e app macOS o Windows tramite controlli osservati e schermate. Il runtime nativo si scarica e si aggiorna separatamente, con autorizzazioni per app e un pulsante Interrompi visibile. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "pt-BR": {
+      "displayName": "Computer Use",
+      "shortDescription": "Usar sites e aplicativos de desktop",
+      "description": "Use sites e aplicativos do macOS ou Windows por meio de controles observados e capturas. O runtime nativo é baixado e atualizado separadamente, com permissões por aplicativo e um botão Parar visível.",
+      "longDescription": "Use sites e aplicativos do macOS ou Windows por meio de controles observados e capturas. O runtime nativo é baixado e atualizado separadamente, com permissões por aplicativo e um botão Parar visível. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "ru": {
+      "displayName": "Computer Use",
+      "shortDescription": "Управление сайтами и приложениями",
+      "description": "Управляйте сайтами и приложениями macOS или Windows по элементам интерфейса и снимкам экрана. Нативный модуль загружается и обновляется отдельно, с разрешениями для каждого приложения и видимой кнопкой остановки.",
+      "longDescription": "Управляйте сайтами и приложениями macOS или Windows по элементам интерфейса и снимкам экрана. Нативный модуль загружается и обновляется отдельно, с разрешениями для каждого приложения и видимой кнопкой остановки. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "hi": {
+      "displayName": "Computer Use",
+      "shortDescription": "वेबसाइट और डेस्कटॉप ऐप चलाएँ",
+      "description": "देखे गए नियंत्रणों और स्क्रीनशॉट से वेबसाइट तथा macOS या Windows ऐप चलाएँ। नेटिव रनटाइम अलग से डाउनलोड और अपडेट होता है, हर ऐप की अनुमति और दिखने वाले रोकें बटन के साथ।",
+      "longDescription": "देखे गए नियंत्रणों और स्क्रीनशॉट से वेबसाइट तथा macOS या Windows ऐप चलाएँ। नेटिव रनटाइम अलग से डाउनलोड और अपडेट होता है, हर ऐप की अनुमति और दिखने वाले रोकें बटन के साथ। macOS 14+ arm64 / Windows 11 x64."
+    },
+    "ar": {
+      "displayName": "Computer Use",
+      "shortDescription": "استخدام المواقع وتطبيقات سطح المكتب",
+      "description": "استخدم المواقع وتطبيقات macOS أو Windows من خلال عناصر التحكم ولقطات الشاشة. تُنزّل بيئة التشغيل الأصلية وتُحدّث بشكل مستقل، مع أذونات لكل تطبيق وزر إيقاف ظاهر.",
+      "longDescription": "استخدم المواقع وتطبيقات macOS أو Windows من خلال عناصر التحكم ولقطات الشاشة. تُنزّل بيئة التشغيل الأصلية وتُحدّث بشكل مستقل، مع أذونات لكل تطبيق وزر إيقاف ظاهر. macOS 14+ arm64 / Windows 11 x64."
+    },
+    "id": {
+      "displayName": "Computer Use",
+      "shortDescription": "Gunakan situs web dan aplikasi desktop",
+      "description": "Gunakan situs web serta aplikasi macOS atau Windows melalui kontrol yang diamati dan tangkapan layar. Runtime native diunduh dan diperbarui secara terpisah, dengan izin per aplikasi dan tombol Berhenti yang terlihat.",
+      "longDescription": "Gunakan situs web serta aplikasi macOS atau Windows melalui kontrol yang diamati dan tangkapan layar. Runtime native diunduh dan diperbarui secara terpisah, dengan izin per aplikasi dan tombol Berhenti yang terlihat. macOS 14+ arm64 / Windows 11 x64."
+    }
   }
 }

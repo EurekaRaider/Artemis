@@ -222,9 +222,7 @@ export function ComputerUseControls({
                 </span>
                 <span className="computer-permission-summary">
                   {copy[permission.scope]}
-                  {permission.scope !== "persistent"
-                    ? ` · ${permission.foreground ? copy.foregroundAllowed : copy.backgroundOnly}`
-                    : ""}
+                  {` · ${permission.foreground ? copy.foregroundAllowed : copy.backgroundOnly}`}
                   {permission.threadTitle ? ` · ${permission.threadTitle}` : ""}
                 </span>
                 <Button

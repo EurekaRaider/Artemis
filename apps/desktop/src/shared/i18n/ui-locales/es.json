@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Permitir este turno",
   "ComputerUse.allowTaskAutonomy": "Permitir autonomía de esta tarea",
   "ComputerUse.rememberAppAccess": "Recordar acceso a la aplicación",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Permitir también control en primer plano durante este turno o tarea",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Permitir también control en primer plano en el ámbito seleccionado",
   "ComputerUse.allowForegroundControlOfName": "¿Permitir control en primer plano de {{name}}?",
   "ComputerUse.keepBackgroundMode": "Mantener en segundo plano",
   "ComputerUse.allowForegroundThisTurn": "Permitir primer plano este turno",

@@ -7,7 +7,6 @@ import { verifySlackCliRelease } from "../../../../scripts/slack/slack-cli-relea
 import { verifyPackagedSlackCli } from "../../../../scripts/slack/slack-cli-package.mjs";
 import { loadMacSigningEnvironment } from "../release/macos-signing-config.mjs";
 import { notarizeExistingMacApp } from "../release/notarize-macos-app.mjs";
-import { buildComputerUse } from "../build/build-computer-use.mjs";
 import {
   collectMacUpdateMetadata,
   writeMacUpdateMetadata,
@@ -216,7 +215,6 @@ async function stageX64CanvasPackage() {
 }
 
 if (!notarizeOnly) {
-  for (const arch of targetArchitectures) buildComputerUse(arch);
   await run(
     process.execPath,
     [npmCli, "run", "build:core"],

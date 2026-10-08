@@ -66,3 +66,21 @@ runtime 在 macOS arm64 使用 Seatbelt，在 Windows x64 使用 AppContainer；
 - 安装中断：宿主在下一次读取插件状态时恢复持久事务；保留事务文件以便恢复，不手动删除后强行重装。
 
 示例见 [资源插件](../../examples/plugins/hello-resource/artemis.plugin.json) 和 [交互插件](../../examples/plugins/hello-interactive/artemis.plugin.json)。原生沙箱与最终安装路径仍须在目标平台验证，协议测试不等同于平台验收。
+
+## Computer Use 原生运行时
+
+官方 `computer-use` 在商店中只有一张卡片，主进程选择 macOS 14+ arm64 或 Windows 11 x64 资产。普通 MCP 配置和同名本地插件不能进入官方启动桥。七个工具、五种动作和 Pi 调用链保持稳定，Windows 应用授权使用稳定 `appId`，macOS 保留 `bundleId`。
+
+原生源码按平台和职责拆分：`apps/desktop/native/computer-use/macos/` 包含通信入口、Driver、应用发现、AX 观察、动作、截图和输入控制；`windows/` 包含通信、应用身份、UI Automation、Windows.Graphics.Capture、键鼠与停止按钮。Windows 使用 CMake、C++20 和 Windows SDK 构建，不依赖用户安装 Python 或 .NET。
+
+下载包包含同版本的 helper、Skill、插件 manifest 和 MCP 声明。专用能力包声明最低系统版本、`hostRange`、协议、入口和逐文件摘要，宿主使用固定 Ed25519 公钥验证。macOS 独立签名、公证和 staple；Windows 检查最终安装目录及祖先目录的所有者和写权限，声明 Authenticode thumbprint 时强制验证。helper 使用有界的私有 stdin/stdout JSON 并握手。
+
+安装先下载、验证、解包和探测 helper，再通过可恢复事务提交活动版本与插件。更新期间任务继续使用旧版，空闲后才切换；成功后删除旧版，租约未释放时延迟清理。失败保留当前版本。旧 macOS 安装记录首次打开目标时下载迁移，离线失败可在商店重试，应用授权保留。新 Artemis 包只保留商店元数据，不再携带生产 helper。
+
+Windows UIA 控件模式在应用支持时执行后台点击与填写；可能激活窗口的旧式 MSAA 代理要求已有前台授权。坐标、键盘、滚动和会抢焦点的应用启动需要前台授权。UAC 安全桌面、管理员进程和受保护界面可能不可控，系统拒绝时停止。窗口捕获使用 [CreateForWindow](https://learn.microsoft.com/en-us/windows/win32/api/windows.graphics.capture.interop/nf-windows-graphics-capture-interop-igraphicscaptureiteminterop-createforwindow)，输入限制见 [SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)。拒绝、接管、停止和过期观察不能由其他工具绕过。
+
+`computer-use-release.yml` 从 main 构建两个不可变 ZIP 与签名清单，公开候选版本并匿名回读摘要。使用 `COMPUTER_USE_ED25519_PRIVATE_KEY`，未配置时复用已固定公钥对应的 `OFFICE_RUNTIME_ED25519_PRIVATE_KEY`，以及 macOS 签名、公证 secrets；私钥的公钥必须已固定在 `resources/computer-use/catalog.json`。新密钥必须先发布含公钥的宿主。引导目录不包含伪造的发布清单。
+
+验收候选包时，在启动最终 Artemis 之前设置 `ARTEMIS_COMPUTER_USE_CANDIDATE_VERSION=x.y.z`，主进程只会选择该版本的官方 GitHub 目录，仍验证原有固定公钥；不替换信任配置。使用独立的验收用户数据目录，验收后移除该环境变量。
+
+独立发布工作流构建两个平台的原生运行时，并使用固定 Ed25519 公钥对应的私钥签署清单。每个平台在原生 runner 上解包最终资产，核对插件身份、文件清单与完整性。macOS 额外验证 Developer ID、hardened runtime、公证、stapling 与 Gatekeeper；Windows 验证声明的原生签名状态及安装 ACL。工作流在 `native-acceptance.json` 中记录实际执行的检查，发布不可变资产，验证匿名下载，再推进 `computer-use-stable`。Windows 使用 Ed25519 包签名，不要求 Authenticode 或人工 Windows 11 交互清单。运行时仍要求 macOS 14+ arm64 或 Windows 11 x64；CI 包检查不代表所有桌面、显示器与应用交互场景均已测试。只有目录发布失败时，可用同版本的 `promote_existing` 重试。详细日志放入忽略的 `artifacts/verification/computer-use/<run>/`。

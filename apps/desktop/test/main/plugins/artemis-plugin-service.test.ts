@@ -186,6 +186,7 @@ function createService(
     mcpStore?: McpConfigStore;
     bundledArtifactRoot?: string;
     computerUseRoot?: string;
+    computerUseManagedRuntime?: boolean;
     designRevisionsRoot?: string;
     cloneRepository?: (url: string, destination: string) => Promise<void>;
     fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
@@ -203,6 +204,9 @@ function createService(
       statePath: join(root, "user-data", "plugins.json"),
       mcpWorkspaceRoot: join(root, "user-data", "mcp-workspaces"),
       mcpStore,
+      ...(options.computerUseManagedRuntime
+        ? { computerUseManagedRuntime: true }
+        : {}),
       ...(options.designRevisionsRoot
         ? { designRevisionsRoot: options.designRevisionsRoot }
         : {}),
@@ -1195,6 +1199,44 @@ describe("ArtemisPluginService", () => {
     );
   });
 
+  it("requires the dedicated host entry for downloaded Computer Use and preserves its identity", async () => {
+    const root = await temporaryRoot();
+    const computerUseRoot = fileURLToPath(
+      new URL("../../../resources/computer-use", import.meta.url),
+    );
+    const f = createService(root, {
+      bundledArtifactRoot,
+      computerUseRoot,
+      computerUseManagedRuntime: true,
+    });
+    await expect(
+      f.service.install({ kind: "builtin", pluginName: "computer-use" }),
+    ).rejects.toThrow(/verified native runtime/);
+    expect(await f.service.listInstalled()).toHaveLength(0);
+    const first = await f.service.installComputerUseFromRoot(
+      computerUseRoot,
+      "1.2.0",
+    );
+    const next = await f.service.installComputerUseFromRoot(
+      computerUseRoot,
+      "1.2.0",
+    );
+    expect(first.id).toBe(next.id);
+    expect(
+      (await f.service.loadBundledArtifactMarketplace())?.plugins.filter(
+        (plugin) => plugin.name === "computer-use",
+      ),
+    ).toHaveLength(1);
+    const server = (await f.mcpStore.list())[0]!;
+    expect(await f.service.isComputerUseServer(server)).toBe(true);
+    await expect(f.service.update(first.id)).rejects.toThrow(
+      /verified native runtime/,
+    );
+    await expect(
+      f.service.installComputerUseFromRoot(computerUseRoot, "9.9.9"),
+    ).rejects.toThrow(/versions must match/);
+  });
+
   it("hides an installed Computer Use plugin when the host has no native support", async () => {
     const root = await temporaryRoot();
     const computerUseRoot = fileURLToPath(
@@ -1213,7 +1255,8 @@ describe("ArtemisPluginService", () => {
         (p) => p.name === "computer-use",
       ),
     ).toBe(false);
-    expect(await unsupported.mcpStore.listAvailable("win32")).toEqual([]);
+    expect(await unsupported.mcpStore.listAvailable("win32")).toHaveLength(1);
+    expect(await unsupported.mcpStore.listAvailable("linux")).toEqual([]);
     expect(await unsupported.mcpStore.listAvailable("darwin")).toHaveLength(1);
     await expect(
       unsupported.service.install({

@@ -77,13 +77,17 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.5** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.6** · [Release notes](docs/records/release-notes.md).
 
-This revision upgrades Pi to 1.0.4, preserves saved Azure provider settings,
-and adds image results to workspace reads and Codemode. Office and Design pack
-updates require a user action; removing a pack clears all installed versions,
-and completed updates retire unused older versions. Design projects use workspace HTML files with bounded
-snapshots, undo/redo, automatic preview refresh and safe path-based editing. The
+This revision adds independently downloaded Computer Use runtimes for macOS 14+
+arm64 and Windows 11 x64, with one Bundled plugins card, manual updates and
+cleanup after active tasks release the old runtime. Application access and
+foreground-control grants remain revocable. Browser form fills verify the final
+value, and native control rejects stale observations and stops when the user
+takes over. Stable store availability follows signed runtime publication and
+native archive verification.
+
+Design projects use workspace HTML files with bounded snapshots, undo/redo, automatic preview refresh and safe path-based editing. The
 signed Design plugin pack is version **0.4.6** and requires Artemis **1.7.4** or newer.
 Design mode is available in project chats; existing hosted documents remain in
 their original scratch storage and are not migrated into the file list.
@@ -258,9 +262,18 @@ shows the included capabilities; newly installed MCP servers and Connectors are
 enabled immediately. Missing configuration or account authorization is shown as
 a setup state. Existing user-disabled services stay disabled during updates.
 
-On macOS, install **Computer Use** from Bundled plugins to work with websites in
-Artemis Browser and native applications using the current vision model. The app
-includes the native helper; no separate toolchain or API key is needed.
+Install **Computer Use** from its single Bundled plugins card on macOS 14+ arm64
+or Windows 11 x64. Artemis downloads the matching native runtime. Updates are
+manual; old files are removed after a successful switch and the last task releases
+them. No separate toolchain or API key is needed. Both platform packs use Ed25519
+signatures; the macOS helper is Developer ID signed, notarized and stapled. Store availability follows the independent runtime
+release workflow. See the [development contract](docs/guides/plugin-development-en.md#computer-use-native-runtime).
+
+在 macOS 14+ arm64 或 Windows 11 x64 中，从内置插件商店唯一的 **Computer Use**
+卡片安装。Artemis 自动下载对应平台的原生运行时；更新由用户手动执行，成功切换且
+运行中任务释放版本后清除旧文件，无需额外工具链或 API key。
+两个平台均使用 Ed25519 包签名；macOS helper 另行完成 Developer ID 签名、公证
+与 stapling。商店可用性取决于独立运行时发布工作流。详见[开发契约](docs/guides/plugin-development.md#computer-use-原生运行时)。
 
 <p align="center">
   <a href="docs/assets/images/resources.png"><img src="docs/assets/images/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>

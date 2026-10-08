@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "السماح لهذه الجولة",
   "ComputerUse.allowTaskAutonomy": "السماح باستقلالية هذه المهمة",
   "ComputerUse.rememberAppAccess": "تذكر صلاحية الوصول للتطبيق",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "السماح أيضًا بالتحكم في المقدمة لهذه الجولة أو المهمة",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "السماح أيضًا بالتحكم في المقدمة ضمن نطاق الإذن المحدد",
   "ComputerUse.allowForegroundControlOfName": "السماح بالتحكم في {{name}} في المقدمة؟",
   "ComputerUse.keepBackgroundMode": "البقاء في الخلفية",
   "ComputerUse.allowForegroundThisTurn": "السماح بالمقدمة لهذه الجولة",

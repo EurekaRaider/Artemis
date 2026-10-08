@@ -9,6 +9,7 @@ export function isMcpServerSupported(
 ): boolean {
   return (
     platform === "darwin" ||
+    platform === "win32" ||
     config.transport !== "streamable-http" ||
     config.url !== COMPUTER_USE_CONFIG_URL
   );

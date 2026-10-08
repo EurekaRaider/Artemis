@@ -463,7 +463,7 @@ describe("Computer Use execution boundaries", () => {
     const o = await f.service.open({ target: "browser" }, f.context);
     for (const actions of [
       [{ type: "evaluate", code: "alert(1)" }],
-      Array.from({ length: 9 }, () => ({
+      Array.from({ length: 65 }, () => ({
         type: "click",
         elementId: "button-1",
       })),
@@ -564,4 +564,62 @@ it("gates browser diagnostics by Plan, task ownership and user takeover", async 
   await expect(
     f.service.call("computer_browser_debug", args, f.context),
   ).rejects.toThrow();
+});
+
+it("runs a stable sequence beyond eight steps in one call and bounds request size", async () => {
+  const f = fixture();
+  const opened = await f.service.open({ target: "browser" }, f.context);
+  const actions = Array.from({ length: 32 }, () => ({
+    type: "click" as const,
+    elementId: "button-1",
+  }));
+  const result = await f.service.act(
+    {
+      targetId: opened.target.id,
+      observationId: opened.observationId,
+      actions,
+    },
+    f.context,
+  );
+  expect(result).toMatchObject({
+    status: "completed",
+    completed: 32,
+    remaining: 0,
+  });
+  expect(f.driver.act).toHaveBeenCalledTimes(32);
+  await expect(
+    f.service.act(
+      {
+        targetId: opened.target.id,
+        observationId: result.observationId,
+        actions: Array.from({ length: 65 }, () => actions[0]!),
+      },
+      f.context,
+    ),
+  ).rejects.toThrow();
+  expect(f.driver.act).toHaveBeenCalledTimes(32);
+});
+
+it("stops a long batch before its next input after cancellation", async () => {
+  const f = fixture();
+  const opened = await f.service.open({ target: "browser" }, f.context);
+  let calls = 0;
+  vi.mocked(f.driver.act).mockImplementation(async () => {
+    if (++calls === 10)
+      f.service.stopThread(f.context.threadId, "User took control");
+  });
+  await expect(
+    f.service.act(
+      {
+        targetId: opened.target.id,
+        observationId: opened.observationId,
+        actions: Array.from({ length: 32 }, () => ({
+          type: "click" as const,
+          elementId: "button-1",
+        })),
+      },
+      f.context,
+    ),
+  ).rejects.toThrow(/User took control/);
+  expect(f.driver.act).toHaveBeenCalledTimes(10);
 });

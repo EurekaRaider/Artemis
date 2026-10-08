@@ -34,6 +34,7 @@ export interface ComputerDriver {
     target: ComputerTarget,
     image: boolean,
     signal: AbortSignal,
+    allowForeground?: boolean,
   ): Promise<ComputerFrame>;
   act(
     target: ComputerTarget,
@@ -107,6 +108,10 @@ export class ComputerUseService {
         context: ComputerContext,
         signal: AbortSignal,
       ): Promise<boolean>;
+      foregroundGranted?(
+        target: ComputerTarget,
+        context: ComputerContext,
+      ): boolean;
       authorizeForeground?(
         target: ComputerTarget,
         context: ComputerContext,
@@ -116,6 +121,9 @@ export class ComputerUseService {
     },
   ) {}
 
+  hasTargets(): boolean {
+    return this.leases.size > 0 || this.opening.size > 0;
+  }
   status(): ComputerControlState {
     return structuredClone(this.state);
   }
@@ -203,6 +211,7 @@ export class ComputerUseService {
       lease.target,
       image,
       lease.controller.signal,
+      lease.allowForeground === true,
     );
     lease.controller.signal.throwIfAborted();
     const observation: ComputerObservation = {
@@ -284,7 +293,14 @@ export class ComputerUseService {
             await this.options.drivers.desktop.release(previous.target);
           }
       }
-      const lease: Lease = { target, context, controller, busy: false };
+      const lease: Lease = {
+        target,
+        context,
+        controller,
+        busy: false,
+        allowForeground:
+          this.options.foregroundGranted?.(target, context) === true,
+      };
       opened = lease;
       this.leases.set(target.id, lease);
       this.publish(lease, "observing");
@@ -305,6 +321,7 @@ export class ComputerUseService {
       throw error;
     } finally {
       this.opening.delete(key);
+      if (!this.hasTargets()) this.options.publish(this.status());
     }
   }
   async act(input: ComputerAct, context: ComputerContext) {
@@ -371,7 +388,12 @@ export class ComputerUseService {
       const coordinates = input.actions.some(
         (action) => action.type === "click_at",
       );
-      const fresh = await driver.observe(lease.target, coordinates, signal);
+      const fresh = await driver.observe(
+        lease.target,
+        coordinates,
+        signal,
+        lease.allowForeground === true,
+      );
       signal.throwIfAborted();
       if (fresh.revision !== lease.observation.revision)
         throw new Error("Stale interface. Observe again before acting.");
@@ -418,7 +440,12 @@ export class ComputerUseService {
         );
         signal.throwIfAborted();
         attempted++;
-        const after = await driver.observe(lease.target, false, signal);
+        const after = await driver.observe(
+          lease.target,
+          false,
+          signal,
+          lease.allowForeground === true,
+        );
         signal.throwIfAborted();
         if (action.type === "fill") {
           const field = after.elements.find((e) => e.id === action.elementId);

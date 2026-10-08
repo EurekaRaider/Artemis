@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Allow this turn",
   "ComputerUse.allowTaskAutonomy": "Allow task autonomy",
   "ComputerUse.rememberAppAccess": "Remember app access",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Also allow foreground control for this turn or task",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Also allow foreground control within the selected permission scope",
   "ComputerUse.allowForegroundControlOfName": "Allow foreground control of {{name}}?",
   "ComputerUse.keepBackgroundMode": "Keep background mode",
   "ComputerUse.allowForegroundThisTurn": "Allow foreground this turn",

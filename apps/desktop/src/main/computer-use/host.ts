@@ -18,7 +18,10 @@ import {
 } from "@artemis/protocol";
 import { IPC, type ComputerPermission } from "../../shared/api.js";
 import { ComputerBrowserDriver } from "./browser-driver.js";
-import { ComputerNativeDriver } from "./native-driver.js";
+import {
+  ComputerNativeDriver,
+  type ComputerHelperLease,
+} from "./native-driver.js";
 import { ComputerMcpServer } from "./mcp-server.js";
 import { ComputerUseService, type ComputerContext } from "./service.js";
 
@@ -29,7 +32,11 @@ interface SessionPermission extends ComputerPermission {
   key: string;
 }
 function appKey(target: ComputerTarget) {
-  return target.kind === "browser" ? "browser" : `desktop:${target.bundleId}`;
+  if (target.kind === "browser") return "browser";
+  const identity = target.appId ?? target.bundleId;
+  if (!identity || !/^[A-Za-z0-9._-]+$/u.test(identity))
+    throw new Error("Application identity is missing or invalid.");
+  return "desktop:" + identity;
 }
 function choiceKey(context: ComputerContext, key: string) {
   return `${context.threadId}\0${context.turnId}\0${key}`;
@@ -46,7 +53,6 @@ export class ComputerUseHost {
   >();
   private readonly sessionPermissions = new Map<string, SessionPermission>();
   private readonly denied = new Set<string>();
-  private readonly legacyChoices = new Set<string>();
   private readonly foregroundChoices = new Map<string, boolean>();
   private readonly pending = new Map<
     string,
@@ -57,13 +63,14 @@ export class ComputerUseHost {
       promise: Promise<MessageBoxReturnValue>;
     }
   >();
-  private grants: Record<string, string> = {};
+  private grants: Record<string, { name: string; foreground: boolean }> = {};
   private loaded: Promise<void> | undefined;
   private saving: Promise<void> = Promise.resolve();
   constructor(
     private readonly options: {
-      helperPath: string;
+      helperPath: string | (() => Promise<ComputerHelperLease>);
       permissionsPath: string;
+      idle?(): void;
       window(): BrowserWindow | undefined;
       locale(): AppLocale;
     },
@@ -87,12 +94,17 @@ export class ComputerUseHost {
       drivers: { browser: this.browser, desktop: this.native },
       authorize: (target, context, signal) =>
         this.authorize(target, context, signal),
+      foregroundGranted: (target, context) =>
+        this.permission(target, context)?.foreground === true ||
+        this.grants[appKey(target)]?.foreground === true ||
+        this.foregroundChoices.get(choiceKey(context, appKey(target))) === true,
       authorizeForeground: (target, context, signal) =>
         this.authorizeForeground(target, context, signal),
       publish: (state) => {
         const window = this.options.window();
         if (window && !window.isDestroyed())
           window.webContents.send(IPC.computerState, state);
+        if (!this.service.hasTargets()) this.options.idle?.();
       },
     });
     this.server = new ComputerMcpServer(this.service);
@@ -104,16 +116,29 @@ export class ComputerUseHost {
           await readFile(this.options.permissionsPath, "utf8"),
         );
         if (
-          data.version === 1 &&
+          (data.version === 1 || data.version === 2) &&
           data.grants &&
           typeof data.grants === "object"
         )
           this.grants = Object.fromEntries(
-            Object.entries(data.grants).filter(
-              (entry): entry is [string, string] =>
-                /^(browser|desktop:[A-Za-z0-9._-]+)$/u.test(entry[0]) &&
-                typeof entry[1] === "string",
-            ),
+            Object.entries(data.grants).flatMap(([key, value]) => {
+              if (!/^(browser|desktop:[A-Za-z0-9._-]+)$/u.test(key)) return [];
+              if (data.version === 1 && typeof value === "string")
+                return [[key, { name: value, foreground: false }]];
+              if (
+                data.version === 2 &&
+                value &&
+                typeof value === "object" &&
+                "name" in value &&
+                typeof value.name === "string" &&
+                "foreground" in value &&
+                typeof value.foreground === "boolean"
+              )
+                return [
+                  [key, { name: value.name, foreground: value.foreground }],
+                ];
+              return [];
+            }),
           );
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
@@ -128,7 +153,7 @@ export class ComputerUseHost {
         await mkdir(dirname(path), { recursive: true });
         await writeFile(
           `${path}.tmp`,
-          JSON.stringify({ version: 1, grants: this.grants }),
+          JSON.stringify({ version: 2, grants: this.grants }),
           { mode: 0o600 },
         );
         await rename(`${path}.tmp`, path);
@@ -138,11 +163,11 @@ export class ComputerUseHost {
   async permissions(): Promise<ComputerPermission[]> {
     await this.load();
     return [
-      ...Object.entries(this.grants).map(([id, name]) => ({
+      ...Object.entries(this.grants).map(([id, grant]) => ({
         id,
-        name,
+        name: grant.name,
         scope: "persistent" as const,
-        foreground: false,
+        foreground: grant.foreground,
       })),
       ...[...this.sessionPermissions.values()].map(
         ({ key: _key, turnId: _turnId, ...permission }) => permission,
@@ -236,11 +261,7 @@ export class ComputerUseHost {
     const key = appKey(target);
     const choice = choiceKey(context, key);
     if (this.denied.has(choice)) return false;
-    const legacy = `${context.threadId}\0${key}`;
-    if (
-      !this.permission(target, context) &&
-      !(this.grants[key] && this.legacyChoices.has(legacy))
-    ) {
+    if (!this.permission(target, context) && !this.grants[key]) {
       const locale = this.options.locale();
       const result = await this.ask(target, context, signal, "access", {
         type: "question",
@@ -277,22 +298,27 @@ export class ComputerUseHost {
         return false;
       }
       if (result.response === 2) {
-        this.grants[key] = target.name;
+        this.grants[key] = {
+          name: target.name,
+          foreground:
+            target.kind === "desktop" && result.checkboxChecked === true,
+        };
         await this.save();
         signal.throwIfAborted();
       }
-      if (this.grants[key]) this.legacyChoices.add(legacy);
-      const id = randomUUID();
-      this.sessionPermissions.set(id, {
-        id,
-        name: target.name,
-        scope: result.response === 1 ? "task" : "turn",
-        foreground:
-          target.kind === "desktop" && result.checkboxChecked === true,
-        threadId: context.threadId,
-        turnId: context.turnId,
-        key,
-      });
+      if (result.response !== 2) {
+        const id = randomUUID();
+        this.sessionPermissions.set(id, {
+          id,
+          name: target.name,
+          scope: result.response === 1 ? "task" : "turn",
+          foreground:
+            target.kind === "desktop" && result.checkboxChecked === true,
+          threadId: context.threadId,
+          turnId: context.turnId,
+          key,
+        });
+      }
     }
     if (target.kind === "desktop") {
       let permissions = await this.native.permissions(false, signal);
@@ -300,7 +326,10 @@ export class ComputerUseHost {
         permissions = await this.native.permissions(true, signal);
       if (!permissions.accessibility || !permissions.screenRecording)
         throw new Error(
-          "Enable Accessibility and Screen Recording for Artemis in macOS System Settings, then retry computer_open.",
+          permissions.reason ??
+            (process.platform === "win32"
+              ? "Windows automation or window capture is unavailable. Use an unlocked interactive desktop and a non-elevated application."
+              : "Enable Accessibility and Screen Recording for Artemis Computer Use in macOS System Settings, then retry computer_open."),
         );
     }
     return true;
@@ -334,6 +363,8 @@ export class ComputerUseHost {
     signal.throwIfAborted();
     const permission = this.permission(target, context);
     if (permission) return permission.foreground;
+    const remembered = this.grants[appKey(target)];
+    if (remembered) return remembered.foreground;
     const key = choiceKey(context, appKey(target));
     if (this.foregroundChoices.has(key))
       return this.foregroundChoices.get(key)!;
@@ -394,6 +425,7 @@ export class ComputerUseHost {
   endTurn(threadId: string) {
     this.service.stopThread(threadId, "Turn ended");
     this.clearTurn(threadId);
+    if (!this.service.hasTargets()) this.options.idle?.();
   }
   private clearTurn(threadId: string) {
     this.cancelPending((p) => p.context.threadId === threadId);
@@ -411,15 +443,12 @@ export class ComputerUseHost {
     this.clearTurn(threadId);
     for (const [id, p] of this.sessionPermissions)
       if (p.threadId === threadId) this.sessionPermissions.delete(id);
-    for (const key of this.legacyChoices)
-      if (key.startsWith(`${threadId}\0`)) this.legacyChoices.delete(key);
   }
   disable(reason: string) {
     this.cancelPending(() => true);
     this.service.stopAll(reason);
     this.sessionPermissions.clear();
     this.denied.clear();
-    this.legacyChoices.clear();
     this.foregroundChoices.clear();
     this.native.dispose();
   }

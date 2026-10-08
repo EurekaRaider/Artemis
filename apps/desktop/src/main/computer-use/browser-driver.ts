@@ -20,6 +20,7 @@ interface BrowserTarget {
   cleanup: () => void;
   nodes: Map<string, number>;
   expectedMouse?: { type: string; x: number; y: number };
+  captureViaProtocol?: boolean;
 }
 interface AXNode {
   nodeId: string;
@@ -187,44 +188,81 @@ export class ComputerBrowserDriver implements ComputerDriver {
     return result as T;
   }
   private async capture(target: ComputerTarget, signal: AbortSignal) {
-    for (let attempt = 0; ; attempt++) {
-      signal.throwIfAborted();
-      const { contents } = this.browser(target);
-      try {
-        const debug = this.browser(target).debug;
-        const image = debug.snapshot().viewport
-          ? nativeImage.createFromBuffer(
-              Buffer.from(
-                (await debug.execute({ action: "screenshot" }, signal)).image!
-                  .data,
-                "base64",
-              ),
-            )
-          : await contents.capturePage();
+    const contents = this.browser(target).contents;
+    const throttled =
+      process.platform === "win32" && contents.getBackgroundThrottling();
+    if (throttled) contents.setBackgroundThrottling(false);
+    try {
+      for (let attempt = 0; ; attempt++) {
         signal.throwIfAborted();
-        if (image.isEmpty())
-          throw new Error("Browser capture returned an empty image");
-        return image;
-      } catch (error) {
-        signal.throwIfAborted();
-        this.browser(target);
-        const message = error instanceof Error ? error.message : String(error);
-        if (
-          !/UnknownVizError|Current display surface not available for capture|Browser capture returned an empty image/u.test(
-            message,
-          )
-        )
-          throw error;
-        if (attempt === 3)
-          throw new Error(
-            `Browser screenshot unavailable after 4 attempts: ${message}`,
-            { cause: error },
+        const browser = this.browser(target);
+        const { contents, debug } = browser;
+        const protocolCapture = async () =>
+          nativeImage.createFromBuffer(
+            Buffer.from(
+              (await debug.execute({ action: "screenshot" }, signal)).image!
+                .data,
+              "base64",
+            ),
           );
-        // loadURL/DOM readiness can precede the compositor's first frame.
-        // Repaint and retry only the readback; never reload, focus, or replay input.
-        contents.invalidate();
-        await delay(75 * 2 ** attempt, undefined, { signal });
+        try {
+          const image =
+            debug.snapshot().viewport || browser.captureViaProtocol
+              ? await protocolCapture()
+              : await contents.capturePage(undefined, {
+                  stayHidden: true,
+                  stayAwake: true,
+                });
+          signal.throwIfAborted();
+          if (image.isEmpty())
+            throw new Error("Browser capture returned an empty image");
+          return image;
+        } catch (error) {
+          signal.throwIfAborted();
+          this.browser(target);
+          const message =
+            error instanceof Error ? error.message : String(error);
+          if (
+            !/UnknownVizError|Current display surface not available for capture|Browser capture returned an empty image/u.test(
+              message,
+            )
+          )
+            throw error;
+          if (
+            attempt === 3 &&
+            process.platform === "win32" &&
+            !browser.captureViaProtocol
+          ) {
+            // Windows can lose the guest's Viz readback surface after hiding it.
+            // CDP captures the authorized guest without showing its host window.
+            try {
+              const image = await protocolCapture();
+              signal.throwIfAborted();
+              if (!image.isEmpty()) {
+                browser.captureViaProtocol = true;
+                return image;
+              }
+            } catch {
+              signal.throwIfAborted();
+              this.browser(target);
+            }
+          }
+          if (attempt === 3)
+            throw new Error(
+              `Browser screenshot unavailable after 4 attempts: ${message}`,
+              { cause: error },
+            );
+          // loadURL/DOM readiness can precede the compositor's first frame.
+          // Repaint and retry only the readback; never reload, focus, or replay input.
+          contents.invalidate();
+          const host = contents.hostWebContents;
+          if (host && !host.isDestroyed()) host.invalidate();
+          await delay(75 * 2 ** attempt, undefined, { signal });
+        }
       }
+    } finally {
+      if (throttled && !contents.isDestroyed())
+        contents.setBackgroundThrottling(true);
     }
   }
   async observe(

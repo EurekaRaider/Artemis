@@ -16,6 +16,11 @@ const api: ArtemisApi = {
   getComputerState: () => ipcRenderer.invoke(IPC.computerState),
   controlComputer: (action, threadId) =>
     ipcRenderer.invoke(IPC.computerControl, action, threadId),
+  computerRuntimeStatus: () => ipcRenderer.invoke(IPC.computerRuntimeStatus),
+  checkComputerRuntimeUpdates: () =>
+    ipcRenderer.invoke(IPC.computerRuntimeCheck),
+  cancelComputerRuntimeDownload: () =>
+    ipcRenderer.invoke(IPC.computerRuntimeCancel),
   getComputerPermissions: () => ipcRenderer.invoke(IPC.computerPermissions),
   revokeComputerPermission: (id) =>
     ipcRenderer.invoke(IPC.computerRevokePermission, id),

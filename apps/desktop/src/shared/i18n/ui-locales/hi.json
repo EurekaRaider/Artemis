@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "इस बारी अनुमति दें",
   "ComputerUse.allowTaskAutonomy": "इस कार्य का स्वायत्त संचालन दें",
   "ComputerUse.rememberAppAccess": "ऐप पहुँच अनुमति याद रखें",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "इस बारी या कार्य में अग्रभूमि नियंत्रण भी दें",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "चुनी हुई अनुमति की अवधि में अग्रभूमि नियंत्रण भी दें",
   "ComputerUse.allowForegroundControlOfName": "{{name}} का अग्रभूमि नियंत्रण दें?",
   "ComputerUse.keepBackgroundMode": "पृष्ठभूमि में रखें",
   "ComputerUse.allowForegroundThisTurn": "इस बारी अग्रभूमि अनुमति दें",

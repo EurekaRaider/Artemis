@@ -61,7 +61,7 @@ describe("McpConfigStore", () => {
       id: "other",
       url: "https://example.test/mcp",
     });
-    expect(await store.listAvailable("win32")).toEqual([other]);
+    expect(await store.listAvailable("win32")).toEqual([computer, other]);
     expect(await store.listAvailable("linux")).toEqual([other]);
     expect(await store.listAvailable("darwin")).toEqual([computer, other]);
     await store.upsert({ ...other, enabled: false });

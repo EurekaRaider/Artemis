@@ -27,7 +27,7 @@ const tools = [
   {
     name: "computer_open",
     description:
-      "Open a web page in Artemis Browser or work with a macOS application's visual interface. Use for clicking, filling forms, reading visible app content and desktop workflows when a direct API or file tool does not fit. Pass target=browser and url for websites; pass an app bundle id for desktop. Returns the first screenshot and controls. The host can reuse user-selected task/app permission across turns, but each turn needs a new open and observation. Automatically activates Computer Use tools. No plugin invocation needed.",
+      "Open a web page in Artemis Browser or work with a desktop application's visual interface. Use for clicking, filling forms, reading visible app content and desktop workflows when a direct API or file tool does not fit. Pass target=browser and url for websites; pass an observed app id for desktop (macOS also accepts bundle ids). Returns the first screenshot and controls. The host can reuse user-selected task/app permission across turns, but each turn needs a new open and observation. Automatically activates Computer Use tools. No plugin invocation needed.",
     schema: computerOpenSchema,
   },
   {
@@ -38,7 +38,7 @@ const tools = [
   {
     name: "computer_targets",
     description:
-      "List this task's browser and available macOS applications without capturing them.",
+      "List this task's browser and available desktop applications without capturing them.",
     schema: z.object({}).strict(),
   },
   {
@@ -50,7 +50,7 @@ const tools = [
   {
     name: "computer_act",
     description:
-      "Batch 1–8 related actions in one call: fill all known fields together, or click a calculator's clear/reset button AND full sequence together. Do not split known controls into separate calls to check intermediate results; the host checks each step. A fill focuses and replaces the field; no preceding click is needed. Local preview may be the last action. Returns a new observation directly; do not add an extra observe call. When finished, report its result; control is released automatically at turn end. completed counts verified actions; status=partial/blocked leaves remaining actions. Prefer element IDs; coordinates are observation pixels. Navigation, modal/window changes or changed remaining controls stop a batch; native readout changes alone do not. Native coordinate/key/scroll actions require explicit user foreground permission, reusable when included in a task grant; never use Shell/AppleScript to bypass background mode or a pause. Submit/send/buy/delete actions require a separate approved call. Never enter passwords or bypass system permissions.",
+      "Batch related actions in one call (request limit 64; execution stops at the time budget): fill all known fields together, or click a calculator's clear/reset button AND full sequence together. Do not split known controls into separate calls to check intermediate results; the host checks each step. A fill focuses and replaces the field; no preceding click is needed. Local preview may be the last action. Returns a new observation directly; do not add an extra observe call. When finished, report its result; control is released automatically at turn end. completed counts verified actions; status=partial/blocked leaves remaining actions. Prefer element IDs; coordinates are observation pixels. Navigation, modal/window changes or changed remaining controls stop a batch; native readout changes alone do not. Native coordinate/key/scroll actions require explicit user foreground permission, reused within the selected turn, task or remembered app grant; never use Shell, AppleScript or PowerShell to bypass background mode or a pause. Submit/send/buy/delete actions require a separate approved call. Never enter passwords or bypass system permissions.",
     schema: computerActSchema,
   },
   {

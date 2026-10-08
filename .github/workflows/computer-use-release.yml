@@ -1,0 +1,108 @@
+name: Release Computer Use runtime
+"on":
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Immutable Computer Use version (x.y.z)
+        type: string
+        required: true
+      promote_existing:
+        description: Retry promotion of an already verified public candidate
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: computer-use-release
+  cancel-in-progress: false
+env:
+  COMPUTER_USE_VERSION: ${{ inputs.version }}
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' && !inputs.promote_existing
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: macos-arm64
+            target: darwin-arm64
+          - runner: windows-2025
+            platform: windows-x64
+            target: win32-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm run build:core
+      - name: Protocol, authorization and transaction regressions
+        run: npx vitest run scripts/computer-use/release-policy.test.ts packages/protocol/test/computer-use-pack.test.ts apps/desktop/test/main/computer-use apps/desktop/test/integration/computer-use
+      - name: Build signed native pack
+        run: node scripts/computer-use/build-pack.mjs
+        env:
+          COMPUTER_USE_ED25519_PRIVATE_KEY: ${{ secrets.COMPUTER_USE_ED25519_PRIVATE_KEY || secrets.OFFICE_RUNTIME_ED25519_PRIVATE_KEY }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Verify final signed archive on its native platform
+        run: node scripts/computer-use/run-publisher.mjs verify
+      - uses: actions/upload-artifact@v6
+        with:
+          name: computer-use-${{ matrix.target }}
+          path: artifacts/computer-use/${{ inputs.version }}/*
+          if-no-files-found: error
+          retention-days: 7
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main' && !inputs.promote_existing
+    runs-on: macos-15
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm run build:core
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: computer-use-*
+          path: artifacts/computer-use/${{ inputs.version }}
+          merge-multiple: true
+      - name: Publish candidate and verify anonymous download
+        run: |
+          node scripts/computer-use/run-publisher.mjs publish
+          node scripts/computer-use/run-publisher.mjs promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+  promote:
+    if: github.ref == 'refs/heads/main' && inputs.promote_existing
+    runs-on: macos-15
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci
+      - run: npm run build:core
+      - name: Validate packaged desktop evidence and advance the single-card catalog
+        run: node scripts/computer-use/run-publisher.mjs promote
+        env:
+          GH_TOKEN: ${{ github.token }}

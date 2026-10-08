@@ -1,6 +1,7 @@
 import designPluginIcon from "../assets/design-plugin-icon.png";
 // Microsoft Fluent UI: https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/office_48x1.svg
 import officeSuiteIcon from "../assets/office-suite-icon.svg";
+import { COMPUTER_USE_RUNTIME_RESOURCES } from "../../shared/i18n/computer-use-resources.js";
 import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 import { OfficeCapabilityPanel } from "../office/OfficeCapabilityPanel.js";
@@ -247,6 +248,8 @@ export function ResourceCenter({
     useState<ArtemisPluginPreview>();
   const [officePackStatus, setOfficePackStatus] =
     useState<CapabilityPackStatus>();
+  const [computerRuntime, setComputerRuntime] =
+    useState<import("@artemis/protocol").ComputerUseRuntimeStatus>();
   const [officeUpdating, setOfficeUpdating] = useState(false);
   const [officeCapabilityActive, setOfficeCapabilityActive] = useState(false);
   const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
@@ -305,6 +308,30 @@ export function ResourceCenter({
       (dependency) => dependency.id === "office-core",
     ),
   );
+
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const status = await window.artemis.computerRuntimeStatus?.();
+        if (active) setComputerRuntime(status);
+      } catch (error) {
+        if (active) setMessage(String(error));
+      }
+    };
+    void window.artemis
+      .checkComputerRuntimeUpdates?.()
+      .then(refresh)
+      .catch(() => {});
+    void refresh();
+    const timer = setInterval(() => {
+      void refresh();
+    }, 1000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -2219,7 +2246,16 @@ export function ResourceCenter({
     const installedPlugin = installedPlugins.find(
       (candidate) => candidate.id === plugin.id,
     );
-    const installedVersion = installedPlugin?.version;
+    const computer =
+      plugin.source.kind === "builtin" &&
+      plugin.source.pluginName === "computer-use";
+    const runtimeCopy = COMPUTER_USE_RUNTIME_RESOURCES[locale];
+    const computerWorking = Boolean(
+      computerRuntime && computerRuntime.phase !== "idle",
+    );
+    const installedVersion = computer
+      ? computerRuntime?.activeVersion
+      : installedPlugin?.version;
     const conflict = installed ? undefined : pluginSkillConflict(plugin);
     const displayName = pluginDisplayName(plugin);
     const description = pluginDescription(plugin);
@@ -2280,6 +2316,36 @@ export function ResourceCenter({
               {uiText(locale, "Appearance.visualSkin")}: {plugin.skins!.length}
             </small>
           )}
+          {computer && computerRuntime && (
+            <>
+              {!computerRuntime.supported && (
+                <small>{runtimeCopy.supported}</small>
+              )}
+              {computerRuntime.pendingVersion && (
+                <small>
+                  {runtimeCopy.waiting.replace(
+                    "{version}",
+                    computerRuntime.pendingVersion,
+                  )}
+                </small>
+              )}
+              {computerRuntime.migrationRequired && (
+                <small>{runtimeCopy.migration}</small>
+              )}
+              {(computerRuntime.error || computerRuntime.updateError) && (
+                <InlineNotice tone="warning">
+                  {computerRuntime.error || computerRuntime.updateError}
+                </InlineNotice>
+              )}
+              {computerWorking && (
+                <progress
+                  aria-label={office.working}
+                  max={computerRuntime.totalBytes || 1}
+                  value={computerRuntime.downloadedBytes}
+                />
+              )}
+            </>
+          )}
           {diagnostic && (
             <InlineNotice className="plugin-market-diagnostic" tone="warning">
               {pluginPageText(diagnostic)}
@@ -2292,6 +2358,57 @@ export function ResourceCenter({
             data-installed={installed && Boolean(installedPlugin)}
             data-office={hasOfficeCapability || undefined}
           >
+            {computer &&
+              installed &&
+              computerRuntime &&
+              (computerRuntime.updateVersion ||
+                computerRuntime.migrationRequired ||
+                computerRuntime.pendingVersion ||
+                computerWorking) && (
+                <Button
+                  variant="secondary"
+                  size="compact"
+                  disabled={
+                    operationPending ||
+                    computerWorking ||
+                    (Boolean(computerRuntime.pendingVersion) &&
+                      !computerRuntime.error) ||
+                    !computerRuntime.supported
+                  }
+                  onClick={() =>
+                    installedPlugin
+                      ? void updatePlugin(installedPlugin)
+                      : setPluginInstallDraft(plugin)
+                  }
+                >
+                  {computerWorking
+                    ? office.working
+                    : computerRuntime.error
+                      ? uiText(locale, "App_copy.queueRetry")
+                      : computerRuntime.pendingVersion
+                        ? runtimeCopy.waiting.replace(
+                            "{version}",
+                            computerRuntime.pendingVersion,
+                          )
+                        : computerRuntime.migrationRequired
+                          ? t.install
+                          : office.updateNow.replace(
+                              "{version}",
+                              computerRuntime.updateVersion!,
+                            )}
+                </Button>
+              )}
+            {computer && computerRuntime?.phase === "downloading" && (
+              <Button
+                variant="quiet"
+                size="compact"
+                onClick={() => {
+                  void window.artemis.cancelComputerRuntimeDownload();
+                }}
+              >
+                {t.cancel}
+              </Button>
+            )}
             {installed && plugin.hasHooks && onReviewHooks && (
               <Button
                 variant="quiet"
@@ -2400,6 +2517,8 @@ export function ResourceCenter({
                 disabled={
                   operationPending ||
                   !plugin.installable ||
+                  (computer && computerRuntime?.supported === false) ||
+                  (computer && computerWorking) ||
                   Boolean(conflict) ||
                   busyId === plugin.id ||
                   installProgress !== undefined

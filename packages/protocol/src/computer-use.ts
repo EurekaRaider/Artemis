@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CapabilityPackStatus } from "./capability-pack.js";
 
 export const COMPUTER_USE_VERSION = 1 as const;
 export const COMPUTER_USE_META = "artemis/computer-use";
@@ -9,7 +10,7 @@ export const computerOpenSchema = z
       .min(1)
       .max(500)
       .describe(
-        "browser, an existing target id, or a macOS application bundle id",
+        "browser, an observed target/app id, a Windows appId, or a macOS bundle id",
       ),
     url: z.url().max(4096).optional(),
   })
@@ -55,7 +56,8 @@ export const computerActSchema = z
   .object({
     targetId: elementId,
     observationId: elementId,
-    actions: z.array(computerActionSchema).min(1).max(8),
+    // Bound request size; execution is limited by time and observed UI stability.
+    actions: z.array(computerActionSchema).min(1).max(64),
   })
   .strict();
 export type ComputerAction = z.infer<typeof computerActionSchema>;
@@ -67,6 +69,23 @@ export interface ComputerTarget {
   name: string;
   url?: string;
   bundleId?: string;
+  /** Windows application identity; never a PID or a display name. */
+  appId?: string;
+}
+export interface ComputerNativeReadiness {
+  platform?: "darwin" | "win32";
+  helperProtocol?: 1;
+  accessibility: boolean;
+  screenRecording: boolean;
+  automationReady?: boolean;
+  captureReady?: boolean;
+  interactiveDesktop?: boolean;
+  reason?: string;
+}
+export interface ComputerUseRuntimeStatus extends CapabilityPackStatus {
+  pendingVersion?: string;
+  supported: boolean;
+  migrationRequired?: boolean;
 }
 export interface ComputerElement {
   id: string;

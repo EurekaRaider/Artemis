@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
@@ -28,8 +28,10 @@ export function buildComputerUse(arch = process.arch, development = false) {
       `${arch === "x64" ? "x86_64" : "arm64"}-apple-macosx14.0`,
       "-module-cache-path",
       join(root, "build", "swift-module-cache"),
-      join(root, "native", "computer-use", "main.swift"),
-      join(root, "native", "computer-use", "input-policy.swift"),
+      ...readdirSync(join(root, "native", "computer-use", "macos"))
+        .filter((name) => name.endsWith(".swift"))
+        .sort()
+        .map((name) => join(root, "native", "computer-use", "macos", name)),
       "-o",
       join(output, "artemis-computer-use"),
     ],

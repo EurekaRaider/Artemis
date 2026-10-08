@@ -44,10 +44,12 @@ export function verifyCapabilityManifest(
   input: unknown,
   options: Pick<
     PackServiceOptions,
-    "hostVersion" | "platform" | "arch" | "publicKeys"
+    "hostVersion" | "platform" | "arch" | "publicKeys" | "packId"
   >,
 ): CapabilityPackManifest {
   const manifest = capabilityPackManifestSchema.parse(input);
+  if (options.packId && manifest.id !== options.packId)
+    throw new Error("Capability pack identity mismatch");
   const { signature, ...unsigned } = manifest;
   const pem = options.publicKeys[signature.keyId];
   if (!pem) throw new Error("Untrusted capability signing key");
@@ -83,6 +85,7 @@ export class CapabilityPackService {
   private maintenance = false;
   private acquiring = 0;
   private cleanupPending = true;
+  private cleanupOperation: Promise<void> | undefined;
   private readonly packId: string;
 
   constructor(private readonly options: PackServiceOptions) {
@@ -274,13 +277,18 @@ export class CapabilityPackService {
     }
   }
 
-  private async finishCleanup(): Promise<void> {
-    if (!this.cleanupPending || this.maintenance || this.acquiring) return;
-    try {
-      await this.maintain(() => this.cleanupInactiveVersions());
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-    }
+  private finishCleanup(): Promise<void> {
+    if (this.cleanupOperation) return this.cleanupOperation;
+    if (!this.cleanupPending || this.maintenance || this.acquiring)
+      return Promise.resolve();
+    this.cleanupOperation = this.maintain(() => this.cleanupInactiveVersions())
+      .catch((error) => {
+        this.error = error instanceof Error ? error.message : String(error);
+      })
+      .finally(() => {
+        this.cleanupOperation = undefined;
+      });
+    return this.cleanupOperation;
   }
 
   private async progress(phase: CapabilityPackStatus["phase"]): Promise<void> {
@@ -296,7 +304,7 @@ export class CapabilityPackService {
           "utf8",
         ),
       ),
-      this.options,
+      { ...this.options, packId: this.packId },
     );
   }
 
@@ -356,11 +364,19 @@ export class CapabilityPackService {
   }
 
   /** Online and offline bytes enter the same verification and atomic-install path. */
-  install(input: unknown, offlineArchive?: string): Promise<void> {
-    const manifest = verifyCapabilityManifest(input, this.options);
+  install(
+    input: unknown,
+    offlineArchive?: string,
+    options: { activate?: boolean } = {},
+  ): Promise<void> {
+    const manifest = verifyCapabilityManifest(input, {
+      ...this.options,
+      packId: this.packId,
+    });
     return this.startInstall(
       manifest,
       offlineArchive ? { path: offlineArchive, offset: 0 } : undefined,
+      options.activate !== false,
     );
   }
 
@@ -389,10 +405,10 @@ export class CapabilityPackService {
         (await file.read(json, 0, length, header.length)).bytesRead !== length
       )
         throw new Error("Incomplete Office offline manifest");
-      manifest = verifyCapabilityManifest(
-        JSON.parse(json.toString("utf8")),
-        this.options,
-      );
+      manifest = verifyCapabilityManifest(JSON.parse(json.toString("utf8")), {
+        ...this.options,
+        packId: this.packId,
+      });
       if (info.size - offset !== manifest.archive.downloadBytes)
         throw new Error("Offline capability size mismatch");
     } finally {
@@ -404,6 +420,7 @@ export class CapabilityPackService {
   private startInstall(
     manifest: CapabilityPackManifest,
     offlineArchive?: { path: string; offset: number },
+    activate = true,
   ): Promise<void> {
     if (this.pending)
       return Promise.reject(
@@ -422,6 +439,7 @@ export class CapabilityPackService {
       manifest,
       offlineArchive,
       this.controller.signal,
+      activate,
     )
       .catch((error: unknown) => {
         this.error = error instanceof Error ? error.message : String(error);
@@ -493,6 +511,7 @@ export class CapabilityPackService {
   }
 
   private async maintain(action: () => Promise<void>): Promise<void> {
+    if (this.cleanupOperation) await this.cleanupOperation;
     if (this.maintenance || this.acquiring)
       throw new Error("Capability maintenance is already running");
     this.maintenance = true;
@@ -512,6 +531,7 @@ export class CapabilityPackService {
     manifest: CapabilityPackManifest,
     offline: { path: string; offset: number } | undefined,
     signal: AbortSignal,
+    activate: boolean,
   ): Promise<void> {
     const releaseLock = await this.lock();
     const stage = join(this.options.root, `.stage-${randomUUID()}`);
@@ -550,8 +570,10 @@ export class CapabilityPackService {
         }
         if (healthy) {
           signal.throwIfAborted();
-          await this.setActiveVersion(manifest.version);
-          await this.scheduleCleanup(manifest.version);
+          if (activate) {
+            await this.setActiveVersion(manifest.version);
+            await this.scheduleCleanup(manifest.version);
+          }
           return;
         }
       }
@@ -642,9 +664,9 @@ export class CapabilityPackService {
         if (exists) await rename(backup, target);
         throw error;
       }
-      await this.setActiveVersion(manifest.version);
+      if (activate) await this.setActiveVersion(manifest.version);
       if (exists) await rm(backup, { recursive: true, force: true });
-      await this.scheduleCleanup(manifest.version);
+      if (activate) await this.scheduleCleanup(manifest.version);
     } finally {
       await rm(stage, { recursive: true, force: true });
       await releaseLock();
@@ -672,18 +694,26 @@ export class CapabilityPackService {
     await this.finishCleanup();
   }
 
-  async acquire(): Promise<{
+  async retireInactiveVersions(): Promise<void> {
+    await this.maintain(async () => {
+      const version = await this.active();
+      if (version) await this.scheduleCleanup(version);
+    });
+  }
+
+  async acquire(requestedVersion?: string): Promise<{
     root: string;
     manifest: CapabilityPackManifest;
     release(): void;
   }> {
+    if (this.cleanupOperation) await this.cleanupOperation;
     if (this.maintenance)
       throw new Error(
         "Capability maintenance is running; retry after completion",
       );
     this.acquiring++;
     try {
-      const version = await this.active();
+      const version = requestedVersion ?? (await this.active());
       if (!version)
         throw new Error(
           "Capability pack is not installed. Install and activate it to use its features.",

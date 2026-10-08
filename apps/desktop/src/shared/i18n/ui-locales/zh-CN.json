@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "仅本轮允许",
   "ComputerUse.allowTaskAutonomy": "允许本任务自主操作",
   "ComputerUse.rememberAppAccess": "记住应用访问许可",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "同时允许前台操作（本轮或本任务有效）",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "同时允许前台操作，有效期与所选应用授权一致",
   "ComputerUse.allowForegroundControlOfName": "允许将 {{name}} 切到前台操作？",
   "ComputerUse.keepBackgroundMode": "保持后台",
   "ComputerUse.allowForegroundThisTurn": "允许本轮前台操作",

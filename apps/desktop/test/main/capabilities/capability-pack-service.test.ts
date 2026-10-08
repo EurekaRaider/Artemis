@@ -157,6 +157,35 @@ function offlinePack(manifest: unknown, archive = zip()): Buffer {
 }
 
 describe("host capability packs", () => {
+  it("stages an update without changing the active version, then removes old bytes after activation and lease release", async () => {
+    const f = await fixture();
+    await f.service.install(f.manifest, f.path);
+    const old = await f.service.acquire();
+    const next = signed(zip(), { version: "1.0.1" });
+    await f.service.install(next, f.path, { activate: false });
+    expect((await f.service.status()).activeVersion).toBe("1.0.0");
+    const staged = await f.service.acquire("1.0.1");
+    expect(staged.manifest.version).toBe("1.0.1");
+    staged.release();
+    await f.service.activate("1.0.1");
+    await f.service.retireInactiveVersions();
+    expect((await f.service.status()).versions).toHaveLength(2);
+    old.release();
+    await vi.waitFor(async () =>
+      expect((await f.service.status()).versions).toHaveLength(1),
+    );
+  });
+
+  it("rejects a foreign signed pack before downloading", async () => {
+    const f = await fixture();
+    expect(() =>
+      verifyCapabilityManifest(f.manifest, {
+        ...target,
+        packId: "computer-use",
+      }),
+    ).toThrow(/identity/);
+    expect(f.download).not.toHaveBeenCalled();
+  });
   it.each(["Artemis", "ArtemisRelease"])(
     "downloads a signed %s manifest from Artemis without changing its signature",
     async (repository) => {

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   dialog: vi.fn(),
   act: vi.fn(),
   permissions: vi.fn(),
+  open: vi.fn(),
 }));
 vi.mock("electron", () => ({
   dialog: { showMessageBox: mocks.dialog },
@@ -16,12 +17,7 @@ vi.mock("electron", () => ({
 }));
 vi.mock("../../../src/main/computer-use/native-driver.js", () => ({
   ComputerNativeDriver: class {
-    open = async ({ target }: { target: string }) => ({
-      id: `desktop:${target}`,
-      kind: "desktop",
-      name: target,
-      bundleId: target,
-    });
+    open = mocks.open;
     observe = async () => ({
       revision: "one",
       width: 800,
@@ -48,6 +44,14 @@ let directory: string;
 let host: ComputerUseHost;
 beforeEach(async () => {
   vi.clearAllMocks();
+  mocks.open
+    .mockReset()
+    .mockImplementation(async ({ target }: { target: string }) => ({
+      id: "desktop:" + target,
+      kind: "desktop",
+      name: target,
+      bundleId: target,
+    }));
   mocks.act.mockReset().mockResolvedValue(undefined);
   mocks.dialog.mockResolvedValue({ response: 1, checkboxChecked: true });
   mocks.permissions.mockResolvedValue({
@@ -203,7 +207,7 @@ describe("Computer Use task permissions", () => {
     ).toBeUndefined();
   });
 
-  it("does not turn per-turn or legacy persistent access into task approval", async () => {
+  it("does not turn legacy persistent access into task approval or foreground access", async () => {
     await writeFile(
       join(directory, "permissions.json"),
       JSON.stringify({ version: 1, grants: { "desktop:com.test.app": "App" } }),
@@ -224,7 +228,15 @@ describe("Computer Use task permissions", () => {
         turnId: "next",
       }),
     ).toBeUndefined();
-    expect(mocks.dialog).toHaveBeenCalledTimes(1);
+    expect(mocks.dialog).not.toHaveBeenCalled();
+    expect(
+      (
+        await host.service.act(action(next, true), {
+          ...context,
+          turnId: "next",
+        })
+      ).status,
+    ).toBe("blocked");
   });
 
   it("deduplicates denied access for a turn and cancels a pending grant on task invalidation", async () => {
@@ -291,4 +303,87 @@ describe("Computer Use task permissions", () => {
       host.taskApproval("computer_act", action(other), otherContext),
     ).toBeUndefined();
   });
+});
+
+it("keeps Windows remembered grants separate for apps with the same display name", async () => {
+  mocks.open.mockImplementation(async ({ target }: { target: string }) => ({
+    id: "desktop:" + target,
+    kind: "desktop",
+    name: "Shared name",
+    appId: target,
+  }));
+  mocks.dialog.mockResolvedValue({ response: 2, checkboxChecked: false });
+  await host.service.open({ target: "win-app-a" }, context);
+  host.endTurn(context.threadId);
+  await host.service.open(
+    { target: "win-app-b" },
+    { ...context, turnId: "next" },
+  );
+  expect(mocks.dialog).toHaveBeenCalledTimes(2);
+  expect(
+    (await host.permissions()).filter(
+      (permission) => permission.scope === "persistent",
+    ),
+  ).toHaveLength(2);
+});
+
+it("rejects native targets without stable application identity before granting access", async () => {
+  mocks.open.mockResolvedValue({
+    id: "desktop:window-42",
+    kind: "desktop",
+    name: "Application",
+  });
+  await expect(
+    host.service.open({ target: "window-42" }, context),
+  ).rejects.toThrow(/identity/);
+  expect(mocks.dialog).not.toHaveBeenCalled();
+});
+
+it("remembers explicit foreground consent across tasks and host restarts without repeated dialogs", async () => {
+  mocks.dialog.mockResolvedValue({ response: 2, checkboxChecked: true });
+  let opened = await host.service.open({ target: "com.test.app" }, context);
+  opened = await host.service.act(action(opened, true), context);
+  await host.service.act(action(opened), context);
+  host.clearTask(context.threadId);
+  const second = { ...context, threadId: "second", turnId: "second-turn" };
+  opened = await host.service.open({ target: "com.test.app" }, second);
+  await host.service.act(action(opened, true), second);
+  host.dispose();
+  host = new ComputerUseHost({
+    helperPath: "unused",
+    permissionsPath: join(directory, "permissions.json"),
+    window: () =>
+      ({ isDestroyed: () => false, webContents: { send() {} } }) as never,
+    locale: () => "en",
+  });
+  opened = await host.service.open({ target: "com.test.app" }, second);
+  await host.service.act(action(opened, true), second);
+  expect(mocks.dialog).toHaveBeenCalledOnce();
+  expect(
+    (await host.permissions()).find((p) => p.scope === "persistent"),
+  ).toMatchObject({ foreground: true });
+  expect(mocks.act).toHaveBeenLastCalledWith(
+    opened.target,
+    { type: "key", key: "Tab" },
+    expect.any(AbortSignal),
+    true,
+  );
+  expect(
+    host.taskApproval("computer_act", action(opened), second),
+  ).toBeUndefined();
+  await host.revoke("desktop:com.test.app");
+  expect(await host.permissions()).toEqual([]);
+});
+
+it("reuses remembered background access without silently expanding it to foreground", async () => {
+  mocks.dialog.mockResolvedValue({ response: 2, checkboxChecked: false });
+  await host.service.open({ target: "com.test.app" }, context);
+  host.clearTask(context.threadId);
+  const next = { ...context, threadId: "another" };
+  const opened = await host.service.open({ target: "com.test.app" }, next);
+  expect((await host.service.act(action(opened, true), next)).status).toBe(
+    "blocked",
+  );
+  expect(mocks.dialog).toHaveBeenCalledOnce();
+  expect(mocks.act).not.toHaveBeenCalled();
 });

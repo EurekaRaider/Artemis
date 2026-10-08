@@ -1923,7 +1923,7 @@
   "ComputerUse.allowThisTurn": "Autoriser ce tour",
   "ComputerUse.allowTaskAutonomy": "Autoriser l’autonomie de cette tâche",
   "ComputerUse.rememberAppAccess": "Mémoriser l’accès à l’application",
-  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Autoriser aussi le contrôle au premier plan pour ce tour ou cette tâche",
+  "ComputerUse.alsoAllowForegroundControlForThisTurnOrTask": "Autoriser aussi le contrôle au premier plan dans la portée choisie",
   "ComputerUse.allowForegroundControlOfName": "Autoriser le contrôle de {{name}} au premier plan ?",
   "ComputerUse.keepBackgroundMode": "Rester en arrière-plan",
   "ComputerUse.allowForegroundThisTurn": "Autoriser le premier plan pour ce tour",

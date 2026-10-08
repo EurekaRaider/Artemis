@@ -1,18 +1,25 @@
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { rm, mkdir, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { spawn, execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import { buildComputerUse } from "../../build/build-computer-use.mjs";
+import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
 
+if (process.platform === "win32") {
+  await import("./verify-computer-use-windows.mjs");
+  process.exit(0);
+}
 if (process.platform !== "darwin")
-  throw new Error("Run Computer Use native validation on macOS.");
+  throw new Error("Run Computer Use native validation on macOS or Windows 11.");
 const require = createRequire(import.meta.url);
 const desktop = fileURLToPath(new URL("../../..", import.meta.url));
 buildComputerUse(process.arch, true);
-const output = await mkdtemp(join(tmpdir(), "artemis-computer-use-"));
+const output = resolve(
+  process.env.ARTEMIS_VERIFY_OUTPUT ?? verificationOutput("computer-use-macos"),
+);
+await mkdir(output, { recursive: true });
 const entry = join(output, "fixture.mjs");
 const fixtureApp = join(output, "Computer Use Fixture.app");
 const fixtureBundle = `com.artemis.computer-use-fixture.${output.split("-").at(-1)}`;
@@ -23,7 +30,7 @@ execFileSync("xcrun", [
   "-parse-as-library",
   "-module-cache-path",
   join(desktop, "build/swift-module-cache"),
-  join(desktop, "native/computer-use/input-policy.swift"),
+  join(desktop, "native/computer-use/macos/input-policy.swift"),
   join(desktop, "test/fixtures/computer-input-policy.swift"),
   "-o",
   policyTest,
