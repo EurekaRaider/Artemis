@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, session } from "electron";
 import { createServer } from "node:http";
 import type { BrowserSessionHost } from "./browser-session-host.js";
 import { BROWSER_SESSION_PARTITION } from "../../shared/i18n/browser-locale.js";
@@ -616,7 +616,11 @@ export async function driveSmokeWorkspaceDockEvidence(
       browserOwner.threadId,
       browserOwner.tabId,
     ).window.webContents;
-    const preferences = browserContents.getLastWebPreferences();
+    const preferences = (
+      browserContents as typeof browserContents & {
+        getLastWebPreferences(): Electron.WebPreferences;
+      }
+    ).getLastWebPreferences();
     const browserSecurity = {
       allowRunningInsecureContent: preferences.allowRunningInsecureContent,
       contextIsolation: preferences.contextIsolation,
@@ -624,7 +628,11 @@ export async function driveSmokeWorkspaceDockEvidence(
       navigationAllowed: /^https?:/u.test(browserContents.getURL()),
       nodeIntegration: preferences.nodeIntegration,
       nodeIntegrationInSubFrames: preferences.nodeIntegrationInSubFrames,
-      partition: preferences.partition,
+      partition:
+        browserContents.session ===
+        session.fromPartition(BROWSER_SESSION_PARTITION)
+          ? BROWSER_SESSION_PARTITION
+          : null,
       preloadPresent: Boolean(preferences.preload),
       sandbox: preferences.sandbox,
       webSecurity: preferences.webSecurity,
