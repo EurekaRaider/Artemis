@@ -6283,7 +6283,7 @@ button.environment-row:disabled {
   border: 0;
   border-radius: 999px;
   background: light-dark(#dedede, #2c2c2c);
-  color: var(--muted);
+  color: var(--text);
   font-family: inherit;
   font-size: 11px;
   line-height: 1.4;

@@ -9,7 +9,7 @@
 - 修复 Computer Use 迁移、下载、等待、重试及更新按钮布局；迁移入口明确显示“安装运行时”，长状态信息与操作标签分开展示。
 - 将插件市场来源名称及重新获取引导统一为“Artemis 插件”，同步全部 14 种界面语言，并保持内部来源与安装逻辑。
 
-- 修复浅色/深色界面的文字对比度：输入框提示、项目分组、增删数字、文件状态、MCP 调用次数和快捷键提示使用对应的文字颜色，并增加双主题对比度回归检查。
+- 修复浅色/深色界面的文字对比度：输入框提示、项目分组与会话时间、增删数字、文件状态、MCP 调用次数和快捷键提示使用对应的文字颜色，并增加双主题对比度回归检查。
 
 ## English
 
@@ -20,7 +20,7 @@
 - Fix Computer Use migration, download, waiting, retry and update action layouts. Label migration as “Install runtime” and display long status messages separately from action labels.
 - Rename the marketplace source and reinstall guidance to “Artemis plugins” in all 14 interface languages, preserving internal source and installation behavior.
 
-- Improve light and dark text contrast for input placeholders, project groups, change counts, file statuses, MCP call counts and keyboard hints, with regression checks for both themes.
+- Improve light and dark text contrast for input placeholders, project groups and conversation timestamps, change counts, file statuses, MCP call counts and keyboard hints, with regression checks for both themes.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
 Release acceptance is established by the associated CI, final artifact checks and recorded platform tests, not by these change notes alone.

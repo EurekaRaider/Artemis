@@ -480,6 +480,15 @@ describe("screenshot visual contracts", () => {
 });
 
 describe("control text readability", () => {
+  const prototype = postcss.parse(
+    readFileSync(
+      new URL(
+        "../../src/renderer/styles/prototype-migration.css",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   const cases = [
     ["input::placeholder", "color.surface.base"],
     ["textarea::placeholder", "color.surface.composer"],
@@ -491,6 +500,11 @@ describe("control text readability", () => {
     [".sources-panel-mcp-summary > span", "color.surface.sunken"],
     [".file-status", "color.surface.sunken"],
     ["kbd", "#dedede"],
+    [
+      '.workspace-tab-content [data-artemis-component="workspace-launcher"] [data-part="shortcut"]',
+      "#dedede",
+    ],
+    [".thread-time", "#e5e5e5"],
   ] as const;
   const aliases = declarations(desktop, ":root");
   function rgb(value: string): number[] {
@@ -527,7 +541,15 @@ describe("control text readability", () => {
     for (const [selector, background] of cases) {
       // The absent placeholder rule leaves Chromium's #757575 default in place.
       const color = resolveColor(
-        declarations(desktop, selector).color ?? "#757575",
+        (selector === ".thread-time"
+          ? declarations(
+              prototype,
+              mode.theme === "dark"
+                ? '[data-artemis-theme="dark"] .project-thread-row .thread-time'
+                : selector,
+            )
+          : declarations(desktop, selector)
+        ).color ?? "#757575",
       );
       const surface = background.startsWith("#")
         ? mode.theme === "light"
