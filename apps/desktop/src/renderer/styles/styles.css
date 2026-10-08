@@ -120,6 +120,12 @@ body {
     font: inherit;
   }
 
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+
   button {
     background: transparent;
     border: 0;
@@ -377,7 +383,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   font-weight: 620;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--muted-2);
+  color: var(--muted);
 }
 
 .project-toggle {
@@ -1757,12 +1763,12 @@ button.environment-row:disabled {
 }
 
 .environment-diff-total i {
-  color: #42c878;
+  color: var(--artemis-color-diff-add-text);
   font-style: normal;
 }
 
 .environment-diff-total b {
-  color: #ef6464;
+  color: var(--artemis-color-diff-delete-text);
   font-weight: 500;
 }
 
@@ -2561,12 +2567,12 @@ button.environment-row:disabled {
 
 .turn-change-total .addition,
 .turn-change-file-stats .addition {
-  color: var(--success);
+  color: var(--artemis-color-diff-add-text);
 }
 
 .turn-change-total .deletion,
 .turn-change-file-stats .deletion {
-  color: var(--danger);
+  color: var(--artemis-color-diff-delete-text);
 }
 
 .turn-change-binary {
@@ -6863,7 +6869,7 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .file-status {
-  color: var(--warning);
+  color: var(--artemis-color-status-warning-text);
   font-family: var(--mono-font);
   font-size: 11px;
 }
@@ -8924,7 +8930,7 @@ kbd {
   background: var(--panel-3);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: var(--muted);
+  color: var(--text);
   font-family: inherit;
   font-size: 10px;
   padding: 2px 5px;
@@ -12579,7 +12585,7 @@ kbd {
 
 .sources-panel-mcp-summary > span {
   font-size: 10.5px;
-  color: var(--artemis-color-text-tertiary);
+  color: var(--artemis-color-text-secondary);
   border: 1px solid var(--artemis-color-border-subtle);
   border-radius: 999px;
   padding: 0 7px;

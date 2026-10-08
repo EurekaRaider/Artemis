@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import postcss from "postcss";
 import { describe, expect, it } from "vitest";
+import { artemisDarkTokens, artemisLightTokens } from "@artemis/theme-artemis";
+import { SEMANTIC_TOKEN_REGISTRY } from "@artemis/theme-contract";
 
 const desktop = postcss.parse(
   readFileSync(
@@ -475,4 +477,71 @@ describe("screenshot visual contracts", () => {
       "grid-template-columns": "minmax(0, 1fr) auto",
     });
   });
+});
+
+describe("control text readability", () => {
+  const cases = [
+    ["input::placeholder", "color.surface.base"],
+    ["textarea::placeholder", "color.surface.composer"],
+    [".environment-diff-total i", "color.surface.base"],
+    [".environment-diff-total b", "color.surface.base"],
+    [".turn-change-file-stats .addition", "color.surface.base"],
+    [".turn-change-file-stats .deletion", "color.surface.base"],
+    [".project-group-select", "color.background.sidebar"],
+    [".sources-panel-mcp-summary > span", "color.surface.sunken"],
+    [".file-status", "color.surface.sunken"],
+    ["kbd", "#dedede"],
+  ] as const;
+  const aliases = declarations(desktop, ":root");
+  function rgb(value: string): number[] {
+    return [1, 3, 5].map((index) =>
+      parseInt(value.slice(index, index + 2), 16),
+    );
+  }
+  function luminance(value: string): number {
+    const channels = rgb(value).map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return (
+      channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
+    );
+  }
+  for (const document of [artemisLightTokens, artemisDarkTokens]) {
+    const mode = document.modes[0];
+    const variables = Object.fromEntries(
+      Object.entries(mode.tokens).map(([key, token]) => [
+        SEMANTIC_TOKEN_REGISTRY[key as keyof typeof SEMANTIC_TOKEN_REGISTRY]
+          .cssVariable,
+        token.kind === "color" ? token.value : "",
+      ]),
+    );
+    const resolveColor = (value: string): string => {
+      const variable = /^var\((--[a-z0-9-]+)\)$/.exec(value)?.[1];
+      return variable
+        ? resolveColor(variables[variable] ?? aliases[variable]!)
+        : value;
+    };
+    for (const [selector, background] of cases) {
+      // The absent placeholder rule leaves Chromium's #757575 default in place.
+      const color = resolveColor(
+        declarations(desktop, selector).color ?? "#757575",
+      );
+      const surface = background.startsWith("#")
+        ? mode.theme === "light"
+          ? background
+          : "#3d3d3d"
+        : (mode.tokens[background] as { value: string }).value;
+      it(`${mode.theme} ${selector} text has at least 4.5 contrast`, () => {
+        const [darker, lighter] = [luminance(color), luminance(surface)].sort(
+          (a, b) => a - b,
+        );
+        expect((lighter! + 0.05) / (darker! + 0.05)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      });
+    }
+  }
 });
