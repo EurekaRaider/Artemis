@@ -21,7 +21,7 @@ This directory retains current usage, development and maintenance guides, necess
 | [Plugins and Git marketplaces](guides/plugin-marketplaces-en.md) | Plugin formats, signing, distribution and updates                  |
 | [Visual skin plugins](guides/visual-skins-en.md)                 | Skin v2, asset contracts, tools and complete examples              |
 | [Localization](guides/localization-en.md)                        | Terminology, RTL and verification conventions                      |
-| [Computer Use live preview](guides/computer-preview-en.md)      | GPU lifetime, capability pack compatibility and runtime acceptance |
+| [Computer Use live preview](guides/computer-preview-en.md)       | GPU lifetime, capability pack compatibility and runtime acceptance |
 | [Plugin development](guides/plugin-development-en.md)            | v2 contracts, SDK, tools, examples and v1 compatibility            |
 | [Pi upgrade and execution modes](guides/pi-upgrade-modes.md)     | Runtime upgrade, modes, compatibility and validation               |
 | [Cross-platform releases](guides/release-en.md)                  | Public CI, signing, updates and recovery acceptance                |

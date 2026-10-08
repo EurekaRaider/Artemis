@@ -124,7 +124,7 @@ async function fixture(
 it("shows a single card and keeps the old version visible while an update waits", async () => {
   const f = await fixture({ activeVersion: "1.2.0", pendingVersion: "1.2.1" });
   const waiting = await screen.findByRole("button", {
-    name: "v1.2.1 已就绪，等待任务结束后切换",
+    name: "已就绪",
   });
   expect(waiting).toBeDisabled();
   expect(computerCards()).toHaveLength(1);
@@ -142,7 +142,7 @@ it("offers migration for an installed legacy plugin without a native runtime", a
     await screen.findByText("下载运行时后可继续使用 Computer Use"),
   ).toBeVisible();
   expect(
-    f.card.getByRole("button", { name: "安装", exact: true }),
+    f.card.getByRole("button", { name: "安装运行时", exact: true }),
   ).toBeEnabled();
   expect(screen.queryByText("v1.2.0")).toBeNull();
 });

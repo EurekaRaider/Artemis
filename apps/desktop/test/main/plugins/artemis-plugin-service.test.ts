@@ -1215,11 +1215,11 @@ describe("ArtemisPluginService", () => {
     expect(await f.service.listInstalled()).toHaveLength(0);
     const first = await f.service.installComputerUseFromRoot(
       computerUseRoot,
-      "1.2.0",
+      "1.2.1",
     );
     const next = await f.service.installComputerUseFromRoot(
       computerUseRoot,
-      "1.2.0",
+      "1.2.1",
     );
     expect(first.id).toBe(next.id);
     expect(

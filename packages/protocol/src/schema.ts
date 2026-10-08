@@ -1256,7 +1256,7 @@ export const threadSchema = z.object({
   archived: z.boolean(),
   /** S1 design plugins: type snapshot frozen at thread creation (§6.1). */
   typeBinding: pluginTypeBindingSchema.optional(),
-  /** S1 design plugins: fixed restricted profile id for plugin threads. */
+  /** Host-persisted design permissions; new bound chats start restricted. */
   executionProfile: z.string().optional(),
   createdAt: z.string().datetime({ offset: true }),
   updatedAt: z.string().datetime({ offset: true }),

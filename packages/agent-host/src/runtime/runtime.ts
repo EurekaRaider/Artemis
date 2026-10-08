@@ -91,7 +91,7 @@ import {
   type ChildAgentPayload,
   type AgentRuntimeCatalog,
   type AgentRuntimeConfiguration,
-  RESTRICTED_PROFILE_ID,
+  isRestrictedDesignThread,
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
   type ModelSelection,
@@ -897,11 +897,9 @@ export interface OpenThreadRequest {
   selection?: ModelSelection;
   contextWindow?: number;
   /**
-   * Fixed execution profile for this thread. When set to
-   * "plugin-restricted-v1" the thread is created restricted for its entire
-   * lifetime (proposal §7): denied tools are filtered from the customTools
-   * list AND every surviving tool's dispatch is guarded, so a stale list or
-   * direct call cannot widen the profile.
+   * Host-selected execution profile. Restricted bound sessions filter denied
+   * tools and guard dispatch. Only the host UI can change the stored choice;
+   * profile or binding changes rebuild the session before further execution.
    */
   executionProfile?: string;
   /**
@@ -934,6 +932,7 @@ interface HostedThread {
   workspacePath: string;
   target: WorkspaceTarget;
   executionProfile?: string | undefined;
+  typeBinding?: OpenThreadRequest["typeBinding"];
   selection?: ModelSelection;
   contextWindow?: number;
   session: AgentSession;
@@ -3718,7 +3717,9 @@ export class ArtemisAgentHost {
       //（fail-closed，主进程执行边界重检仍兜底）。
       if (
         (current.executionProfile ?? undefined) !==
-        (request.executionProfile ?? undefined)
+          (request.executionProfile ?? undefined) ||
+        JSON.stringify(current.typeBinding) !==
+          JSON.stringify(request.typeBinding)
       ) {
         if (current.currentTurnId)
           throw new Error(
@@ -6507,7 +6508,7 @@ export class ArtemisAgentHost {
       // hook.run 入口另有一重拒绝（双拒）。
       enabled: () =>
         this.configuration.hooksEnabled === true &&
-        request.executionProfile !== RESTRICTED_PROFILE_ID,
+        !isRestrictedDesignThread(request),
       broker: this.broker,
       threadId: request.threadId,
       cwd: request.workspacePath,
@@ -6617,59 +6618,58 @@ export class ArtemisAgentHost {
     // main-process dispatcher which re-verifies the trust chain (content
     // hash recomputed from disk + unrevoked grant + mode gate) before any
     // runtime spawn. Plan/Review never sees plugin tools at all.
-    const pluginBrokerTools =
-      request.executionProfile === RESTRICTED_PROFILE_ID && request.typeBinding
-        ? (request.pluginTools ?? []).map((declared) =>
-            defineTool({
-              name: `plugin_${declared.name}`,
-              label: declared.name,
-              description: declared.description,
-              parameters: Type.Object(
-                {
-                  input: Type.Optional(
-                    Type.Record(Type.String(), Type.Unknown()),
-                  ),
-                },
-                { additionalProperties: true },
-              ),
-              execute: async (_toolCallId, params) => {
-                const hosted = this.threads.get(request.threadId);
-                const result = await this.broker.request({
-                  kind: "plugin.tool",
-                  approvalId: randomUUID(),
-                  threadId: request.threadId,
-                  turnId: hosted?.currentTurnId ?? request.threadId,
-                  mode: hosted?.currentMode ?? "work",
-                  pluginId: request.typeBinding!.pluginId,
-                  toolName: declared.name,
-                  args:
-                    params.input && typeof params.input === "object"
-                      ? (params.input as Record<string, unknown>)
-                      : {},
-                });
-                if (!result.approved) {
-                  throw new Error(
-                    result.error ?? "Plugin tool dispatch was refused.",
-                  );
-                }
-                return {
-                  content: [
-                    {
-                      type: "text" as const,
-                      text: JSON.stringify(result.data ?? {}, null, 2),
-                    },
-                  ],
-                  details: result.data,
-                };
+    const pluginBrokerTools = request.typeBinding
+      ? (request.pluginTools ?? []).map((declared) =>
+          defineTool({
+            name: `plugin_${declared.name}`,
+            label: declared.name,
+            description: declared.description,
+            parameters: Type.Object(
+              {
+                input: Type.Optional(
+                  Type.Record(Type.String(), Type.Unknown()),
+                ),
               },
-            }),
-          )
-        : [];
+              { additionalProperties: true },
+            ),
+            execute: async (_toolCallId, params) => {
+              const hosted = this.threads.get(request.threadId);
+              const result = await this.broker.request({
+                kind: "plugin.tool",
+                approvalId: randomUUID(),
+                threadId: request.threadId,
+                turnId: hosted?.currentTurnId ?? request.threadId,
+                mode: hosted?.currentMode ?? "work",
+                pluginId: request.typeBinding!.pluginId,
+                toolName: declared.name,
+                args:
+                  params.input && typeof params.input === "object"
+                    ? (params.input as Record<string, unknown>)
+                    : {},
+              });
+              if (!result.approved) {
+                throw new Error(
+                  result.error ?? "Plugin tool dispatch was refused.",
+                );
+              }
+              return {
+                content: [
+                  {
+                    type: "text" as const,
+                    text: JSON.stringify(result.data ?? {}, null, 2),
+                  },
+                ],
+                details: result.data,
+              };
+            },
+          }),
+        )
+      : [];
 
     // Restricted-profile gating (proposal §7): for plugin-restricted threads,
     // layer 1 filters denied tools out of the model-visible list and layer 2
     // wraps every surviving tool's execute with a pre-dispatch guard.
-    const restrictedThread = request.executionProfile === RESTRICTED_PROFILE_ID;
+    const restrictedThread = isRestrictedDesignThread(request);
     const customTools = restrictedThread
       ? [
           ...assembledToolsAll
@@ -6683,7 +6683,7 @@ export class ArtemisAgentHost {
             })),
           ...pluginBrokerTools,
         ]
-      : assembledToolsAll;
+      : [...assembledToolsAll, ...pluginBrokerTools];
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
@@ -6767,7 +6767,7 @@ export class ArtemisAgentHost {
         // path; a refresh must never widen the active tool set (§7).
         .filter(
           (name) =>
-            request.executionProfile !== RESTRICTED_PROFILE_ID ||
+            !isRestrictedDesignThread(request) ||
             !isToolDeniedForRestrictedThread(name),
         ),
     );
@@ -6921,6 +6921,7 @@ export class ArtemisAgentHost {
       threadId: request.threadId,
       workspacePath: request.workspacePath,
       target: request.target,
+      ...(request.typeBinding ? { typeBinding: request.typeBinding } : {}),
       ...(request.executionProfile
         ? { executionProfile: request.executionProfile }
         : {}),

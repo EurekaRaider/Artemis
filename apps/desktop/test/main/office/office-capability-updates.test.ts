@@ -18,7 +18,7 @@ function manifest(version: string, overrides: Record<string, unknown> = {}) {
     arch: "arm64",
     sourceDigest: "a".repeat(64),
     archive: {
-      url: `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/mac.zip`,
+      url: `https://github.com/EurekaRaider/Artemis/releases/download/${overrides.id === "artemis-design" ? "artemis-design" : "office-runtime"}-v${version}/mac.zip`,
       sha256: "b".repeat(64),
       downloadBytes: 10,
       unpackedBytes: 1,
@@ -26,9 +26,13 @@ function manifest(version: string, overrides: Record<string, unknown> = {}) {
     files: [
       { path: "bridge", sha256: "c".repeat(64), bytes: 1, executable: true },
     ],
-    entrypoint: "bridge",
-    officeExecutable: "bridge",
-    native: { signer: "TEST", notarization: "accepted-stapled" },
+    ...(overrides.id === "artemis-design"
+      ? {}
+      : {
+          entrypoint: "bridge",
+          officeExecutable: "bridge",
+          native: { signer: "TEST", notarization: "accepted-stapled" },
+        }),
     ...overrides,
   };
   return {
@@ -152,3 +156,88 @@ describe("Office update checks", () => {
     expect(updates.status("1.2.0").updateVersion).toBeUndefined();
   });
 });
+
+// Exercise the response body, not just the request headers.
+it.each(["office-core", "artemis-design"])(
+  "allows a 20-second signed %s catalog and bounds a stalled retry",
+  async (packId) => {
+    vi.useFakeTimers();
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation((ms) => {
+        const controller = new AbortController();
+        setTimeout(
+          () =>
+            controller.abort(
+              new DOMException("Catalog timed out", "TimeoutError"),
+            ),
+          ms,
+        );
+        return controller.signal;
+      });
+    let delay = 20_000;
+    const fetcher: typeof fetch = async (_url, options) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            const timer = setTimeout(() => {
+              controller.enqueue(
+                new TextEncoder().encode(
+                  JSON.stringify({
+                    schemaVersion: 1,
+                    manifests: [manifest("1.1.0", { id: packId })],
+                  }),
+                ),
+              );
+              controller.close();
+            }, delay);
+            options!.signal!.addEventListener(
+              "abort",
+              () => {
+                clearTimeout(timer);
+                controller.error(options!.signal!.reason);
+              },
+              { once: true },
+            );
+          },
+        }),
+      );
+    try {
+      const updates = new OfficeCapabilityUpdates(
+        { schemaVersion: 1, publicKeys, manifests: [], updateUrl },
+        {
+          hostVersion: "1.6.8",
+          platform: "darwin",
+          arch: "arm64",
+          packId,
+          fetch: fetcher,
+        },
+      );
+      const first = updates.check();
+      await vi.advanceTimersByTimeAsync(20_000);
+      await first;
+      expect(updates.status().updateError).toBeUndefined();
+      expect(updates.status()).toMatchObject({
+        updateCheck: "checked",
+        availableVersion: "1.1.0",
+      });
+      delay = 61_000;
+      const stalled = updates.check();
+      await vi.advanceTimersByTimeAsync(60_000);
+      await stalled;
+      expect(updates.status()).toMatchObject({
+        updateCheck: "error",
+        availableVersion: "1.1.0",
+      });
+      delay = 1;
+      const retry = updates.check();
+      await vi.advanceTimersByTimeAsync(1);
+      await retry;
+      expect(updates.status().updateCheck).toBe("checked");
+      expect(updates.status().updateError).toBeUndefined();
+    } finally {
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
+  },
+);

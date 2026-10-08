@@ -93,7 +93,12 @@ import {
 } from "./conversation/turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
 import { imManagementSchema, reduceAgentEvents } from "@artemis/protocol";
-import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
+import {
+  RESTRICTED_PROFILE_ID,
+  STANDARD_DESIGN_PROFILE_ID,
+  isRestrictedDesignThread,
+} from "@artemis/protocol";
+import { changeDesignThreadPermissions } from "./design/design-thread-permissions.js";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ensureProjectGitWatcher } from "./workspace/project-git-watcher.js";
@@ -4620,6 +4625,19 @@ async function handleBrokerRequest(
   if (!agentProcess || !store) {
     return;
   }
+  const permissionThread = store.getThread(request.threadId);
+  if (
+    changingDesignPermissions.has(request.threadId) ||
+    (permissionThread?.executionProfile === STANDARD_DESIGN_PROFILE_ID &&
+      activeTurns.get(request.threadId) !== request.turnId)
+  ) {
+    rejectBrokerRequest(
+      workerRequestId,
+      request,
+      "The design permission session or turn is no longer current.",
+    );
+    return;
+  }
   // PR#245 P1-5/P1-6 宿主执行边界重检：绑定设计插件的任务按「当前持久
   // 化的受限 profile」拒绝一切能力型 broker 请求。即使 agent-host 里还挂
   // 着绑定前创建的普通会话（完整工具集），能力也不会在主进程侧兑现。
@@ -4639,7 +4657,7 @@ async function handleBrokerRequest(
     ].includes(request.kind)
   ) {
     const boundThread = store.getThread(request.threadId);
-    if (boundThread?.executionProfile === RESTRICTED_PROFILE_ID) {
+    if (boundThread && isRestrictedDesignThread(boundThread)) {
       rejectBrokerRequest(
         workerRequestId,
         request,
@@ -6708,6 +6726,7 @@ async function createTaskThread(
   }
 }
 
+const changingDesignPermissions = new Set<string>();
 const startingTurns = new Set<string>();
 const acceptingPlans = new Map<string, Promise<StartTurnResult>>();
 
@@ -6722,6 +6741,10 @@ async function startTaskTurn(
       "Worktree cleanup is in progress. Retry after it finishes.",
     );
   }
+  if (changingDesignPermissions.has(input.threadId))
+    throw new Error(
+      "Design permissions are changing. Retry after they finish.",
+    );
   if (startingTurns.has(input.threadId))
     throw new Error("Task is already starting a turn.");
   const release = imService?.reserveStart(
@@ -10576,6 +10599,54 @@ function registerIpc(): void {
     (event, threadId: string, url: string) => {
       assertWorkspacePreviewSender(event);
       workspaceVideoPreview.release(threadId, url);
+    },
+  );
+  ipcMain.handle(IPC.designThreadPermissionsGet, (event, threadId: string) => {
+    assertWorkspacePreviewSender(event);
+    if (typeof threadId !== "string") throw new Error("Invalid design chat.");
+    return store?.getThread(threadId);
+  });
+  ipcMain.handle(
+    IPC.designThreadPermissionsSet,
+    async (event, threadId: string, permission: "standard" | "restricted") => {
+      assertWorkspacePreviewSender(event);
+      if (
+        !store ||
+        typeof threadId !== "string" ||
+        changingDesignPermissions.has(threadId)
+      )
+        throw new Error("Design permissions are unavailable.");
+      changingDesignPermissions.add(threadId);
+      try {
+        return await changeDesignThreadPermissions({
+          threadId,
+          permission,
+          store,
+          revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
+          busy: () =>
+            activeTurns.has(threadId) ||
+            startingTurns.has(threadId) ||
+            openingThreads.has(threadId) ||
+            cancellingTurns.has(threadId) ||
+            pendingApprovals.hasWhere(
+              (pending) => pending.request.threadId === threadId,
+            ),
+          unavailable: async () =>
+            (await designPluginAvailabilityGate?.(threadId)) ?? null,
+          closeSession: async () => {
+            if (agentProcess && openedThreads.has(threadId)) {
+              await agentProcess.request({
+                type: "thread.close",
+                requestId: randomUUID(),
+                threadId,
+              });
+              openedThreads.delete(threadId);
+            }
+          },
+        });
+      } finally {
+        changingDesignPermissions.delete(threadId);
+      }
     },
   );
   ipcMain.handle(

@@ -4194,6 +4194,12 @@ button.environment-row:disabled {
   z-index: 1;
 }
 
+.design-thread-permission-notice {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 4px 12px 0;
+}
+
 .turn-error-banner {
   align-items: center;
   background: color-mix(in srgb, var(--danger) 10%, var(--panel-2));
@@ -14447,4 +14453,26 @@ kbd {
   .browser-preview-main-toolbar > .browser-preview-zoom {
     display: none;
   }
+}
+
+.plugin-market-card-actions[data-installed="true"][data-computer="true"] {
+  flex-wrap: wrap;
+  gap: var(--artemis-space-2);
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"][data-computer="true"]
+  [data-artemis-component="button"] {
+  flex: 0 0 auto;
+  min-block-size: var(--artemis-size-control-compact);
+  max-inline-size: 100%;
+  margin-inline-start: 0;
+  border-radius: var(--artemis-radius-control);
+}
+
+.plugin-market-card-actions[data-installed="true"][data-computer="true"]
+  [data-part="label"] {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  hyphens: none;
 }

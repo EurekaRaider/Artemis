@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import {
   PROTOCOL_VERSION,
+  STANDARD_DESIGN_PROFILE_ID,
   collectPlans,
   assertAcceptablePlan,
   acceptedPlanPrompt,
@@ -2108,10 +2109,12 @@ export class AppStore {
         : changes.typeBinding;
     const executionProfile =
       changes.typeBinding !== undefined
-        ? // A bound thread runs the plugin-restricted profile so the agent
-          // receives the plugin's tools; unbinding keeps the current profile.
+        ? // Binding starts restricted unless the user already selected
+          // standard permissions. Unbinding preserves the explicit choice.
           changes.typeBinding
-          ? "plugin-restricted-v1"
+          ? current.executionProfile === STANDARD_DESIGN_PROFILE_ID
+            ? STANDARD_DESIGN_PROFILE_ID
+            : "plugin-restricted-v1"
           : (current.executionProfile ?? null)
         : (current.executionProfile ?? null);
     const modelSelection =
@@ -2146,6 +2149,31 @@ export class AppStore {
         typeBinding ? JSON.stringify(typeBinding) : null,
         executionProfile,
         updatedAt,
+        id,
+      );
+    return this.getThread(id)!;
+  }
+
+  /** Called only after the host verifies an explicit permission choice. */
+  setDesignThreadPermissions(
+    id: string,
+    permission: "standard" | "restricted",
+  ): Thread {
+    const thread = this.getThread(id);
+    if (
+      !thread?.typeBinding ||
+      !["standard", "restricted"].includes(permission)
+    )
+      throw new Error("Invalid design thread permission choice.");
+    this.database
+      .prepare(
+        "UPDATE threads SET execution_profile = ?, updated_at = ? WHERE id = ?",
+      )
+      .run(
+        permission === "standard"
+          ? STANDARD_DESIGN_PROFILE_ID
+          : "plugin-restricted-v1",
+        new Date().toISOString(),
         id,
       );
     return this.getThread(id)!;

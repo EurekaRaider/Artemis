@@ -77,15 +77,16 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.6** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.7** · [Release notes](docs/records/release-notes.md).
 
-This revision adds independently downloaded Computer Use runtimes for macOS 14+
-arm64 and Windows 11 x64, with one Bundled plugins card, manual updates and
-cleanup after active tasks release the old runtime. Application access and
-foreground-control grants remain revocable. Browser form fills verify the final
-value, and native control rejects stale observations and stops when the user
-takes over. Stable store availability follows signed runtime publication and
-native archive verification.
+This revision adds session-scoped GPU previews and picture-in-picture controls for
+Computer Use, including browser and native desktop capture. The independently
+published Computer Use runtime is version **1.2.1**, for Artemis **1.7.7** or newer.
+Plugin sources use the name Artemis plugins; runtime actions keep readable labels
+in narrow windows. Signed catalog checks allow up to 60 seconds on slow networks.
+Design chats start with restricted permissions; users may explicitly choose standard
+chat permissions in the host UI. That choice applies only to the selected chat and
+retains existing mode, trust, sandbox and approval rules.
 
 Design projects use workspace HTML files with bounded snapshots, undo/redo, automatic preview refresh and safe path-based editing. The
 signed Design plugin pack is version **0.4.6** and requires Artemis **1.7.4** or newer.

@@ -2357,6 +2357,7 @@ export function ResourceCenter({
             className="plugin-market-card-actions"
             data-installed={installed && Boolean(installedPlugin)}
             data-office={hasOfficeCapability || undefined}
+            data-computer={computer || undefined}
           >
             {computer &&
               installed &&
@@ -2386,12 +2387,9 @@ export function ResourceCenter({
                     : computerRuntime.error
                       ? uiText(locale, "App_copy.queueRetry")
                       : computerRuntime.pendingVersion
-                        ? runtimeCopy.waiting.replace(
-                            "{version}",
-                            computerRuntime.pendingVersion,
-                          )
+                        ? runtimeCopy.ready
                         : computerRuntime.migrationRequired
-                          ? t.install
+                          ? runtimeCopy.install
                           : office.updateNow.replace(
                               "{version}",
                               computerRuntime.updateVersion!,

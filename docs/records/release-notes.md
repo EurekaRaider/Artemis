@@ -1,22 +1,22 @@
-# Artemis v1.7.6
+# Artemis v1.7.7
 
 ## 中文
 
-- Computer Use 改为独立下载的原生能力包，支持 macOS 14+ arm64 与 Windows 11 x64；内置插件商店保留唯一入口，无需用户安装额外工具链。
-- 增加签名清单、平台与宿主兼容检查、下载取消及篡改拒绝；更新由用户主动执行，运行中任务保留旧版本，释放后清理。
-- Windows 原生运行时使用 UI Automation、窗口捕获和受授权的前台输入；macOS 运行时采用 Developer ID 签名、公证与 stapling。两个平台均使用 Ed25519 包签名，并在原生 runner 验证最终运行包后发布稳定目录。
-- 应用访问与前台控制授权支持持续保存和撤销；停止、用户接管、原生进程退出和过期观察均阻止继续输入。
-- 浏览器表单填写验证最终值，并加固调试会话生命周期、窗口变化及截图恢复。
-- 更新 14 种界面语言、插件开发契约、README 与 1.7.6 版本元数据。
+- 增加按会话隔离的 Computer Use GPU 预览及画中画窗口，支持浏览器与原生桌面捕获，并修复关闭、会话切换、拖动和悬停控件。
+- Computer Use 原生能力包升至 1.2.1，要求 Artemis 1.7.7 或更新版本；客户端和运行时分别发布并验证。
+- 修复插件市场的慢网络更新检查：Office、Design 与 Computer Use 的签名清单采用 60 秒有界下载预算，失败保留已验证版本并允许重试。
+- 设计聊天默认保持受限；可信插件经用户在宿主界面明确选择后，可使用普通 Work/Codemode 权限及设计工具。权限逐聊天保存，升级前关闭旧会话，进行中的轮次与待处理审批禁止升级。Plan、插件信任、MCP 沙箱、扩展信任及既有审批规则继续生效。
+- 修复 Computer Use 迁移、下载、等待、重试及更新按钮布局；迁移入口明确显示“安装运行时”，长状态信息与操作标签分开展示。
+- 将插件市场来源名称及重新获取引导统一为“Artemis 插件”，同步全部 14 种界面语言，并保持内部来源与安装逻辑。
 
 ## English
 
-- Deliver Computer Use as independently downloaded native capability packs for macOS 14+ arm64 and Windows 11 x64, with one Bundled plugins entry and no user-installed toolchain.
-- Add signed manifests, platform and host compatibility checks, download cancellation and tamper rejection. Updates remain manual; active tasks retain the old runtime until it can be cleaned up.
-- Use UI Automation, window capture and authorized foreground input on Windows. The macOS runtime uses Developer ID signing, notarization and stapling. Both platforms use Ed25519 package signatures; stable catalog publication follows verification of final runtime archives on their native runners.
-- Persist and revoke application-access and foreground-control grants. Stop, user takeover, helper exit and stale observations prevent further input.
-- Verify final browser form values and harden debug-session lifecycle, window changes and capture recovery.
-- Update 14 interface languages, plugin development contracts, README and release metadata to 1.7.6.
+- Add session-scoped GPU Computer Use previews and picture-in-picture windows for browser and native desktop capture, with fixes for close behavior, session changes, dragging and hover controls.
+- Publish Computer Use runtime 1.2.1 for Artemis 1.7.7 or newer. Verify and publish the client and native runtime independently.
+- Fix slow-network catalog checks: Office, Design and Computer Use signed feeds use a bounded 60-second download budget, retaining verified versions on failure and allowing retry.
+- Keep design chats restricted by default. After an explicit host UI choice for a trusted plugin, standard Work/Codemode tools coexist with design tools. Persist permissions per chat, close the old session before upgrading, and refuse changes during active turns or pending approvals. Plan, plugin trust, MCP sandboxes, extension trust and existing approval rules remain enforced.
+- Fix Computer Use migration, download, waiting, retry and update action layouts. Label migration as “Install runtime” and display long status messages separately from action labels.
+- Rename the marketplace source and reinstall guidance to “Artemis plugins” in all 14 interface languages, preserving internal source and installation behavior.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
 Release acceptance is established by the associated CI, final artifact checks and recorded platform tests, not by these change notes alone.

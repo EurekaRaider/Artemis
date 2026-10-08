@@ -123,7 +123,7 @@ export class OfficeCapabilityUpdates {
 
   private async refresh(url: string): Promise<void> {
     const response = await (this.options.fetch ?? fetch)(url, {
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(60_000),
       redirect: "follow",
       headers: { Accept: "application/json" },
     });

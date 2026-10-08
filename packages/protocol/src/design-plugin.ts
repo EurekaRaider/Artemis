@@ -1,7 +1,7 @@
 // Design-plugin manifest, binding, restricted execution profile, and persisted
-// prompt-submission ledger contracts. Restricted profiles remain fixed per
-// thread; submissions retain their identity across restarts without blindly
-// replaying external side effects.
+// prompt-submission ledger contracts. Permission changes require an explicit
+// host UI action; submissions retain their identity across restarts without
+// blindly replaying external side effects.
 
 import { z } from "zod";
 
@@ -92,10 +92,22 @@ export {
 
 /**
  * The single restricted execution profile shipped in S0. Threads bound to a
- * plugin project type are created with this profile and keep it for their
- * entire lifetime; the host never widens it based on message provenance.
+ * plugin project type start with this profile. Only an explicit host UI
+ * action can select the standard profile; message provenance cannot do so.
  */
 export const RESTRICTED_PROFILE_ID = "plugin-restricted-v1";
+export const STANDARD_DESIGN_PROFILE_ID = "plugin-standard-v1";
+
+/** Missing or unknown bound-thread permissions fail closed at both boundaries. */
+export function isRestrictedDesignThread(thread: {
+  executionProfile?: string | undefined;
+  typeBinding?: unknown;
+}): boolean {
+  return (
+    Boolean(thread.typeBinding || thread.executionProfile) &&
+    thread.executionProfile !== STANDARD_DESIGN_PROFILE_ID
+  );
+}
 
 export const pluginTypeBindingSchema = z.strictObject({
   installationId: z.string().min(1),

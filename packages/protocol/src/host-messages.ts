@@ -208,10 +208,10 @@ export type AgentHostCommand =
       contextWindow?: number;
       /**
        * S2 design-plugin binding: the thread's frozen typeBinding snapshot.
-       * Threads opened with a binding get plugin-restricted customTools.
+       * Bound threads receive declared design tools; permissions default to restricted.
        */
       typeBinding?: import("./schema.js").Thread["typeBinding"];
-      /** Fixed execution profile ("plugin-restricted-v1"). */
+      /** Host-selected design profile; absent or unknown bound profiles stay restricted. */
       executionProfile?: string;
       /**
        * Declared plugin tools for the bound plugin (resolved by the main
