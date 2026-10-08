@@ -43,7 +43,7 @@ struct WindowsFrame : PreviewFrame {
 struct WindowsPreview : PreviewSession {
   HWND window; DWORD pid, windowPid; std::string instance, windowInstance, path;
   std::atomic<unsigned> maximum{1280};
-  double lastFrame = 0;
+  double nextFrameAt = 0;
   ComPtr<ID3D11Device> device; ComPtr<ID3D11DeviceContext> context;
   IDirect3DDevice captureDevice{nullptr};
   GraphicsCaptureItem item{nullptr}; Direct3D11CaptureFramePool pool{nullptr}; GraphicsCaptureSession stream{nullptr};
@@ -88,9 +88,12 @@ struct WindowsPreview : PreviewSession {
           try {
             if (!session->valid()) throw std::runtime_error("Capture permission or application identity changed");
             auto frame = sender.TryGetNextFrame(); if (!frame) return;
-            double now = previewNow();
-            if (now - session->lastFrame < 1000.0 / 60 - .5) { frame.Close(); return; }
-            session->lastFrame = now;
+            // Schedule against capture time rather than callback arrival jitter.
+            // Advancing the deadline preserves 60 Hz instead of dropping every
+            // other frame when a callback arrives slightly early.
+            double capturedTime = double(frame.SystemRelativeTime().count()) / 10000;
+            if (capturedTime + .5 < session->nextFrameAt) { frame.Close(); return; }
+            session->nextFrameAt = std::max(session->nextFrameAt + 1000.0 / 60, capturedTime);
             auto content = frame.ContentSize();
             if (content.Width != size.Width || content.Height != size.Height) {
               frame.Close(); size = content;
@@ -103,7 +106,7 @@ struct WindowsPreview : PreviewSession {
             double scale = std::min(1.0, double(session->maximum.load()) / std::max(content.Width, content.Height));
             auto output = std::make_unique<WindowsFrame>();
             LARGE_INTEGER counter{}, frequency{}; QueryPerformanceCounter(&counter); QueryPerformanceFrequency(&frequency);
-            output->capturedAt = previewNow() - (double(counter.QuadPart) * 1000 / frequency.QuadPart - double(frame.SystemRelativeTime().count()) / 10000);
+            output->capturedAt = previewNow() - (double(counter.QuadPart) * 1000 / frequency.QuadPart - capturedTime);
             output->width = std::max(1u, unsigned(content.Width * scale)); output->height = std::max(1u, unsigned(content.Height * scale));
             D3D11_TEXTURE2D_DESC description{}; description.Width = output->width; description.Height = output->height;
             description.MipLevels = 1; description.ArraySize = 1; description.Format = DXGI_FORMAT_B8G8R8A8_UNORM;

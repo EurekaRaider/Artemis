@@ -14,7 +14,8 @@ import { IPC } from "../../src/shared/api.js";
 import { browserSessionCommandSchema } from "@artemis/protocol";
 
 async function main() {
-  const [evidence, preload, helper, module, duration] = process.argv.slice(2);
+  const [evidence, preload, helper, module, duration, nativeTargetPid] =
+    process.argv.slice(2);
   app.setPath("userData", join(evidence!, "profile"));
   await app.whenReady();
   const failures: string[] = [],
@@ -174,27 +175,34 @@ async function main() {
     nativeErrors: string[] = [];
   let leaseReleased = false;
   if (readiness.accessibility && readiness.screenRecording) {
-    const target = {
-      id: "desktop:com.github.Electron",
-      kind: "desktop" as const,
-      name: "Preview fixture",
-      bundleId: "com.github.Electron",
-    };
     const context = {
       threadId: "native-fixture",
       turnId: "turn",
       mode: "work" as const,
     };
+    const target =
+      process.platform === "win32"
+        ? (await native.targets(context)).find(
+            (candidate) =>
+              candidate.name === "Artemis GPU native preview verification",
+          )
+        : {
+            id: "desktop:com.github.Electron",
+            kind: "desktop" as const,
+            name: "Preview fixture",
+            bundleId: "com.github.Electron",
+          };
+    assert(target, "the isolated native animation fixture is available");
     await native.open(
-      { target: target.bundleId },
+      { target: target.appId ?? target.bundleId! },
       context,
       new AbortController().signal,
     );
     await native.observe(target, false, new AbortController().signal);
     assert.equal(
       (await native.previewIdentity(target)).pid,
-      process.pid,
-      "capture only this verification application's window",
+      process.platform === "win32" ? Number(nativeTargetPid) : process.pid,
+      "capture only the isolated verification application's window",
     );
     const source = new NativePreviewSource(native, async () => ({
       path: helper!,
