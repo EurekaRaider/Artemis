@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { join } from "node:path";
 import type { ComputerUsePackManifest } from "@artemis/protocol";
 const run = vi.hoisted(() => vi.fn());
 vi.mock("node:child_process", () => {
@@ -116,7 +117,7 @@ it("verifies the preview module with the same native signer and installation ACL
   const [, args, options] = run.mock.calls[0]!;
   expect(args[3]).toContain("foreach($p in $binaries)");
   expect(options.env.ARTEMIS_COMPUTER_VERIFY_PREVIEW).toBe(
-    "/synthetic/artemis-computer-preview.node",
+    join("/synthetic", "artemis-computer-preview.node"),
   );
 });
 it("rejects a native package for a different OS before invoking any executable", async () => {
