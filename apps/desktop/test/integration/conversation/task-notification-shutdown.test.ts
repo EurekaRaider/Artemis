@@ -8,6 +8,51 @@ const main = readFileSync(
 );
 
 describe("task notification shutdown", () => {
+  it("binds floating preview only to validated current-session messages", () => {
+    const start = main.indexOf("  ipcMain.on(IPC.taskView,");
+    const end = main.indexOf("  const taskSummaries", start);
+    let handler: (event: unknown, input: unknown) => void;
+    const sender = { mainFrame: {} };
+    const setThread = vi.fn();
+    const notifications = { refresh: vi.fn(), isViewing: () => false };
+    new Function(
+      "ipcMain",
+      "IPC",
+      "mainWindow",
+      "taskNotifications",
+      "store",
+      "shuttingDown",
+      "emitPayload",
+      "computerPreviewWindow",
+      transformSync(main.slice(start, end), { loader: "ts" }).code,
+    )(
+      {
+        on: (_channel: string, callback: typeof handler) => {
+          handler = callback;
+        },
+      },
+      { taskView: "task-view" },
+      { webContents: sender },
+      notifications,
+      {
+        getThread: (id: string) =>
+          ["one", "two"].includes(id) ? { id } : undefined,
+      },
+      false,
+      vi.fn(),
+      { setThread },
+    );
+    const event = { sender, senderFrame: sender.mainFrame };
+    handler!({ ...event, sender: {} }, { threadId: "one" });
+    handler!({ ...event, senderFrame: {} }, { threadId: "one" });
+    handler!(event, { threadId: "missing" });
+    expect(setThread).not.toHaveBeenCalled();
+    handler!(event, { threadId: "one" });
+    handler!(event, { threadId: "two" });
+    handler!(event, {});
+    expect(setThread.mock.calls).toEqual([["one"], ["two"], [undefined]]);
+  });
+
   it("ignores late task-view messages before touching a closing store", () => {
     const start = main.indexOf("  ipcMain.on(IPC.taskView,");
     const end = main.indexOf("  const taskSummaries", start);
@@ -63,6 +108,7 @@ describe("task notification shutdown", () => {
       const imService = undefined, automationScheduler = undefined, terminalService = undefined;
       const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
       const mcpClientManager = undefined, agentProcess = undefined, computerUseHost = undefined;
+      const computerPreviewHost = undefined, computerPreviewWindow = undefined, browserSessionHost = undefined;
       const trustedExtensionManager = undefined, providerLoginService = undefined;
       const appearanceService = undefined;
       const pluginDispatch = undefined, designPanelHost = undefined;

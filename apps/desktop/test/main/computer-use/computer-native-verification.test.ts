@@ -90,6 +90,7 @@ it("passes paths and Windows signer through an isolated environment to a fixed v
   expect(options.env.ARTEMIS_COMPUTER_VERIFY_SIGNER).toBe("a".repeat(40));
   expect(Object.keys(options.env).sort()).toEqual([
     "ARTEMIS_COMPUTER_VERIFY_PATH",
+    "ARTEMIS_COMPUTER_VERIFY_PREVIEW",
     "ARTEMIS_COMPUTER_VERIFY_ROOT",
     "ARTEMIS_COMPUTER_VERIFY_SIGNER",
     "SystemRoot",
@@ -98,6 +99,25 @@ it("passes paths and Windows signer through an isolated environment to a fixed v
   await expect(
     verifyComputerUseNative(root, manifest("win32")),
   ).rejects.toThrow("ACL");
+});
+it("verifies the preview module with the same native signer and installation ACL policy", async () => {
+  platform("win32");
+  run.mockResolvedValue({ stdout: "", stderr: "" });
+  const pack = manifest("win32", "a".repeat(40));
+  pack.preview = { protocol: 1, module: "artemis-computer-preview.node" };
+  pack.files.push({
+    path: pack.preview.module,
+    sha256: "c".repeat(64),
+    bytes: 1,
+    executable: true,
+  });
+  pack.archive.unpackedBytes++;
+  await verifyComputerUseNative("/synthetic", pack);
+  const [, args, options] = run.mock.calls[0]!;
+  expect(args[3]).toContain("foreach($p in $binaries)");
+  expect(options.env.ARTEMIS_COMPUTER_VERIFY_PREVIEW).toBe(
+    "/synthetic/artemis-computer-preview.node",
+  );
 });
 it("rejects a native package for a different OS before invoking any executable", async () => {
   platform("win32");

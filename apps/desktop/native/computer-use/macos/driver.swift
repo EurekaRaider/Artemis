@@ -64,7 +64,7 @@ import ApplicationServices
     let args = request["args"] as? [String: Any] ?? [:]
     switch method {
     case "hello":
-      return ["helperProtocol": 1, "platform": "darwin"]
+      return ["helperProtocol": 1, "platform": "darwin", "previewIdentity": 1]
     case "status":
       return [
         "platform": "darwin", "helperProtocol": 1,
@@ -94,6 +94,17 @@ import ApplicationServices
       foregroundControl = false
       panel?.orderOut(nil)
       return ["released": true]
+    case "preview-identity":
+      guard AXIsProcessTrusted(), CGPreflightScreenCaptureAccess(),
+        let id = args["id"] as? String, let (window, _, _, pid) = windows[id],
+        let application = NSRunningApplication(processIdentifier: pid),
+        let rectangle = bounds(window), let start = processStart(pid),
+        application.bundleIdentifier == String(id.dropFirst(8))
+      else { throw Failure("Authorized window is no longer available") }
+      let selected = try await selectedCaptureWindow(application: application, rectangle: rectangle)
+      return ["version": 1, "targetId": id, "pid": pid, "windowId": selected.windowID,
+        "processStart": start,
+        "appIdentity": application.bundleIdentifier!, "platform": "darwin"]
     case "observe": return try await observe(args)
     case "act":
       try await act(args)

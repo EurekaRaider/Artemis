@@ -140,6 +140,26 @@ export class BrowserDebugSession {
       });
     return this.ready;
   }
+  /** User IME only. The main-owned surface already validates ownership and
+   * document navigation; this does not expand AI inspection permissions. */
+  async humanComposition(
+    text: string,
+    selectionStart: number,
+    selectionEnd: number,
+    signal: AbortSignal,
+  ) {
+    signal.throwIfAborted();
+    if (this.disposed || this.contents.isDestroyed())
+      throw new Error("Browser closed or crashed. Reopen the tab.");
+    if (this.contents.isDevToolsOpened()) return; // Commit still uses insertText.
+    if (!this.debug.isAttached()) this.debug.attach("1.3");
+    await this.debug.sendCommand("Input.imeSetComposition", {
+      text,
+      selectionStart,
+      selectionEnd,
+    });
+    signal.throwIfAborted();
+  }
   async command<T = Record<string, unknown>>(
     method: string,
     params: Record<string, unknown>,
@@ -209,7 +229,9 @@ export class BrowserDebugSession {
         viewSize: { width, height },
         scale,
       });
-    } else this.contents.disableDeviceEmulation();
+    } else {
+      this.contents.disableDeviceEmulation();
+    }
   }
   private add(entry: Omit<BrowserDiagnostic, "id" | "time">) {
     this.entries.push({

@@ -500,6 +500,11 @@ const ComputerUseControls = lazy(() =>
     default: module.ComputerUseControls,
   })),
 );
+const ComputerPreview = lazy(() =>
+  import("../computer-use/ComputerPreview.js").then((module) => ({
+    default: module.ComputerPreview,
+  })),
+);
 const AutomationPage = lazy(() =>
   loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
 );
@@ -2308,6 +2313,10 @@ export function App() {
         return;
       }
       setFailedTabClose(undefined);
+      if (tab?.kind === "browser" && activeThreadId)
+        await window.artemis
+          .browserSession({ action: "close", threadId: activeThreadId, tabId })
+          .catch(() => {});
       const closesLastTab = closesLastWorkspaceTab(workspaceTabs, tabId);
       const focusTarget = workspaceTabFocusTargetAfterClose(
         workspaceTabs.tabs,
@@ -3359,6 +3368,32 @@ export function App() {
   }, []);
 
   const [computerBrowserThread, setComputerBrowserThread] = useState<string>();
+  useEffect(
+    () =>
+      window.artemis.onComputerPreviewExpand?.((state) => {
+        if (state.target.kind !== "browser" || !state.tabId) return;
+        setWorkspaceTabsByThread((current) => {
+          const existing = current[state.threadId] ?? emptyWorkspaceTabs();
+          const tab = existing.tabs.find(
+            (value) => value.id === state.tabId,
+          ) ?? {
+            id: state.tabId!,
+            kind: "browser" as const,
+            title: state.target.name,
+          };
+          return {
+            ...current,
+            [state.threadId]: {
+              ...reduceWorkspaceTabs(existing, { type: "open", tab }),
+              dockOpen: true,
+            },
+          };
+        });
+        if (state.threadId !== activeThreadId)
+          void openAutomationThread(state.threadId);
+      }),
+    [activeThreadId, openAutomationThread],
+  );
   useEffect(
     () =>
       window.artemis.onComputerBrowserOpen?.((threadId) => {
@@ -7616,6 +7651,10 @@ export function App() {
                     {turnFailureBanner}
                     <Suspense fallback={null}>
                       <ComputerUseControls locale={locale} />
+                      <ComputerPreview
+                        locale={locale}
+                        threadId={activeThreadId}
+                      />
                     </Suspense>
                     <Suspense fallback={null}>
                       <HookTaskNotice

@@ -12,6 +12,7 @@ import type { ComputerContext, ComputerDriver } from "./service.js";
 
 export interface ComputerHelperLease {
   path: string;
+  previewPath?: string;
   release(): void;
 }
 export class ComputerNativeDriver implements ComputerDriver {
@@ -19,6 +20,7 @@ export class ComputerNativeDriver implements ComputerDriver {
   private starting: Promise<ChildProcess> | undefined;
   private lease: ComputerHelperLease | undefined;
   private generation = 0;
+  private previewIdentitySupported = false;
   private readonly retiring = new Set<Promise<void>>();
   private readonly pending = new Map<
     string,
@@ -127,9 +129,11 @@ export class ComputerNativeDriver implements ComputerDriver {
       const hello = await this.send<{
         helperProtocol: number;
         platform: string;
+        previewIdentity?: number;
       }>(child, "hello", {});
       if (hello.helperProtocol !== 1 || hello.platform !== process.platform)
         throw new Error("Computer Use helper protocol or platform mismatch.");
+      this.previewIdentitySupported = hello.previewIdentity === 1;
       return child;
     })()
       .catch((error) => {
@@ -239,6 +243,19 @@ export class ComputerNativeDriver implements ComputerDriver {
   }
   async release(target: ComputerTarget) {
     if (this.child) await this.request("release", { id: target.id });
+  }
+  async previewIdentity(target: ComputerTarget) {
+    const child = await this.start();
+    if (!this.previewIdentitySupported)
+      throw new Error(
+        "Update the Computer Use capability pack for live preview.",
+      );
+    // Preview cancellation is local to the stream; it must not abort the control helper.
+    return this.send<import("./native-preview.js").NativeWindowIdentity>(
+      child,
+      "preview-identity",
+      { id: target.id },
+    );
   }
   async close(): Promise<void> {
     this.dispose();

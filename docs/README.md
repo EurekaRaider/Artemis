@@ -21,6 +21,7 @@
 | [视觉皮肤插件](guides/visual-skins.md) · [English](guides/visual-skins-en.md) | Skin v2、资源契约、开发工具与完整示例 |
 | [工程目录](guides/repository-layout.md) | 源码、测试、工具与产物的归属和迁移规则 |
 | [多语言维护](guides/localization.md) | 术语、RTL 与验证约定 |
+| [Computer Use 实时预览](guides/computer-preview.md) · [English](guides/computer-preview-en.md) | GPU 生命周期、能力包兼容与实机验收 |
 | [插件开发](guides/plugin-development.md) | v2 契约、SDK、工具、示例与 v1 兼容 |
 | [双平台发布](guides/release.md) | 公共 CI、签名、更新与恢复验收 |
 

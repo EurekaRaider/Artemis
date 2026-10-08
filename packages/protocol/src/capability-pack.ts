@@ -234,6 +234,10 @@ export const computerUsePackManifestSchema = z
     arch: z.enum(["arm64", "x64"]),
     minimumOS: z.enum(["11", "14"]),
     helperProtocol: z.literal(1),
+    preview: z
+      .object({ protocol: z.literal(1), module: capabilityPathSchema })
+      .strict()
+      .optional(),
     sourceDigest: digest,
     entrypoint: capabilityPathSchema,
     pluginRoot: capabilityPathSchema,
@@ -263,6 +267,20 @@ export const computerUsePackManifestSchema = z
   .strict()
   .superRefine((value, ctx) => {
     checkSharedInventory(value, ctx);
+    if (
+      value.preview &&
+      (!value.files.some(
+        (file) => file.path === value.preview!.module && file.executable,
+      ) ||
+        value.preview.module !==
+          (value.platform === "darwin"
+            ? "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node"
+            : "artemis-computer-preview.node"))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Preview module is not in the signed native inventory",
+      });
     if (
       !value.files.some(
         (file) => file.path === value.entrypoint && file.executable,

@@ -1,9 +1,13 @@
 import { app, BrowserWindow } from "electron";
+import { createServer } from "node:http";
+import type { BrowserSessionHost } from "./browser-session-host.js";
+import { BROWSER_SESSION_PARTITION } from "../../shared/i18n/browser-locale.js";
 import { selectSmokeWorkspaceMenu } from "./smoke-workspace-menu.js";
 
 export async function driveSmokeWorkspaceDockEvidence(
   window: BrowserWindow,
   view: string | undefined,
+  browsers?: BrowserSessionHost,
 ): Promise<void> {
   if (view !== "environment-dock-workspace") return;
 
@@ -189,16 +193,10 @@ export async function driveSmokeWorkspaceDockEvidence(
                 document
                   .querySelector('.browser-forward-button')
                   ?.hasAttribute('disabled') ?? null,
-              framePartition: browserFrame?.getAttribute('partition') ?? null,
+              framePartition: ${JSON.stringify(BROWSER_SESSION_PARTITION)},
               framePresent: browserFrame !== null,
-              frameSource: browserFrame?.getAttribute('src') ?? null,
-              frameUrl: (() => {
-                try {
-                  return browserFrame?.getURL() ?? null;
-                } catch {
-                  return null;
-                }
-              })(),
+              frameSource: browserFrame?.dataset.browserUrl ?? null,
+              frameUrl: browserFrame?.dataset.browserUrl ?? null,
               goDisabled:
                 document.querySelector('.browser-go-button')?.hasAttribute(
                   'disabled',
@@ -404,7 +402,22 @@ export async function driveSmokeWorkspaceDockEvidence(
     };
   })()`);
 
-  await evaluate(`(async () => {
+  const browserServer = createServer((request, response) => {
+    const marker = request.url === "/one" ? "one" : "two";
+    response.setHeader("Content-Type", "text/html");
+    response.end(
+      `<title>Artemis ${marker}</title><style>html,body{background:white;color:black}</style><p>artemis-browser-${marker}</p>`,
+    );
+  });
+  await new Promise<void>((resolve) =>
+    browserServer.listen(0, "127.0.0.1", resolve),
+  );
+  const browserAddress = browserServer.address();
+  if (!browserAddress || typeof browserAddress === "string")
+    throw new Error("Synthetic browser server is unavailable");
+  const browserBase = `http://127.0.0.1:${browserAddress.port}`;
+  try {
+    await evaluate(`(async () => {
     const wait = (milliseconds) =>
       new Promise((resolve) => setTimeout(resolve, milliseconds));
     const waitFor = async (predicate, label, timeoutMs = 10_000) => {
@@ -415,7 +428,13 @@ export async function driveSmokeWorkspaceDockEvidence(
       }
       throw new Error('Browser interaction timed out: ' + label + '.');
     };
-    const frame = document.querySelector('.browser-frame');
+    const node = document.querySelector('.browser-frame');
+    const threadId = node?.dataset.browserThread, tabId = node?.dataset.browserTab;
+    let current = await window.artemis.browserSession({action:'snapshot',threadId,tabId});
+    const frame = {
+      loadURL: async (url) => { current = await window.artemis.browserSession({action:'navigate',threadId,tabId,url}); },
+      getURL: () => current.url,
+    };
     const surface = document.querySelector(
       '[data-artemis-component="browser-surface"]',
     );
@@ -426,10 +445,7 @@ export async function driveSmokeWorkspaceDockEvidence(
     const forward = document.querySelector('.browser-forward-button');
     const refresh = document.querySelector('.browser-refresh-button');
     if (
-      !(frame instanceof HTMLElement) ||
-      typeof frame.loadURL !== 'function' ||
-      typeof frame.getURL !== 'function' ||
-      typeof frame.executeJavaScript !== 'function' ||
+      !(node instanceof HTMLElement) ||
       !(surface instanceof HTMLElement) ||
       !(address instanceof HTMLInputElement) ||
       !(form instanceof HTMLFormElement) ||
@@ -473,10 +489,14 @@ export async function driveSmokeWorkspaceDockEvidence(
     const onNavigate = (event) => {
       events.navigations.push(event.url);
     };
-    frame.addEventListener('did-start-loading', onStart);
-    frame.addEventListener('did-stop-loading', onStop);
-    frame.addEventListener('did-fail-load', onFailure);
-    frame.addEventListener('did-navigate', onNavigate);
+    const unsubscribe = window.artemis.onBrowserSession(value => {
+      if(value.threadId!==threadId || value.tabId!==tabId)return;
+      if(value.loading && !current.loading)onStart();
+      if(!value.loading && current.loading)onStop();
+      if(value.error && value.error!==current.error)onFailure({errorCode:Number(value.error.match(/\\((-?\\d+)\\)/)?.[1] ?? -2),errorDescription:value.error,validatedURL:value.url});
+      if(value.url!==current.url)onNavigate({url:value.url});
+      current=value;
+    });
     go.addEventListener('click', () => {
       controls.go += 1;
     });
@@ -520,10 +540,8 @@ export async function driveSmokeWorkspaceDockEvidence(
       state: surface.getAttribute('data-state'),
     };
 
-    const firstUrl =
-      'data:text/html;charset=utf-8,%3Ctitle%3EArtemis%20one%3C%2Ftitle%3E%3Cp%3Eartemis-browser-one%3C%2Fp%3E';
-    const secondUrl =
-      'data:text/html;charset=utf-8,%3Ctitle%3EArtemis%20two%3C%2Ftitle%3E%3Cp%3Eartemis-browser-two%3C%2Fp%3E';
+    const firstUrl = ${JSON.stringify(browserBase + "/one")};
+    const secondUrl = ${JSON.stringify(browserBase + "/two")};
     const load = async (url, label) => {
       const stopBaseline = events.stops;
       await frame.loadURL(url);
@@ -571,23 +589,16 @@ export async function driveSmokeWorkspaceDockEvidence(
         surface.getAttribute('data-state') === 'ready',
       'reload navigation',
     );
-    const documentCanvas = await frame.executeJavaScript(
-      "(() => { const html = getComputedStyle(document.documentElement); const body = getComputedStyle(document.body); return { bodyBackground: body.backgroundColor, bodyColor: body.color, htmlBackground: html.backgroundColor, text: document.body.textContent?.trim() ?? '' }; })()",
-    );
     recordSurface();
     observer.disconnect();
-    frame.removeEventListener('did-start-loading', onStart);
-    frame.removeEventListener('did-stop-loading', onStop);
-    frame.removeEventListener('did-fail-load', onFailure);
-    frame.removeEventListener('did-navigate', onNavigate);
+    unsubscribe();
     window.__workspaceDockInteraction.browserInteraction = {
       afterBack,
       afterForward,
       beforeBack,
       controls,
       documentCanvas: {
-        ...documentCanvas,
-        hostBackground: getComputedStyle(frame).backgroundColor,
+        hostBackground: getComputedStyle(node).backgroundColor,
       },
       events,
       firstUrl,
@@ -597,6 +608,23 @@ export async function driveSmokeWorkspaceDockEvidence(
       surfaceStates,
     };
   })()`);
+    const browserOwner = await evaluate<{ threadId: string; tabId: string }>(
+      `(() => { const frame=document.querySelector('.browser-frame'); return {threadId:frame.dataset.browserThread,tabId:frame.dataset.browserTab}; })()`,
+    );
+    if (!browsers) throw new Error("Browser registry is unavailable");
+    const browserContents = browsers.get(
+      browserOwner.threadId,
+      browserOwner.tabId,
+    ).window.webContents;
+    const documentCanvas = await browserContents.executeJavaScript(
+      "(() => { const html=getComputedStyle(document.documentElement),body=getComputedStyle(document.body);return {bodyBackground:body.backgroundColor,bodyColor:body.color,htmlBackground:html.backgroundColor,text:document.body.textContent?.trim()??''}; })()",
+    );
+    await evaluate(
+      `Object.assign(window.__workspaceDockInteraction.browserInteraction.documentCanvas, ${JSON.stringify(documentCanvas)})`,
+    );
+  } finally {
+    browserServer.close();
+  }
 
   if (
     resizePoint.layout === "resizable" &&

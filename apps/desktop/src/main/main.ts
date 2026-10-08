@@ -1,4 +1,11 @@
-import { browserPreviewCommandSchema } from "@artemis/protocol";
+import {
+  browserPreviewCommandSchema,
+  browserSessionCommandSchema,
+  computerPreviewCommandSchema,
+} from "@artemis/protocol";
+import { BrowserSessionHost } from "./workspace/browser-session-host.js";
+import { ComputerPreviewHost } from "./computer-use/preview-host.js";
+import { ComputerPreviewWindow } from "./computer-use/preview-window.js";
 import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-dock.js";
 import { createDesktopUpdateService } from "./updates/desktop-update-service.js";
 import { existsSync, readFileSync as readStartupFile } from "node:fs";
@@ -574,6 +581,9 @@ let resolvedLocalePreference: AppLocale = "en";
 let mcpConfigStore: McpConfigStore | undefined;
 let mcpClientManager: McpClientManager | undefined;
 let computerUseHost: ComputerUseHost | undefined;
+let browserSessionHost: BrowserSessionHost | undefined;
+let computerPreviewHost: ComputerPreviewHost | undefined;
+let computerPreviewWindow: ComputerPreviewWindow | undefined;
 let computerUseRuntime: ComputerUseRuntime | undefined;
 let computerUseCalls = 0;
 let computerUseServerId: string | undefined;
@@ -2321,6 +2331,8 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     language,
     theme,
     preventSleep: await settingsStore.preventSleepPreference(),
+    computerPreviewFloating:
+      await settingsStore.computerPreviewFloatingPreference(),
     resolvedLocale: currentLocale(),
     approvalPolicy,
     localFullAccess,
@@ -8005,6 +8017,45 @@ function registerIpc(): void {
     if (sender.id !== mainWindow?.webContents.id)
       throw new Error("Computer Use requires the Artemis window.");
   };
+  ipcMain.handle(IPC.browserSession, async (event, input: unknown) => {
+    assertComputerSender(event.sender);
+    if (event.senderFrame !== event.sender.mainFrame)
+      throw new Error("Browser requires the trusted main frame");
+    const command = browserSessionCommandSchema.parse(input);
+    const thread = store?.getThread(command.threadId);
+    if (!thread || thread.archived || !browserSessionHost)
+      throw new Error("Invalid browser task");
+    return browserSessionHost.command(command, event.sender);
+  });
+  ipcMain.handle(IPC.computerPreviews, (event) => {
+    assertComputerSender(event.sender);
+    return computerPreviewHost?.states() ?? [];
+  });
+  ipcMain.handle(IPC.computerPreview, (event, input: unknown) => {
+    assertComputerSender(event.sender);
+    if (event.senderFrame !== event.sender.mainFrame)
+      throw new Error("Preview requires the trusted main frame");
+    computerPreviewHost?.command(
+      computerPreviewCommandSchema.parse(input),
+      event.sender,
+    );
+  });
+  ipcMain.on(
+    IPC.computerPreviewReport,
+    (
+      event,
+      token: string,
+      report: { fps: number; p95Ms: number; sequence: number },
+    ) => {
+      if (
+        event.senderFrame !== event.sender.mainFrame ||
+        !report ||
+        typeof report !== "object"
+      )
+        return;
+      computerPreviewHost?.report(event.sender, token, report);
+    },
+  );
   ipcMain.handle(
     IPC.computerRegisterBrowser,
     (event, threadId: string, contentsId: number) => {
@@ -8139,6 +8190,7 @@ function registerIpc(): void {
     )
       return;
     taskNotifications.viewedThreadId = threadId as string | undefined;
+    computerPreviewWindow?.setThread(threadId as string | undefined);
     if (
       typeof threadId === "string" &&
       taskNotifications.isViewing(threadId) &&
@@ -8390,6 +8442,20 @@ function registerIpc(): void {
         app.getPreferredSystemLanguages(),
       );
       designPanelHost?.setLocale(currentLocale());
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsComputerPreviewFloatingSet,
+    async (event, enabled: boolean): Promise<SettingsSnapshot> => {
+      if (
+        event.sender !== mainWindow?.webContents ||
+        event.senderFrame !== event.sender.mainFrame
+      )
+        throw new Error("Preview settings require the main window");
+      if (!settingsStore) throw new Error("Agent settings are not ready.");
+      await settingsStore.setComputerPreviewFloatingPreference(enabled);
+      computerPreviewWindow?.setEnabled(enabled);
       return getSettingsSnapshot();
     },
   );
@@ -12665,6 +12731,7 @@ function registerIpc(): void {
         pluginDispatch?.closeThread(thread.id);
         designPanelHost?.releasePanel(thread.id, "workspace");
         computerUseHost?.clearTask(thread.id, "Task archived");
+        browserSessionHost?.clearThread(thread.id);
       }
       taskNotifications?.refresh();
       return updated;
@@ -12799,6 +12866,7 @@ function registerIpc(): void {
       designPanelHost?.releasePanel(threadId, "workspace");
       store.deleteThread(threadId);
       computerUseHost?.clearTask(threadId, "Task deleted");
+      browserSessionHost?.clearThread(threadId);
       threadHistoryService?.discard(threadId);
       taskNotifications?.refresh();
       imService?.deleteThread(threadId);
@@ -18132,6 +18200,8 @@ function createMainWindow(): BrowserWindow {
       workspaceHtmlPreview.clear();
       computerUseHost?.service.stopAll("Artemis window closed");
       computerUseHost?.native.dispose();
+      computerPreviewHost?.dispose();
+      browserSessionHost?.dispose();
       mainWindow = undefined;
       if (taskNotifications) taskNotifications.viewedThreadId = undefined;
     }
@@ -18147,6 +18217,7 @@ function createMainWindow(): BrowserWindow {
         }
         notificationRendererReady = false;
         if (taskNotifications) taskNotifications.viewedThreadId = undefined;
+        computerPreviewWindow?.setThread(undefined);
       }
     },
   );
@@ -20784,7 +20855,11 @@ function createMainWindow(): BrowserWindow {
                 window,
                 requestedSmokeView,
               );
-            await driveSmokeWorkspaceDockEvidence(window, requestedSmokeView);
+            await driveSmokeWorkspaceDockEvidence(
+              window,
+              requestedSmokeView,
+              browserSessionHost,
+            );
           }
           // PR10B review round 3 (nit 6): the user-input-transport PNG is
           // captured inside its evidence driver after the broker
@@ -23410,6 +23485,8 @@ app.on("render-process-gone", (_event, _contents, details) => {
     workspaceHtmlPreview.clear();
     computerUseHost?.service.stopAll("Artemis renderer stopped");
     computerUseHost?.native.dispose();
+    computerPreviewHost?.dispose();
+    browserSessionHost?.removeContents(_contents);
   }
   diagnosticBundleService?.record({
     source: "renderer",
@@ -24009,6 +24086,36 @@ app
     });
     for (const warning of await artemisPluginService.upgradeMigratedBundledPlugins())
       console.warn(warning);
+    browserSessionHost = new BrowserSessionHost({
+      navigationAllowed: isEmbeddedBrowserNavigationAllowed,
+      register: (contents, threadId) =>
+        computerUseHost?.registerOwnedBrowser(contents, threadId),
+      input: async (threadId, contentsId, input) => {
+        if (computerUseHost)
+          await computerUseHost.humanInput(threadId, contentsId, input);
+      },
+      changed: (snapshot) => {
+        if (mainWindow && !mainWindow.isDestroyed())
+          mainWindow.webContents.send(IPC.browserSession, snapshot);
+      },
+      closed: (contents) =>
+        computerPreviewHost?.closeTarget(`browser:${contents.id}`),
+      workspaceDocument: async (threadId, path) => {
+        if (/\.html?$/iu.test(path))
+          return (await workspaceHtmlPreview.open(threadId, path)).url;
+        if (/\.pdf$/iu.test(path))
+          return workspacePdfPreview.open(threadId, path);
+        throw new Error("Browser workspace preview requires HTML or PDF");
+      },
+      releaseDocument: (threadId, url) =>
+        workspaceHtmlPreview.release(threadId, url),
+      takeover: (threadId, contentsId) =>
+        computerUseHost?.service.stopTargets(
+          (target) => target.id === `browser:${contentsId}`,
+          threadId,
+          "User took control",
+        ),
+    });
     if (process.platform === "darwin" || process.platform === "win32") {
       const computerResources = join(
         dirname(bundledArtifactPluginsPath()),
@@ -24045,6 +24152,8 @@ app
         ),
         window: () => mainWindow,
         locale: currentLocale,
+        browsers: browserSessionHost!,
+        stateChanged: (state) => computerPreviewHost?.update(state),
         idle: () => {
           void computerUseRuntime
             ?.finishUpdate()
@@ -24053,6 +24162,41 @@ app
             );
         },
       });
+      computerPreviewHost = new ComputerPreviewHost({
+        driver: computerUseHost.native,
+        acquire: () => computerUseRuntime!.helper(),
+        browsers: browserSessionHost!,
+        authorized: (threadId, targetId) =>
+          computerUseHost?.service.previewTarget(threadId, targetId),
+        publish: (states) => {
+          if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send(IPC.computerPreviews, states);
+          computerPreviewWindow?.update(states);
+        },
+        expand: (state) => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send(IPC.computerPreviewExpand, state);
+          }
+        },
+      });
+      computerPreviewWindow = new ComputerPreviewWindow({
+        main: () => mainWindow,
+        host: () => computerPreviewHost,
+        locale: currentLocale,
+        control: (action, threadId) => {
+          if (action === "stop")
+            computerUseHost?.service.stopThread(
+              threadId,
+              "User paused control",
+            );
+          else computerUseHost?.service.resumeThread(threadId);
+        },
+      });
+      computerPreviewWindow.setEnabled(
+        await settingsStore!.computerPreviewFloatingPreference(),
+      );
       await computerUseRuntime
         .initialize()
         .catch((error) => console.error("Computer Use recovery failed", error));
@@ -24292,6 +24436,9 @@ let hookSessionsEnded = false;
 app.on("before-quit", (event) => {
   providerLoginService?.cancel();
   computerUseHost?.dispose();
+  computerPreviewHost?.dispose();
+  computerPreviewWindow?.dispose();
+  browserSessionHost?.dispose();
   if (
     !hookSessionsEnded &&
     (openedThreads.size || officeWorkbench || mainWindow)

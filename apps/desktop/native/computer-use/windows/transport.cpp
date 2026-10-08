@@ -98,7 +98,7 @@ void verifyParent() {
 
 IJsonValue Driver::handle(JsonObject const& request) {
     auto method = str(request, L"method"); auto args = request.GetNamedObject(L"args", JsonObject());
-    if (method == L"hello") { JsonObject result; put(result, L"helperProtocol", 1.0); put(result, L"platform", std::wstring(L"win32")); return result; }
+    if (method == L"hello") { JsonObject result; put(result, L"helperProtocol", 1.0); put(result, L"platform", std::wstring(L"win32")); put(result, L"previewIdentity", 1.0); return result; }
     if (method == L"status" || method == L"permissions") {
       JsonObject result; bool ready = desktopReady();
       put(result, L"platform", std::wstring(L"win32")); put(result, L"helperProtocol", 1.0); put(result, L"accessibility", ready); put(result, L"screenRecording", ready && GraphicsCaptureSession::IsSupported());
@@ -107,6 +107,17 @@ IJsonValue Driver::handle(JsonObject const& request) {
     }
     if (method == L"targets") { discover(); JsonArray targets; for (auto const& [id, app] : applications) targets.Append(target(app)); return targets; }
     if (method == L"open") { discover(); return target(find(args, L"target")); }
+    if (method == L"preview-identity") {
+      auto id = str(args, L"id"); auto found = observations.find(id);
+      require(found != observations.end(), "Observe the authorized window before previewing");
+      auto observation = found->second; valid(observation);
+      auto app = applications.find(id.starts_with(L"desktop:") ? id.substr(8) : id); require(app != applications.end(), "Application identity is unavailable");
+      JsonObject result; put(result, L"version", 1.0); put(result, L"platform", std::wstring(L"win32")); put(result, L"targetId", id);
+      put(result, L"pid", double(observation.processId)); put(result, L"processInstance", observation.processInstance);
+      put(result, L"windowId", std::to_wstring(reinterpret_cast<uintptr_t>(observation.window)));
+      auto windowPid = pidOf(observation.window); put(result, L"windowPid", double(windowPid)); put(result, L"windowInstance", instance(windowPid));
+      put(result, L"appIdentity", app->second.id); put(result, L"appPath", processPath(observation.processId)); return result;
+    }
     if (method == L"observe") return observe(args);
     if (method == L"act") { act(args); return JsonObject(); }
     if (method == L"release") { observations.erase(str(args, L"id")); elements.clear(); controlledPid = 0; controlledWindow = nullptr; foregroundControl = false; PostMessageW(panel, panelHide, 0, 0); return JsonObject(); }

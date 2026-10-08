@@ -1,9 +1,9 @@
+import { PreviewCanvas } from "../computer-use/PreviewCanvas.js";
 import { BrowserPreviewTools } from "./BrowserPreviewTools.js";
 import { IconButton } from "@artemis/ui/actions";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -29,15 +29,11 @@ import {
 
 import type { WorkspaceTextFile } from "../../shared/api.js";
 import {
-  BROWSER_SESSION_PARTITION,
   shouldReloadBrowserForLocaleChange,
   type BrowserLocale,
 } from "../../shared/i18n/browser-locale.js";
 import { localeDirection } from "../../shared/i18n/locales.js";
-import {
-  browserNavigationSnapshot,
-  normalizeBrowserAddress,
-} from "../app/browser-navigation.js";
+import { normalizeBrowserAddress } from "../app/browser-navigation.js";
 import { MarkdownContent } from "../components/MarkdownContent.js";
 import { handleWorkspaceEditorSaveShortcut } from "./workspace-editor-shortcut.js";
 import { markdownViewState, usePersistentUiState } from "../app/ui-state.js";
@@ -135,232 +131,105 @@ function useWorkspacePreviewFile({
 }
 
 export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
-  const [contentsId, setContentsId] = useState<number>();
-  const [htmlPreview, setHtmlPreview] = useState<{
-    label: string;
-    url: string;
-  }>();
-  const rtl = localeDirection(props.locale) === "rtl";
-  const webviewRef = useRef<Electron.WebviewTag>(null);
-  const webviewReadyRef = useRef(false);
-  const previousLocaleRef = useRef(props.locale);
-  const workspaceDocumentRef = useRef<
-    { label: string; url: string } | undefined
-  >(undefined);
+  const [session, setSession] =
+    useState<import("@artemis/protocol").BrowserSessionSnapshot>();
   const [address, setAddress] = useState(props.initialUrl ?? "");
-  const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
-  const [navigationError, setNavigationError] = useState<string>();
-  const [pageLoading, setPageLoading] = useState(false);
-  const [webviewReady, setWebviewReady] = useState(false);
-  const { error, file, loading, refresh } = useWorkspacePreviewFile(props);
-  const workspaceDocument = useMemo(
-    () =>
-      file?.kind === "html"
-        ? htmlPreview
-        : file?.kind === "pdf"
-          ? {
-              label: file.path,
-              url: `${file.url}#navpanes=0&view=FitH`,
-            }
-          : undefined,
-    [file, htmlPreview],
+  const [error, setError] = useState<string>();
+  const rtl = localeDirection(props.locale) === "rtl";
+  const previousLocale = useRef(props.locale);
+  const initialUrl = useRef(props.initialUrl);
+  const command = useCallback(
+    async (
+      action: "back" | "forward" | "reload" | "navigate",
+      url?: string,
+    ) => {
+      if (!props.threadId) return;
+      const result = await window.artemis.browserSession(
+        action === "navigate"
+          ? { action, threadId: props.threadId, tabId: props.tabId, url: url! }
+          : { action, threadId: props.threadId, tabId: props.tabId },
+      );
+      if (result) setSession(result);
+    },
+    [props.threadId, props.tabId],
   );
-  const browserSource =
-    workspaceDocument?.url ?? props.initialUrl ?? "about:blank";
-
+  const run = (operation: Promise<unknown>) => {
+    setError(undefined);
+    void operation.catch((reason) =>
+      setError(reason instanceof Error ? reason.message : String(reason)),
+    );
+  };
   useEffect(() => {
-    if (!props.threadId || file?.kind !== "html") {
-      setHtmlPreview(undefined);
-      return;
-    }
-    const threadId = props.threadId;
+    if (!props.threadId) return;
     let active = true;
-    let lease: string | undefined;
+    const unsubscribe = window.artemis.onBrowserSession((value) => {
+      if (value.threadId !== props.threadId || value.tabId !== props.tabId)
+        return;
+      setSession(value);
+      setError(value.error);
+      setAddress(value.url === "about:blank" ? "" : value.url);
+    });
     void window.artemis
-      .openWorkspaceHtml(threadId, file.path)
-      .then(({ url }) => {
-        if (!active) {
-          void window.artemis
-            .releaseWorkspaceHtml(threadId, url)
-            .catch(() => {});
-          return;
+      .browserSession({
+        action: "open",
+        threadId: props.threadId,
+        tabId: props.tabId,
+        ...(props.initialUrl ? { url: props.initialUrl } : {}),
+        ...(props.path ? { path: props.path } : {}),
+        ...(props.revision ? { revision: props.revision } : {}),
+      })
+      .then((value) => {
+        if (active && value) {
+          setSession(value);
+          setAddress(
+            props.path ?? (value.url === "about:blank" ? "" : value.url),
+          );
         }
-        lease = url;
-        setHtmlPreview({ label: file.path, url });
       })
       .catch((reason) => {
-        if (active) setNavigationError(String(reason));
+        if (active) setError(String(reason));
       });
     return () => {
       active = false;
-      if (lease)
-        void window.artemis
-          .releaseWorkspaceHtml(threadId, lease)
-          .catch(() => {});
+      unsubscribe();
     };
-  }, [file, props.threadId]);
-
-  workspaceDocumentRef.current = workspaceDocument;
-
+  }, [props.threadId, props.tabId, props.path, props.revision]);
   useEffect(() => {
-    const webview = webviewRef.current;
-    if (!webview) return;
-
-    const syncNavigation = (url?: string) => {
-      const navigation = browserNavigationSnapshot(
-        webview,
-        webviewReadyRef.current,
-        url,
-      );
-      if (!navigation) return;
-      const workspace = workspaceDocumentRef.current;
-      setAddress(
-        workspace?.url === navigation.url
-          ? workspace.label
-          : navigation.url === "about:blank"
-            ? ""
-            : navigation.url,
-      );
-      setCanGoBack(navigation.canGoBack);
-      setCanGoForward(navigation.canGoForward);
-    };
-    const handleDomReady = () => {
-      webviewReadyRef.current = true;
-      setWebviewReady(true);
-      setContentsId(webview.getWebContentsId());
-      syncNavigation();
-      if (props.threadId && window.artemis.registerComputerBrowser) {
-        void window.artemis
-          .registerComputerBrowser(props.threadId, webview.getWebContentsId())
-          .catch((error: unknown) => setNavigationError(String(error)));
-      }
-    };
-    const handleNavigate = (event: Electron.DidNavigateEvent) => {
-      setNavigationError(undefined);
-      syncNavigation(event.url);
-    };
-    const handleNavigateInPage = (event: Electron.DidNavigateInPageEvent) => {
-      if (event.isMainFrame) syncNavigation(event.url);
-    };
-    const handleStartLoading = () => setPageLoading(true);
-    const handleStopLoading = () => {
-      setPageLoading(false);
-      syncNavigation();
-    };
-    const handleFailedLoad = (event: Electron.DidFailLoadEvent) => {
-      if (event.errorCode !== -3) {
-        setNavigationError(event.errorDescription);
-      }
-    };
-
-    webview.addEventListener("dom-ready", handleDomReady);
-    webview.addEventListener("did-navigate", handleNavigate);
-    webview.addEventListener("did-navigate-in-page", handleNavigateInPage);
-    webview.addEventListener("did-start-loading", handleStartLoading);
-    webview.addEventListener("did-stop-loading", handleStopLoading);
-    webview.addEventListener("did-fail-load", handleFailedLoad);
-    return () => {
-      webviewReadyRef.current = false;
-      webview.removeEventListener("dom-ready", handleDomReady);
-      webview.removeEventListener("did-navigate", handleNavigate);
-      webview.removeEventListener("did-navigate-in-page", handleNavigateInPage);
-      webview.removeEventListener("did-start-loading", handleStartLoading);
-      webview.removeEventListener("did-stop-loading", handleStopLoading);
-      webview.removeEventListener("did-fail-load", handleFailedLoad);
-    };
-  }, []);
-
+    if (initialUrl.current !== props.initialUrl && props.initialUrl)
+      run(command("navigate", props.initialUrl));
+    initialUrl.current = props.initialUrl;
+  }, [props.initialUrl, command]);
   useEffect(() => {
-    if (workspaceDocument) {
-      setAddress(workspaceDocument.label);
-      setNavigationError(undefined);
-    }
-  }, [workspaceDocument]);
-
-  useEffect(() => {
-    if (!props.initialUrl) return;
-    setAddress(props.initialUrl);
-    setNavigationError(undefined);
-  }, [props.initialUrl]);
-
-  useEffect(() => {
-    const previousLocale = previousLocaleRef.current;
-    previousLocaleRef.current = props.locale;
-
-    const webview = webviewRef.current;
-    const navigation = webview
-      ? browserNavigationSnapshot(webview, webviewReadyRef.current)
-      : undefined;
+    const old = previousLocale.current;
+    previousLocale.current = props.locale;
     if (
-      !webview ||
-      !navigation ||
-      !shouldReloadBrowserForLocaleChange(
-        previousLocale,
-        props.locale,
-        navigation.url,
-      )
-    ) {
-      return;
-    }
-    try {
-      webview.reloadIgnoringCache();
-      setNavigationError(undefined);
-    } catch {
-      // The WebView may detach between reading its state and reloading it.
-    }
-  }, [props.locale]);
-
+      session &&
+      shouldReloadBrowserForLocaleChange(old, props.locale, session.url)
+    )
+      run(command("reload"));
+  }, [props.locale, session?.url, command]);
   const navigate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const webview = webviewRef.current;
-    if (!webview || !webviewReadyRef.current) return;
     try {
-      const url =
-        workspaceDocument && address.trim() === workspaceDocument.label
-          ? workspaceDocument.url
-          : normalizeBrowserAddress(address, props.locale);
-      setNavigationError(undefined);
-      void webview.loadURL(url).catch((reason) => {
-        setNavigationError(
-          reason instanceof Error ? reason.message : String(reason),
-        );
-      });
-    } catch (reason) {
-      setNavigationError(
-        reason instanceof Error ? reason.message : String(reason),
+      run(
+        command(
+          "navigate",
+          props.path && address.trim() === props.path && session
+            ? session.url
+            : normalizeBrowserAddress(address, props.locale),
+        ),
       );
+    } catch (reason) {
+      setError(String(reason));
     }
   };
-
-  const runWhenWebviewReady = (
-    action: (webview: Electron.WebviewTag) => void,
-  ) => {
-    const webview = webviewRef.current;
-    if (!webview || !webviewReadyRef.current) return;
-    try {
-      action(webview);
-    } catch {
-      // Navigation controls are inert while the WebView is detaching.
-    }
-  };
-
-  const reload = () => {
-    refresh();
-    runWhenWebviewReady((webview) => webview.reload());
-  };
-
   return (
     <BrowserSurface
-      busy={loading || pageLoading}
+      busy={!session || session.loading}
       className="browser-panel"
       label={props.title}
       state={
-        error || navigationError
-          ? "error"
-          : loading || pageLoading
-            ? "loading"
-            : "ready"
+        error ? "error" : !session || session.loading ? "loading" : "ready"
       }
     >
       <BrowserToolbar
@@ -373,38 +242,24 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         >
           <BrowserNavigationButton
             className="browser-back-button"
-            disabled={!webviewReady || !canGoBack}
-            icon={
-              rtl ? (
-                <ArtemisIcon name="chev-right" />
-              ) : (
-                <ArtemisIcon name="chev-left" />
-              )
-            }
+            disabled={!session?.canGoBack}
+            icon={<ArtemisIcon name={rtl ? "chev-right" : "chev-left"} />}
             label={props.backLabel}
-            onClick={() => runWhenWebviewReady((webview) => webview.goBack())}
+            onClick={() => run(command("back"))}
           />
           <BrowserNavigationButton
             className="browser-forward-button"
-            disabled={!webviewReady || !canGoForward}
-            icon={
-              rtl ? (
-                <ArtemisIcon name="chev-left" />
-              ) : (
-                <ArtemisIcon name="chev-right" />
-              )
-            }
+            disabled={!session?.canGoForward}
+            icon={<ArtemisIcon name={rtl ? "chev-left" : "chev-right"} />}
             label={props.forwardLabel}
-            onClick={() =>
-              runWhenWebviewReady((webview) => webview.goForward())
-            }
+            onClick={() => run(command("forward"))}
           />
           <BrowserNavigationButton
             className="browser-refresh-button"
-            disabled={!webviewReady || (pageLoading && loading)}
+            disabled={!session}
             icon={<ArtemisIcon name="refresh" />}
             label={props.refreshLabel}
-            onClick={reload}
+            onClick={() => run(command("reload"))}
           />
         </BrowserNavigation>
         <BrowserAddressForm
@@ -422,36 +277,32 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
           />
           <BrowserGoButton
             className="browser-go-button"
-            disabled={!webviewReady}
+            disabled={!session}
             label={props.goLabel}
           />
         </BrowserAddressForm>
       </BrowserToolbar>
-      {(error || navigationError) && (
+      {error && (
         <BrowserState className="browser-error" state="error">
-          {error ?? navigationError}
+          {error}
         </BrowserState>
       )}
       <BrowserPreviewTools
-        enabled={file?.kind !== "pdf"}
+        enabled={!/\.pdf$/iu.test(props.path ?? "")}
         threadId={props.threadId}
         tabId={props.tabId}
-        contentsId={contentsId}
+        contentsId={session?.contentsId}
         locale={props.locale}
         onEvidence={props.onEvidence}
       >
-        <BrowserViewport
-          className="browser-viewport"
-          label={`${props.title}: ${file?.path ?? props.initialUrl ?? props.addressPlaceholder}`}
-        >
-          <webview
-            className="browser-frame"
-            partition={BROWSER_SESSION_PARTITION}
-            webpreferences="plugins=yes"
-            ref={webviewRef}
-            src={browserSource}
-            title={`${props.title}: ${file?.path ?? props.initialUrl ?? ""}`}
-          />
+        <BrowserViewport className="browser-viewport" label={props.title}>
+          {session && (
+            <PreviewCanvas
+              sessionId={session.sessionId}
+              browser={session}
+              label={props.title}
+            />
+          )}
         </BrowserViewport>
       </BrowserPreviewTools>
     </BrowserSurface>

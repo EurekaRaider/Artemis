@@ -73,6 +73,10 @@ export class ComputerUseHost {
       idle?(): void;
       window(): BrowserWindow | undefined;
       locale(): AppLocale;
+      browsers?: import("../workspace/browser-session-host.js").BrowserSessionHost;
+      stateChanged?(
+        state: import("@artemis/protocol").ComputerControlState,
+      ): void;
     },
   ) {
     this.native = new ComputerNativeDriver(
@@ -101,6 +105,7 @@ export class ComputerUseHost {
       authorizeForeground: (target, context, signal) =>
         this.authorizeForeground(target, context, signal),
       publish: (state) => {
+        this.options.stateChanged?.(state);
         const window = this.options.window();
         if (window && !window.isDestroyed())
           window.webContents.send(IPC.computerState, state);
@@ -341,12 +346,27 @@ export class ComputerUseHost {
       !owner ||
       sender.id !== owner.id ||
       !contents ||
-      contents.getType() !== "webview" ||
-      contents.hostWebContents?.id !== owner.id
+      (this.options.browsers
+        ? !this.options.browsers.owned(threadId, contentsId)
+        : contents.getType() !== "webview" ||
+          contents.hostWebContents?.id !== owner.id)
     )
       throw new Error("Browser ownership validation failed.");
     this.browser.register(contents, threadId);
     this.waitingBrowsers.get(threadId)?.(contents);
+  }
+  registerOwnedBrowser(contents: WebContents, threadId: string) {
+    if (!this.options.browsers?.owned(threadId, contents.id))
+      throw new Error("Browser ownership validation failed.");
+    this.browser.register(contents, threadId);
+    this.waitingBrowsers.get(threadId)?.(contents);
+  }
+  humanInput(
+    threadId: string,
+    contentsId: number,
+    input: import("@artemis/protocol").BrowserHumanInput,
+  ) {
+    return this.browser.humanInput(threadId, contentsId, input);
   }
   preview(
     threadId: string,
@@ -398,6 +418,8 @@ export class ComputerUseHost {
     signal: AbortSignal,
   ): Promise<WebContents> {
     signal.throwIfAborted();
+    const existing = this.options.browsers?.forThread(context.threadId);
+    if (existing) return Promise.resolve(existing.window.webContents);
     return new Promise((resolve, reject) => {
       const cleanup = () => {
         clearTimeout(timer);

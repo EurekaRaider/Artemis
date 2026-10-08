@@ -16,6 +16,7 @@ import {
 } from "@artemis/protocol";
 import { inventoryTree, zipEntries } from "../design-pack/pack.mjs";
 import { buildComputerUse } from "../../apps/desktop/scripts/build/build-computer-use.mjs";
+import { buildComputerPreview } from "../../apps/desktop/scripts/build/build-computer-preview.mjs";
 import { notarizeExistingMacApp } from "../../apps/desktop/scripts/release/notarize-macos-app.mjs";
 
 const repo = fileURLToPath(new URL("../..", import.meta.url));
@@ -86,6 +87,14 @@ try {
     await cp(
       join(repo, "apps/desktop/build/computer-use/arm64/artemis-computer-use"),
       join(app, "Contents/MacOS/artemis-computer-use"),
+    );
+    await mkdir(join(app, "Contents/Frameworks"), { recursive: true });
+    await cp(
+      join(
+        repo,
+        "apps/desktop/build/computer-use/arm64/artemis-computer-preview.node",
+      ),
+      join(app, "Contents/Frameworks/artemis-computer-preview.node"),
     );
     await writeFile(
       join(app, "Contents/Info.plist"),
@@ -164,6 +173,17 @@ try {
         keychain,
         "--sign",
         identity,
+        join(app, "Contents/Frameworks/artemis-computer-preview.node"),
+      ]);
+      run("/usr/bin/codesign", [
+        "--force",
+        "--timestamp",
+        "--options",
+        "runtime",
+        "--keychain",
+        keychain,
+        "--sign",
+        identity,
         app,
       ]);
       await notarizeExistingMacApp(app, version, process.env);
@@ -181,6 +201,12 @@ try {
     notarization = "accepted-stapled";
     entrypoint = "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use";
   } else {
+    const previewBuild = join(scratch, "preview");
+    buildComputerPreview(previewBuild, "x64");
+    await cp(
+      join(previewBuild, "artemis-computer-preview.node"),
+      join(payload, "artemis-computer-preview.node"),
+    );
     const build = join(scratch, "build");
     run("cmake", [
       "-S",
@@ -197,11 +223,19 @@ try {
     );
     // Authenticode can be applied by an external signing step. A declared signer is always verified on install.
     if (process.env.COMPUTER_USE_SIGNED_WINDOWS_HELPER) {
+      if (!process.env.COMPUTER_USE_SIGNED_WINDOWS_PREVIEW)
+        throw new Error(
+          "A signed Windows preview module is required with a signed helper",
+        );
       await cp(
         process.env.COMPUTER_USE_SIGNED_WINDOWS_HELPER,
         join(payload, entrypoint),
       );
       signer = process.env.COMPUTER_USE_WINDOWS_SIGNER;
+      await cp(
+        process.env.COMPUTER_USE_SIGNED_WINDOWS_PREVIEW,
+        join(payload, "artemis-computer-preview.node"),
+      );
       if (!/^[a-f0-9]{40}$/iu.test(signer ?? ""))
         throw new Error("A Windows certificate thumbprint is required");
     }
@@ -217,7 +251,10 @@ try {
   await writeFile(pluginPath, JSON.stringify(plugin, null, 2) + "\n");
   const files = (await inventoryTree(payload)).map((file) => ({
     ...file,
-    executable: file.path === entrypoint,
+    executable:
+      file.path === entrypoint ||
+      file.path.endsWith("/artemis-computer-preview.node") ||
+      file.path === "artemis-computer-preview.node",
   }));
   const entries = await Promise.all(
     files.map(async (file) => ({
@@ -238,6 +275,13 @@ try {
     arch: process.arch,
     minimumOS: process.platform === "darwin" ? "14" : "11",
     helperProtocol: 1,
+    preview: {
+      protocol: 1,
+      module:
+        process.platform === "darwin"
+          ? "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node"
+          : "artemis-computer-preview.node",
+    },
     entrypoint,
     pluginRoot: "plugin",
     sourceDigest: sha(run("git", ["rev-parse", "HEAD"]).trim()),

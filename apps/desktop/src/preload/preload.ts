@@ -7,8 +7,39 @@ import type {
 
 import { IPC, type ArtemisApi } from "../shared/api.js";
 import { readPromptAttachmentsFromFiles } from "./prompt-attachments.js";
+import { bindPreviewCanvas, unbindPreviewCanvas } from "./preview-textures.js";
 
 const api: ArtemisApi = {
+  bindPreviewCanvas,
+  unbindPreviewCanvas,
+  browserSession: (command) => ipcRenderer.invoke(IPC.browserSession, command),
+  onBrowserSession(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      snapshot: import("@artemis/protocol").BrowserSessionSnapshot,
+    ) => listener(snapshot);
+    ipcRenderer.on(IPC.browserSession, handler);
+    return () => ipcRenderer.removeListener(IPC.browserSession, handler);
+  },
+  getComputerPreviews: () => ipcRenderer.invoke(IPC.computerPreviews),
+  computerPreview: (command) =>
+    ipcRenderer.invoke(IPC.computerPreview, command),
+  onComputerPreviews(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      states: import("@artemis/protocol").ComputerPreviewState[],
+    ) => listener(states);
+    ipcRenderer.on(IPC.computerPreviews, handler);
+    return () => ipcRenderer.removeListener(IPC.computerPreviews, handler);
+  },
+  onComputerPreviewExpand(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      state: import("@artemis/protocol").ComputerPreviewState,
+    ) => listener(state);
+    ipcRenderer.on(IPC.computerPreviewExpand, handler);
+    return () => ipcRenderer.removeListener(IPC.computerPreviewExpand, handler);
+  },
   browserPreview: (threadId, contentsId, command) =>
     ipcRenderer.invoke(IPC.browserPreview, threadId, contentsId, command),
   registerComputerBrowser: (threadId, contentsId) =>
@@ -436,6 +467,8 @@ const api: ArtemisApi = {
   setTheme: (theme) => ipcRenderer.invoke(IPC.settingsThemeSet, theme),
   setPreventSleep: (enabled) =>
     ipcRenderer.invoke(IPC.settingsPreventSleepSet, enabled),
+  setComputerPreviewFloating: (enabled) =>
+    ipcRenderer.invoke(IPC.settingsComputerPreviewFloatingSet, enabled),
   setApprovalPolicy: (policy) =>
     ipcRenderer.invoke(IPC.settingsApprovalPolicySet, policy),
   setLocalFullAccess: (enabled) =>

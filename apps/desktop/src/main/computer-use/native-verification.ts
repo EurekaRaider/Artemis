@@ -42,13 +42,32 @@ export async function verifyComputerUseNative(
     await run("/usr/sbin/spctl", ["--assess", "--type", "execute", app], {
       timeout: 60000,
     });
+    if (pack.preview) {
+      const module = join(root, pack.preview.module);
+      await run("/usr/bin/codesign", ["--verify", "--strict", module], {
+        timeout: 10000,
+      });
+      const signature = await run(
+        "/usr/bin/codesign",
+        ["-dv", "--verbose=4", module],
+        { timeout: 10000 },
+      );
+      if (
+        !signature.stderr
+          .split(/\r?\n/u)
+          .includes("TeamIdentifier=" + pack.native.signer)
+      )
+        throw new Error(
+          "Computer Use preview module signing identity mismatch",
+        );
+    }
     return;
   }
   if (process.platform !== "win32")
     throw new Error("Unsupported Computer Use platform");
   // No downloaded text is interpolated into the verification program.
   const script =
-    "$ErrorActionPreference='Stop'; $p=$env:ARTEMIS_COMPUTER_VERIFY_PATH; $s=Get-AuthenticodeSignature -LiteralPath $p; if($env:ARTEMIS_COMPUTER_VERIFY_SIGNER -eq 'unsigned'){if($s.Status -ne 'NotSigned'){throw 'Unexpected native signature'}} elseif($s.Status -ne 'Valid' -or $s.SignerCertificate.Thumbprint -ne $env:ARTEMIS_COMPUTER_VERIFY_SIGNER){throw 'Native signature mismatch'}; $trusted=@([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,'S-1-5-18','S-1-5-32-544'); $paths=@();$d=$env:ARTEMIS_COMPUTER_VERIFY_ROOT;for($i=0;$i-lt 4;$i++){$paths+=$d;$parent=[System.IO.Directory]::GetParent($d);if(!$parent){break};$d=$parent.FullName};foreach($path in $paths+(Get-ChildItem -LiteralPath $env:ARTEMIS_COMPUTER_VERIFY_ROOT -Recurse -Force | ForEach-Object FullName)){$acl=Get-Acl -LiteralPath $path; if($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted){throw 'Unsafe native installation owner'}; foreach($a in $acl.Access){if($a.AccessControlType -eq 'Allow' -and $a.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted -and ([int]$a.FileSystemRights -band 0xD0156)){throw 'Unsafe Computer Use installation ACL'}}}";
+    "$ErrorActionPreference='Stop'; $binaries=@($env:ARTEMIS_COMPUTER_VERIFY_PATH);if($env:ARTEMIS_COMPUTER_VERIFY_PREVIEW){$binaries+=$env:ARTEMIS_COMPUTER_VERIFY_PREVIEW};foreach($p in $binaries){$s=Get-AuthenticodeSignature -LiteralPath $p; if($env:ARTEMIS_COMPUTER_VERIFY_SIGNER -eq 'unsigned'){if($s.Status -ne 'NotSigned'){throw 'Unexpected native signature'}} elseif($s.Status -ne 'Valid' -or $s.SignerCertificate.Thumbprint -ne $env:ARTEMIS_COMPUTER_VERIFY_SIGNER){throw 'Native signature mismatch'}}; $trusted=@([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,'S-1-5-18','S-1-5-32-544'); $paths=@();$d=$env:ARTEMIS_COMPUTER_VERIFY_ROOT;for($i=0;$i-lt 4;$i++){$paths+=$d;$parent=[System.IO.Directory]::GetParent($d);if(!$parent){break};$d=$parent.FullName};foreach($path in $paths+(Get-ChildItem -LiteralPath $env:ARTEMIS_COMPUTER_VERIFY_ROOT -Recurse -Force | ForEach-Object FullName)){$acl=Get-Acl -LiteralPath $path; if($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted){throw 'Unsafe native installation owner'}; foreach($a in $acl.Access){if($a.AccessControlType -eq 'Allow' -and $a.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted -and ([int]$a.FileSystemRights -band 0xD0156)){throw 'Unsafe Computer Use installation ACL'}}}";
   await run(
     join(
       process.env.SystemRoot ?? "C:\\Windows",
@@ -66,6 +85,9 @@ export async function verifyComputerUseNative(
         ARTEMIS_COMPUTER_VERIFY_ROOT: root,
         ARTEMIS_COMPUTER_VERIFY_PATH: join(root, pack.entrypoint),
         ARTEMIS_COMPUTER_VERIFY_SIGNER: pack.native.signer ?? "unsigned",
+        ARTEMIS_COMPUTER_VERIFY_PREVIEW: pack.preview
+          ? join(root, pack.preview.module)
+          : "",
       },
     },
   );

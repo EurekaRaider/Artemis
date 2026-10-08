@@ -127,6 +127,18 @@ export class ComputerUseService {
   status(): ComputerControlState {
     return structuredClone(this.state);
   }
+  previewTarget(threadId: string, targetId?: string) {
+    const lease = [...this.leases.values()].find(
+      (value) =>
+        value.context.threadId === threadId &&
+        (!targetId || value.target.id === targetId) &&
+        value.observation &&
+        !value.controller.signal.aborted,
+    );
+    return (
+      lease && { target: { ...lease.target }, context: { ...lease.context } }
+    );
+  }
   targetForApproval(
     input: ComputerAct,
     context: ComputerContext,

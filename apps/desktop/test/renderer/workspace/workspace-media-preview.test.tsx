@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from "vitest";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 import { WorkspaceFilesPanel } from "../../../src/renderer/workspace/WorkspaceFilesPanel.js";
 import { WorkspaceBrowserPanel } from "../../../src/renderer/workspace/WorkspacePreviewPanel.js";
+vi.mock("../../../src/renderer/computer-use/PreviewCanvas.js", () => ({
+  PreviewCanvas: () => <canvas />,
+}));
 
 const labels = {
   title: "Files",
@@ -154,15 +157,28 @@ describe("workspace media preview", () => {
 
   it("loads PDF bytes into the native browser with PDF support enabled", async () => {
     const readText = vi.fn();
+    const browserSession = vi.fn().mockResolvedValue({
+      threadId: "task",
+      tabId: "preview",
+      sessionId: crypto.randomUUID(),
+      contentsId: 1,
+      url: "artemis-pdf://document/preview.pdf#navpanes=0&view=FitH",
+      title: "report.pdf",
+      canGoBack: false,
+      canGoForward: false,
+      loading: false,
+      width: 1280,
+      height: 720,
+    });
     stubWindowArtemis({
-      openWorkspacePdf: vi
-        .fn()
-        .mockResolvedValue("artemis-pdf://document/preview.pdf"),
+      browserSession,
+      onBrowserSession: () => () => {},
       readWorkspaceTextFile: readText,
     });
     const { container } = render(
       <WorkspaceBrowserPanel
         threadId="task"
+        tabId="preview"
         path="report.pdf"
         revision={undefined}
         title="Browser"
@@ -176,14 +192,15 @@ describe("workspace media preview", () => {
       />,
     );
     await waitFor(() =>
-      expect(container.querySelector("webview")).toHaveAttribute(
-        "src",
-        "artemis-pdf://document/preview.pdf#navpanes=0&view=FitH",
-      ),
+      expect(browserSession).toHaveBeenCalledWith({
+        action: "open",
+        threadId: "task",
+        tabId: "preview",
+        path: "report.pdf",
+      }),
     );
-    expect(container.querySelector("webview")).toHaveAttribute(
-      "webpreferences",
-      "plugins=yes",
+    await waitFor(() =>
+      expect(container.querySelector("canvas")).toBeInTheDocument(),
     );
     expect(readText).not.toHaveBeenCalled();
   });

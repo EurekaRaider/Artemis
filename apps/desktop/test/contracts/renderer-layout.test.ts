@@ -2053,7 +2053,8 @@ describe("renderer layout contract", () => {
     expect(
       appSource.slice(conversationLinkStart, conversationLinkEnd),
     ).toContain("openWorkspaceTab(file.viewer, { path: file.path });");
-    expect(workspacePreviewSource).toContain("<webview");
+    expect(workspacePreviewSource).toContain("<PreviewCanvas");
+    expect(workspacePreviewSource).not.toContain("<webview");
     expect(workspacePreviewSource).toContain("<BrowserSurface");
     expect(workspacePreviewSource).toContain("<BrowserToolbar");
     expect(workspacePreviewSource).toContain("<BrowserNavigationButton");
@@ -2067,19 +2068,26 @@ describe("renderer layout contract", () => {
       "caller-owns-webview-navigation-session-and-security",
     );
     expect(workspacePreviewSource).toContain("normalizeBrowserAddress");
-    expect(workspacePreviewSource).toContain("browserNavigationSnapshot");
-    expect(workspacePreviewSource).toContain('"dom-ready"');
+    expect(workspacePreviewSource).toContain("window.artemis.browserSession");
+    expect(workspacePreviewSource).toContain("window.artemis.onBrowserSession");
     expect(workspacePreviewSource).toContain(
       "shouldReloadBrowserForLocaleChange",
     );
-    expect(workspacePreviewSource).toContain("reloadIgnoringCache()");
-    expect(workspacePreviewSource).toContain(
-      "partition={BROWSER_SESSION_PARTITION}",
+    expect(workspacePreviewSource).toContain('command("reload")');
+    const sessionSource = readFileSync(
+      new URL(
+        "../../src/main/workspace/browser-session-host.ts",
+        import.meta.url,
+      ),
+      "utf8",
     );
+    expect(sessionSource).toContain("partition: BROWSER_SESSION_PARTITION");
+    expect(sessionSource).toMatch(/sandbox: true,\s+contextIsolation: true/u);
+    expect(sessionSource).toContain("offscreen: { useSharedTexture: true }");
     expect(appSource).toMatch(
       /<WorkspaceBrowserPanel[\s\S]*?locale=\{locale\}[\s\S]*?\/>/u,
     );
-    expect(workspacePreviewSource).toContain('"did-navigate"');
+    expect(sessionSource).toContain('"did-navigate"');
     expect(workspacePreviewSource).not.toContain("<iframe");
     expect(workspacePreviewSource).not.toContain("connect-src 'none'");
     expect(mainProcessSource).toContain("webviewTag: true");
@@ -2130,7 +2138,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("initialUrl={tab.url}");
     expect(workspacePreviewSource).toContain("initialUrl?: string");
     expect(workspacePreviewSource).toContain(
-      'workspaceDocument?.url ?? props.initialUrl ?? "about:blank"',
+      "props.initialUrl ? { url: props.initialUrl } : {}",
     );
   });
 

@@ -4,15 +4,29 @@ import { expect, it, vi } from "vitest";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 import { WorkspaceBrowserPanel } from "../../../src/renderer/workspace/WorkspacePreviewPanel.js";
 
+vi.mock("../../../src/renderer/computer-use/PreviewCanvas.js", () => ({
+  PreviewCanvas: () => <canvas />,
+}));
+
 it("opens the displayed local HTML label using its preview URL and still accepts websites", async () => {
   const path = "seaside-pelican-bicycle.html";
   const url = "http://127.0.0.1:43123/preview/document";
+  const browserSession = vi.fn().mockResolvedValue({
+    threadId: "task",
+    tabId: "preview",
+    sessionId: crypto.randomUUID(),
+    contentsId: 1,
+    url,
+    title: "Local",
+    canGoBack: false,
+    canGoForward: false,
+    loading: false,
+    width: 1280,
+    height: 720,
+  });
   stubWindowArtemis({
-    readWorkspaceTextFile: vi
-      .fn()
-      .mockResolvedValue({ path, kind: "html", content: "<h1>Local</h1>" }),
-    openWorkspaceHtml: vi.fn().mockResolvedValue({ url }),
-    releaseWorkspaceHtml: vi.fn().mockResolvedValue(undefined),
+    browserSession,
+    onBrowserSession: () => () => {},
     browserPreview: vi.fn().mockResolvedValue({ entries: [] }),
   });
   const { container } = render(
@@ -34,21 +48,27 @@ it("opens the displayed local HTML label using its preview URL and still accepts
   await waitFor(() =>
     expect(screen.getByRole("textbox", { name: "Address" })).toHaveValue(path),
   );
-  const webview = container.querySelector("webview")!;
-  const loadURL = vi.fn().mockResolvedValue(undefined);
-  Object.assign(webview, {
-    loadURL,
-    getURL: () => url,
-    canGoBack: () => false,
-    canGoForward: () => false,
-    getWebContentsId: () => 1,
+  expect(browserSession).toHaveBeenCalledWith({
+    action: "open",
+    threadId: "task",
+    tabId: "preview",
+    path,
   });
-  fireEvent(webview, new Event("dom-ready"));
   fireEvent.click(screen.getByRole("button", { name: "Go" }));
-  expect(loadURL).toHaveBeenLastCalledWith(url);
+  expect(browserSession).toHaveBeenLastCalledWith({
+    action: "navigate",
+    threadId: "task",
+    tabId: "preview",
+    url,
+  });
   fireEvent.change(screen.getByRole("textbox", { name: "Address" }), {
     target: { value: "example.com" },
   });
   fireEvent.submit(container.querySelector("form")!);
-  expect(loadURL).toHaveBeenLastCalledWith("https://example.com/");
+  expect(browserSession).toHaveBeenLastCalledWith({
+    action: "navigate",
+    threadId: "task",
+    tabId: "preview",
+    url: "https://example.com/",
+  });
 });

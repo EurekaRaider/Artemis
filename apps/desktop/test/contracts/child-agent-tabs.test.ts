@@ -111,7 +111,10 @@ describe("Codex-style child-agent workspace tabs", () => {
     expect(closeHandlerSource).toContain('type: "close"');
     expect(closeHandlerSource).toContain("tabId");
     expect(`${closeButtonSource}\n${closeHandlerSource}`).not.toMatch(
-      /window\.artemis|cancel|stop|delete|terminate|interrupt/iu,
+      /controlChildAgent|cancel|stop|delete|terminate|interrupt/iu,
+    );
+    expect(closeHandlerSource).toContain(
+      'if (tab?.kind === "browser" && activeThreadId)',
     );
   });
 

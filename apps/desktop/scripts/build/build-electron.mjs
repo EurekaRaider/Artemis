@@ -46,6 +46,12 @@ const shared = {
 await Promise.all([
   build({
     ...shared,
+    entryPoints: ["src/preload/computer-preview-preload.ts"],
+    format: "cjs",
+    outfile: "dist-electron/computer-preview-preload.cjs",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/preload/design-plugin-panel-preload.ts"],
     format: "cjs",
     outfile: "dist-electron/design-plugin-panel-preload.cjs",

@@ -411,6 +411,7 @@ export interface SettingsSnapshot {
   language: AppLanguage;
   theme: AppTheme;
   preventSleep?: boolean;
+  computerPreviewFloating?: boolean;
   resolvedLocale: AppSnapshot["locale"];
   approvalPolicy: ApprovalPolicy;
   localFullAccess: boolean;
@@ -874,6 +875,30 @@ export interface ArtemisApi {
     command: import("@artemis/protocol").BrowserPreviewCommand,
   ): Promise<import("@artemis/protocol").BrowserPreviewSnapshot>;
   registerComputerBrowser(threadId: string, contentsId: number): Promise<void>;
+  browserSession(
+    command: import("@artemis/protocol").BrowserSessionCommand,
+  ): Promise<import("@artemis/protocol").BrowserSessionSnapshot | undefined>;
+  onBrowserSession(
+    listener: (
+      snapshot: import("@artemis/protocol").BrowserSessionSnapshot,
+    ) => void,
+  ): () => void;
+  getComputerPreviews(): Promise<
+    import("@artemis/protocol").ComputerPreviewState[]
+  >;
+  computerPreview(
+    command: import("@artemis/protocol").ComputerPreviewCommand,
+  ): Promise<void>;
+  bindPreviewCanvas(token: string, canvasId: string): void;
+  unbindPreviewCanvas(token: string): void;
+  onComputerPreviews(
+    listener: (
+      states: import("@artemis/protocol").ComputerPreviewState[],
+    ) => void,
+  ): () => void;
+  onComputerPreviewExpand(
+    listener: (state: import("@artemis/protocol").ComputerPreviewState) => void,
+  ): () => void;
   computerRuntimeStatus(): Promise<
     import("@artemis/protocol").ComputerUseRuntimeStatus | undefined
   >;
@@ -1286,6 +1311,7 @@ export interface ArtemisApi {
   setLanguage(language: AppLanguage): Promise<SettingsSnapshot>;
   setTheme(theme: AppTheme): Promise<SettingsSnapshot>;
   setPreventSleep(enabled: boolean): Promise<SettingsSnapshot>;
+  setComputerPreviewFloating(enabled: boolean): Promise<SettingsSnapshot>;
   setApprovalPolicy(policy: ApprovalPolicy): Promise<SettingsSnapshot>;
   setLocalFullAccess(enabled: boolean): Promise<SettingsSnapshot>;
   setShellRuntimeConfiguration(
@@ -1478,6 +1504,12 @@ export interface ArtemisApi {
 export const IPC = {
   computerRegisterBrowser: "artemis:computer-register-browser",
   computerState: "artemis:computer-state",
+  browserSession: "artemis:browser-session",
+  computerPreviews: "artemis:computer-previews",
+  computerPreview: "artemis:computer-preview",
+  computerPreviewReport: "artemis:computer-preview-report",
+  computerPreviewExpand: "artemis:computer-preview-expand",
+  computerPreviewFloating: "artemis:computer-preview-floating",
   browserPreview: "artemis:browser-preview",
   computerControl: "artemis:computer-control",
   computerPermissions: "artemis:computer-permissions",
@@ -1635,6 +1667,8 @@ export const IPC = {
   settingsLanguageSet: "artemis:settings-language-set",
   settingsThemeSet: "artemis:settings-theme-set",
   settingsPreventSleepSet: "artemis:settings-prevent-sleep-set",
+  settingsComputerPreviewFloatingSet:
+    "artemis:settings-computer-preview-floating-set",
   settingsApprovalPolicySet: "artemis:settings-approval-policy-set",
   settingsLocalFullAccessSet: "artemis:settings-local-full-access-set",
   settingsShellRuntimeSet: "artemis:settings-shell-runtime-set",

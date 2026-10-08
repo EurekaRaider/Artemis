@@ -53,11 +53,12 @@ jobs:
         run: |
           npm run build:core
           npx vitest run --root apps/desktop --no-file-parallelism test/main/design/design-plugin-runtime-worker-sandbox.test.ts test/main/im/im-slack-setup-service.test.ts -t "allows reads and writes|denies network access|abnormal exit|cancels the child"
-      - name: Compile Windows Computer Use helper without release credentials
+      - name: Compile Windows Computer Use helper and GPU preview without release credentials
         if: matrix.platform == 'windows-x64'
         run: |
           cmake -S apps/desktop/native/computer-use/windows -B artifacts/verification/computer-use/ci-build -A x64
           cmake --build artifacts/verification/computer-use/ci-build --config Release
+          node apps/desktop/scripts/build/build-computer-preview.mjs artifacts/verification/computer-use/ci-preview
       - name: Run portable CI checks
         run: npm run verify:ci
         env:

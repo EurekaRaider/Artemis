@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { buildComputerPreview } from "./build-computer-preview.mjs";
 
 export function buildComputerUse(arch = process.arch, development = false) {
   if (process.platform !== "darwin") return;
@@ -15,6 +16,7 @@ export function buildComputerUse(arch = process.arch, development = false) {
     development ? "development" : arch,
   );
   mkdirSync(output, { recursive: true });
+  buildComputerPreview(output, arch);
   execFileSync(
     "xcrun",
     [

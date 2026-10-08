@@ -276,6 +276,9 @@ export class ComputerUseRuntime {
     }
     return {
       path: join(lease.root, manifest.entrypoint),
+      ...(manifest.preview
+        ? { previewPath: join(lease.root, manifest.preview.module) }
+        : {}),
       release: lease.release,
     };
   }

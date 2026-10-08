@@ -522,6 +522,65 @@ export class ComputerBrowserDriver implements ComputerDriver {
   ) {
     return this.browser(target).debug.execute(command, signal);
   }
+  async humanInput(
+    threadId: string,
+    contentsId: number,
+    input: import("@artemis/protocol").BrowserHumanInput,
+  ) {
+    const browser = this.browsers.get(`browser:${contentsId}`);
+    if (
+      !browser ||
+      browser.threadId !== threadId ||
+      browser.contents.isDestroyed()
+    )
+      throw new Error("Browser is not owned by this task.");
+    if (input.type !== "mouseMove" || input.buttons)
+      this.takeover(threadId, `browser:${contentsId}`);
+    const signal = new AbortController().signal;
+    if (input.type === "text") await browser.contents.insertText(input.text);
+    else if (input.type === "composition")
+      await browser.debug.humanComposition(
+        input.text,
+        input.selectionStart,
+        input.selectionEnd,
+        signal,
+      );
+    else if ("x" in input)
+      browser.contents.sendInputEvent({
+        ...input,
+        x: Math.round(input.x),
+        y: Math.round(input.y),
+        modifiers: [
+          ...(input.modifiers ?? []),
+          ...("buttons" in input && input.buttons
+            ? [
+                ...(input.buttons & 1 ? ["leftbuttondown" as const] : []),
+                ...(input.buttons & 2 ? ["rightbuttondown" as const] : []),
+                ...(input.buttons & 4 ? ["middlebuttondown" as const] : []),
+              ]
+            : []),
+        ],
+      });
+    else {
+      const shortcut =
+        input.type === "keyDown" &&
+        input.modifiers?.includes(
+          process.platform === "darwin" ? "meta" : "control",
+        );
+      const key = input.keyCode.toLowerCase();
+      if (shortcut && key === "a") browser.contents.selectAll();
+      else if (shortcut && key === "c") browser.contents.copy();
+      else if (shortcut && key === "x") browser.contents.cut();
+      else if (shortcut && key === "z") {
+        if (input.modifiers?.includes("shift")) browser.contents.redo();
+        else browser.contents.undo();
+      } else
+        browser.contents.sendInputEvent({
+          ...input,
+          modifiers: input.modifiers ?? [],
+        });
+    }
+  }
   clearThread(threadId: string) {
     for (const [id, browser] of this.browsers)
       if (browser.threadId === threadId) {

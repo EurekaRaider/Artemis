@@ -64,6 +64,7 @@ function fixture(temporary = false) {
     cleanupGoalObjective: vi.fn(),
     taskNotifications: { refresh: vi.fn() },
     computerUseHost: { clearTask: vi.fn() },
+    browserSessionHost: { clearThread: vi.fn() },
     // S2: thread deletion now also kills plugin runtime trees and panels.
     pluginDispatch: { closeThread: vi.fn() },
     designPanelHost: { releasePanel: vi.fn() },
@@ -96,6 +97,9 @@ describe("thread deletion IPC with an unresponsive Agent Host", () => {
       "Task deleted",
     );
     expect(f.scope.threadHistoryService.discard).toHaveBeenCalledWith("thread");
+    expect(f.scope.browserSessionHost.clearThread).toHaveBeenCalledWith(
+      "thread",
+    );
     expect(f.scope.taskNotifications.refresh).toHaveBeenCalledOnce();
     expect(f.scope.store.getThread()).toBeUndefined();
   });

@@ -44,6 +44,43 @@ export function computerManifest(platform: "darwin" | "win32" = "win32") {
 
 describe("Computer Use native packs", () => {
   it.each(["darwin", "win32"] as const)(
+    "requires the %s preview module in the signed executable inventory",
+    (platform) => {
+      const manifest = computerManifest(platform);
+      const module =
+        platform === "darwin"
+          ? "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node"
+          : "artemis-computer-preview.node";
+      const preview = { protocol: 1, module };
+      expect(
+        capabilityPackManifestSchema.safeParse({ ...manifest, preview })
+          .success,
+      ).toBe(false);
+      expect(
+        capabilityPackManifestSchema.safeParse({
+          ...manifest,
+          preview,
+          files: [
+            ...manifest.files,
+            {
+              path: module,
+              sha256: "e".repeat(64),
+              bytes: 1,
+              executable: true,
+            },
+          ],
+          archive: { ...manifest.archive, unpackedBytes: 3 },
+        }).success,
+      ).toBe(true);
+      expect(
+        capabilityPackManifestSchema.safeParse({
+          ...manifest,
+          preview: { ...preview, module: "../capture.node" },
+        }).success,
+      ).toBe(false);
+    },
+  );
+  it.each(["darwin", "win32"] as const)(
     "accepts the %s native inventory",
     (platform) => {
       expect(

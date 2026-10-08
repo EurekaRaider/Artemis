@@ -1,0 +1,97 @@
+.computer-preview-surface {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #10141b;
+}
+.computer-preview-surface canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.browser-input-surface {
+  flex: 1;
+  height: 100%;
+}
+.browser-ime-input {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0.01;
+  padding: 0;
+  border: 0;
+  z-index: -1;
+}
+.computer-preview-card {
+  position: fixed;
+  inset-inline-end: 28px;
+  bottom: 100px;
+  width: 360px;
+  height: 264px;
+  min-width: 260px;
+  min-height: 200px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  resize: both;
+  overflow: hidden;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color, #8885);
+  border-radius: 14px;
+  background: var(--panel-bg, #f7f7f8);
+  box-shadow: 0 8px 28px #0003;
+}
+.computer-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: move;
+  flex: none;
+  touch-action: none;
+}
+.computer-preview-header > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.computer-preview-card > .computer-preview-surface {
+  flex: 1;
+}
+.computer-preview-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  flex: none;
+  font-size: 10px;
+}
+.computer-preview-footer > span {
+  flex: 1;
+}
+.computer-preview-card > p {
+  margin: 4px 8px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.computer-preview-expanded {
+  inset: 5vh 5vw !important;
+  width: 90vw;
+  height: 90vh;
+  resize: none;
+  z-index: 80;
+}
+.computer-preview-show {
+  position: fixed;
+  inset-inline-end: 28px;
+  bottom: 100px;
+  z-index: 35;
+}

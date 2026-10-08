@@ -10,7 +10,12 @@ import {
   webContents,
 } from "electron";
 import { ComputerBrowserDriver } from "../../src/main/computer-use/browser-driver.js";
-import { browserPreviewCommandSchema } from "@artemis/protocol";
+import { BrowserSessionHost } from "../../src/main/workspace/browser-session-host.js";
+import { IPC } from "../../src/shared/api.js";
+import {
+  browserPreviewCommandSchema,
+  browserSessionCommandSchema,
+} from "@artemis/protocol";
 
 async function main() {
   const output = process.argv[2]!;
@@ -43,7 +48,7 @@ async function main() {
       preload: join(output, "preload.cjs"),
       sandbox: true,
       contextIsolation: true,
-      webviewTag: true,
+      nodeIntegration: false,
     },
   });
   let takeovers = 0;
@@ -56,8 +61,24 @@ async function main() {
     },
   );
   const errors: string[] = [];
-  window.webContents.on("console-message", (_event, level, message) => {
-    if (level >= 3) errors.push(message);
+  const browsers = new BrowserSessionHost({
+    navigationAllowed: (value) => /^(https?:|about:blank)/u.test(value),
+    register: (contents, threadId) => driver.register(contents, threadId),
+    input: (threadId, contentsId, input) =>
+      driver.humanInput(threadId, contentsId, input),
+    changed: (snapshot) =>
+      window.webContents.send(IPC.browserSession, snapshot),
+  });
+  ipcMain.handle(IPC.browserSession, (event, input) => {
+    assert.equal(event.sender, window.webContents);
+    assert.equal(event.senderFrame, event.sender.mainFrame);
+    return browsers.command(
+      browserSessionCommandSchema.parse(input),
+      event.sender,
+    );
+  });
+  window.webContents.on("console-message", (event) => {
+    if (event.level === "error") errors.push(event.message);
   });
   ipcMain.handle(
     "fixture-register",
@@ -136,9 +157,7 @@ async function main() {
   await checkTooltips(1180);
   await checkTooltips(420);
   window.setSize(1180, 900);
-  const contentsId = await js<number>(
-    `document.querySelector('webview').getWebContentsId()`,
-  );
+  const contentsId = browsers.get("fixture", "preview").window.webContents.id;
   const guest = webContents.fromId(contentsId)!;
   const signal = new AbortController().signal;
   await driver.preview("fixture", contentsId, { action: "reload" });
@@ -217,7 +236,9 @@ async function main() {
     beforeAiClick,
     "AI synthetic click does not trigger user takeover",
   );
-  await wait(`document.querySelector('webview').getTitle() === "Clicked"`);
+  await wait(
+    `document.querySelector('.browser-address-input').value === ${JSON.stringify(url)}`,
+  );
   assert.equal(guest.getTitle(), "Clicked");
   await preset("390 × 844");
   await new Promise((resolve) => setTimeout(resolve, 400));
@@ -340,7 +361,7 @@ async function main() {
   await preset("跟随面板");
   await new Promise((resolve) => setTimeout(resolve, 300));
   const panelWidth = await js<number>(
-    "document.querySelector('webview').clientWidth",
+    "document.querySelector('.browser-frame').clientWidth",
   );
   assert.equal(
     await guest.executeJavaScript("innerWidth"),
@@ -351,7 +372,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(
     await guest.executeJavaScript("innerWidth"),
-    await js<number>("document.querySelector('webview').clientWidth"),
+    await js<number>("document.querySelector('.browser-frame').clientWidth"),
     "follow mode tracks window resize",
   );
   await driver.preview("fixture", contentsId, {
@@ -374,17 +395,25 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 250));
   await js("document.querySelector('[data-remount]').click()");
   await wait(
-    `document.querySelector('webview').getWebContentsId() !== ${contentsId} && !![...document.querySelectorAll('.browser-preview-toolbar button')].find(b=>b.getAttribute('aria-label')==='批注' && !b.disabled)`,
+    `!![...document.querySelectorAll('.browser-preview-toolbar button')].find(b=>b.getAttribute('aria-label')==='批注' && !b.disabled)`,
   );
-  const reopened = webContents.fromId(
-    await js<number>("document.querySelector('webview').getWebContentsId()"),
-  )!;
+  const reopened = browsers.get("fixture", "preview").window.webContents;
+  assert.equal(
+    reopened.id,
+    contentsId,
+    "React remount keeps the original browser instance",
+  );
   assert.equal(
     await reopened.executeJavaScript("innerWidth"),
     390,
     "tab restores its own preference",
   );
-  assert(guest.isDestroyed(), "previous tab released");
+  assert(!guest.isDestroyed(), "original tab survives remount");
+  browsers.clearThread("fixture");
+  const closedAt = Date.now();
+  while (!guest.isDestroyed() && Date.now() - closedAt < 1000)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  assert(guest.isDestroyed(), "closing its task releases the original tab");
   await assert.rejects(
     driver.preview("fixture", contentsId, { action: "snapshot" }),
     /owned/,
@@ -418,7 +447,7 @@ async function main() {
           "mode descriptions",
           "custom 1024 viewport and default follows window",
           "screenshot and host resize preserve virtual layout",
-          "tab preference restoration and old target cleanup",
+          "tab preference and instance preservation, then task cleanup",
           "failed network request",
         ],
         rendererErrors: errors,
@@ -428,6 +457,7 @@ async function main() {
     ),
   );
   driver.dispose();
+  browsers.dispose();
   window.destroy();
   server.close();
   app.quit();

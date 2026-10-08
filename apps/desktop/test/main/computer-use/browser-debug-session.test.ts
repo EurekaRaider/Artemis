@@ -40,6 +40,21 @@ function fixture() {
   return { session, page, debug, pause, command };
 }
 
+it("allows only fixed human IME composition on local documents without expanding AI inspection", async () => {
+  const f = fixture();
+  f.page.getURL = () => "artemis-pdf://document/test.pdf";
+  await f.session.humanComposition("你好", 0, 2, new AbortController().signal);
+  expect(f.debug.sendCommand).toHaveBeenCalledWith("Input.imeSetComposition", {
+    text: "你好",
+    selectionStart: 0,
+    selectionEnd: 2,
+  });
+  await expect(f.session.connect()).rejects.toThrow(
+    "Unsupported browser document",
+  );
+  f.session.dispose();
+});
+
 it("bounds and redacts diagnostics without retaining request bodies or headers", async () => {
   const f = fixture();
   await f.command({ action: "snapshot" });
