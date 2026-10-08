@@ -98,12 +98,26 @@ try {
     const certificate = join(scratch, "certificate.p12"),
       keychain = join(scratch, "signing.keychain-db");
     const password = randomBytes(32).toString("hex");
+    const previousKeychains = [
+      ...run("/usr/bin/security", ["list-keychains", "-d", "user"]).matchAll(
+        /"([^"]+)"/gu,
+      ),
+    ].map((match) => match[1]);
     await writeFile(certificate, Buffer.from(process.env.CSC_LINK, "base64"), {
       mode: 0o600,
     });
     run("/usr/bin/security", ["create-keychain", "-p", password, keychain]);
     try {
       run("/usr/bin/security", ["unlock-keychain", "-p", password, keychain]);
+      run("/usr/bin/security", ["set-keychain-settings", keychain]);
+      run("/usr/bin/security", [
+        "list-keychains",
+        "-d",
+        "user",
+        "-s",
+        keychain,
+        ...previousKeychains,
+      ]);
       run("/usr/bin/security", [
         "import",
         certificate,
@@ -154,6 +168,13 @@ try {
       ]);
       await notarizeExistingMacApp(app, version, process.env);
     } finally {
+      run("/usr/bin/security", [
+        "list-keychains",
+        "-d",
+        "user",
+        "-s",
+        ...previousKeychains,
+      ]);
       run("/usr/bin/security", ["delete-keychain", keychain]);
     }
     signer = process.env.APPLE_TEAM_ID;
@@ -166,8 +187,6 @@ try {
       join(repo, "apps/desktop/native/computer-use/windows"),
       "-B",
       build,
-      "-G",
-      "Visual Studio 17 2022",
       "-A",
       "x64",
     ]);
