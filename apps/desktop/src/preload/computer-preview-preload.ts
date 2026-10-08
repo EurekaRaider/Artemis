@@ -32,7 +32,11 @@ ipcRenderer.on(
     document.getElementById("name")!.textContent =
       state?.target.name ?? copy.title;
     document.getElementById("expand")!.textContent = copy.expand;
-    document.getElementById("hide")!.textContent = copy.hide;
+    document.getElementById("hide")!.setAttribute("aria-label", copy.hide);
+    document.getElementById("hide")!.setAttribute("title", copy.hide);
+    document
+      .getElementById("computer-preview-floating-canvas")!
+      .setAttribute("aria-label", copy.expand);
     document.getElementById("control")!.textContent =
       state?.state === "paused" ? controls.resume : controls.stop;
     document.getElementById("status")!.textContent =
@@ -44,6 +48,21 @@ ipcRenderer.on(
   },
 );
 window.addEventListener("DOMContentLoaded", () => {
+  const expand = () => {
+    if (state)
+      ipcRenderer.send(IPC.computerPreviewFloating, {
+        action: "expand",
+        sessionId: state.sessionId,
+      });
+  };
+  const canvas = document.getElementById("computer-preview-floating-canvas")!;
+  canvas.addEventListener("click", expand);
+  canvas.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      expand();
+    }
+  });
   for (const action of ["expand", "hide", "control"] as const)
     document.getElementById(action)!.addEventListener("click", () => {
       if (state)

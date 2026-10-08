@@ -63,8 +63,13 @@
   white-space: nowrap;
   font-size: 12px;
 }
-.computer-preview-card > .computer-preview-surface {
+.computer-preview-open {
   flex: 1;
+  min-height: 0;
+  cursor: zoom-in;
+}
+.computer-preview-expanded .computer-preview-open {
+  cursor: default;
 }
 .computer-preview-footer {
   display: flex;

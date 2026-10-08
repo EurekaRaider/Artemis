@@ -121,6 +121,12 @@ it("uses a frameless readonly window and follows foreground state without steali
   floating.setThread("task");
   expect(window.isVisible()).toBe(true);
   expect(window.showInactive).toHaveBeenCalledTimes(2);
+  handler(event, { action: "hide", sessionId: "session" });
+  expect(command).toHaveBeenLastCalledWith(
+    { action: "hide", sessionId: "session" },
+    window.webContents,
+  );
+  expect(control).not.toHaveBeenCalled();
   handler(
     { ...event, senderFrame: {} },
     { action: "stop", sessionId: "session" },

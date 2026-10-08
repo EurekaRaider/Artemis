@@ -6,8 +6,8 @@ import { IPC } from "../../shared/api.js";
 import type { ComputerPreviewHost } from "./preview-host.js";
 
 const document = `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'"><style>
-body{margin:0;background:#171b23;color:#f4f6fa;font:12px system-ui;display:flex;flex-direction:column;height:100vh}header{display:flex;align-items:center;gap:6px;padding:8px;-webkit-app-region:drag}#name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}button{-webkit-app-region:no-drag;font:inherit;border:0;border-radius:6px;background:#ffffff18;color:inherit;padding:5px;cursor:pointer}canvas{width:100%;min-height:0;flex:1;object-fit:contain;background:#10141b}footer{display:flex;align-items:center;padding:6px;gap:6px}#status{flex:1;font-size:10px}</style>
-<header><span id="name"></span><button id="expand"></button><button id="hide"></button></header><canvas id="computer-preview-floating-canvas"></canvas><footer><span id="status"></span><button id="control"></button></footer>`;
+body{margin:0;background:#171b23;color:#f4f6fa;font:12px system-ui;display:flex;flex-direction:column;height:100vh}header{display:flex;align-items:center;gap:6px;padding:8px;-webkit-app-region:drag}#name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}button{-webkit-app-region:no-drag;font:inherit;border:0;border-radius:6px;background:#ffffff18;color:inherit;padding:5px;cursor:pointer}#hide{font-size:20px;line-height:1;padding:3px 7px}canvas{width:100%;min-height:0;flex:1;object-fit:contain;background:#10141b;cursor:zoom-in}footer{display:flex;align-items:center;padding:6px;gap:6px}#status{flex:1;font-size:10px}</style>
+<header><button id="hide">×</button><span id="name"></span><button id="expand"></button></header><canvas id="computer-preview-floating-canvas" role="button" tabindex="0"></canvas><footer><span id="status"></span><button id="control"></button></footer>`;
 
 export class ComputerPreviewWindow {
   private window: BrowserWindow | undefined;

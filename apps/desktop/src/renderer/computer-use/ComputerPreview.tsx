@@ -68,6 +68,13 @@ export function ComputerPreview({
           ? copy.starting
           : copy.readOnly;
   const fullscreen = expanded === state.sessionId;
+  const toggleExpanded = () => {
+    if (fullscreen) setExpanded(undefined);
+    else {
+      if (state.target.kind === "desktop") setExpanded(state.sessionId);
+      command("expand");
+    }
+  };
   return (
     <aside
       ref={card}
@@ -101,30 +108,43 @@ export function ComputerPreview({
           window.addEventListener("pointerup", stop, { once: true });
         }}
       >
+        <IconButton
+          label={copy.hide}
+          icon={<ArtemisIcon name="close" />}
+          onClick={() => {
+            setExpanded(undefined);
+            command("hide");
+          }}
+        />
         <span title={state.target.name}>{state.target.name}</span>
         <IconButton
           label={fullscreen ? copy.close : copy.expand}
           icon={<ArtemisIcon name={fullscreen ? "close" : "expand"} />}
-          onClick={() => {
-            if (fullscreen) setExpanded(undefined);
-            else {
-              if (state.target.kind === "desktop") setExpanded(state.sessionId);
-              command("expand");
-            }
-          }}
-        />
-        <IconButton
-          label={copy.hide}
-          icon={<ArtemisIcon name="close" />}
-          onClick={() => command("hide")}
+          onClick={toggleExpanded}
         />
       </div>
-      <PreviewCanvas
-        key={state.sessionId}
-        sessionId={state.sessionId}
-        expanded={fullscreen}
-        label={`${copy.readOnly}: ${state.target.name}`}
-      />
+      <div
+        className="computer-preview-open"
+        role={fullscreen ? undefined : "button"}
+        tabIndex={fullscreen ? undefined : 0}
+        aria-label={fullscreen ? undefined : copy.expand}
+        onClick={() => {
+          if (!fullscreen) toggleExpanded();
+        }}
+        onKeyDown={(event) => {
+          if (!fullscreen && (event.key === "Enter" || event.key === " ")) {
+            event.preventDefault();
+            toggleExpanded();
+          }
+        }}
+      >
+        <PreviewCanvas
+          key={state.sessionId}
+          sessionId={state.sessionId}
+          expanded={fullscreen}
+          label={`${copy.readOnly}: ${state.target.name}`}
+        />
+      </div>
       <div className="computer-preview-footer">
         <span role="status" title={state.reason}>
           {label} · {state.actualFps.toFixed(1)} {copy.fps}
