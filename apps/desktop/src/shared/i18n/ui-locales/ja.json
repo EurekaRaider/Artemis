@@ -122,6 +122,7 @@
   "App_copy.editedFile": "編集済み",
   "App_copy.editedFiles": "{{count}} 個のファイルを編集",
   "App_copy.showMoreFiles": "さらに {{count}} 個のファイルを表示",
+  "App_copy.hideMoreFiles": "{{count}} 個のファイルを折りたたむ",
   "App_copy.binaryChange": "バイナリファイル",
   "App_copy.reviewChanges": "レビュー",
   "App_copy.undoChanges": "元に戻す",

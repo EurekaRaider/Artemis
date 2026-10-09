@@ -1,6 +1,6 @@
 {
   "name": "@artemis/desktop",
-  "version": "1.7.8",
+  "version": "1.7.9",
   "private": true,
   "type": "module",
   "description": "Artemis desktop application",
@@ -46,13 +46,13 @@
     "release:mac:arm64": "node scripts/packaging/package-mac-lite.mjs arm64 --release"
   },
   "dependencies": {
-    "@artemis/agent-host": "1.7.8",
-    "@artemis/gateway": "1.7.8",
-    "@artemis/platform": "1.7.8",
-    "@artemis/protocol": "1.7.8",
-    "@artemis/theme-artemis": "1.7.8",
-    "@artemis/theme-contract": "1.7.8",
-    "@artemis/ui": "1.7.8",
+    "@artemis/agent-host": "1.7.9",
+    "@artemis/gateway": "1.7.9",
+    "@artemis/platform": "1.7.9",
+    "@artemis/protocol": "1.7.9",
+    "@artemis/theme-artemis": "1.7.9",
+    "@artemis/theme-contract": "1.7.9",
+    "@artemis/ui": "1.7.9",
     "@earendil-works/pi-ai": "1.0.4",
     "@earendil-works/pi-coding-agent": "1.0.4",
     "@js-temporal/polyfill": "^0.5.1",
@@ -85,7 +85,7 @@
     "smol-toml": "^1.7.1",
     "tar": "7.5.22",
     "zod": "^4.1.12",
-    "@artemis/plugin-contract": "1.7.8"
+    "@artemis/plugin-contract": "1.7.9"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

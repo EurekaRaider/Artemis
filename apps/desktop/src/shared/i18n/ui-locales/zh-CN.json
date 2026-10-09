@@ -122,6 +122,7 @@
   "App_copy.editedFile": "已编辑",
   "App_copy.editedFiles": "已编辑 {{count}} 个文件",
   "App_copy.showMoreFiles": "再显示 {{count}} 个文件",
+  "App_copy.hideMoreFiles": "收起 {{count}} 个文件",
   "App_copy.binaryChange": "二进制文件",
   "App_copy.reviewChanges": "审核",
   "App_copy.undoChanges": "撤销",

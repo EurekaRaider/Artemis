@@ -122,6 +122,7 @@
   "App_copy.editedFile": "संपादित",
   "App_copy.editedFiles": "{{count}} फ़ाइलें संपादित की गईं",
   "App_copy.showMoreFiles": "{{count}} और फ़ाइलें दिखाएँ",
+  "App_copy.hideMoreFiles": "{{count}} फ़ाइलें छिपाएँ",
   "App_copy.binaryChange": "बाइनरी फ़ाइल",
   "App_copy.reviewChanges": "समीक्षा करें",
   "App_copy.undoChanges": "पूर्ववत करें",

@@ -122,6 +122,7 @@
   "App_copy.editedFile": "Diedit",
   "App_copy.editedFiles": "{{count}} berkas diedit",
   "App_copy.showMoreFiles": "Tampilkan {{count}} berkas lagi",
+  "App_copy.hideMoreFiles": "Sembunyikan {{count}} berkas",
   "App_copy.binaryChange": "Berkas biner",
   "App_copy.reviewChanges": "Tinjau",
   "App_copy.undoChanges": "Urungkan",

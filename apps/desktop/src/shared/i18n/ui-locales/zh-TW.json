@@ -122,6 +122,7 @@
   "App_copy.editedFile": "已編輯",
   "App_copy.editedFiles": "已編輯 {{count}} 個檔案",
   "App_copy.showMoreFiles": "再顯示 {{count}} 個檔案",
+  "App_copy.hideMoreFiles": "收合 {{count}} 個檔案",
   "App_copy.binaryChange": "二進位檔案",
   "App_copy.reviewChanges": "審核",
   "App_copy.undoChanges": "復原",

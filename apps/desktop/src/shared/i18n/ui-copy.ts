@@ -124,6 +124,7 @@ export const UI_COPY = {
     editedFile: uiText(locale, "App_copy.editedFile"),
     editedFiles: uiText(locale, "App_copy.editedFiles"),
     showMoreFiles: uiText(locale, "App_copy.showMoreFiles"),
+    hideMoreFiles: uiText(locale, "App_copy.hideMoreFiles"),
     binaryChange: uiText(locale, "App_copy.binaryChange"),
     reviewChanges: uiText(locale, "App_copy.reviewChanges"),
     undoChanges: uiText(locale, "App_copy.undoChanges"),

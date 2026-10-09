@@ -122,6 +122,7 @@
   "App_copy.editedFile": "Modificato",
   "App_copy.editedFiles": "{{count}} file modificati",
   "App_copy.showMoreFiles": "Mostra altri {{count}} file",
+  "App_copy.hideMoreFiles": "Nascondi {{count}} file",
   "App_copy.binaryChange": "File binario",
   "App_copy.reviewChanges": "Revisione",
   "App_copy.undoChanges": "Annulla modifica",

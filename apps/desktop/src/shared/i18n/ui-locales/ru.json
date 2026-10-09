@@ -122,6 +122,7 @@
   "App_copy.editedFile": "Изменено",
   "App_copy.editedFiles": "Изменено файлов: {{count}}",
   "App_copy.showMoreFiles": "Показать ещё файлов: {{count}}",
+  "App_copy.hideMoreFiles": "Скрыть файлов: {{count}}",
   "App_copy.binaryChange": "Двоичный файл",
   "App_copy.reviewChanges": "Проверить",
   "App_copy.undoChanges": "Отменить изменения",

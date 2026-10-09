@@ -1194,11 +1194,6 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   border-top: 1px solid var(--artemis-color-border-subtle);
 }
 
-.turn-change-more .turn-change-files {
-  background: var(--panel-2);
-  border-top: 0;
-}
-
 .environment-section > header {
   align-items: center;
   display: flex;
@@ -2477,21 +2472,17 @@ button.environment-row:disabled {
   border: 1px solid var(--border);
 }
 
-.turn-change-more > summary::-webkit-details-marker {
-  display: none;
-}
-
-.turn-change-more > summary .icon {
+.turn-change-more .icon {
   height: 15px;
   transition: transform 140ms ease;
   width: 15px;
 }
 
-.turn-change-more > summary .icon {
+.turn-change-more .icon {
   transform: none;
 }
 
-.turn-change-more[open] > summary .icon {
+.turn-change-more[aria-expanded="true"] .icon {
   transform: rotate(180deg);
 }
 
@@ -2697,18 +2688,30 @@ button.environment-row:disabled {
   color: var(--muted-2);
 }
 
-.turn-change-more > summary {
+.turn-change-more {
   align-items: center;
   background: var(--panel-3);
+  border: 0;
+  border-radius: 0;
   border-top: 1px solid var(--border-soft);
   color: var(--muted);
   cursor: pointer;
   display: flex;
+  font: inherit;
   font-size: 12px;
   gap: 6px;
-  list-style: none;
   min-height: 36px;
   padding: 0 12px;
+  width: 100%;
+}
+
+.turn-change-more:hover {
+  background: var(--hover);
+}
+
+.turn-change-more:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: -2px;
 }
 
 .turn-change-message {

@@ -122,6 +122,7 @@
   "App_copy.editedFile": "편집됨",
   "App_copy.editedFiles": "파일 {{count}}개 편집됨",
   "App_copy.showMoreFiles": "파일 {{count}}개 더 보기",
+  "App_copy.hideMoreFiles": "파일 {{count}}개 접기",
   "App_copy.binaryChange": "바이너리 파일",
   "App_copy.reviewChanges": "검토",
   "App_copy.undoChanges": "실행 취소",

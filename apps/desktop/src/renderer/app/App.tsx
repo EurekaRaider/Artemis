@@ -78,6 +78,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11041,12 +11042,14 @@ export function TurnChangeSetCard({
   turn: TurnViewState;
   undoEnabled: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const fileListId = useId();
   const t = appCopy(locale);
   const changeSet = turn.changeSet;
   if (!changeSet || changeSet.files.length === 0) return null;
   const multiple = changeSet.files.length > 1;
-  const previewFiles = changeSet.files.slice(0, 3);
-  const remainingFiles = multiple ? changeSet.files.slice(3) : [];
+  const visibleFiles = expanded ? changeSet.files : changeSet.files.slice(0, 3);
+  const remainingFileCount = changeSet.files.length - 3;
   const hasTextChanges = changeSet.files.some((file) => !file.binary);
   const singleBinary = !multiple && changeSet.files[0]!.binary;
   const title = multiple
@@ -11143,20 +11146,23 @@ export function TurnChangeSetCard({
       label={title}
       state={changeSet.status === "unavailable" ? "failed" : changeSet.status}
     >
-      {previewFiles.length > 0 && (
-        <ol className="turn-change-files">{previewFiles.map(fileRow)}</ol>
-      )}
-      {remainingFiles.length > 0 && (
-        <details className="turn-change-more">
-          <summary>
-            {t.showMoreFiles.replace(
-              "{{count}}",
-              String(remainingFiles.length),
-            )}
-            <ChevronIcon />
-          </summary>
-          <ol className="turn-change-files">{remainingFiles.map(fileRow)}</ol>
-        </details>
+      <ol className="turn-change-files" id={fileListId}>
+        {visibleFiles.map(fileRow)}
+      </ol>
+      {remainingFileCount > 0 && (
+        <button
+          aria-controls={fileListId}
+          aria-expanded={expanded}
+          className="turn-change-more"
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
+          {(expanded ? t.hideMoreFiles : t.showMoreFiles).replace(
+            "{{count}}",
+            String(remainingFileCount),
+          )}
+          <ChevronIcon />
+        </button>
       )}
       {changeSet.message && (
         <p className="turn-change-message">{changeSet.message}</p>

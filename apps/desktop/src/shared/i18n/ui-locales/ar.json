@@ -122,6 +122,7 @@
   "App_copy.editedFile": "تم التعديل",
   "App_copy.editedFiles": "عدد الملفات المعدلة: {{count}}",
   "App_copy.showMoreFiles": "عرض ملفات إضافية: {{count}}",
+  "App_copy.hideMoreFiles": "إخفاء {{count}} ملفات",
   "App_copy.binaryChange": "ملف ثنائي",
   "App_copy.reviewChanges": "مراجعة",
   "App_copy.undoChanges": "تراجع",

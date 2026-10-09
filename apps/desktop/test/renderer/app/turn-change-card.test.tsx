@@ -60,6 +60,7 @@ describe("compact turn changes", () => {
       container.querySelector(".turn-change-heading .turn-change-total"),
     ).toHaveTextContent("+260−0");
     expect(within(card).getAllByRole("listitem")).toHaveLength(2);
+    expect(container.querySelector(".turn-change-more")).toBeNull();
     expect(
       screen.getByRole("button", { name: "审核 .artemis/MEMORY.md" }),
     ).toHaveAttribute("title", ".artemis/MEMORY.md");
@@ -122,6 +123,9 @@ describe("compact turn changes", () => {
         deletions: 0,
         binary: true,
       },
+      ...["Launch-brief.docx", "Launch-budget.xlsx", "index.html"].map(
+        (path) => ({ ...turn.changeSet!.files[0]!, path }),
+      ),
     ];
     const onReview = vi.fn();
     const { container } = render(
@@ -138,16 +142,38 @@ describe("compact turn changes", () => {
     );
     expect(screen.queryByRole("button", { name: "撤销" })).toBeNull();
     expect(container.querySelector(".turn-change-undone")).toBeVisible();
-    const details = container.querySelector("details")!;
-    expect(details).not.toHaveAttribute("open");
-    await userEvent.click(details.querySelector("summary")!);
+    const list = screen.getByRole("list");
+    const toggle = screen.getByRole("button", { name: "再显示 4 个文件" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", list.id);
+    expect(list.nextElementSibling).toBe(toggle);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(
+      screen.queryByRole("button", { name: "审核 assets/icon.png" }),
+    ).toBeNull();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAccessibleName("收起 4 个文件");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("list")).toHaveLength(1);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(7);
+    expect(list.nextElementSibling).toBe(toggle);
+    expect(toggle).toHaveFocus();
     const binaryFile = screen.getByRole("button", {
       name: "审核 assets/icon.png",
     });
     expect(binaryFile).toBeVisible();
     await userEvent.click(binaryFile);
     expect(onReview).toHaveBeenCalledWith("turn-1", "assets/icon.png");
-    expect(within(details).getByText("二进制文件")).toBeVisible();
+    expect(within(list).getByText("二进制文件")).toBeVisible();
+    toggle.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(toggle).toHaveAccessibleName("再显示 4 个文件");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(toggle).toHaveFocus();
+    await userEvent.keyboard(" ");
+    expect(toggle).toHaveAccessibleName("收起 4 个文件");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(7);
   });
 
   it("opens a single long file path and omits empty change sets", async () => {
