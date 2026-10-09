@@ -39,6 +39,9 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 26
+      - name: Diagnose Windows native verifier startup
+        if: runner.os == 'Windows'
+        run: node scripts/computer-use/diagnose-windows-verifier.mjs
       - run: npm ci
       - run: npm run build:core
       - name: Protocol, authorization and transaction regressions
