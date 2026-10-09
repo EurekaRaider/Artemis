@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Input del puntatore dell'utente nell'applicazione di destinazione",
   "DesignHost.activeTaskMissing": "L'attività attiva non è stata trovata.",
   "DesignHost.taskChanged": "L'attività è cambiata. Riapri la pagina di design prima di riprovare.",
-  "DesignHost.panelNotVisible": "Apri il pannello di design prima di acquisire uno screenshot.",
-  "DesignPermissions.restricted": "Permessi di design limitati",
-  "DesignPermissions.standard": "Permessi di chat normali",
-  "DesignPermissions.enable": "Usa permessi di chat normali",
-  "DesignPermissions.restrict": "Usa permessi limitati",
-  "DesignPermissions.access": "I comandi vengono eseguiti come utente corrente e possono accedere a file esterni al progetto e alla rete. MCP ed estensioni mantengono le regole di sandbox, fiducia e approvazione.",
-  "DesignPermissions.restrictedHint": "Comandi diretti, accesso ai file del progetto e MCP non sono disponibili. Restano disponibili gli strumenti di design e i materiali importati."
+  "DesignHost.panelNotVisible": "Apri il pannello di design prima di acquisire uno screenshot."
 }

@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "User pointer input in the target application",
   "DesignHost.activeTaskMissing": "The active task was not found.",
   "DesignHost.taskChanged": "The task changed. Reopen the design page before retrying.",
-  "DesignHost.panelNotVisible": "Open the design panel before taking a screenshot.",
-  "DesignPermissions.restricted": "Restricted design permissions",
-  "DesignPermissions.standard": "Standard chat permissions",
-  "DesignPermissions.enable": "Use standard chat permissions",
-  "DesignPermissions.restrict": "Use restricted permissions",
-  "DesignPermissions.access": "Commands run as your desktop user and can access files outside this project and the network. MCP and extensions keep their sandbox, trust and approval rules.",
-  "DesignPermissions.restrictedHint": "Direct commands, project file access and MCP are unavailable. Design tools and imported materials remain available."
+  "DesignHost.panelNotVisible": "Open the design panel before taking a screenshot."
 }

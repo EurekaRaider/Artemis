@@ -1,12 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@artemis/ui/actions";
-import { InlineNotice } from "@artemis/ui/feedback";
-import {
-  isRestrictedDesignThread,
-  type AppLocale,
-  type Thread,
-} from "@artemis/protocol";
-import { uiText } from "../../shared/i18n/ui-text.js";
 import "./design-plugin-panel.css";
 
 /**
@@ -30,13 +22,7 @@ export function DesignPluginPanel({
   onCandidate,
   onBinding,
   failureMessage,
-  locale,
-  onConfirm,
-  onThreadChange,
 }: {
-  locale: AppLocale;
-  onConfirm(message: string): Promise<boolean>;
-  onThreadChange?(thread: Thread): void;
   threadId: string;
   panelId: string;
   active: boolean;
@@ -85,9 +71,6 @@ export function DesignPluginPanel({
   failureMessage: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [permissionThread, setPermissionThread] = useState<Thread>();
-  const [permissionBusy, setPermissionBusy] = useState(false);
-  const [permissionError, setPermissionError] = useState<string>();
   const [error, setError] = useState<string>();
   // 原生 <dialog>（showModal 的 top layer）仍渲染在原生 WebContentsView
   // 之下——任何弹窗打开期间必须隐藏面板，否则设置/确认框被浮层挡住。
@@ -96,8 +79,6 @@ export function DesignPluginPanel({
   candidateRef.current = onCandidate;
   const bindingRef = useRef(onBinding);
   bindingRef.current = onBinding;
-  const threadChangeRef = useRef(onThreadChange);
-  threadChangeRef.current = onThreadChange;
 
   useEffect(() => {
     let frame = 0;
@@ -143,15 +124,6 @@ export function DesignPluginPanel({
       .ensureDesignPanel(threadId, panelId)
       .then(() => {
         if (!mounted) return;
-        void window.artemis
-          .getDesignThreadPermissions?.(threadId)
-          .then((thread) => {
-            if (mounted && thread) {
-              setPermissionThread(thread);
-              threadChangeRef.current?.(thread);
-            }
-          })
-          .catch(() => {});
         // First-open geometry: re-report bounds a couple of frames after
         // ensure resolves. A synchronous read can still observe the mount
         // at 0x0 (pane not laid out yet), and the ResizeObserver below
@@ -263,79 +235,8 @@ export function DesignPluginPanel({
       </div>
     );
   }
-  const restricted = permissionThread
-    ? isRestrictedDesignThread(permissionThread)
-    : true;
-  async function changePermission() {
-    if (permissionBusy) return;
-    setPermissionBusy(true);
-    setPermissionError(undefined);
-    try {
-      if (
-        restricted &&
-        !(await onConfirm(uiText(locale, "DesignPermissions.access")))
-      )
-        return;
-      const next = await window.artemis.setDesignThreadPermissions(
-        threadId,
-        restricted ? "standard" : "restricted",
-      );
-      setPermissionThread(next);
-      threadChangeRef.current?.(next);
-    } catch (reason) {
-      setPermissionError(
-        reason instanceof Error ? reason.message : String(reason),
-      );
-    } finally {
-      setPermissionBusy(false);
-    }
-  }
   return (
     <div className="design-plugin-panel-host">
-      {permissionThread?.typeBinding ? (
-        <div
-          className="design-thread-permissions"
-          role="region"
-          aria-label={uiText(
-            locale,
-            restricted
-              ? "DesignPermissions.restricted"
-              : "DesignPermissions.standard",
-          )}
-        >
-          <strong>
-            {uiText(
-              locale,
-              restricted
-                ? "DesignPermissions.restricted"
-                : "DesignPermissions.standard",
-            )}
-          </strong>
-          <p>
-            {uiText(
-              locale,
-              restricted
-                ? "DesignPermissions.restrictedHint"
-                : "DesignPermissions.access",
-            )}
-          </p>
-          <Button
-            size="compact"
-            disabled={permissionBusy}
-            onClick={() => void changePermission()}
-          >
-            {uiText(
-              locale,
-              restricted
-                ? "DesignPermissions.enable"
-                : "DesignPermissions.restrict",
-            )}
-          </Button>
-          {permissionError ? (
-            <InlineNotice tone="danger">{permissionError}</InlineNotice>
-          ) : null}
-        </div>
-      ) : null}
       <div
         ref={containerRef}
         className="design-plugin-panel-mount"

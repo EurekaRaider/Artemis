@@ -270,7 +270,7 @@ try {
     schemaVersion: 1,
     id: "computer-use",
     version,
-    hostRange: ">=1.7.7 <2",
+    hostRange: ">=1.7.8 <2",
     platform: process.platform,
     arch: process.arch,
     minimumOS: process.platform === "darwin" ? "14" : "11",

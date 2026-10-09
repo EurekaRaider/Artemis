@@ -72,6 +72,7 @@ try {
         output,
         fixtureApp,
         fixtureBundle,
+        desktop,
       ],
       { env: environment, stdio: "inherit" },
     );

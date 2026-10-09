@@ -39,6 +39,7 @@ import {
 } from "./computer-use/runtime.js";
 import type { OfficeRuntimeCatalog } from "./office/office-capability-updates.js";
 import { ComputerUseHost } from "./computer-use/host.js";
+import { computerHelperSource } from "./computer-use/helper-source.js";
 import { resolveComputerTaskApproval } from "./computer-use/approval.js";
 import { COMPUTER_USE_CONFIG_URL } from "./computer-use/mcp-server.js";
 import { isMcpServerSupported } from "./computer-use/config.js";
@@ -93,12 +94,6 @@ import {
 } from "./conversation/turn-recovery.js";
 import type { TurnRecovery } from "@artemis/protocol";
 import { imManagementSchema, reduceAgentEvents } from "@artemis/protocol";
-import {
-  RESTRICTED_PROFILE_ID,
-  STANDARD_DESIGN_PROFILE_ID,
-  isRestrictedDesignThread,
-} from "@artemis/protocol";
-import { changeDesignThreadPermissions } from "./design/design-thread-permissions.js";
 import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { ensureProjectGitWatcher } from "./workspace/project-git-watcher.js";
@@ -2336,8 +2331,6 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     language,
     theme,
     preventSleep: await settingsStore.preventSleepPreference(),
-    computerPreviewFloating:
-      await settingsStore.computerPreviewFloatingPreference(),
     resolvedLocale: currentLocale(),
     approvalPolicy,
     localFullAccess,
@@ -4593,14 +4586,11 @@ async function openAgentThread(
       ...(selection ? { selection } : {}),
       ...(contextWindow ? { contextWindow } : {}),
       ...(thread.typeBinding ? { typeBinding: thread.typeBinding } : {}),
-      ...(thread.executionProfile
-        ? { executionProfile: thread.executionProfile }
-        : {}),
       ...(pluginTools ? { pluginTools } : {}),
     });
     if (thread.typeBinding) {
       console.log(
-        `[design-panel] thread.open ${thread.id.slice(0, 8)} profile=${thread.executionProfile ?? "none"} pluginTools=${pluginTools?.length ?? 0}`,
+        `[design-panel] thread.open ${thread.id.slice(0, 8)} pluginTools=${pluginTools?.length ?? 0}`,
       );
     }
     if (data.sessionFile) {
@@ -4624,47 +4614,6 @@ async function handleBrokerRequest(
 ): Promise<void> {
   if (!agentProcess || !store) {
     return;
-  }
-  const permissionThread = store.getThread(request.threadId);
-  if (
-    changingDesignPermissions.has(request.threadId) ||
-    (permissionThread?.executionProfile === STANDARD_DESIGN_PROFILE_ID &&
-      activeTurns.get(request.threadId) !== request.turnId)
-  ) {
-    rejectBrokerRequest(
-      workerRequestId,
-      request,
-      "The design permission session or turn is no longer current.",
-    );
-    return;
-  }
-  // PR#245 P1-5/P1-6 宿主执行边界重检：绑定设计插件的任务按「当前持久
-  // 化的受限 profile」拒绝一切能力型 broker 请求。即使 agent-host 里还挂
-  // 着绑定前创建的普通会话（完整工具集），能力也不会在主进程侧兑现。
-  // 允许清单与 agent-host restricted-thread-gate 的类别映射互为镜像
-  // （plan/goal/memory/workspace-deps/user-input/attachment/plugin），
-  // 未知 kind 一律拒绝（allow-list 语义）。plugin.tool 另有独立的信任
-  // 链复核（dispatcher），不在此处放行细节。
-  if (
-    ![
-      "attachment.read",
-      "plugin.tool",
-      "goal.get",
-      "goal.create",
-      "goal.update",
-      "user.input",
-      "memory.append",
-    ].includes(request.kind)
-  ) {
-    const boundThread = store.getThread(request.threadId);
-    if (boundThread && isRestrictedDesignThread(boundThread)) {
-      rejectBrokerRequest(
-        workerRequestId,
-        request,
-        `Broker request "${request.kind}" is denied for plugin-restricted threads (${RESTRICTED_PROFILE_ID}).`,
-      );
-      return;
-    }
   }
   if (request.kind === "hook.run") {
     try {
@@ -6726,7 +6675,6 @@ async function createTaskThread(
   }
 }
 
-const changingDesignPermissions = new Set<string>();
 const startingTurns = new Set<string>();
 const acceptingPlans = new Map<string, Promise<StartTurnResult>>();
 
@@ -6741,10 +6689,6 @@ async function startTaskTurn(
       "Worktree cleanup is in progress. Retry after it finishes.",
     );
   }
-  if (changingDesignPermissions.has(input.threadId))
-    throw new Error(
-      "Design permissions are changing. Retry after they finish.",
-    );
   if (startingTurns.has(input.threadId))
     throw new Error("Task is already starting a turn.");
   const release = imService?.reserveStart(
@@ -8465,20 +8409,6 @@ function registerIpc(): void {
         app.getPreferredSystemLanguages(),
       );
       designPanelHost?.setLocale(currentLocale());
-      return getSettingsSnapshot();
-    },
-  );
-  ipcMain.handle(
-    IPC.settingsComputerPreviewFloatingSet,
-    async (event, enabled: boolean): Promise<SettingsSnapshot> => {
-      if (
-        event.sender !== mainWindow?.webContents ||
-        event.senderFrame !== event.sender.mainFrame
-      )
-        throw new Error("Preview settings require the main window");
-      if (!settingsStore) throw new Error("Agent settings are not ready.");
-      await settingsStore.setComputerPreviewFloatingPreference(enabled);
-      computerPreviewWindow?.setEnabled(enabled);
       return getSettingsSnapshot();
     },
   );
@@ -10599,54 +10529,6 @@ function registerIpc(): void {
     (event, threadId: string, url: string) => {
       assertWorkspacePreviewSender(event);
       workspaceVideoPreview.release(threadId, url);
-    },
-  );
-  ipcMain.handle(IPC.designThreadPermissionsGet, (event, threadId: string) => {
-    assertWorkspacePreviewSender(event);
-    if (typeof threadId !== "string") throw new Error("Invalid design chat.");
-    return store?.getThread(threadId);
-  });
-  ipcMain.handle(
-    IPC.designThreadPermissionsSet,
-    async (event, threadId: string, permission: "standard" | "restricted") => {
-      assertWorkspacePreviewSender(event);
-      if (
-        !store ||
-        typeof threadId !== "string" ||
-        changingDesignPermissions.has(threadId)
-      )
-        throw new Error("Design permissions are unavailable.");
-      changingDesignPermissions.add(threadId);
-      try {
-        return await changeDesignThreadPermissions({
-          threadId,
-          permission,
-          store,
-          revisionsRoot: designPluginRevisionsRoot(app.getPath("userData")),
-          busy: () =>
-            activeTurns.has(threadId) ||
-            startingTurns.has(threadId) ||
-            openingThreads.has(threadId) ||
-            cancellingTurns.has(threadId) ||
-            pendingApprovals.hasWhere(
-              (pending) => pending.request.threadId === threadId,
-            ),
-          unavailable: async () =>
-            (await designPluginAvailabilityGate?.(threadId)) ?? null,
-          closeSession: async () => {
-            if (agentProcess && openedThreads.has(threadId)) {
-              await agentProcess.request({
-                type: "thread.close",
-                requestId: randomUUID(),
-                threadId,
-              });
-              openedThreads.delete(threadId);
-            }
-          },
-        });
-      } finally {
-        changingDesignPermissions.delete(threadId);
-      }
     },
   );
   ipcMain.handle(
@@ -24215,8 +24097,16 @@ app
           await artemisPluginService!.installComputerUseFromRoot(root, version);
         },
       });
+      const acquireComputerHelper = computerHelperSource(
+        {
+          isPackaged: app.isPackaged,
+          appPath: app.getAppPath(),
+          platform: process.platform,
+        },
+        () => computerUseRuntime!.helper(),
+      );
       computerUseHost = new ComputerUseHost({
-        helperPath: () => computerUseRuntime!.helper(),
+        helperPath: acquireComputerHelper,
         permissionsPath: join(
           app.getPath("userData"),
           "computer-use-permissions.json",
@@ -24235,7 +24125,7 @@ app
       });
       computerPreviewHost = new ComputerPreviewHost({
         driver: computerUseHost.native,
-        acquire: () => computerUseRuntime!.helper(),
+        acquire: acquireComputerHelper,
         browsers: browserSessionHost!,
         authorized: (threadId, targetId) =>
           computerUseHost?.service.previewTarget(threadId, targetId),
@@ -24257,9 +24147,6 @@ app
         host: () => computerPreviewHost,
         locale: currentLocale,
       });
-      computerPreviewWindow.setEnabled(
-        await settingsStore!.computerPreviewFloatingPreference(),
-      );
       await computerUseRuntime
         .initialize()
         .catch((error) => console.error("Computer Use recovery failed", error));

@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Zeigereingabe des Benutzers in der Zielanwendung",
   "DesignHost.activeTaskMissing": "Die aktive Aufgabe wurde nicht gefunden.",
   "DesignHost.taskChanged": "Die Aufgabe hat sich geändert. Designseite vor erneutem Versuch wieder öffnen.",
-  "DesignHost.panelNotVisible": "Vor dem Screenshot das Designpanel öffnen.",
-  "DesignPermissions.restricted": "Eingeschränkte Designrechte",
-  "DesignPermissions.standard": "Normale Chatrechte",
-  "DesignPermissions.enable": "Normale Chatrechte verwenden",
-  "DesignPermissions.restrict": "Eingeschränkte Rechte verwenden",
-  "DesignPermissions.access": "Befehle laufen als aktueller Benutzer und können Dateien außerhalb des Projekts und das Netzwerk nutzen. Für MCP und Erweiterungen gelten weiterhin Sandbox-, Vertrauens- und Genehmigungsregeln.",
-  "DesignPermissions.restrictedHint": "Direkte Befehle, Projektdateizugriff und MCP sind gesperrt. Designtools und importierte Materialien bleiben verfügbar."
+  "DesignHost.panelNotVisible": "Vor dem Screenshot das Designpanel öffnen."
 }

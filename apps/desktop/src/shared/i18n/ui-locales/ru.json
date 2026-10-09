@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Действие указателем в целевом приложении",
   "DesignHost.activeTaskMissing": "Активная задача не найдена.",
   "DesignHost.taskChanged": "Задача изменилась. Откройте страницу дизайна заново перед повтором.",
-  "DesignHost.panelNotVisible": "Откройте панель дизайна перед снимком экрана.",
-  "DesignPermissions.restricted": "Ограниченные права дизайна",
-  "DesignPermissions.standard": "Обычные права чата",
-  "DesignPermissions.enable": "Использовать обычные права чата",
-  "DesignPermissions.restrict": "Использовать ограниченные права",
-  "DesignPermissions.access": "Команды выполняются от текущего пользователя и могут обращаться к файлам вне проекта и сети. MCP и расширения сохраняют правила изоляции, доверия и одобрения.",
-  "DesignPermissions.restrictedHint": "Прямые команды, доступ к файлам проекта и MCP недоступны. Инструменты дизайна и импортированные материалы доступны."
+  "DesignHost.panelNotVisible": "Откройте панель дизайна перед снимком экрана."
 }

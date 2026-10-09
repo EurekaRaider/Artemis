@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "用户在目标应用中使用了鼠标或触控板",
   "DesignHost.activeTaskMissing": "未找到当前任务。",
   "DesignHost.taskChanged": "任务已变化，请重新打开设计页面后重试。",
-  "DesignHost.panelNotVisible": "请打开设计面板后再截图。",
-  "DesignPermissions.restricted": "设计受限权限",
-  "DesignPermissions.standard": "普通聊天权限",
-  "DesignPermissions.enable": "使用普通聊天权限",
-  "DesignPermissions.restrict": "使用受限权限",
-  "DesignPermissions.access": "命令以当前系统用户权限运行，可以访问项目外的文件和网络。MCP 与扩展仍遵循各自的沙箱、信任和审批规则。",
-  "DesignPermissions.restrictedHint": "不能直接运行命令、读写项目文件或调用 MCP。仍可使用设计工具和导入的材料。"
+  "DesignHost.panelNotVisible": "请打开设计面板后再截图。"
 }

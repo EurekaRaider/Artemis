@@ -5,7 +5,7 @@ import {
 } from "../conversation/stream-snapshot.js";
 import { BoundedStateCache } from "./bounded-state-cache.js";
 import { PlanConfirmationCard } from "../conversation/PlanConfirmationCard.js";
-import { isExecutionMode, isRestrictedDesignThread } from "@artemis/protocol";
+import { isExecutionMode } from "@artemis/protocol";
 import { claimUpdateAnnouncement } from "../updates/update-announcement.js";
 import type { HookQuery } from "@artemis/protocol";
 import {
@@ -7975,27 +7975,6 @@ export function App() {
                         onDragOver={handleAttachmentDragOver}
                         onDrop={handleAttachmentDrop}
                       >
-                        {activeThread &&
-                          (activeThread.typeBinding ||
-                            activeThread.executionProfile) && (
-                            <div
-                              className="design-thread-permission-notice"
-                              role="status"
-                              title={uiText(
-                                locale,
-                                isRestrictedDesignThread(activeThread)
-                                  ? "DesignPermissions.restrictedHint"
-                                  : "DesignPermissions.access",
-                              )}
-                            >
-                              {uiText(
-                                locale,
-                                isRestrictedDesignThread(activeThread)
-                                  ? "DesignPermissions.restricted"
-                                  : "DesignPermissions.standard",
-                              )}
-                            </div>
-                          )}
                         {attachmentDragActive && (
                           <div className="composer-drop-overlay">
                             <PlusIcon />
@@ -9747,23 +9726,6 @@ ${model.providerId} · ${model.modelId}`}
                             designPluginAvailable ? (
                               <Suspense fallback={<span>…</span>}>
                                 <DesignPluginPanel
-                                  locale={locale}
-                                  onConfirm={requestConfirmation}
-                                  onThreadChange={(thread) =>
-                                    setSnapshot((current) =>
-                                      current
-                                        ? {
-                                            ...current,
-                                            threads: current.threads.map(
-                                              (existing) =>
-                                                existing.id === thread.id
-                                                  ? thread
-                                                  : existing,
-                                            ),
-                                          }
-                                        : current,
-                                    )
-                                  }
                                   key={`${activeThreadId}:${tab.id}`}
                                   threadId={activeThreadId}
                                   panelId="workspace"

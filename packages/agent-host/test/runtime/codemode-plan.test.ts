@@ -14,7 +14,7 @@ import {
 import type { AgentPayload, RunMode } from "@artemis/protocol";
 import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
 
-it.each([
+const scenarios = [
   { mode: "plan", direct: false, scenario: "read" },
   { mode: "work", direct: false, scenario: "read" },
   { mode: "codemode", direct: false, scenario: "read" },
@@ -23,9 +23,16 @@ it.each([
   { mode: "codemode", direct: false, scenario: "image-save" },
   { mode: "work", direct: false, scenario: "loop" },
   { mode: "work", direct: false, scenario: "invalid-loop" },
-] as const)(
-  "enforces $mode tools with direct business call=$direct ($scenario) through the actual Pi loop",
-  async ({ mode, direct, scenario }) => {
+] as const;
+it.each(
+  scenarios.flatMap((scenario) =>
+    [undefined, "plugin-restricted-v1", "plugin-standard-v1", "new-design"].map(
+      (profile) => ({ ...scenario, profile }),
+    ),
+  ),
+)(
+  "enforces $mode tools with direct business call=$direct ($scenario, Design=$profile) through the actual Pi loop",
+  async ({ mode, direct, scenario, profile }) => {
     const dir = await mkdtemp(join(tmpdir(), "artemis-modes-"));
     const payloads: AgentPayload[] = [];
     const calls: string[] = [];
@@ -151,6 +158,28 @@ it.each([
         workspacePath: dir,
         target: "local",
         selection,
+        ...(profile
+          ? {
+              ...(profile !== "new-design"
+                ? { executionProfile: profile }
+                : {}),
+              typeBinding: {
+                installationId: "design",
+                pluginId: "com.artemis.design",
+                typeId: "artemis-design",
+                pluginVersion: "0.4.6",
+                contentHash: "a".repeat(64),
+                bindingRevision: "rev",
+              },
+              pluginTools: [
+                {
+                  name: "create_document",
+                  description: "Create a document",
+                  effect: "artifact-write" as const,
+                },
+              ],
+            }
+          : {}),
       });
       await host.prompt("task", "turn", "Do the task", mode);
       expect(seen[0]?.includes("codemode")).toBe(mode === "codemode");
@@ -159,6 +188,8 @@ it.each([
       expect(seen[0]?.includes("shell")).toBe(mode === "work");
       expect(seen[0]).toContain("request_user_input");
       if (mode === "plan") {
+        expect(seen[0]).not.toContain("plugin_create_document");
+        expect(seen[0]).not.toContain("local_file_write");
         expect(calls).toEqual(["plan.submit"]);
         expect(request).toBe(1);
       } else if (scenario.endsWith("loop")) {

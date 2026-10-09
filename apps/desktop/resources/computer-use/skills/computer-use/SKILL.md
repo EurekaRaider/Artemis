@@ -19,17 +19,30 @@ stops at the time budget or when the remaining controls change:
 fill multiple fields together; click a calculator's clear/reset button and full
 number/operator sequence together; put a local preview button at the end of a form-filling batch. A `fill`
 already focuses and replaces the field, so do not prepend a separate click.
+For a native browser dropdown, click the observed option ID directly or `fill`
+the select with the exact observed option label. Do not open its popup first or
+try to type into it with keyboard shortcuts. Custom ARIA dropdowns still use
+their observed trigger and option controls. Disabled and read-only controls are
+not editable; a covered control must be uncovered before clicking it.
 Do not split these into single-action calls or narrate between every action.
 Every action result contains a fresh observation: use its IDs directly for the
 next step instead of adding a redundant `computer_observe` call. Inspect `status`,
 `attempted`, `completed`, `remaining` and `stopped`. A failed fill verification
 does not count as completed; never repeat already completed steps. Navigation,
 changes to remaining controls, a modal/window change or cancellation can leave a batch incomplete.
+An `action-failed` result preserves completed progress and includes the failure
+message. Inspect the new observation before choosing a different action; do not
+replay the whole batch. Key dispatch alone does not prove the desired page change.
 Native readout changes do not stop a batch if its remaining controls are unchanged.
 Observe again only when the tool reports stale elements or coordinates. Coordinates are pixels
 in the returned target image, never global screen coordinates.
 An `imageUnchanged` response reuses the previous screenshot for that target;
 the fresh observation and element IDs still replace the previous ones.
+
+For browser element inspection, first call `computer_browser_debug` with
+`command: {action: "snapshot"}` and use its actual `navigationId` in `inspect`.
+Never guess zero or reuse an ID after navigation. Inspection coordinates are CSS
+viewport pixels; action coordinates are pixels in the returned observation image.
 
 Use a separate, normally approved tool call for submitting, sending, purchasing,
 deleting or other consequential actions. Authorization for an application is not

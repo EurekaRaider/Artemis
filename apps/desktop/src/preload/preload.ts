@@ -289,10 +289,6 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.workspaceVideoOpen, threadId, href),
   releaseWorkspaceVideo: (threadId, url) =>
     ipcRenderer.invoke(IPC.workspaceVideoRelease, threadId, url),
-  getDesignThreadPermissions: (threadId) =>
-    ipcRenderer.invoke(IPC.designThreadPermissionsGet, threadId),
-  setDesignThreadPermissions: (threadId, permission) =>
-    ipcRenderer.invoke(IPC.designThreadPermissionsSet, threadId, permission),
   ensureDesignPanel: (threadId, panelId) =>
     ipcRenderer.invoke(IPC.designPanelEnsure, threadId, panelId),
   setDesignPanelBounds: (threadId, panelId, bounds) =>
@@ -471,8 +467,6 @@ const api: ArtemisApi = {
   setTheme: (theme) => ipcRenderer.invoke(IPC.settingsThemeSet, theme),
   setPreventSleep: (enabled) =>
     ipcRenderer.invoke(IPC.settingsPreventSleepSet, enabled),
-  setComputerPreviewFloating: (enabled) =>
-    ipcRenderer.invoke(IPC.settingsComputerPreviewFloatingSet, enabled),
   setApprovalPolicy: (policy) =>
     ipcRenderer.invoke(IPC.settingsApprovalPolicySet, policy),
   setLocalFullAccess: (enabled) =>

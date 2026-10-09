@@ -11,7 +11,6 @@ interface Copy {
   readOnly: string;
   fps: string;
   latency: string;
-  floating: string;
 }
 export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
   en: {
@@ -26,7 +25,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Read-only preview",
     fps: "fps",
     latency: "P95 latency",
-    floating: "Show floating preview when Artemis is in the background",
   },
   "zh-CN": {
     title: "实时预览",
@@ -40,7 +38,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "只读预览",
     fps: "帧/秒",
     latency: "P95 延迟",
-    floating: "Artemis 在后台时显示悬浮预览",
   },
   "zh-TW": {
     title: "即時預覽",
@@ -54,7 +51,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "唯讀預覽",
     fps: "幀/秒",
     latency: "P95 延遲",
-    floating: "Artemis 在背景時顯示浮動預覽",
   },
   ja: {
     title: "ライブプレビュー",
@@ -68,8 +64,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "読み取り専用プレビュー",
     fps: "fps",
     latency: "P95 遅延",
-    floating:
-      "Artemis がバックグラウンドにあるときにフローティングプレビューを表示",
   },
   ko: {
     title: "실시간 미리 보기",
@@ -83,7 +77,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "읽기 전용 미리 보기",
     fps: "fps",
     latency: "P95 지연",
-    floating: "Artemis가 백그라운드에 있을 때 떠 있는 미리 보기 표시",
   },
   es: {
     title: "Vista previa en directo",
@@ -97,7 +90,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Vista previa de solo lectura",
     fps: "fps",
     latency: "Latencia P95",
-    floating: "Mostrar vista flotante cuando Artemis esté en segundo plano",
   },
   fr: {
     title: "Aperçu en direct",
@@ -111,7 +103,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Aperçu en lecture seule",
     fps: "i/s",
     latency: "Latence P95",
-    floating: "Afficher l’aperçu flottant quand Artemis est en arrière-plan",
   },
   de: {
     title: "Live-Vorschau",
@@ -125,7 +116,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Schreibgeschützte Vorschau",
     fps: "fps",
     latency: "P95-Latenz",
-    floating: "Schwebende Vorschau anzeigen, wenn Artemis im Hintergrund ist",
   },
   "pt-BR": {
     title: "Prévia ao vivo",
@@ -139,8 +129,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Prévia somente leitura",
     fps: "fps",
     latency: "Latência P95",
-    floating:
-      "Mostrar prévia flutuante quando Artemis estiver em segundo plano",
   },
   it: {
     title: "Anteprima dal vivo",
@@ -154,7 +142,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Anteprima di sola lettura",
     fps: "fps",
     latency: "Latenza P95",
-    floating: "Mostra l’anteprima mobile quando Artemis è in secondo piano",
   },
   ru: {
     title: "Предпросмотр в реальном времени",
@@ -168,7 +155,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Предпросмотр только для чтения",
     fps: "кадр/с",
     latency: "Задержка P95",
-    floating: "Показывать плавающее окно, когда Artemis работает в фоне",
   },
   ar: {
     title: "معاينة مباشرة",
@@ -182,7 +168,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "معاينة للقراءة فقط",
     fps: "إطار/ث",
     latency: "زمن الاستجابة P95",
-    floating: "عرض معاينة عائمة عندما يكون Artemis في الخلفية",
   },
   hi: {
     title: "लाइव पूर्वावलोकन",
@@ -196,7 +181,6 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "केवल पढ़ने का पूर्वावलोकन",
     fps: "फ़्रेम/सेकंड",
     latency: "P95 विलंब",
-    floating: "Artemis के पृष्ठभूमि में होने पर तैरता पूर्वावलोकन दिखाएँ",
   },
   id: {
     title: "Pratinjau langsung",
@@ -210,6 +194,5 @@ export const COMPUTER_PREVIEW_RESOURCES: Record<AppLocale, Copy> = {
     readOnly: "Pratinjau hanya baca",
     fps: "fps",
     latency: "Latensi P95",
-    floating: "Tampilkan pratinjau mengambang saat Artemis di latar belakang",
   },
 };

@@ -26,12 +26,19 @@
   border: 0;
   z-index: -1;
 }
+.conversation:has(.computer-preview-card:not(.computer-preview-expanded)) {
+  --environment-panel-content-safe-inline-size: 332px;
+}
+.workspace:has(.computer-preview-card:not(.computer-preview-expanded))
+  .environment-popover {
+  max-height: max(168px, calc(100dvh - 320px));
+}
 .computer-preview-card {
   position: fixed;
-  inset-inline-end: 28px;
-  bottom: 100px;
-  width: 368px;
-  height: 244px;
+  inset-inline-end: var(--computer-preview-inline-end, 28px);
+  top: var(--computer-preview-top, 72px);
+  width: 304px;
+  height: 202px;
   min-width: 272px;
   min-height: 168px;
   max-width: calc(100vw - 24px);
@@ -144,7 +151,7 @@
 }
 .computer-preview-show {
   position: fixed;
-  inset-inline-end: 28px;
-  bottom: 100px;
+  inset-inline-end: var(--computer-preview-inline-end, 28px);
+  top: var(--computer-preview-top, 72px);
   z-index: 35;
 }

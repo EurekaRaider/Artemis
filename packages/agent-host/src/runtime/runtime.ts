@@ -91,7 +91,6 @@ import {
   type ChildAgentPayload,
   type AgentRuntimeCatalog,
   type AgentRuntimeConfiguration,
-  isRestrictedDesignThread,
   type BrokerExecutionRequest,
   type ModelApprovalDecision,
   type ModelSelection,
@@ -116,11 +115,6 @@ import { toPiProviderConfig } from "../models/provider-configuration.js";
 import { forkPiSession } from "../sessions/session-fork.js";
 import { deletePiSessionTranscript } from "../sessions/session-delete.js";
 import { RuntimeCredentialStore } from "./runtime-credentials.js";
-import {
-  assertToolAllowedForRestrictedThread,
-  isToolDeniedForRestrictedThread,
-  missingRestrictedSessionTools,
-} from "../policy/restricted-thread-gate.js";
 import {
   AgentConcurrencyLimiter,
   type AgentConcurrencyLease,
@@ -896,11 +890,7 @@ export interface OpenThreadRequest {
   sessionFile?: string;
   selection?: ModelSelection;
   contextWindow?: number;
-  /**
-   * Host-selected execution profile. Restricted bound sessions filter denied
-   * tools and guard dispatch. Only the host UI can change the stored choice;
-   * profile or binding changes rebuild the session before further execution.
-   */
+  /** @deprecated Accepted for old clients; ignored in favor of mode/tool policy. */
   executionProfile?: string;
   /**
    * S2 design-plugin binding snapshot for this thread. Threads opened with
@@ -931,7 +921,6 @@ interface HostedThread {
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
-  executionProfile?: string | undefined;
   typeBinding?: OpenThreadRequest["typeBinding"];
   selection?: ModelSelection;
   contextWindow?: number;
@@ -943,7 +932,6 @@ interface HostedThread {
   currentMode: RunMode | undefined;
   compacting: boolean;
   topLevelUserTurns: number;
-  /** Unset on plugin-restricted threads: file tools are profile-denied. */
   readTool?: SessionTool;
   writeTool?: SessionTool;
   mcpToolNames: Set<string>;
@@ -3710,20 +3698,14 @@ export class ArtemisAgentHost {
       throw new Error("Group sessions require a verified IM security context.");
     const current = this.threads.get(request.threadId);
     if (current) {
-      // PR#245 P1-5：复用必须同 profile。绑定设计插件会把持久化 profile 换
-      // 成受限档；带着旧 profile 复用会话等于保留完整工具集（bash 等），
-      // 「打开面板即收紧权限」就失效了。profile 变化时原子重建会话
-      //（沿用 sessionFile，历史不丢）；回合进行中无法安全重建则拒绝
-      //（fail-closed，主进程执行边界重检仍兜底）。
+      // Rebuild when the bound plugin revision changes; keep active turns intact.
       if (
-        (current.executionProfile ?? undefined) !==
-          (request.executionProfile ?? undefined) ||
         JSON.stringify(current.typeBinding) !==
-          JSON.stringify(request.typeBinding)
+        JSON.stringify(request.typeBinding)
       ) {
         if (current.currentTurnId)
           throw new Error(
-            "Cannot switch the task execution profile while a turn is active; retry after the turn ends.",
+            "Cannot change the task plugin binding while a turn is active; retry after the turn ends.",
           );
         await this.closeThread(request.threadId);
       } else {
@@ -6503,12 +6485,7 @@ export class ArtemisAgentHost {
         )
       : undefined;
     const hooksBridge = createHooksBridge({
-      // PR#245 P1-6：受限 profile 的任务在会话装配侧就不装 Hooks——
-      // hooksEnabled 只控制全局开关，不构成 per-thread 边界。主进程
-      // hook.run 入口另有一重拒绝（双拒）。
-      enabled: () =>
-        this.configuration.hooksEnabled === true &&
-        !isRestrictedDesignThread(request),
+      enabled: () => this.configuration.hooksEnabled === true,
       broker: this.broker,
       threadId: request.threadId,
       cwd: request.workspacePath,
@@ -6666,24 +6643,7 @@ export class ArtemisAgentHost {
         )
       : [];
 
-    // Restricted-profile gating (proposal §7): for plugin-restricted threads,
-    // layer 1 filters denied tools out of the model-visible list and layer 2
-    // wraps every surviving tool's execute with a pre-dispatch guard.
-    const restrictedThread = isRestrictedDesignThread(request);
-    const customTools = restrictedThread
-      ? [
-          ...assembledToolsAll
-            .filter((tool) => !isToolDeniedForRestrictedThread(tool.name))
-            .map((tool) => ({
-              ...tool,
-              execute: (async (...args: Parameters<typeof tool.execute>) => {
-                assertToolAllowedForRestrictedThread(tool.name);
-                return tool.execute(...args);
-              }) as typeof tool.execute,
-            })),
-          ...pluginBrokerTools,
-        ]
-      : [...assembledToolsAll, ...pluginBrokerTools];
+    const customTools = [...assembledToolsAll, ...pluginBrokerTools];
     const { session } = await createAgentSession({
       cwd: request.workspacePath,
       agentDir: this.agentDir,
@@ -6762,14 +6722,7 @@ export class ArtemisAgentHost {
     session.setActiveToolsByName(
       session
         .getActiveToolNames()
-        .filter((name) => !mcpDirectToolNames.has(name))
-        // Restricted threads keep the profile filter on every re-activation
-        // path; a refresh must never widen the active tool set (§7).
-        .filter(
-          (name) =>
-            !isRestrictedDesignThread(request) ||
-            !isToolDeniedForRestrictedThread(name),
-        ),
+        .filter((name) => !mcpDirectToolNames.has(name)),
     );
     const readSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "read",
@@ -6840,22 +6793,7 @@ export class ArtemisAgentHost {
     const bashCancelSessionTool = session.agent.state.tools.find(
       (tool) => tool.name === "shell_cancel",
     );
-    if (restrictedThread) {
-      // Restricted profile (proposal §7): validate the allow-listed fixed
-      // tools plus one broker-mediated tool per declared manifest tool —
-      // the full-workspace check below would demand bash/agents/files,
-      // which layer 1 filtered out on purpose.
-      const missingRestricted = missingRestrictedSessionTools(
-        session.agent.state.tools,
-        request.pluginTools ?? [],
-      );
-      if (missingRestricted.length) {
-        session.dispose();
-        throw new Error(
-          `Pi did not register the plugin-restricted toolset (missing ${missingRestricted.join(", ")}).`,
-        );
-      }
-    } else if (
+    if (
       !readSessionTool ||
       !webSearchSessionTool ||
       !localFileReadSessionTool ||
@@ -6886,9 +6824,7 @@ export class ArtemisAgentHost {
         tool.name === "read" ||
         tool.name === "web_search" ||
         tool.name.startsWith("attachment_") ||
-        // Broker-mediated plugin tools (restricted threads): the whole point
-        // of the profile — dropping them here left the model with no write
-        // channel at all even though session-start validation passed.
+        // Include bound plugin tools alongside ordinary mode-filtered tools.
         tool.name.startsWith("plugin_") ||
         tool.name === "local_file_read" ||
         modelTools.some((candidate) => candidate.name === tool.name) ||
@@ -6922,9 +6858,6 @@ export class ArtemisAgentHost {
       workspacePath: request.workspacePath,
       target: request.target,
       ...(request.typeBinding ? { typeBinding: request.typeBinding } : {}),
-      ...(request.executionProfile
-        ? { executionProfile: request.executionProfile }
-        : {}),
       ...(selection ? { selection: structuredClone(selection) } : {}),
       ...((request.contextWindow ?? this.configuration.contextWindow)
         ? {
@@ -6984,24 +6917,19 @@ export class ArtemisAgentHost {
         [...mcpDiscoveryTools, ...mcpTools].map((tool) => tool.name),
       ),
       mcpDirectToolNames,
-      // Restricted threads never delegate: plan/review toolsets are denied
-      // by the profile, and the layer-2 guard refuses any leaked dispatch.
-      delegatedTools: (restrictedThread
-        ? []
-        : [
-            ...session.agent.state.tools.filter((tool) =>
-              tool.name.startsWith("attachment_"),
-            ),
-            readSessionTool,
-            webSearchSessionTool,
-            requestUserInputSessionTool,
-            updatePlanSessionTool,
-            getGoalSessionTool,
-            spawnAgentSessionTool,
-            ...teamSessionTools,
-            ...childControlSessionTools,
-          ]
-      ).filter((tool): tool is SessionTool => Boolean(tool)),
+      delegatedTools: [
+        ...session.agent.state.tools.filter((tool) =>
+          tool.name.startsWith("attachment_"),
+        ),
+        readSessionTool,
+        webSearchSessionTool,
+        requestUserInputSessionTool,
+        updatePlanSessionTool,
+        getGoalSessionTool,
+        spawnAgentSessionTool,
+        ...teamSessionTools,
+        ...childControlSessionTools,
+      ].filter((tool): tool is SessionTool => Boolean(tool)),
       executeTools,
       childAgents: new Map(),
       activeLeases: new Map(),

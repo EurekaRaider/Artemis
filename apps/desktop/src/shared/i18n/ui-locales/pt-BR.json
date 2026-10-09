@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Entrada do ponteiro do usuário no aplicativo de destino",
   "DesignHost.activeTaskMissing": "A tarefa ativa não foi encontrada.",
   "DesignHost.taskChanged": "A tarefa mudou. Reabra a página de design antes de tentar novamente.",
-  "DesignHost.panelNotVisible": "Abra o painel de design antes de capturar a tela.",
-  "DesignPermissions.restricted": "Permissões de design restritas",
-  "DesignPermissions.standard": "Permissões normais de chat",
-  "DesignPermissions.enable": "Usar permissões normais de chat",
-  "DesignPermissions.restrict": "Usar permissões restritas",
-  "DesignPermissions.access": "Os comandos usam sua conta do sistema e podem acessar arquivos fora do projeto e a rede. MCP e extensões mantêm suas regras de sandbox, confiança e aprovação.",
-  "DesignPermissions.restrictedHint": "Comandos diretos, acesso a arquivos do projeto e MCP estão indisponíveis. Ferramentas de design e materiais importados continuam disponíveis."
+  "DesignHost.panelNotVisible": "Abra o painel de design antes de capturar a tela."
 }

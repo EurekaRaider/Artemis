@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "إدخال من المؤشر في التطبيق المستهدف",
   "DesignHost.activeTaskMissing": "لم يتم العثور على المهمة النشطة.",
   "DesignHost.taskChanged": "تغيرت المهمة. أعد فتح صفحة التصميم قبل إعادة المحاولة.",
-  "DesignHost.panelNotVisible": "افتح لوحة التصميم قبل التقاط لقطة شاشة.",
-  "DesignPermissions.restricted": "صلاحيات تصميم مقيدة",
-  "DesignPermissions.standard": "صلاحيات المحادثة العادية",
-  "DesignPermissions.enable": "استخدام صلاحيات المحادثة العادية",
-  "DesignPermissions.restrict": "استخدام صلاحيات مقيدة",
-  "DesignPermissions.access": "تعمل الأوامر بصلاحيات مستخدم النظام الحالي ويمكنها الوصول إلى ملفات خارج المشروع والشبكة. تحتفظ MCP والإضافات بقواعد العزل والثقة والموافقة.",
-  "DesignPermissions.restrictedHint": "الأوامر المباشرة والوصول إلى ملفات المشروع وMCP غير متاحة. تبقى أدوات التصميم والمواد المستوردة متاحة."
+  "DesignHost.panelNotVisible": "افتح لوحة التصميم قبل التقاط لقطة شاشة."
 }

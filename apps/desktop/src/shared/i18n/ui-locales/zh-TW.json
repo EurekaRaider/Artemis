@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "使用者在目標應用程式中使用了滑鼠或觸控板",
   "DesignHost.activeTaskMissing": "找不到目前任務。",
   "DesignHost.taskChanged": "任務已變更，請重新開啟設計頁面後重試。",
-  "DesignHost.panelNotVisible": "請開啟設計面板後再擷取畫面。",
-  "DesignPermissions.restricted": "設計受限權限",
-  "DesignPermissions.standard": "一般聊天權限",
-  "DesignPermissions.enable": "使用一般聊天權限",
-  "DesignPermissions.restrict": "使用受限權限",
-  "DesignPermissions.access": "命令以目前系統使用者權限執行，可存取專案外的檔案與網路。MCP 與擴充功能仍遵循各自的沙箱、信任及核准規則。",
-  "DesignPermissions.restrictedHint": "無法直接執行命令、讀寫專案檔案或呼叫 MCP。仍可使用設計工具及匯入的資料。"
+  "DesignHost.panelNotVisible": "請開啟設計面板後再擷取畫面。"
 }

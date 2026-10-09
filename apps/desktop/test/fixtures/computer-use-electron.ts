@@ -6,11 +6,13 @@ import { writeFile } from "node:fs/promises";
 import { app, BrowserWindow, screen, type WebContents } from "electron";
 import { ComputerBrowserDriver } from "../../src/main/computer-use/browser-driver.js";
 import { ComputerNativeDriver } from "../../src/main/computer-use/native-driver.js";
+import { computerHelperSource } from "../../src/main/computer-use/helper-source.js";
 import { ComputerUseService } from "../../src/main/computer-use/service.js";
 import { verifyNativeSecurity } from "./computer-use-native-security.js";
 
 async function main() {
-  const [helper, evidence, fixtureApp, fixtureBundle] = process.argv.slice(2);
+  const [helper, evidence, fixtureApp, fixtureBundle, hostAppPath] =
+    process.argv.slice(2);
   console.log("Computer Use: starting isolated Electron fixture");
   app.setPath("userData", `${evidence}/electron-profile`);
   await app.whenReady();
@@ -111,7 +113,20 @@ async function main() {
   );
   browser.register(page, "fixture");
   const native = new ComputerNativeDriver(
-    helper!,
+    hostAppPath
+      ? computerHelperSource(
+          {
+            isPackaged: app.isPackaged,
+            appPath: hostAppPath,
+            platform: process.platform,
+          },
+          async () => {
+            throw new Error(
+              "A development host must not acquire the released helper",
+            );
+          },
+        )
+      : helper!,
     (reason) => service.stopDesktop(reason),
     undefined,
     undefined,
@@ -725,7 +740,7 @@ async function main() {
     if (verifyCalculator && nativeVerified) {
       service.stopThread(context.threadId, "Turn ended");
       const calculatorContext = { ...context, turnId: "calculator-turn" };
-      console.log("Computer Use: real Calculator seven-step batch");
+      console.log("Computer Use: real Calculator eight-step batch");
       const calculator = await service.open(
         { target: "com.apple.calculator" },
         calculatorContext,
@@ -759,11 +774,12 @@ async function main() {
             );
         }
         const actions = [
-          /^2$/u,
-          /^3$/u,
-          /^(乘|Multiply)$/iu,
           /^1$/u,
-          /^7$/u,
+          /^2$/u,
+          /^8$/u,
+          /^(乘|Multiply)$/iu,
+          /^2$/u,
+          /^4$/u,
           /^(等于|Equals)$/iu,
         ].map((pattern) => {
           const button = calculator.elements.find(
@@ -785,12 +801,14 @@ async function main() {
         calculatorBatchMs = performance.now() - start;
         assert.equal(
           calculated.completed,
-          7,
+          8,
           JSON.stringify({ stopped: calculated.stopped, frames }),
         );
         assert.equal(calculated.foreground, false);
         assert(
-          calculated.elements.some((e) => e.value === "391"),
+          calculated.elements.some(
+            (e) => e.value?.replace(/[,\s]/gu, "") === "3072",
+          ),
           JSON.stringify(calculated.elements),
         );
         if (calculated.image)
@@ -845,7 +863,7 @@ async function main() {
         ...(calculatorBatchMs === undefined
           ? []
           : [
-              "real Calculator clear + 23 × 17 = 391 in one seven-step background batch",
+              "real Calculator clear + 128 × 24 = 3072 in one eight-step background batch",
             ]),
       ],
       observeP95Ms: timings.toSorted((a, b) => a - b)[18],

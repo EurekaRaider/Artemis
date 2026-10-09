@@ -1,13 +1,5 @@
-// Restricted-profile tool gating for agent-host sessions (proposal §7).
-//
-// Layer 1: filter the proposed customTools list for a plugin-restricted
-// thread so denied tools never reach the model.
-// Layer 2: wrap every surviving tool's execute with a pre-dispatch guard so
-// even a stale list, a race, or a direct call cannot bypass the profile.
-//
-// The category mapping here is the agent-host-side mirror of the desktop
-// tool gate; keep both in sync. Categories follow the customTools assembly
-// in runtime.ts.
+// Legacy policy helpers retained for public API compatibility.
+// Current sessions use ordinary mode/tool policy and never call these helpers.
 
 import { RESTRICTED_PROFILE_ID } from "@artemis/protocol";
 

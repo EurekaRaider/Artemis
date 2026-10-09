@@ -1,8 +1,9 @@
 #include "native.hpp"
 
 int main() {
+  try { verifyParent(); } catch (...) { return 77; }
   try {
-    verifyParent(); SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); init_apartment(apartment_type::single_threaded);
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); init_apartment(apartment_type::single_threaded);
     WNDCLASSW definition{}; definition.lpfnWndProc = panelProc; definition.hInstance = GetModuleHandleW(nullptr); definition.lpszClassName = L"ArtemisComputerStop"; definition.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1); RegisterClassW(&definition);
     panel = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, definition.lpszClassName, L"Artemis Computer Use", WS_POPUP | WS_BORDER, 24, 24, 200, 54, nullptr, nullptr, definition.hInstance, nullptr);
     require(panel != nullptr, "Native Stop control unavailable");

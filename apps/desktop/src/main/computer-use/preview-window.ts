@@ -26,7 +26,6 @@ export class ComputerPreviewWindow {
   private current: ComputerPreviewState | undefined;
   private token: string | undefined;
   private states: ComputerPreviewState[] = [];
-  private enabled = true;
   private threadId: string | undefined;
   constructor(
     private readonly options: {
@@ -108,10 +107,6 @@ export class ComputerPreviewWindow {
     this.states = states;
     this.sync();
   }
-  setEnabled(enabled: boolean) {
-    this.enabled = enabled;
-    this.sync();
-  }
   setThread(threadId: string | undefined) {
     this.threadId = threadId;
     this.sync();
@@ -143,27 +138,39 @@ export class ComputerPreviewWindow {
         value.state !== "hidden" &&
         value.state !== "ended",
     );
-    if (
-      !this.enabled ||
-      !main ||
-      main.isDestroyed() ||
-      main.isFocused() ||
-      !state
-    ) {
+    if (!main || main.isDestroyed() || main.isFocused() || !state) {
       this.detach();
       this.window?.hide();
       return;
     }
     if (!this.window || this.window.isDestroyed()) {
-      const workArea = screen.getDisplayMatching(main.getBounds()).workArea;
+      const bounds = main.getBounds();
+      const workArea = screen.getDisplayMatching(bounds).workArea;
+      const zoom = main.webContents.getZoomFactor();
+      // Reserve the 280px environment panel, its toolbar inset and a 24px gap,
+      // even while collapsed, so opening it does not cover the preview.
+      const environmentSpace = Math.ceil(360 * zoom);
       this.window = new BrowserWindow({
         show: false,
         width: 368,
         height: 244,
         minWidth: 272,
         minHeight: 168,
-        x: workArea.x + workArea.width - 392,
-        y: workArea.y + workArea.height - 268,
+        // Keep the initial preview below the header and left of the environment panel.
+        x: Math.max(
+          workArea.x,
+          Math.min(
+            bounds.x + bounds.width - environmentSpace - 368,
+            workArea.x + workArea.width - 368,
+          ),
+        ),
+        y: Math.max(
+          workArea.y,
+          Math.min(
+            bounds.y + Math.ceil(72 * zoom),
+            workArea.y + workArea.height - 244,
+          ),
+        ),
         frame: false,
         transparent: true,
         backgroundColor: "#00000000",

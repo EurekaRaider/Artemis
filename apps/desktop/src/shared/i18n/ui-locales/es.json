@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Entrada del puntero del usuario en la aplicación de destino",
   "DesignHost.activeTaskMissing": "No se encontró la tarea activa.",
   "DesignHost.taskChanged": "La tarea cambió. Vuelve a abrir la página de diseño antes de reintentarlo.",
-  "DesignHost.panelNotVisible": "Abre el panel de diseño antes de hacer una captura.",
-  "DesignPermissions.restricted": "Permisos de diseño restringidos",
-  "DesignPermissions.standard": "Permisos de chat normales",
-  "DesignPermissions.enable": "Usar permisos de chat normales",
-  "DesignPermissions.restrict": "Usar permisos restringidos",
-  "DesignPermissions.access": "Los comandos se ejecutan como tu usuario y pueden acceder a archivos fuera del proyecto y a la red. MCP y las extensiones mantienen sus reglas de aislamiento, confianza y aprobación.",
-  "DesignPermissions.restrictedHint": "No se permiten comandos directos, acceso a archivos del proyecto ni MCP. Las herramientas de diseño y los materiales importados siguen disponibles."
+  "DesignHost.panelNotVisible": "Abre el panel de diseño antes de hacer una captura."
 }

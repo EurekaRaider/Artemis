@@ -61,6 +61,29 @@ function fixture() {
 }
 
 describe("Computer Use execution boundaries", () => {
+  it("reports a helper failure during open as paused even before a target exists", async () => {
+    const f = fixture();
+    f.driver.open = async () => {
+      f.service.stopDesktop("Native helper rejected parent (code 77)");
+      throw new Error("helper exited");
+    };
+    await expect(
+      f.service.open({ target: "fixture-app" }, f.context),
+    ).rejects.toThrow("helper exited");
+    expect(f.service.status()).toMatchObject({
+      state: "paused",
+      threadId: f.context.threadId,
+      reason: expect.stringContaining("77"),
+    });
+    expect(
+      await f.service.call("computer_status", {}, f.context),
+    ).toMatchObject({ state: "paused" });
+    await expect(
+      f.service.open({ target: "fixture-app" }, f.context),
+    ).rejects.toThrow(/paused/);
+    f.service.resumeThread(f.context.threadId);
+    expect(f.service.status().state).toBe("idle");
+  });
   it("rejects Plan before any driver or authorization call", async () => {
     const f = fixture();
     for (const mode of ["plan"] as const)
@@ -303,6 +326,69 @@ describe("Computer Use execution boundaries", () => {
       attempted: 1,
       completed: 0,
       remaining: 1,
+      stopped: "verification-failed",
+    });
+  });
+  it("retains batch progress and returns a fresh observation after an action fails", async () => {
+    const f = fixture();
+    const opened = await f.service.open({ target: "browser" }, f.context);
+    vi.mocked(f.driver.act)
+      .mockResolvedValueOnce()
+      .mockRejectedValueOnce(new Error("Control is disabled"));
+    const result = await f.service.act(
+      {
+        targetId: opened.target.id,
+        observationId: opened.observationId,
+        actions: Array.from({ length: 3 }, () => ({
+          type: "click" as const,
+          elementId: "button-1",
+        })),
+      },
+      f.context,
+    );
+    expect(result).toMatchObject({
+      status: "partial",
+      attempted: 2,
+      completed: 1,
+      remaining: 2,
+      stopped: "action-failed",
+      message: "Control is disabled",
+    });
+    expect(result.observationId).not.toBe(opened.observationId);
+    expect(f.driver.act).toHaveBeenCalledTimes(2);
+    await expect(
+      f.service.act(
+        {
+          targetId: opened.target.id,
+          observationId: opened.observationId,
+          actions: [{ type: "click", elementId: "button-1" }],
+        },
+        f.context,
+      ),
+    ).rejects.toThrow(/Stale observation/);
+  });
+  it("does not report a checkbox click complete when the checked state did not change", async () => {
+    const f = fixture();
+    vi.mocked(f.driver.observe).mockResolvedValue({
+      revision: "page-1",
+      width: 800,
+      height: 600,
+      elements: [
+        { id: "check", role: "checkbox", label: "Research", checked: false },
+      ],
+    });
+    const opened = await f.service.open({ target: "browser" }, f.context);
+    const result = await f.service.act(
+      {
+        targetId: opened.target.id,
+        observationId: opened.observationId,
+        actions: [{ type: "click", elementId: "check" }],
+      },
+      f.context,
+    );
+    expect(result).toMatchObject({
+      completed: 0,
+      attempted: 1,
       stopped: "verification-failed",
     });
   });

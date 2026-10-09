@@ -67,14 +67,10 @@ export class ComputerNativeDriver implements ComputerDriver {
       this.child = child;
       this.diagnostics?.({ event: "helper-start", pid: child.pid });
       let buffer = Buffer.alloc(0);
-      const failed = (
-        error = new Error(
-          "Computer Use helper stopped. Reopen the target and check native permissions.",
-        ),
-      ) => {
+      const failed = (error: Error) => {
         if (this.child !== child) return;
         this.dispose(error);
-        this.takeover("Native helper exited unexpectedly");
+        this.takeover(error.message);
       };
       (child.stdio[1] as Readable).on("data", (chunk: Buffer) => {
         if (this.child !== child) return;
@@ -83,7 +79,9 @@ export class ComputerNativeDriver implements ComputerDriver {
           const newline = buffer.indexOf(10);
           if (newline < 0) break;
           if (newline > 2 * 1024 * 1024) {
-            failed();
+            failed(
+              new Error("Native helper response exceeds the 2 MiB limit."),
+            );
             return;
           }
           const line = buffer.subarray(0, newline).toString("utf8");
@@ -113,16 +111,23 @@ export class ComputerNativeDriver implements ComputerDriver {
               request.reject(new Error(message.error));
             else request.resolve(message.result);
           } catch {
-            failed();
+            failed(
+              new Error("Native helper returned an invalid protocol response."),
+            );
             return;
           }
         }
-        if (buffer.length > 2 * 1024 * 1024) failed();
+        if (buffer.length > 2 * 1024 * 1024)
+          failed(new Error("Native helper response exceeds the 2 MiB limit."));
       });
       child.once("error", (error) => failed(error));
       child.once("exit", (code, signal) => {
         this.diagnostics?.({ event: "helper-exit", code, signal });
-        failed();
+        const reason =
+          code === 77
+            ? "Native helper rejected its parent host (exit code 77). Development Electron must use the development helper; a released helper requires the matching released Artemis host. Fix the host/runtime pairing before resuming."
+            : `Native helper exited unexpectedly (${signal ? `signal ${signal}` : `code ${code ?? "unknown"}`}). Resume only after the runtime failure is resolved.`;
+        failed(new Error(reason));
       });
       (child.stdio[0] as Writable).on("error", (error) => failed(error));
       (child.stdio[1] as Readable).on("error", (error) => failed(error));
@@ -157,7 +162,10 @@ export class ComputerNativeDriver implements ComputerDriver {
     signal?.throwIfAborted();
     const id = randomUUID();
     return new Promise<T>((resolve, reject) => {
-      const abort = () => this.dispose();
+      const abort = () =>
+        this.dispose(
+          signal?.reason instanceof Error ? signal.reason : undefined,
+        );
       const timer = setTimeout(() => {
         const reason =
           "Native helper " + method + " request timed out after 20 seconds";
@@ -190,7 +198,8 @@ export class ComputerNativeDriver implements ComputerDriver {
     signal?: AbortSignal,
   ): Promise<T> {
     signal?.throwIfAborted();
-    const abort = () => this.dispose();
+    const abort = () =>
+      this.dispose(signal?.reason instanceof Error ? signal.reason : undefined);
     signal?.addEventListener("abort", abort, { once: true });
     try {
       return await this.send<T>(await this.start(), method, args, signal);

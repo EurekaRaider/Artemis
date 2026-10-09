@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "対象アプリでユーザーがポインターを操作しました",
   "DesignHost.activeTaskMissing": "現在のタスクが見つかりません。",
   "DesignHost.taskChanged": "タスクが変更されました。デザインページを開き直して再試行してください。",
-  "DesignHost.panelNotVisible": "スクリーンショットを撮る前にデザインパネルを開いてください。",
-  "DesignPermissions.restricted": "制限付きデザイン権限",
-  "DesignPermissions.standard": "通常のチャット権限",
-  "DesignPermissions.enable": "通常のチャット権限を使用",
-  "DesignPermissions.restrict": "制限付き権限を使用",
-  "DesignPermissions.access": "コマンドは現在のユーザー権限で実行され、プロジェクト外のファイルとネットワークにアクセスできます。MCP と拡張機能には既存のサンドボックス、信頼、承認規則が適用されます。",
-  "DesignPermissions.restrictedHint": "コマンドの直接実行、プロジェクトファイルの読み書き、MCP は利用できません。デザインツールと取り込んだ資料は利用できます。"
+  "DesignHost.panelNotVisible": "スクリーンショットを撮る前にデザインパネルを開いてください。"
 }

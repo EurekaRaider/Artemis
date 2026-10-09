@@ -85,12 +85,22 @@ it("preserves the native stop reason", async () => {
 it("identifies helper exit separately from user input", async () => {
   const f = fixture();
   const rejected = expect(f.driver.permissions()).rejects.toThrow(
-    /helper stopped/,
+    /helper exited.*code 1/,
   );
   await settle();
   f.child.emit("exit", 1);
   await rejected;
-  expect(f.paused).toHaveBeenCalledWith("Native helper exited unexpectedly");
+  expect(f.paused).toHaveBeenCalledWith(
+    expect.stringMatching(/helper exited.*code 1/),
+  );
+});
+it("identifies rejected parent trust rather than suggesting permission retries", async () => {
+  const f = fixture();
+  const rejected = expect(f.driver.permissions()).rejects.toThrow(/parent.*77/);
+  await settle();
+  f.child.emit("exit", 77, null);
+  await rejected;
+  expect(f.paused).toHaveBeenCalledWith(expect.stringMatching(/parent/));
 });
 it("identifies a stalled helper and rejects the pending call", async () => {
   vi.useFakeTimers();
@@ -102,6 +112,17 @@ it("identifies a stalled helper and rejects the pending call", async () => {
   expect(f.paused).toHaveBeenCalledWith(
     "Native helper status request timed out after 20 seconds",
   );
+});
+it("preserves an explicit cancellation reason instead of hiding user takeover", async () => {
+  const f = fixture();
+  const signal = new AbortController();
+  const rejected = expect(
+    f.driver.permissions(false, signal.signal),
+  ).rejects.toThrow("User input during foreground control");
+  await settle();
+  signal.abort(new Error("User input during foreground control"));
+  await rejected;
+  expect(f.paused).not.toHaveBeenCalled();
 });
 it("rejects an oversized unterminated message and releases the process lease", async () => {
   const f = fixture();

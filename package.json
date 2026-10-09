@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "1.7.7",
+  "version": "1.7.8",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -77,7 +77,7 @@
     "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop",
     "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify/ui/verify-latest-dock.mjs",
     "verify:ci": "node scripts/ci/verify-ci.mjs",
-    "verify:computer-use": "npm run build:core && node apps/desktop/scripts/verify/native/verify-computer-use.mjs",
+    "verify:computer-use": "npm run build:core && node apps/desktop/scripts/verify/native/verify-computer-browser-input.mjs && node apps/desktop/scripts/verify/native/verify-computer-use.mjs",
     "verify:prepush": "node scripts/ci/verify-pre-push.mjs",
     "postinstall": "node scripts/dependencies/patch-pi-dependencies.mjs",
     "prepare": "node scripts/ci/install-git-hooks.mjs",

@@ -293,6 +293,7 @@ describe("environment agent activity", () => {
   });
 
   it("lists direct children beneath the team entry and opens the selected child", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse(child.updatedAt!));
     const children = [
       "cxx-plan-wrapper",
       "csharp-plan-bindings",
@@ -368,6 +369,7 @@ describe("environment agent activity", () => {
     expect(onOpenAgent).toHaveBeenCalledWith({
       ...children[0],
       status: "completed",
+      lastActivityAt: team.updatedAt,
     });
   });
 

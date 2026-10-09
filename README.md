@@ -54,16 +54,17 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.7** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.8** · [Release notes](docs/records/release-notes.md).
 
-This revision adds session-scoped GPU previews and picture-in-picture controls for
-Computer Use, including browser and native desktop capture. The independently
-published Computer Use runtime is version **1.2.1**, for Artemis **1.7.7** or newer.
-Plugin sources use the name Artemis plugins; runtime actions keep readable labels
-in narrow windows. Signed catalog checks allow up to 60 seconds on slow networks.
-Design chats start with restricted permissions; users may explicitly choose standard
-chat permissions in the host UI. That choice applies only to the selected chat and
-retains existing mode, trust, sandbox and approval rules.
+This revision improves Computer Use background browser input for native selects,
+checkboxes, text fields and keyboard actions, preserving completed batch progress
+when an action fails. Computer Use runtime **1.2.2** requires Artemis **1.7.8** or
+newer. Development Electron uses a matching development helper; signed releases
+use the independently verified runtime. Previews align below the environment
+panel, and completed agent activity leaves the compact list after five seconds.
+Design chats use the ordinary Plan, Work and Codemode tool policies, with plugin
+trust, sandbox and approval checks retained. Existing Design bindings and modes
+survive migration from the retired per-chat permission tiers.
 
 Design projects use workspace HTML files with bounded snapshots, undo/redo, automatic preview refresh and safe path-based editing. The
 signed Design plugin pack is version **0.4.6** and requires Artemis **1.7.4** or newer.

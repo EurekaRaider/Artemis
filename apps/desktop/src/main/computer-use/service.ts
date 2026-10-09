@@ -124,7 +124,18 @@ export class ComputerUseService {
   hasTargets(): boolean {
     return this.leases.size > 0 || this.opening.size > 0;
   }
-  status(): ComputerControlState {
+  status(context?: ComputerContext): ComputerControlState {
+    const paused = context && this.pausedTurns.get(context.threadId);
+    if (context && paused?.turnId === context.turnId)
+      return {
+        version: COMPUTER_USE_VERSION,
+        state: "paused",
+        threadId: context.threadId,
+        reason: paused.reason,
+        ...(this.state.threadId === context.threadId && this.state.target
+          ? { target: structuredClone(this.state.target) }
+          : {}),
+      };
     return structuredClone(this.state);
   }
   previewTarget(threadId: string, targetId?: string) {
@@ -361,6 +372,7 @@ export class ComputerUseService {
     let completed = 0;
     let attempted = 0;
     let stopped: string | undefined;
+    let message: string | undefined;
     try {
       const needsForeground =
         lease.target.kind === "desktop" &&
@@ -444,14 +456,21 @@ export class ComputerUseService {
         )
           lease.observation.foreground = true;
         this.publish(lease, "acting");
-        await driver.act(
-          lease.target,
-          action,
-          signal,
-          lease.allowForeground === true,
-        );
-        signal.throwIfAborted();
         attempted++;
+        try {
+          await driver.act(
+            lease.target,
+            action,
+            signal,
+            lease.allowForeground === true,
+          );
+        } catch (error) {
+          signal.throwIfAborted();
+          stopped = "action-failed";
+          message = error instanceof Error ? error.message : String(error);
+          break;
+        }
+        signal.throwIfAborted();
         const after = await driver.observe(
           lease.target,
           false,
@@ -466,6 +485,20 @@ export class ComputerUseService {
               createHash("sha256").update(action.text).digest("hex")
             : field?.value === action.text;
           if (!verified) {
+            stopped = "verification-failed";
+            break;
+          }
+        }
+        if (action.type === "click") {
+          const previous = before.elements.find(
+            (e) => e.id === action.elementId,
+          );
+          const current = after.elements.find((e) => e.id === action.elementId);
+          if (
+            previous?.role === "checkbox" &&
+            previous.checked !== undefined &&
+            current?.checked === previous.checked
+          ) {
             stopped = "verification-failed";
             break;
           }
@@ -498,6 +531,7 @@ export class ComputerUseService {
         completed,
         remaining: input.actions.length - completed,
         ...(stopped ? { stopped } : {}),
+        ...(message ? { message } : {}),
       };
     } catch (error) {
       if (signal.aborted && this.leases.get(lease.target.id) === lease)
@@ -518,11 +552,20 @@ export class ComputerUseService {
     for (const opening of this.opening.values())
       if (opening.context.threadId === threadId) {
         opening.controller.abort(new Error(reason));
-        if (!finished)
+        if (!finished) {
           this.pausedTurns.set(threadId, {
             turnId: opening.context.turnId,
             reason,
           });
+          this.state = {
+            version: COMPUTER_USE_VERSION,
+            state: "paused",
+            threadId,
+            reason,
+            ...(opening.target ? { target: opening.target } : {}),
+          };
+          this.options.publish(this.status());
+        }
       }
     for (const [id, lease] of this.leases) {
       if (lease.context.threadId !== threadId) continue;
@@ -568,7 +611,7 @@ export class ComputerUseService {
     this.assertExecute(context);
     switch (name) {
       case "computer_status":
-        return this.status();
+        return this.status(context);
       case "computer_targets":
         return (
           await Promise.all(

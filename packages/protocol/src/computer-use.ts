@@ -93,10 +93,15 @@ export interface ComputerElement {
   label: string;
   value?: string;
   valueDigest?: string;
+  checked?: boolean | "mixed";
+  selected?: boolean;
+  disabled?: boolean;
+  readOnly?: boolean;
+  expanded?: boolean;
   bounds?: { x: number; y: number; width: number; height: number };
 }
 export interface ComputerFrame {
-  /** Changes on navigation, window geometry, or element structure changes. */
+  /** Changes on navigation, window geometry, or element structure/availability changes. */
   revision: string;
   /** Native window identity, geometry and modal boundary, excluding changing readouts. */
   scopeRevision?: string;

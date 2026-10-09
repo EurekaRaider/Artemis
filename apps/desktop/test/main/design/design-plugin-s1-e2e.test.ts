@@ -160,7 +160,7 @@ describeDarwin("artemis-design S1 end-to-end", () => {
       executionProfile: string;
     };
     expect(reread.typeBinding).toEqual(binding);
-    expect(reread.executionProfile).toBe(RESTRICTED_PROFILE_ID);
+    expect(reread.executionProfile).toBeUndefined();
     expect(reopened.listPluginGrants(threadId)).toHaveLength(1);
     reopened.close();
     const check = new DatabaseSync(databasePath);

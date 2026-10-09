@@ -219,9 +219,7 @@ export function environmentDisplayAgents(
   agents: readonly ChildAgentState[],
   teams: readonly AgentTeamState[],
 ): ChildAgentState[] {
-  const teamStatuses = new Map(
-    teams.map((team) => [team.teamId, team.status] as const),
-  );
+  const teamById = new Map(teams.map((team) => [team.teamId, team] as const));
   return agents.map((agent) => {
     if (
       !agent.teamId ||
@@ -231,7 +229,8 @@ export function environmentDisplayAgents(
     ) {
       return agent;
     }
-    const teamStatus = teamStatuses.get(agent.teamId);
+    const team = teamById.get(agent.teamId);
+    const teamStatus = team?.status;
     const status =
       teamStatus === "completed"
         ? "completed"
@@ -239,7 +238,11 @@ export function environmentDisplayAgents(
           ? "cancelled"
           : undefined;
     if (!status) return agent;
-    const displayAgent: ChildAgentState = { ...agent, status };
+    const displayAgent: ChildAgentState = {
+      ...agent,
+      status,
+      ...(team ? { lastActivityAt: team.updatedAt } : {}),
+    };
     delete displayAgent.currentTool;
     delete displayAgent.currentToolStartedAt;
     return displayAgent;
@@ -255,6 +258,45 @@ export function environmentTopLevelAgents(
       (!agent.parentAgentId || agent.parentAgentId === "parent") &&
       (agent.depth === undefined || agent.depth === 1),
   );
+}
+
+export function useEnvironmentActivityAgents(
+  agents: readonly ChildAgentState[],
+  teams: readonly AgentTeamState[],
+): ChildAgentState[] {
+  const [, refresh] = useState(0);
+  const displayAgents = useMemo(
+    () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
+    [agents, teams],
+  );
+  const now = Date.now();
+  let nextExpiry = Infinity;
+  const visibleAgents = displayAgents.filter((agent) => {
+    if (
+      agent.status !== "completed" &&
+      agent.status !== "failed" &&
+      agent.status !== "cancelled"
+    )
+      return true;
+    // Status queries update updatedAt; lastActivityAt preserves the finish time.
+    // Old records without a usable timestamp belong only in the detail view.
+    const finishedAt = Date.parse(
+      agent.lastActivityAt ?? agent.updatedAt ?? "",
+    );
+    const expiresAt = finishedAt + 5_000;
+    if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
+    nextExpiry = Math.min(nextExpiry, expiresAt);
+    return true;
+  });
+  useEffect(() => {
+    if (!Number.isFinite(nextExpiry)) return;
+    const timer = window.setTimeout(
+      () => refresh((value) => value + 1),
+      Math.max(0, nextExpiry - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [nextExpiry]);
+  return visibleAgents;
 }
 
 export function groupMcpUsage(
@@ -704,10 +746,7 @@ export function EnvironmentPanel({
   const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
   const [showAllAgents, setShowAllAgents] = useState(false);
 
-  const displayAgents = useMemo(
-    () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
-    [agents, teams],
-  );
+  const displayAgents = useEnvironmentActivityAgents(agents, teams);
   const attachmentCount =
     attachments.length +
     sources.filter(
@@ -910,6 +949,18 @@ export function EnvironmentPanel({
       if (next.conversation.style.getPropertyValue(property) !== value) {
         next.conversation.style.setProperty(property, value);
       }
+      const panelBounds = panel.current?.getBoundingClientRect();
+      if (panelBounds) {
+        const rtl = window.getComputedStyle(next.workspace).direction === "rtl";
+        next.conversation.style.setProperty(
+          "--computer-preview-top",
+          `${panelBounds.bottom + 8}px`,
+        );
+        next.conversation.style.setProperty(
+          "--computer-preview-inline-end",
+          `${Math.max(12, (rtl ? panelBounds.left : window.innerWidth - panelBounds.right) - 8)}px`,
+        );
+      }
     };
     reserveSpace();
     const observer =
@@ -929,6 +980,8 @@ export function EnvironmentPanel({
       observer?.disconnect();
       window.removeEventListener("resize", reserveSpace);
       conversation.style.removeProperty(property);
+      conversation.style.removeProperty("--computer-preview-top");
+      conversation.style.removeProperty("--computer-preview-inline-end");
     };
   }, [hidePanel, measureContentSpace, panelVisible]);
 

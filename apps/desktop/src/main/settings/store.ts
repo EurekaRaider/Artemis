@@ -3,7 +3,6 @@ import { DatabaseSync } from "node:sqlite";
 
 import {
   PROTOCOL_VERSION,
-  STANDARD_DESIGN_PROFILE_ID,
   collectPlans,
   assertAcceptablePlan,
   acceptedPlanPrompt,
@@ -465,9 +464,6 @@ function threadFromRow(row: ThreadRow, goal?: ThreadGoal): Thread {
             JSON.parse(row.type_binding_json),
           ),
         }
-      : {}),
-    ...(row.execution_profile
-      ? { executionProfile: row.execution_profile }
       : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1008,6 +1004,11 @@ export class AppStore {
     if (afterThreeModes.user_version < DESIGN_PLUGIN_DATABASE_VERSION) {
       this.migrateDesignPluginTables();
     }
+    // Retire legacy Design permission choices, including already-migrated databases.
+    // Keep the column for database compatibility; all chats use mode/tool policy.
+    this.database.exec(
+      "UPDATE threads SET execution_profile = NULL WHERE execution_profile IS NOT NULL",
+    );
     // Run after legacy mode migrations, which rebuild the automations table.
     const automationColumns = this.database
       .prepare("PRAGMA table_info(automations)")
@@ -1920,7 +1921,7 @@ export class AppStore {
         thread.pinned ? 1 : 0,
         thread.archived ? 1 : 0,
         thread.typeBinding ? JSON.stringify(thread.typeBinding) : null,
-        thread.executionProfile ?? null,
+        null,
         thread.createdAt,
         thread.updatedAt,
       );
@@ -2107,16 +2108,6 @@ export class AppStore {
       changes.typeBinding === undefined
         ? current.typeBinding
         : changes.typeBinding;
-    const executionProfile =
-      changes.typeBinding !== undefined
-        ? // Binding starts restricted unless the user already selected
-          // standard permissions. Unbinding preserves the explicit choice.
-          changes.typeBinding
-          ? current.executionProfile === STANDARD_DESIGN_PROFILE_ID
-            ? STANDARD_DESIGN_PROFILE_ID
-            : "plugin-restricted-v1"
-          : (current.executionProfile ?? null)
-        : (current.executionProfile ?? null);
     const modelSelection =
       changes.modelSelection === undefined
         ? current.modelSelection
@@ -2147,33 +2138,8 @@ export class AppStore {
         modelSelection ? JSON.stringify(modelSelection) : null,
         contextWindow,
         typeBinding ? JSON.stringify(typeBinding) : null,
-        executionProfile,
+        null,
         updatedAt,
-        id,
-      );
-    return this.getThread(id)!;
-  }
-
-  /** Called only after the host verifies an explicit permission choice. */
-  setDesignThreadPermissions(
-    id: string,
-    permission: "standard" | "restricted",
-  ): Thread {
-    const thread = this.getThread(id);
-    if (
-      !thread?.typeBinding ||
-      !["standard", "restricted"].includes(permission)
-    )
-      throw new Error("Invalid design thread permission choice.");
-    this.database
-      .prepare(
-        "UPDATE threads SET execution_profile = ?, updated_at = ? WHERE id = ?",
-      )
-      .run(
-        permission === "standard"
-          ? STANDARD_DESIGN_PROFILE_ID
-          : "plugin-restricted-v1",
-        new Date().toISOString(),
         id,
       );
     return this.getThread(id)!;

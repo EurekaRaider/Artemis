@@ -55,7 +55,6 @@ interface PersistedSettings {
   theme?: AppTheme;
   skinSelection?: SkinSelection | null;
   preventSleep?: boolean;
-  computerPreviewFloating?: boolean;
   approvalPolicy?: ApprovalPolicy;
   localFullAccess?: boolean;
   shell?: ShellRuntimeConfiguration;
@@ -322,18 +321,6 @@ export class EncryptedSettingsStore {
 
   async preventSleepPreference(): Promise<boolean> {
     return (await this.load()).preventSleep ?? true;
-  }
-
-  async computerPreviewFloatingPreference(): Promise<boolean> {
-    return (await this.load()).computerPreviewFloating ?? true;
-  }
-
-  async setComputerPreviewFloatingPreference(enabled: boolean): Promise<void> {
-    if (typeof enabled !== "boolean")
-      throw new Error("Invalid preview preference.");
-    const settings = await this.load();
-    settings.computerPreviewFloating = enabled;
-    await this.save(settings);
   }
 
   async setPreventSleepPreference(enabled: boolean): Promise<void> {
@@ -860,8 +847,6 @@ export class EncryptedSettingsStore {
           !appLanguageSchema.safeParse(parsed.language).success) ||
         (parsed.preventSleep !== undefined &&
           typeof parsed.preventSleep !== "boolean") ||
-        (parsed.computerPreviewFloating !== undefined &&
-          typeof parsed.computerPreviewFloating !== "boolean") ||
         (parsed.theme !== undefined &&
           !appThemeSchema.safeParse(parsed.theme).success) ||
         (parsed.approvalPolicy !== undefined &&

@@ -1,7 +1,5 @@
-// Design-plugin manifest, binding, restricted execution profile, and persisted
-// prompt-submission ledger contracts. Permission changes require an explicit
-// host UI action; submissions retain their identity across restarts without
-// blindly replaying external side effects.
+// Design-plugin binding and persisted prompt-submission ledger contracts.
+// Submissions retain their identity across restarts without replaying effects.
 
 import { z } from "zod";
 
@@ -90,23 +88,17 @@ export {
   type PluginManifest,
 } from "@artemis/plugin-contract";
 
-/**
- * The single restricted execution profile shipped in S0. Threads bound to a
- * plugin project type start with this profile. Only an explicit host UI
- * action can select the standard profile; message provenance cannot do so.
- */
+/** @deprecated Legacy persisted identifiers; Design uses ordinary mode/tool policy. */
 export const RESTRICTED_PROFILE_ID = "plugin-restricted-v1";
+/** @deprecated Legacy persisted identifier, ignored by current sessions. */
 export const STANDARD_DESIGN_PROFILE_ID = "plugin-standard-v1";
 
-/** Missing or unknown bound-thread permissions fail closed at both boundaries. */
-export function isRestrictedDesignThread(thread: {
+/** @deprecated Design no longer has a separate thread permission tier. */
+export function isRestrictedDesignThread(_thread: {
   executionProfile?: string | undefined;
   typeBinding?: unknown;
 }): boolean {
-  return (
-    Boolean(thread.typeBinding || thread.executionProfile) &&
-    thread.executionProfile !== STANDARD_DESIGN_PROFILE_ID
-  );
+  return false;
 }
 
 export const pluginTypeBindingSchema = z.strictObject({
@@ -121,9 +113,8 @@ export const pluginTypeBindingSchema = z.strictObject({
 export type PluginTypeBinding = z.infer<typeof pluginTypeBindingSchema>;
 
 /**
- * Capability matrix for the restricted profile, mirroring proposal §7.
- * Denial entries are hard denials enforced by both the tool list filter and
- * the dispatch guard; the profile is consulted again on every dispatch.
+ * @deprecated Historical capability matrix retained for API compatibility.
+ * Current Design sessions do not consult this profile.
  */
 export const RESTRICTED_PROFILE = {
   id: RESTRICTED_PROFILE_ID,

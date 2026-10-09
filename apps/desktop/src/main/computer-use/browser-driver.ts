@@ -47,6 +47,74 @@ const roles = new Set([
   "listbox",
   "option",
 ]);
+
+// Fixed host-owned operation on an observed node. No page script or model-supplied
+// JavaScript is accepted. Native <option> elements do not have clickable boxes.
+const prepareElement = `function(type, text, point) {
+  if (!this.isConnected) throw new Error("Element was detached. Observe again.");
+  if (this.disabled || this.matches?.(":disabled") || this.getAttribute?.("aria-disabled") === "true")
+    throw new Error("Control is disabled.");
+  const assertHit = (element, point) => {
+    let hit = element.ownerDocument.elementFromPoint(point.x, point.y);
+    while (hit?.shadowRoot) {
+      const inner = hit.shadowRoot.elementFromPoint(point.x, point.y);
+      if (!inner || inner === hit) break;
+      hit = inner;
+    }
+    if (!hit || (hit !== element && !element.contains(hit)))
+      throw new Error("Control is covered or outside the viewport. Observe again.");
+  };
+  if (type === "hit") { assertHit(this.nodeType === 3 ? this.parentElement : this, point); return false; }
+  const option = this instanceof HTMLOptionElement ? this : null;
+  if (option && type !== "click") throw new Error("Click an option, or fill its select with the option label.");
+  const select = this instanceof HTMLSelectElement ? this : option?.closest("select");
+  if (select && (type === "fill" || option)) {
+    if (select.disabled || select.matches(":disabled")) throw new Error("Select is disabled.");
+    if (!select.getClientRects().length || getComputedStyle(select).visibility !== "visible")
+      throw new Error("Select is not visible.");
+    if (select.multiple && type === "fill") throw new Error("Click an observed option in a multiple select.");
+    const matches = option ? [option] : Array.from(select.options).filter(o => o.label === text);
+    if (matches.length !== 1) throw new Error("Select requires one exact observed option label.");
+    const chosen = matches[0];
+    if (chosen.disabled || chosen.parentElement?.disabled) throw new Error("Option is disabled.");
+    select.scrollIntoView({block:"nearest", inline:"nearest", behavior:"instant"});
+    const rect = select.getBoundingClientRect();
+    assertHit(select, {x:(Math.max(0,rect.left)+Math.min(innerWidth,rect.right))/2,
+      y:(Math.max(0,rect.top)+Math.min(innerHeight,rect.bottom))/2});
+    select.focus({preventScroll:true});
+    if (!chosen.selected) {
+      select.selectedIndex = chosen.index;
+      select.dispatchEvent(new Event("input", {bubbles:true}));
+      select.dispatchEvent(new Event("change", {bubbles:true}));
+    }
+    if (!chosen.selected) throw new Error("Option selection did not take effect.");
+    return true;
+  }
+  if (type === "fill" || type === "focused") {
+    const editable = this instanceof HTMLTextAreaElement ||
+      (this instanceof HTMLInputElement && ["text","search","email","url","tel","number"].includes(this.type)) ||
+      this.isContentEditable;
+    if (!editable || this.disabled || this.readOnly || this.matches(":disabled"))
+      throw new Error("Fill requires an enabled editable text field or a native select option label.");
+    const active = this.getRootNode().activeElement;
+    if (type === "focused" && active !== this && !this.contains(active))
+      throw new Error("Text field did not receive focus; no text was replaced.");
+  }
+  return false;
+}`;
+
+const browserKeys = {
+  Enter: 13,
+  Tab: 9,
+  Escape: 27,
+  Backspace: 8,
+  ArrowUp: 38,
+  ArrowDown: 40,
+  ArrowLeft: 37,
+  ArrowRight: 39,
+  Space: 32,
+} as const;
+
 export class ComputerBrowserDriver implements ComputerDriver {
   private readonly browsers = new Map<string, BrowserTarget>();
   private readonly navigation = new WeakMap<ComputerTarget, string>();
@@ -361,6 +429,31 @@ export class ComputerBrowserDriver implements ComputerDriver {
         id,
         role: node.role!.value,
         label: (node.name?.value ?? "").slice(0, 500),
+        ...Object.fromEntries(
+          (node.properties ?? []).flatMap(({ name, value }) => {
+            const key = name === "readonly" ? "readOnly" : name;
+            if (
+              ![
+                "checked",
+                "selected",
+                "disabled",
+                "readOnly",
+                "expanded",
+              ].includes(key)
+            )
+              return [];
+            const state =
+              value.value === "true"
+                ? true
+                : value.value === "false"
+                  ? false
+                  : value.value;
+            return typeof state === "boolean" ||
+              (key === "checked" && state === "mixed")
+              ? [[key, state]]
+              : [];
+          }),
+        ),
         ...(node.value?.value === undefined
           ? {}
           : {
@@ -378,7 +471,13 @@ export class ComputerBrowserDriver implements ComputerDriver {
           browser.debug.snapshot().navigationId,
           viewport,
           elements.map(
-            ({ value: _value, valueDigest: _digest, ...element }) => element,
+            ({
+              value: _value,
+              valueDigest: _digest,
+              checked: _checked,
+              selected: _selected,
+              ...element
+            }) => element,
           ),
         ]),
       )
@@ -409,23 +508,28 @@ export class ComputerBrowserDriver implements ComputerDriver {
       method: string,
       params: Record<string, unknown>,
     ) => this.command<T>(browser, method, params, signal);
-    const key = async (name: string, modifiers = 0) => {
-      await command("Input.dispatchKeyEvent", {
-        type: "keyDown",
-        key: name,
+    const key = async (name: keyof typeof browserKeys, modifiers = 0) => {
+      const event = {
+        key: name === "Space" ? " " : name,
+        code: name,
+        windowsVirtualKeyCode: browserKeys[name],
         modifiers,
-        ...(name === "Enter" ? { windowsVirtualKeyCode: 13, text: "\r" } : {}),
+      };
+      const text = name === "Enter" ? "\r" : name === "Space" ? " " : undefined;
+      await command("Input.dispatchKeyEvent", {
+        ...event,
+        type: text && !(modifiers & 7) ? "keyDown" : "rawKeyDown",
+        ...(text && !(modifiers & 7) ? { text, unmodifiedText: text } : {}),
       });
       await command("Input.dispatchKeyEvent", {
+        ...event,
         type: "keyUp",
-        key: name,
-        modifiers,
       });
     };
     if (action.type === "key") {
       const flags = { Alt: 1, Control: 2, Meta: 4, Shift: 8 };
       await key(
-        action.key === "Space" ? " " : action.key,
+        action.key,
         (action.modifiers ?? []).reduce((mask, flag) => mask | flags[flag], 0),
       );
       return;
@@ -451,6 +555,17 @@ export class ComputerBrowserDriver implements ComputerDriver {
     } else {
       const backendNodeId = browser.nodes.get(action.elementId);
       if (!backendNodeId) throw new Error("This element is not actionable.");
+      if (
+        await this.prepareElement(
+          browser,
+          backendNodeId,
+          action.type,
+          action.type === "fill" ? action.text : "",
+          signal,
+        )
+      )
+        return;
+      await command("DOM.scrollIntoViewIfNeeded", { backendNodeId });
       if (action.type === "fill") {
         await command("DOM.focus", { backendNodeId });
       }
@@ -460,6 +575,10 @@ export class ComputerBrowserDriver implements ComputerDriver {
       );
       x = (model.content[0]! + model.content[4]!) / 2;
       y = (model.content[1]! + model.content[5]!) / 2;
+      await this.prepareElement(browser, backendNodeId, "hit", "", signal, {
+        x,
+        y,
+      });
     }
     const displayScale = browser.debug.snapshot().viewport?.scale ?? 1;
     x *= displayScale;
@@ -479,6 +598,13 @@ export class ComputerBrowserDriver implements ComputerDriver {
       clickCount: 1,
     });
     if (action.type === "fill") {
+      await this.prepareElement(
+        browser,
+        browser.nodes.get(action.elementId)!,
+        "focused",
+        "",
+        signal,
+      );
       // DOM.focus alone does not focus an embedded guest's input widget.
       // Targeted CDP input does not move the system pointer or activate a window.
       // Chromium's edit command works even without the macOS menu accelerator.
@@ -496,6 +622,61 @@ export class ComputerBrowserDriver implements ComputerDriver {
         code: "KeyA",
       });
       await command("Input.insertText", { text: action.text });
+    }
+  }
+  private async prepareElement(
+    browser: BrowserTarget,
+    backendNodeId: number,
+    type: "click" | "fill" | "focused" | "hit",
+    text: string,
+    signal: AbortSignal,
+    point?: { x: number; y: number },
+  ): Promise<boolean> {
+    const { object } = await this.command<{ object: { objectId?: string } }>(
+      browser,
+      "DOM.resolveNode",
+      { backendNodeId },
+      signal,
+    );
+    if (!object.objectId)
+      throw new Error("Element is unavailable. Observe again.");
+    try {
+      const response = await this.command<{
+        result: { value?: boolean };
+        exceptionDetails?: {
+          exception?: { description?: string };
+          text: string;
+        };
+      }>(
+        browser,
+        "Runtime.callFunctionOn",
+        {
+          objectId: object.objectId,
+          functionDeclaration: prepareElement,
+          arguments: [
+            { value: type },
+            { value: text },
+            { value: point ?? null },
+          ],
+          returnByValue: true,
+        },
+        signal,
+      );
+      if (response.exceptionDetails)
+        throw new Error(
+          response.exceptionDetails.exception?.description ??
+            response.exceptionDetails.text,
+        );
+      return response.result.value === true;
+    } finally {
+      // Release the remote handle even if the operation was cancelled.
+      if (
+        !browser.contents.isDestroyed() &&
+        browser.contents.debugger.isAttached()
+      )
+        await browser.contents.debugger
+          .sendCommand("Runtime.releaseObject", { objectId: object.objectId })
+          .catch(() => {});
     }
   }
   async preview(

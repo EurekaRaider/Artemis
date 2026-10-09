@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Action du pointeur de l'utilisateur dans l'application cible",
   "DesignHost.activeTaskMissing": "La tâche active est introuvable.",
   "DesignHost.taskChanged": "La tâche a changé. Rouvrez la page de conception avant de réessayer.",
-  "DesignHost.panelNotVisible": "Ouvrez le panneau de conception avant de faire une capture.",
-  "DesignPermissions.restricted": "Droits de design restreints",
-  "DesignPermissions.standard": "Droits de chat habituels",
-  "DesignPermissions.enable": "Utiliser les droits habituels",
-  "DesignPermissions.restrict": "Utiliser les droits restreints",
-  "DesignPermissions.access": "Les commandes utilisent votre compte système et peuvent accéder aux fichiers hors du projet et au réseau. MCP et les extensions conservent leurs règles de sandbox, de confiance et d’approbation.",
-  "DesignPermissions.restrictedHint": "Les commandes directes, les fichiers du projet et MCP sont indisponibles. Les outils de design et les documents importés restent accessibles."
+  "DesignHost.panelNotVisible": "Ouvrez le panneau de conception avant de faire une capture."
 }

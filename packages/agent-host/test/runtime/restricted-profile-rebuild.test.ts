@@ -1,12 +1,3 @@
-// PR#245 P1-5 live evidence: binding the design plugin must TIGHTEN the
-// actually-hosted session, not just the database row.
-//
-// A thread opened with a normal profile gets a full tool set (bash etc.).
-// Re-opening it with the plugin-restricted profile must atomically rebuild
-// the session (same threadId, new session object) so the restricted allow
-// list is what the model sees — the reuse path may not hand back the stale
-// unrestricted session. An active turn blocks the rebuild fail-closed.
-
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -85,7 +76,7 @@ const pluginTools = [
   },
 ];
 
-describe("P1-5 restricted-profile session rebuild on openThread reuse", () => {
+describe("Design binding session reuse", () => {
   it("a normal session starts with the full tool set (bash present)", async () => {
     const { thread } = await openHost();
     const names = [
@@ -96,7 +87,7 @@ describe("P1-5 restricted-profile session rebuild on openThread reuse", () => {
     expect(thread().executionProfile).toBeUndefined();
   });
 
-  it("re-open with the restricted profile rebuilds into the allow list", async () => {
+  it("binding a legacy restricted thread retains ordinary and plugin tools", async () => {
     const { host, workspace, threadId, thread } = await openHost();
     const before = thread();
     const sessionIdBefore = before.session.sessionId;
@@ -114,20 +105,19 @@ describe("P1-5 restricted-profile session rebuild on openThread reuse", () => {
     // 会话真的换了（同 threadId，新 session 对象）。
     expect(after).not.toBe(before);
     expect(after.session.sessionId).not.toBe(sessionIdBefore);
-    expect(after.executionProfile).toBe(RESTRICTED_PROFILE_ID);
-    // 受限 allow list：bash/read/write 等被拒类别不在模型可见集合里，
-    // plugin_ 工具在。
+    expect(after.executionProfile).toBeUndefined();
+    // Legacy Design profiles no longer narrow the ordinary tool set.
     const names = [
       ...after.executeTools.map((tool) => tool.name),
       ...after.delegatedTools.map((tool) => tool.name),
     ];
-    expect(names).not.toContain("shell");
-    expect(names).not.toContain("write");
-    expect(names).not.toContain("read");
+    expect(names).toContain("shell");
+    expect(names).toContain("write");
+    expect(names).toContain("read");
     expect(names.some((name) => name.startsWith("plugin_"))).toBe(true);
   });
 
-  it("re-open with the same profile reuses the session unchanged", async () => {
+  it("re-open with the same binding reuses the session unchanged", async () => {
     const { host, workspace, threadId, thread } = await openHost();
     const first = thread();
     const result = await host.openThread({
@@ -139,7 +129,7 @@ describe("P1-5 restricted-profile session rebuild on openThread reuse", () => {
     expect(result).toEqual({});
   });
 
-  it("an active turn blocks the profile switch fail-closed", async () => {
+  it("an active turn blocks rebinding without disrupting the session", async () => {
     const { host, workspace, threadId, thread } = await openHost();
     thread().currentTurnId = "turn-in-flight";
     await expect(
@@ -157,7 +147,7 @@ describe("P1-5 restricted-profile session rebuild on openThread reuse", () => {
   });
 });
 
-it("explicit standard design permissions rebuild with both ordinary and plugin tools", async () => {
+it("ignores legacy profile changes without rebuilding an active bound session", async () => {
   const { host, workspace, threadId, thread } = await openHost();
   await host.openThread({
     threadId,
@@ -167,7 +157,8 @@ it("explicit standard design permissions rebuild with both ordinary and plugin t
     executionProfile: RESTRICTED_PROFILE_ID,
     pluginTools,
   });
-  const restricted = thread();
+  const before = thread();
+  thread().currentTurnId = "active";
   await host.openThread({
     threadId,
     workspacePath: workspace,
@@ -176,26 +167,18 @@ it("explicit standard design permissions rebuild with both ordinary and plugin t
     executionProfile: "plugin-standard-v1",
     pluginTools,
   });
-  expect(thread()).not.toBe(restricted);
-  const names = thread().executeTools.map((tool) => tool.name);
-  expect(names).toContain("shell");
-  expect(names).toContain("local_file_write");
-  expect(names).toContain("plugin_create_document");
-  thread().currentTurnId = "old-turn";
-  await expect(
-    host.openThread({
-      threadId,
-      workspacePath: workspace,
-      target: "local",
-      typeBinding: binding,
-      executionProfile: RESTRICTED_PROFILE_ID,
-      pluginTools,
-    }),
-  ).rejects.toThrow(/while a turn is active/);
-  expect(thread().executionProfile).toBe("plugin-standard-v1");
+  expect(thread()).toBe(before);
+  expect(thread().executionProfile).toBeUndefined();
+  expect(thread().executeTools.map((tool) => tool.name)).toEqual(
+    expect.arrayContaining([
+      "shell",
+      "local_file_write",
+      "plugin_create_document",
+    ]),
+  );
 });
 it.each([undefined, "unknown-profile"])(
-  "bound sessions fail closed for profile %s",
+  "bound sessions use ordinary tools for profile %s",
   async (executionProfile) => {
     const { host, workspace, threadId, thread } = await openHost();
     await host.openThread({
@@ -206,8 +189,6 @@ it.each([undefined, "unknown-profile"])(
       executionProfile,
       pluginTools,
     });
-    expect(thread().executeTools.map((tool) => tool.name)).not.toContain(
-      "shell",
-    );
+    expect(thread().executeTools.map((tool) => tool.name)).toContain("shell");
   },
 );

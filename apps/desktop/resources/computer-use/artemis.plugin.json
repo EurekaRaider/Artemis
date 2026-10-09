@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "computer-use",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Work with websites and macOS or Windows applications through their visual interfaces. Install and update the native runtime independently.",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json",

@@ -85,7 +85,7 @@ describe("AppStore S1 design-plugin tables (fresh database)", () => {
     check.close();
   });
 
-  it("round-trips a thread typeBinding and executionProfile", () => {
+  it("preserves the Design binding without persisting a separate permission profile", () => {
     const store = new AppStore(join(directory, "binding.sqlite"));
     const created = store.createThread(
       threadFixture({
@@ -97,14 +97,14 @@ describe("AppStore S1 design-plugin tables (fresh database)", () => {
       executionProfile: string;
     };
     expect(created.typeBinding).toEqual(binding);
-    expect(created.executionProfile).toBe("plugin-restricted-v1");
+    expect(created.executionProfile).toBeUndefined();
 
     const reread = store.getThread(created.id) as never as {
       typeBinding: typeof binding;
       executionProfile: string;
     };
     expect(reread.typeBinding).toEqual(binding);
-    expect(reread.executionProfile).toBe("plugin-restricted-v1");
+    expect(reread.executionProfile).toBeUndefined();
     store.close();
   });
 

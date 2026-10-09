@@ -1,28 +1,22 @@
-# Artemis v1.7.7
+# Artemis v1.7.8
 
 ## 中文
 
-- 增加按会话隔离的 Computer Use GPU 预览及画中画窗口，支持浏览器与原生桌面捕获，并修复关闭、会话切换、拖动和悬停控件。
-- Computer Use 原生能力包升至 1.2.1，要求 Artemis 1.7.7 或更新版本；客户端和运行时分别发布并验证。
-- 修复插件市场的慢网络更新检查：Office、Design 与 Computer Use 的签名清单采用 60 秒有界下载预算，失败保留已验证版本并允许重试。
-- 设计聊天默认保持受限；可信插件经用户在宿主界面明确选择后，可使用普通 Work/Codemode 权限及设计工具。权限逐聊天保存，升级前关闭旧会话，进行中的轮次与待处理审批禁止升级。Plan、插件信任、MCP 沙箱、扩展信任及既有审批规则继续生效。
-- 修复 Computer Use 迁移、下载、等待、重试及更新按钮布局；迁移入口明确显示“安装运行时”，长状态信息与操作标签分开展示。
-- 将插件市场来源名称及重新获取引导统一为“Artemis 插件”，同步全部 14 种界面语言，并保持内部来源与安装逻辑。
-
-- 修复浅色/深色界面的文字对比度：输入框提示、项目分组与会话时间、增删数字、文件状态、MCP 调用次数和快捷键提示使用对应的文字颜色，并增加双主题对比度回归检查。
-- 修复浏览器初始加载状态被较旧的打开响应覆盖的问题；界面保留已收到的最新加载事件，并修正重新打开页签的验收等待顺序。
+- 修复 Computer Use 后台浏览器输入：原生下拉选项可按观察到的选项 ID 或精确标签选择，复选框、文本及键盘操作验证实际结果；拒绝编辑只读、禁用或被遮挡的控件。
+- 操作失败时保留批次已完成进度，返回新的观察和明确错误；原生 helper 拒绝宿主时报告配对原因，暂停状态按聊天和轮次隔离。
+- Computer Use 原生能力包升至 1.2.2，要求 Artemis 1.7.8 或更新版本；开发 Electron 使用独立开发 helper，已打包客户端继续使用签名运行时。
+- Design 对话遵循普通 Plan、Work 和 Codemode 工具策略，移除独立权限档位及切换界面；旧数据库迁移保留绑定、模式与历史。Plan 写入限制、插件内容信任、沙箱及审批继续生效。
+- Computer Use 预览排列在环境面板下方；桌面悬浮窗避开环境面板，移除悬浮预览设置开关。环境摘要中的已结束代理在五秒后隐藏，详情保留完整记录。
+- 插件市场采用 SVG Design 图标，并增加真实 Electron 后台表单输入验收。
 
 ## English
 
-- Add session-scoped GPU Computer Use previews and picture-in-picture windows for browser and native desktop capture, with fixes for close behavior, session changes, dragging and hover controls.
-- Publish Computer Use runtime 1.2.1 for Artemis 1.7.7 or newer. Verify and publish the client and native runtime independently.
-- Fix slow-network catalog checks: Office, Design and Computer Use signed feeds use a bounded 60-second download budget, retaining verified versions on failure and allowing retry.
-- Keep design chats restricted by default. After an explicit host UI choice for a trusted plugin, standard Work/Codemode tools coexist with design tools. Persist permissions per chat, close the old session before upgrading, and refuse changes during active turns or pending approvals. Plan, plugin trust, MCP sandboxes, extension trust and existing approval rules remain enforced.
-- Fix Computer Use migration, download, waiting, retry and update action layouts. Label migration as “Install runtime” and display long status messages separately from action labels.
-- Rename the marketplace source and reinstall guidance to “Artemis plugins” in all 14 interface languages, preserving internal source and installation behavior.
-
-- Improve light and dark text contrast for input placeholders, project groups and conversation timestamps, change counts, file statuses, MCP call counts and keyboard hints, with regression checks for both themes.
-- Keep newer browser load events when an older initial open response arrives, and wait for the remounted browser during workspace acceptance.
+- Fix Computer Use background browser input: select native options by observed ID or exact label, verify checkbox, text and keyboard results, and reject readonly, disabled or covered controls.
+- Preserve completed batch progress on action failure and return a fresh observation with an explicit error. Report native helper host-pairing failures and isolate paused status by chat and turn.
+- Publish Computer Use runtime 1.2.2 for Artemis 1.7.8 or newer. Development Electron uses a separate development helper; packaged clients continue to use signed runtimes.
+- Apply ordinary Plan, Work and Codemode tool policies to Design chats, removing separate permission tiers and their controls. Preserve bindings, modes and history during migration. Plan write restrictions, plugin content trust, sandboxing and approvals remain enforced.
+- Place Computer Use previews below the environment panel and keep the desktop floating window clear of that panel. Remove the floating-preview settings toggle. Hide finished agents from the compact activity list after five seconds while retaining their detail records.
+- Use the SVG Design marketplace icon and add real Electron acceptance for background form input.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
 Release acceptance is established by the associated CI, final artifact checks and recorded platform tests, not by these change notes alone.

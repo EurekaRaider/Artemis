@@ -12,6 +12,8 @@ On macOS 14+, desktop preview uses ScreenCaptureKit and validates the observed w
 
 Both previews show only the clear picture normally. Hovering reveals an X centered on the picture's upper-left vertex and a local blur; keyboard focus also reveals the close control. There is no title bar, FPS bar or Stop button. Dragging anywhere on the picture moves it; clicking expands it. Movement beyond the drag threshold prevents accidental expansion. The in-app card can resize; the transparent desktop window uses a bottom-right resize corner, showInactive and Artemis foreground state. X hides only the preview, keeps the task running and allows showing it again; stopping uses the existing Computer Use controls. Both previews show only the current chat's target. Switching chats hides the previous preview while its task continues; switching back restores it. Expanding Browser returns to its original chat and tab; desktop targets expand into a large readonly view. Pausing retains the displayed picture. Hiding removes that preview's subscriptions, while a visible full Browser can continue independently.
 
+The in-app preview initially sits below the environment panel; the desktop window initially avoids that panel. Floating preview follows foreground state automatically, without a separate settings toggle. Development Electron must use the development helper and GPU module under `build/computer-use/development`; packaged clients still acquire them from the verified signed runtime.
+
 ## GPU lifetime and budgets
 
 - Local capture targets 60 fps, with a normal maximum dimension of 1280 and 1920 for an expanded desktop target. Sustained load reduces pixels first.

@@ -411,7 +411,6 @@ export interface SettingsSnapshot {
   language: AppLanguage;
   theme: AppTheme;
   preventSleep?: boolean;
-  computerPreviewFloating?: boolean;
   resolvedLocale: AppSnapshot["locale"];
   approvalPolicy: ApprovalPolicy;
   localFullAccess: boolean;
@@ -1098,11 +1097,6 @@ export interface ArtemisApi {
     href: string,
   ): Promise<import("./workspace-video.js").WorkspaceVideoSource>;
   releaseWorkspaceVideo(threadId: string, url: string): Promise<void>;
-  getDesignThreadPermissions(threadId: string): Promise<Thread | undefined>;
-  setDesignThreadPermissions(
-    threadId: string,
-    permission: "standard" | "restricted",
-  ): Promise<Thread>;
   ensureDesignPanel(
     threadId: string,
     panelId: string,
@@ -1316,7 +1310,6 @@ export interface ArtemisApi {
   setLanguage(language: AppLanguage): Promise<SettingsSnapshot>;
   setTheme(theme: AppTheme): Promise<SettingsSnapshot>;
   setPreventSleep(enabled: boolean): Promise<SettingsSnapshot>;
-  setComputerPreviewFloating(enabled: boolean): Promise<SettingsSnapshot>;
   setApprovalPolicy(policy: ApprovalPolicy): Promise<SettingsSnapshot>;
   setLocalFullAccess(enabled: boolean): Promise<SettingsSnapshot>;
   setShellRuntimeConfiguration(
@@ -1613,8 +1606,6 @@ export const IPC = {
   workspaceHtmlOpen: "artemis:workspace-html-open",
   workspaceHtmlRelease: "artemis:workspace-html-release",
   officeOpen: "artemis:office-open",
-  designThreadPermissionsGet: "artemis:design-thread-permissions-get",
-  designThreadPermissionsSet: "artemis:design-thread-permissions-set",
   designPanelEnsure: "artemis:design-panel-ensure",
   designPanelBounds: "artemis:design-panel-bounds",
   designPanelVisible: "artemis:design-panel-visible",
@@ -1674,8 +1665,6 @@ export const IPC = {
   settingsLanguageSet: "artemis:settings-language-set",
   settingsThemeSet: "artemis:settings-theme-set",
   settingsPreventSleepSet: "artemis:settings-prevent-sleep-set",
-  settingsComputerPreviewFloatingSet:
-    "artemis:settings-computer-preview-floating-set",
   settingsApprovalPolicySet: "artemis:settings-approval-policy-set",
   settingsLocalFullAccessSet: "artemis:settings-local-full-access-set",
   settingsShellRuntimeSet: "artemis:settings-shell-runtime-set",

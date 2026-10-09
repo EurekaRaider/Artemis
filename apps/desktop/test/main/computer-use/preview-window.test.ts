@@ -61,12 +61,13 @@ beforeEach(() => {
   native.handlers.clear();
 });
 
-it("uses a frameless readonly window and follows foreground state without stealing focus", () => {
+it("shows the floating preview only while the main window is unfocused without stealing focus", () => {
   let focused = true;
   const main = Object.assign(new EventEmitter(), {
     isFocused: () => focused,
     isDestroyed: () => false,
     getBounds: () => ({ x: 0, y: 0, width: 1000, height: 800 }),
+    webContents: { getZoomFactor: () => 1 },
   });
   const command = vi.fn(),
     removeContents = vi.fn();
@@ -90,7 +91,14 @@ it("uses a frameless readonly window and follows foreground state without steali
   expect(native.windows).toHaveLength(0);
   focused = false;
   main.emit("blur");
+  expect(native.windows).toHaveLength(1);
   const window = native.windows[0]!;
+  // The panel extends left from the environment trigger, before the dock toggle.
+  const environmentLeft = 1000 - 50 - 280;
+  expect(window.options.x + window.options.width).toBeLessThanOrEqual(
+    environmentLeft - 24,
+  );
+  expect(window.options.y).toBeGreaterThanOrEqual(48);
   expect(window.options).toMatchObject({
     frame: false,
     transparent: true,
@@ -177,8 +185,29 @@ it("uses a frameless readonly window and follows foreground state without steali
   expect(window.setPosition).not.toHaveBeenCalled();
   handler(event, { action: "move", sessionId: "session", x: -100, y: 2000 });
   expect(window.setPosition).toHaveBeenLastCalledWith(0, 844);
+  focused = false;
+  main.emit("blur");
+  expect(window.isVisible()).toBe(true);
   focused = true;
   main.emit("focus");
+  expect(window.isVisible()).toBe(false);
+  expect(command).toHaveBeenLastCalledWith(
+    expect.objectContaining({ action: "unsubscribe" }),
+    window.webContents,
+  );
+  floating.update([state]);
+  expect(window.isVisible()).toBe(false);
+  focused = false;
+  main.emit("minimize");
+  expect(window.isVisible()).toBe(true);
+  for (const status of ["hidden", "ended"] as const) {
+    floating.update([{ ...state, state: status }]);
+    expect(window.isVisible()).toBe(false);
+    floating.update([state]);
+    expect(window.isVisible()).toBe(true);
+  }
+  floating.update([]);
+  expect(window.isVisible()).toBe(false);
   expect(command).toHaveBeenLastCalledWith(
     expect.objectContaining({ action: "unsubscribe" }),
     window.webContents,

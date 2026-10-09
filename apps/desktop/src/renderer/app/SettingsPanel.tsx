@@ -11,7 +11,6 @@ import "../settings/provider-settings.css";
 import { modelAdvancedOptionsSchema } from "@artemis/protocol";
 import { AppearanceSettingsSection } from "../appearance/AppearanceSettingsSection.js";
 import { ComputerUseControls } from "../computer-use/ComputerUseControls.js";
-import { COMPUTER_PREVIEW_RESOURCES } from "../../shared/i18n/computer-preview-resources.js";
 import { HooksSettingsSection } from "../hooks/HooksSettingsSection.js";
 import type { HookQuery } from "@artemis/protocol";
 import { statusText } from "../../shared/i18n/status-text.js";
@@ -1868,26 +1867,6 @@ ${model.providerId} · ${model.modelId}`,
                     title="Computer Use"
                   >
                     <ComputerUseControls locale={locale} permissionsOnly />
-                    <SettingsRow
-                      label={COMPUTER_PREVIEW_RESOURCES[locale].floating}
-                    >
-                      <Switch
-                        checked={settings.computerPreviewFloating ?? true}
-                        disabled={busy}
-                        label={COMPUTER_PREVIEW_RESOURCES[locale].floating}
-                        labelVisibility="hidden"
-                        onCheckedChange={(enabled) =>
-                          void run(async () => {
-                            const updated =
-                              await window.artemis.setComputerPreviewFloating(
-                                enabled,
-                              );
-                            setSettings(updated);
-                            onSettingsChange(updated);
-                          })
-                        }
-                      />
-                    </SettingsRow>
                   </ManagementSection>
                   <ManagementSection
                     className="settings-section"

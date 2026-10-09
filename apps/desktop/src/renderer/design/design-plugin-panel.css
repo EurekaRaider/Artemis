@@ -30,16 +30,3 @@
   min-block-size: 0;
   min-inline-size: 0;
 }
-
-.design-thread-permissions {
-  flex: 0 0 auto;
-  padding: var(--artemis-space-3);
-  border-block-end: var(--artemis-border-width-default) solid var(--border-soft);
-  font-size: var(--artemis-typography-label-size);
-  overflow-wrap: anywhere;
-}
-
-.design-thread-permissions p {
-  margin: var(--artemis-space-1) 0 var(--artemis-space-2);
-  color: var(--artemis-color-text-secondary);
-}

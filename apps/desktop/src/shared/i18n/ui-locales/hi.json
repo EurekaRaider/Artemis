@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "लक्ष्य ऐप में उपयोगकर्ता ने पॉइंटर इनपुट दिया",
   "DesignHost.activeTaskMissing": "सक्रिय कार्य नहीं मिला।",
   "DesignHost.taskChanged": "कार्य बदल गया है। फिर से प्रयास करने से पहले डिज़ाइन पृष्ठ फिर खोलें।",
-  "DesignHost.panelNotVisible": "स्क्रीनशॉट लेने से पहले डिज़ाइन पैनल खोलें।",
-  "DesignPermissions.restricted": "सीमित डिज़ाइन अनुमतियाँ",
-  "DesignPermissions.standard": "सामान्य चैट अनुमतियाँ",
-  "DesignPermissions.enable": "सामान्य चैट अनुमतियाँ उपयोग करें",
-  "DesignPermissions.restrict": "सीमित अनुमतियाँ उपयोग करें",
-  "DesignPermissions.access": "कमांड आपके सिस्टम उपयोगकर्ता के रूप में चलते हैं और प्रोजेक्ट के बाहर की फ़ाइलों तथा नेटवर्क तक पहुँच सकते हैं। MCP और एक्सटेंशन के सैंडबॉक्स, विश्वास और अनुमोदन नियम लागू रहते हैं।",
-  "DesignPermissions.restrictedHint": "सीधे कमांड, प्रोजेक्ट फ़ाइलों तक पहुँच और MCP उपलब्ध नहीं हैं। डिज़ाइन टूल और आयातित सामग्री उपलब्ध रहती है।"
+  "DesignHost.panelNotVisible": "स्क्रीनशॉट लेने से पहले डिज़ाइन पैनल खोलें।"
 }

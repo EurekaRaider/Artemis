@@ -1989,11 +1989,5 @@
   "ComputerUse.reasonPointerInput": "Input penunjuk pengguna di aplikasi target",
   "DesignHost.activeTaskMissing": "Tugas aktif tidak ditemukan.",
   "DesignHost.taskChanged": "Tugas berubah. Buka kembali halaman desain sebelum mencoba lagi.",
-  "DesignHost.panelNotVisible": "Buka panel desain sebelum mengambil tangkapan layar.",
-  "DesignPermissions.restricted": "Izin desain terbatas",
-  "DesignPermissions.standard": "Izin chat biasa",
-  "DesignPermissions.enable": "Gunakan izin chat biasa",
-  "DesignPermissions.restrict": "Gunakan izin terbatas",
-  "DesignPermissions.access": "Perintah berjalan sebagai pengguna sistem Anda dan dapat mengakses berkas di luar proyek serta jaringan. MCP dan ekstensi tetap mengikuti aturan sandbox, kepercayaan, dan persetujuan.",
-  "DesignPermissions.restrictedHint": "Perintah langsung, akses berkas proyek, dan MCP tidak tersedia. Alat desain dan materi yang diimpor tetap tersedia."
+  "DesignHost.panelNotVisible": "Buka panel desain sebelum mengambil tangkapan layar."
 }

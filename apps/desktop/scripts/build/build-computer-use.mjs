@@ -1,13 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { buildComputerPreview } from "./build-computer-preview.mjs";
 
 export function buildComputerUse(arch = process.arch, development = false) {
-  if (process.platform !== "darwin") return;
+  if (!["darwin", "win32"].includes(process.platform)) return;
   if (!["arm64", "x64"].includes(arch))
     throw new Error("Unsupported Computer Use architecture");
+  if (process.platform === "win32" && arch !== "x64")
+    throw new Error("Windows Computer Use requires x64");
   const root = fileURLToPath(new URL("../..", import.meta.url));
   const output = join(
     root,
@@ -17,6 +19,39 @@ export function buildComputerUse(arch = process.arch, development = false) {
   );
   mkdirSync(output, { recursive: true });
   buildComputerPreview(output, arch);
+  if (process.platform === "win32") {
+    const nativeBuild = join(output, "helper-build");
+    const configuration = development ? "Debug" : "Release";
+    execFileSync(
+      "cmake",
+      [
+        "-S",
+        join(root, "native/computer-use/windows"),
+        "-B",
+        nativeBuild,
+        "-A",
+        "x64",
+      ],
+      { stdio: "inherit" },
+    );
+    execFileSync(
+      "cmake",
+      [
+        "--build",
+        nativeBuild,
+        "--config",
+        configuration,
+        "--target",
+        "artemis-computer-use",
+      ],
+      { stdio: "inherit" },
+    );
+    copyFileSync(
+      join(nativeBuild, configuration, "artemis-computer-use.exe"),
+      join(output, "artemis-computer-use.exe"),
+    );
+    return;
+  }
   execFileSync(
     "xcrun",
     [
