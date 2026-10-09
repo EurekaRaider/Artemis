@@ -59,13 +59,15 @@ jobs:
           cmake -S apps/desktop/native/computer-use/windows -B artifacts/verification/computer-use/ci-build -A x64
           cmake --build artifacts/verification/computer-use/ci-build --config Release
           node apps/desktop/scripts/build/build-computer-preview.mjs artifacts/verification/computer-use/ci-preview
+      - name: Exercise background browser input and native form controls
+        run: |
+          npm run build:core
+          node apps/desktop/scripts/verify/native/verify-computer-browser-input.mjs
       - name: Run portable CI checks
         run: npm run verify:ci
         env:
           ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
           GITHUB_TOKEN: ${{ github.token }}
-      - name: Exercise background browser input and native form controls
-        run: node apps/desktop/scripts/verify/native/verify-computer-browser-input.mjs
       - name: Verify official native CLI and bundled hooks
         run: node scripts/slack/test-slack-cli-native.mjs
         env:

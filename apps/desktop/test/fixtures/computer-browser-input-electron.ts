@@ -198,10 +198,23 @@ async function main() {
     );
     assert.equal(await page.executeJavaScript("getSelection().toString()"), "");
     // Browser default actions need actual virtual key codes, not only event.key.
-    await act([
+    await page.executeJavaScript(`window.keyTrace=[];
+      for(const type of ['focusin','keydown','keypress','keyup','click'])
+        document.addEventListener(type,e=>keyTrace.push({type,key:e.key,code:e.code,keyCode:e.keyCode,target:e.target.outerHTML,active:document.activeElement.outerHTML,checked:document.querySelector('[type=checkbox]').checked}),true)`);
+    const checkboxInput = await act([
       { type: "click", elementId: element("Research", "checkbox") },
       { type: "key", key: "Space" },
     ]);
+    console.log(
+      "Checkbox keyboard diagnostic",
+      JSON.stringify({
+        completed: checkboxInput.completed,
+        stopped: checkboxInput.stopped,
+        message: checkboxInput.message,
+        events: await page.executeJavaScript("keyTrace"),
+      }),
+    );
+    assert.equal(checkboxInput.completed, 2, checkboxInput.message);
     assert.equal(
       await page.executeJavaScript(
         "document.querySelectorAll('[type=checkbox]')[0].checked",
