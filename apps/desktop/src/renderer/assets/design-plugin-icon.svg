@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="palette" x1="12" y1="10" x2="49" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7"/>
+      <stop offset=".5" stop-color="#743CFA"/>
+      <stop offset="1" stop-color="#4330D9"/>
+    </linearGradient>
+    <linearGradient id="pink" x1="30" y1="11" x2="39" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF79D6"/>
+      <stop offset="1" stop-color="#F238B6"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="12" y1="23" x2="23" y2="36" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#28C8F3"/>
+      <stop offset="1" stop-color="#1795F6"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="16" y1="41" x2="26" y2="53" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD15B"/>
+      <stop offset="1" stop-color="#FF9B29"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#palette)" fill-rule="evenodd" d="M36 5C21 5 5 19 4 36C3 51 14 60 30 60C41 60 49 56 49 48C49 41 52 39 57 34C62 29 61 19 55 12C51 7 44 5 36 5ZM47 38C44 35 40 37 37 40C34 43 33 47 36 49C39 51 44 49 47 45C49 42 49 40 47 38Z" clip-rule="evenodd"/>
+  <circle cx="34" cy="18" r="7.5" fill="url(#pink)"/>
+  <circle cx="18" cy="29" r="7" fill="url(#blue)"/>
+  <circle cx="21" cy="47" r="7" fill="url(#orange)"/>
+</svg>

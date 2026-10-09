@@ -8,39 +8,16 @@
 </h1>
 
 <p>
-  <a href="#im-access-and-native-group-collaboration"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-im-dark.svg" />
-      <img src="docs/assets/readme-badge-im-light.svg" width="208" alt="IM Collaboration — Private &amp; Group" />
-    </picture></a>
-  <a href="#parallel-agents"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-agents-dark.svg" />
-      <img src="docs/assets/readme-badge-agents-light.svg" width="184" alt="Agent Teams — Custom Roles" />
-    </picture></a>
-  <a href="#plugin-marketplace-and-capability-center"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-plugins-dark.svg" />
-      <img src="docs/assets/readme-badge-plugins-light.svg" width="200" alt="Plugins &amp; MCP" />
-    </picture></a>
-  <a href="#recurring-work-and-usage"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-automations-dark.svg" />
-      <img src="docs/assets/readme-badge-automations-light.svg" width="184" alt="Automations" />
-    </picture></a>
+  <a href="#im-access-and-native-group-collaboration"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-im-dark.svg" /><img src="docs/assets/readme-badge-im-light.svg" width="208" alt="IM Collaboration — Private &amp; Group" /></picture></a>
+  <a href="#parallel-agents"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-agents-dark.svg" /><img src="docs/assets/readme-badge-agents-light.svg" width="184" alt="Agent Teams — Custom Roles" /></picture></a>
+  <a href="#plugin-marketplace-and-capability-center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-plugins-dark.svg" /><img src="docs/assets/readme-badge-plugins-light.svg" width="200" alt="Plugins &amp; MCP" /></picture></a>
+  <a href="#recurring-work-and-usage"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-badge-automations-dark.svg" /><img src="docs/assets/readme-badge-automations-light.svg" width="184" alt="Automations" /></picture></a>
 </p>
 
 <p>
-  <a href="#platform-support"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-windows-dark.svg" />
-      <img src="docs/assets/readme-meta-windows-light.svg" width="140" alt="Windows x64" />
-    </picture></a>
-  &nbsp;·&nbsp;
-  <a href="#platform-support"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-macos-dark.svg" />
-      <img src="docs/assets/readme-meta-macos-light.svg" width="206" alt="macOS Apple Silicon" />
-    </picture></a>
-  &nbsp;·&nbsp;
-  <a href="LICENSE"><picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-license-dark.svg" />
-      <img src="docs/assets/readme-meta-license-light.svg" width="134" alt="MIT License" />
-    </picture></a>
+  <a href="#platform-support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-windows-dark.svg" /><img src="docs/assets/readme-meta-windows-light.svg" width="140" alt="Windows x64" /></picture></a>
+  <a href="#platform-support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-macos-dark.svg" /><img src="docs/assets/readme-meta-macos-light.svg" width="206" alt="macOS Apple Silicon" /></picture></a>
+  <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-license-dark.svg" /><img src="docs/assets/readme-meta-license-light.svg" width="134" alt="MIT License" /></picture></a>
 </p>
 
 ---

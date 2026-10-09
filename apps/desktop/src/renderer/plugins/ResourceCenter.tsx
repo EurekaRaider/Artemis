@@ -1,4 +1,4 @@
-import designPluginIcon from "../assets/design-plugin-icon.png";
+import designPluginIcon from "../assets/design-plugin-icon.svg";
 // Microsoft Fluent UI: https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/office_48x1.svg
 import officeSuiteIcon from "../assets/office-suite-icon.svg";
 import { COMPUTER_USE_RUNTIME_RESOURCES } from "../../shared/i18n/computer-use-resources.js";
