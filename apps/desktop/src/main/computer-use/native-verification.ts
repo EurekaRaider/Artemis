@@ -66,8 +66,9 @@ export async function verifyComputerUseNative(
   if (process.platform !== "win32")
     throw new Error("Unsupported Computer Use platform");
   // No downloaded text is interpolated into the verification program.
+  // PowerShell reconstructs module paths at startup; restrict them before autoload.
   const script =
-    "$ErrorActionPreference='Stop'; $binaries=@($env:ARTEMIS_COMPUTER_VERIFY_PATH);if($env:ARTEMIS_COMPUTER_VERIFY_PREVIEW){$binaries+=$env:ARTEMIS_COMPUTER_VERIFY_PREVIEW};foreach($p in $binaries){Write-Output 'Computer Use signature verification started';$s=Get-AuthenticodeSignature -LiteralPath $p; if($env:ARTEMIS_COMPUTER_VERIFY_SIGNER -eq 'unsigned'){if($s.Status -ne 'NotSigned'){throw 'Unexpected native signature'}} elseif($s.Status -ne 'Valid' -or $s.SignerCertificate.Thumbprint -ne $env:ARTEMIS_COMPUTER_VERIFY_SIGNER){throw 'Native signature mismatch'};Write-Output 'Computer Use signature verification passed'}; Write-Output 'Computer Use ACL verification started'; $trusted=@([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,'S-1-5-18','S-1-5-32-544'); $paths=@();$d=$env:ARTEMIS_COMPUTER_VERIFY_ROOT;for($i=0;$i-lt 4;$i++){$paths+=$d;$parent=[System.IO.Directory]::GetParent($d);if(!$parent){break};$d=$parent.FullName};foreach($path in $paths+(Get-ChildItem -LiteralPath $env:ARTEMIS_COMPUTER_VERIFY_ROOT -Recurse -Force | ForEach-Object FullName)){$acl=Get-Acl -LiteralPath $path; if($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted){throw 'Unsafe native installation owner'}; foreach($a in $acl.Access){if($a.AccessControlType -eq 'Allow' -and $a.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted -and ([int]$a.FileSystemRights -band 0xD0156)){throw 'Unsafe Computer Use installation ACL'}}};Write-Output 'Computer Use ACL verification passed'";
+    "$ErrorActionPreference='Stop'; $env:PSModulePath=[System.IO.Path]::Combine($PSHOME,'Modules'); $binaries=@($env:ARTEMIS_COMPUTER_VERIFY_PATH);if($env:ARTEMIS_COMPUTER_VERIFY_PREVIEW){$binaries+=$env:ARTEMIS_COMPUTER_VERIFY_PREVIEW};foreach($p in $binaries){[Console]::WriteLine('Computer Use signature verification started');$s=Get-AuthenticodeSignature -LiteralPath $p; if($env:ARTEMIS_COMPUTER_VERIFY_SIGNER -eq 'unsigned'){if($s.Status -ne 'NotSigned'){throw 'Unexpected native signature'}} elseif($s.Status -ne 'Valid' -or $s.SignerCertificate.Thumbprint -ne $env:ARTEMIS_COMPUTER_VERIFY_SIGNER){throw 'Native signature mismatch'};[Console]::WriteLine('Computer Use signature verification passed')}; [Console]::WriteLine('Computer Use ACL verification started'); $trusted=@([System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value,'S-1-5-18','S-1-5-32-544'); $paths=@();$d=$env:ARTEMIS_COMPUTER_VERIFY_ROOT;for($i=0;$i-lt 4;$i++){$paths+=$d;$parent=[System.IO.Directory]::GetParent($d);if(!$parent){break};$d=$parent.FullName};foreach($path in $paths+(Get-ChildItem -LiteralPath $env:ARTEMIS_COMPUTER_VERIFY_ROOT -Recurse -Force | ForEach-Object FullName)){$acl=Get-Acl -LiteralPath $path; if($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted){throw 'Unsafe native installation owner'}; foreach($a in $acl.Access){if($a.AccessControlType -eq 'Allow' -and $a.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin $trusted -and ([int]$a.FileSystemRights -band 0xD0156)){throw 'Unsafe Computer Use installation ACL'}}};[Console]::WriteLine('Computer Use ACL verification passed')";
   await run(
     join(
       process.env.SystemRoot ?? "C:\\Windows",
@@ -82,6 +83,10 @@ export async function verifyComputerUseNative(
       windowsHide: true,
       env: {
         SystemRoot: process.env.SystemRoot ?? "C:\\Windows",
+        PSModulePath: join(
+          process.env.SystemRoot ?? "C:\\Windows",
+          "System32/WindowsPowerShell/v1.0/Modules",
+        ),
         ARTEMIS_COMPUTER_VERIFY_ROOT: root,
         ARTEMIS_COMPUTER_VERIFY_PATH: join(root, pack.entrypoint),
         ARTEMIS_COMPUTER_VERIFY_SIGNER: pack.native.signer ?? "unsigned",

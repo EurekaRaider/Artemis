@@ -9,31 +9,34 @@ const command = join(
   systemRoot,
   "System32/WindowsPowerShell/v1.0/powershell.exe",
 );
-const args = [
-  "-NoProfile",
-  "-NonInteractive",
-  "-Command",
-  "[Console]::WriteLine('verifier-started')",
-];
 const results = [];
-for (const [name, env, closeInput] of [
-  ["inherited-environment", process.env, false],
-  ["isolated-environment", { SystemRoot: systemRoot }, false],
-  ["isolated-environment-closed-input", { SystemRoot: systemRoot }, true],
+for (const [name, pinModules] of [
+  ["default-module-lookup", false],
+  ["system-module-lookup", true],
 ]) {
   const started = performance.now();
   try {
-    const pending = run(command, args, {
-      env,
-      timeout: 10000,
-      windowsHide: true,
-      maxBuffer: 4096,
-    });
-    if (closeInput) pending.child.stdin.end();
-    const result = await pending;
+    const result = await run(
+      command,
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        (pinModules
+          ? "$env:PSModulePath=[System.IO.Path]::Combine($PSHOME,'Modules');"
+          : "") +
+          "[Console]::WriteLine('verifier-started');Write-Output 'verifier-completed'",
+      ],
+      {
+        env: { SystemRoot: systemRoot },
+        timeout: 10000,
+        windowsHide: true,
+        maxBuffer: 4096,
+      },
+    );
     results.push({
       name,
-      passed: result.stdout.includes("verifier-started"),
+      passed: result.stdout.includes("verifier-completed"),
       durationMs: Math.round(performance.now() - started),
     });
   } catch (error) {
@@ -49,4 +52,5 @@ for (const [name, env, closeInput] of [
   }
   console.log(JSON.stringify(results.at(-1)));
 }
-if (results.some((result) => !result.passed)) process.exitCode = 1;
+if (!results.find((result) => result.name === "system-module-lookup").passed)
+  process.exitCode = 1;

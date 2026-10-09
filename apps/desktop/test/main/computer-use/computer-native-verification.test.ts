@@ -87,13 +87,23 @@ it("passes paths and Windows signer through an isolated environment to a fixed v
   const [command, args, options] = run.mock.calls[0]!;
   expect(command).toMatch(/System32.*WindowsPowerShell.*powershell.exe$/u);
   expect(args[3]).not.toContain(root);
+  expect(args[3]).toContain(
+    "$env:PSModulePath=[System.IO.Path]::Combine($PSHOME,'Modules')",
+  );
   expect(options.env.ARTEMIS_COMPUTER_VERIFY_ROOT).toBe(root);
   expect(options.env.ARTEMIS_COMPUTER_VERIFY_SIGNER).toBe("a".repeat(40));
+  expect(options.env.PSModulePath).toBe(
+    join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32/WindowsPowerShell/v1.0/Modules",
+    ),
+  );
   expect(Object.keys(options.env).sort()).toEqual([
     "ARTEMIS_COMPUTER_VERIFY_PATH",
     "ARTEMIS_COMPUTER_VERIFY_PREVIEW",
     "ARTEMIS_COMPUTER_VERIFY_ROOT",
     "ARTEMIS_COMPUTER_VERIFY_SIGNER",
+    "PSModulePath",
     "SystemRoot",
   ]);
   run.mockRejectedValueOnce(new Error("Unsafe Computer Use installation ACL"));
