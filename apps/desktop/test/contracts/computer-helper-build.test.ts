@@ -55,6 +55,8 @@ it("limits Windows development parent trust to Debug despite the static release 
     ),
     "utf8",
   );
-  expect(cmake).toContain('MSVC_RUNTIME_LIBRARY "MultiThreaded"');
-  expect(cmake).toContain("$<$<CONFIG:Debug>:_DEBUG>");
+  expect(cmake).toContain(
+    'MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"',
+  );
+  expect(cmake).not.toContain("$<$<CONFIG:Debug>:_DEBUG>");
 });
