@@ -39,6 +39,7 @@ export function modelCapabilityTools(
             id: model.id,
             name: model.name,
             type: model.type,
+            input: model.input,
           }));
         return {
           content: [{ type: "text" as const, text: JSON.stringify(models) }],
@@ -98,11 +99,20 @@ export function modelCapabilityTools(
       name: "classify",
       label: "Classify",
       description:
-        "Use a configured Pi classifier model. Questions map names to choice {instructions, criteria: {label:description}}, score {instructions, criteria: string[]}, or bool {instructions, criteria: {true:description,false:description}} questions. Each question includes its type.",
+        "Use a configured Pi classifier model. Optional base64 images require a model with image input; discover supported input with model_capabilities first. Questions map names to choice {instructions, criteria: {label:description}}, score {instructions, criteria: string[]}, or bool {instructions, criteria: {true:description,false:description}} questions. Each question includes its type.",
       parameters: Type.Object({
         provider: Type.String(),
         model: Type.String(),
         state: Type.Record(Type.String(), Type.Unknown()),
+        images: Type.Optional(
+          Type.Array(
+            Type.Object({
+              type: Type.Literal("image"),
+              data: Type.String({ maxLength: 16 * 1024 * 1024 }),
+              mimeType: Type.String(),
+            }),
+          ),
+        ),
         questions: Type.Record(
           Type.String(),
           Type.Union([
@@ -141,7 +151,11 @@ export function modelCapabilityTools(
           throw new Error("Configure this classifier provider first.");
         const result = await runtime.classify(
           model,
-          { state: args.state, questions: args.questions } as ClassifierContext,
+          {
+            state: args.state,
+            questions: args.questions,
+            ...(args.images ? { images: args.images } : {}),
+          } as ClassifierContext,
           { ...(signal ? { signal } : {}) },
         );
         if (result.stopReason !== "stop")

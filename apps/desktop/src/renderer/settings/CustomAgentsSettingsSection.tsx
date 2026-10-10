@@ -7,7 +7,7 @@ import { UI_COPY } from "../../shared/i18n/ui-copy.js";
  * editor; the list works from catalog metadata.
  */
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 
 import type { AppLocale } from "@artemis/protocol";
 import {
@@ -34,21 +34,6 @@ import type {
   SettingsSnapshot,
 } from "../../shared/api.js";
 import { customAgentColorToken } from "./CustomAgentMention.js";
-
-const BUILTIN_TOOL_CHOICES = [
-  { toolId: "read", capability: "business-read" },
-  { toolId: "web_search", capability: "business-read" },
-  { toolId: "attachment_list", capability: "business-read" },
-  { toolId: "attachment_read", capability: "business-read" },
-  { toolId: "attachment_search", capability: "business-read" },
-  { toolId: "load_workspace_dependencies", capability: "business-read" },
-  { toolId: "remote_read", capability: "business-read" },
-  { toolId: "remote_write", capability: "filesystem-write" },
-  { toolId: "shell_wait", capability: "shell" },
-  { toolId: "shell", capability: "shell" },
-  { toolId: "write", capability: "filesystem-write" },
-  { toolId: "office_document", capability: "filesystem-write" },
-] as const;
 
 const COLOR_TOKENS = [
   "gray",
@@ -84,9 +69,6 @@ interface CustomAgentFormState {
   modelId: string;
   thinkingKind: "inherit" | "fixed";
   thinkingLevel: string;
-  toolKind: "inherit" | "allowlist";
-  builtinToolIds: string[];
-  mcpToolRefs: Array<{ serverId: string; toolName: string }>;
   allowAutomaticInvocation: boolean;
   triggersText: string;
 }
@@ -104,9 +86,6 @@ const EMPTY_FORM: CustomAgentFormState = {
   modelId: "",
   thinkingKind: "inherit",
   thinkingLevel: "medium",
-  toolKind: "inherit",
-  builtinToolIds: [],
-  mcpToolRefs: [],
   allowAutomaticInvocation: false,
   triggersText: "",
 };
@@ -132,25 +111,7 @@ function formToInput(form: CustomAgentFormState): SaveCustomAgentInput {
       form.thinkingKind === "fixed"
         ? { kind: "fixed", level: form.thinkingLevel }
         : { kind: "inherit" },
-    toolPolicy:
-      form.toolKind === "allowlist"
-        ? {
-            kind: "allowlist",
-            tools: [
-              ...form.builtinToolIds.map(
-                (toolId) => ({ kind: "builtin", toolId }) as const,
-              ),
-              ...form.mcpToolRefs.map(
-                (ref) =>
-                  ({
-                    kind: "mcp",
-                    serverId: ref.serverId,
-                    toolName: ref.toolName,
-                  }) as const,
-              ),
-            ],
-          }
-        : { kind: "inherit" },
+    toolPolicy: { kind: "inherit" },
     allowAutomaticInvocation: form.allowAutomaticInvocation,
     triggers: form.triggersText
       .split(/[,，]/)
@@ -193,7 +154,6 @@ export function CustomAgentsSettingsSection({
   const [nameError, setNameError] = useState(false);
   const [instructionsError, setInstructionsError] = useState<string>();
   const [deleteConfirmId, setDeleteConfirmId] = useState<string>();
-  const [capabilityPreview, setCapabilityPreview] = useState<string[]>();
 
   // Older test fixtures (and any partial snapshot) may not carry the list
   // yet; treat it as empty rather than crashing the settings panel.
@@ -223,37 +183,6 @@ export function CustomAgentsSettingsSection({
       ),
     [definitions],
   );
-
-  // Effective-capability preview reuses the runtime intersection (mode:
-  // execute is the widest a definition can ever get; plan/review only
-  // shrink it). Refreshed as the tool policy changes.
-  const toolPolicyKey = JSON.stringify({
-    kind: form.toolKind,
-    builtin: form.builtinToolIds,
-    mcp: form.mcpToolRefs,
-  });
-  useEffect(() => {
-    if (!formOpen) {
-      setCapabilityPreview(undefined);
-      return;
-    }
-    let cancelled = false;
-    void window.artemis
-      .customAgentsPreviewCapabilities(
-        { toolPolicy: formToInput(form).toolPolicy },
-        "work",
-      )
-      .then((preview) => {
-        if (!cancelled) setCapabilityPreview(preview.capabilities);
-      })
-      .catch(() => {
-        if (!cancelled) setCapabilityPreview(undefined);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formOpen, toolPolicyKey]);
 
   // The model snapshot may repeat a provider/model pair (builtin plus
   // manually added) or repeat display names; the public Select contract
@@ -329,14 +258,6 @@ export function CustomAgentsSettingsSection({
     return fixed ? fixed.name : policy.modelId;
   };
 
-  const toolBadge = (definition: CustomAgentSummary) =>
-    definition.toolPolicy.kind === "inherit"
-      ? t.toolBadgeInherit
-      : t.toolBadgeCount.replace(
-          "{count}",
-          String(definition.toolPolicy.tools.length),
-        );
-
   const closeEditor = () => {
     setFormOpen(false);
     setEditingId(null);
@@ -390,22 +311,6 @@ export function CustomAgentsSettingsSection({
           definition.thinkingPolicy.kind === "fixed"
             ? definition.thinkingPolicy.level
             : "medium",
-        toolKind: definition.toolPolicy.kind,
-        builtinToolIds:
-          definition.toolPolicy.kind === "allowlist"
-            ? definition.toolPolicy.tools
-                .filter((ref) => ref.kind === "builtin")
-                .map((ref) => (ref as { toolId: string }).toolId)
-            : [],
-        mcpToolRefs:
-          definition.toolPolicy.kind === "allowlist"
-            ? definition.toolPolicy.tools
-                .filter((ref) => ref.kind === "mcp")
-                .map((ref) => {
-                  const mcp = ref as { serverId: string; toolName: string };
-                  return { serverId: mcp.serverId, toolName: mcp.toolName };
-                })
-            : [],
         allowAutomaticInvocation: definition.allowAutomaticInvocation,
         triggersText: definition.triggers.join(", "),
       };
@@ -496,7 +401,7 @@ export function CustomAgentsSettingsSection({
           projectIds: summary.projectIds,
           modelPolicy: definition.modelPolicy,
           thinkingPolicy: definition.thinkingPolicy,
-          toolPolicy: definition.toolPolicy,
+          toolPolicy: { kind: "inherit" },
           allowAutomaticInvocation: definition.allowAutomaticInvocation,
           triggers: definition.triggers,
         }),
@@ -622,9 +527,6 @@ export function CustomAgentsSettingsSection({
                   <span className="custom-agent-badges">
                     <span className="custom-agent-badge">
                       {modelBadge(definition)}
-                    </span>
-                    <span className="custom-agent-badge">
-                      {toolBadge(definition)}
                     </span>
                     <span className="custom-agent-badge">
                       {definition.scope === "all"
@@ -820,116 +722,6 @@ export function CustomAgentsSettingsSection({
                   />
                 )}
               </fieldset>
-              <fieldset className="custom-agent-dialog-section">
-                <Select
-                  size="compact"
-                  disabled={busy}
-                  label={t.toolPolicy}
-                  labelVisibility="visible"
-                  onValueChange={(kind) =>
-                    setForm((f) => ({
-                      ...f,
-                      toolKind: kind as "inherit" | "allowlist",
-                    }))
-                  }
-                  options={[
-                    { value: "inherit", label: t.toolInherit },
-                    { value: "allowlist", label: t.toolAllowlist },
-                  ]}
-                  value={form.toolKind}
-                />
-                {form.toolKind === "allowlist" && (
-                  <fieldset className="custom-agent-tools">
-                    <legend>{t.builtinTools}</legend>
-                    {BUILTIN_TOOL_CHOICES.map((choice) => (
-                      <Checkbox
-                        key={choice.toolId}
-                        checked={form.builtinToolIds.includes(choice.toolId)}
-                        disabled={busy}
-                        label={choice.toolId}
-                        onCheckedChange={(checked) =>
-                          setForm((f) => ({
-                            ...f,
-                            builtinToolIds: checked
-                              ? [...f.builtinToolIds, choice.toolId]
-                              : f.builtinToolIds.filter(
-                                  (id) => id !== choice.toolId,
-                                ),
-                          }))
-                        }
-                      />
-                    ))}
-                    {settings.mcpServers.some(
-                      (server) => server.tools.length > 0,
-                    ) && (
-                      <>
-                        <legend>{t.mcpTools}</legend>
-                        {settings.mcpServers
-                          .filter((server) => server.tools.length > 0)
-                          .map((server) => {
-                            // Server-dimension selection (issue #193 review):
-                            // checking a server grants every tool it exposes;
-                            // the stored refs still enumerate individual tools.
-                            const serverTools = server.tools.map((tool) => ({
-                              serverId: tool.serverId,
-                              toolName: tool.toolName,
-                            }));
-                            const selected = form.mcpToolRefs.filter((ref) =>
-                              serverTools.some(
-                                (tool) =>
-                                  tool.serverId === ref.serverId &&
-                                  tool.toolName === ref.toolName,
-                              ),
-                            ).length;
-                            const checked = selected > 0;
-                            return (
-                              <Checkbox
-                                key={server.config.id}
-                                checked={checked}
-                                description={
-                                  selected > 0 && selected < serverTools.length
-                                    ? t.mcpToolsSelected
-                                        .replace("{selected}", String(selected))
-                                        .replace(
-                                          "{count}",
-                                          String(serverTools.length),
-                                        )
-                                    : undefined
-                                }
-                                disabled={busy}
-                                label={`${server.config.name}（${t.mcpToolsCount.replace("{count}", String(server.tools.length))}）`}
-                                onCheckedChange={(next) =>
-                                  setForm((f) => ({
-                                    ...f,
-                                    mcpToolRefs: next
-                                      ? [
-                                          ...f.mcpToolRefs.filter(
-                                            (ref) =>
-                                              !serverTools.some(
-                                                (tool) =>
-                                                  tool.serverId ===
-                                                  ref.serverId,
-                                              ),
-                                          ),
-                                          ...serverTools,
-                                        ]
-                                      : f.mcpToolRefs.filter(
-                                          (ref) =>
-                                            !serverTools.some(
-                                              (tool) =>
-                                                tool.serverId === ref.serverId,
-                                            ),
-                                        ),
-                                  }))
-                                }
-                              />
-                            );
-                          })}
-                      </>
-                    )}
-                  </fieldset>
-                )}
-              </fieldset>
               <TextAreaField
                 size="compact"
                 description={[
@@ -1025,18 +817,6 @@ export function CustomAgentsSettingsSection({
                       />
                     ))}
                   </fieldset>
-                )}
-                {capabilityPreview && (
-                  <p className="settings-hint custom-agent-capability-preview">
-                    {t.capabilityPreview.replace(
-                      "{mode}",
-                      UI_COPY.App_copy[locale].work,
-                    )}
-                    :{" "}
-                    {capabilityPreview.length > 0
-                      ? capabilityPreview.join(", ")
-                      : "—"}
-                  </p>
                 )}
               </fieldset>
             </div>

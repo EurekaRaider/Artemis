@@ -11452,18 +11452,6 @@ kbd {
   padding: var(--artemis-space-3) var(--artemis-space-5);
 }
 
-/* Dialog checkbox lists: breathe between rows; MCP/builtin tools in two
-   columns so twelve built-ins do not stack into a dense wall. */
-.custom-agent-dialog .custom-agent-tools {
-  display: grid;
-  gap: 8px 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.custom-agent-dialog .custom-agent-tools > legend {
-  grid-column: 1 / -1;
-}
-
 .custom-agent-dialog .custom-agent-projects {
   display: flex;
   flex-direction: column;
@@ -11515,15 +11503,13 @@ kbd {
   opacity: var(--artemis-opacity-disabled);
 }
 
-.custom-agent-projects,
-.custom-agent-tools {
+.custom-agent-projects {
   margin: 0;
   padding: 8px 0 0;
   border: 0;
 }
 
-.custom-agent-projects > legend,
-.custom-agent-tools > legend {
+.custom-agent-projects > legend {
   padding: 0;
   font-size: 12px;
   font-weight: 600;
@@ -11537,10 +11523,6 @@ kbd {
   [data-artemis-component="select"]
   :is([data-part="trigger"], [data-part="search"]) {
   padding-inline: 12px;
-}
-
-.custom-agent-capability-preview {
-  margin: 0;
 }
 
 /* Keep editor groups and menus aligned with the compact settings controls. */

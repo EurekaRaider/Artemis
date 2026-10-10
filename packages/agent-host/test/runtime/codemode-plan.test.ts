@@ -21,6 +21,9 @@ const scenarios = [
   { mode: "codemode", direct: true, scenario: "read" },
   { mode: "codemode", direct: false, scenario: "shell" },
   { mode: "codemode", direct: false, scenario: "image-save" },
+  { mode: "codemode", direct: false, scenario: "models" },
+  { mode: "plan", direct: false, scenario: "models" },
+  { mode: "work", direct: false, scenario: "models" },
   { mode: "work", direct: false, scenario: "loop" },
   { mode: "work", direct: false, scenario: "invalid-loop" },
 ] as const;
@@ -49,42 +52,57 @@ it.each(
     );
     await writeFile(join(dir, "fixture.txt"), "SCRIPT_RESULT");
     const seen: string[][] = [];
+    const classify = vi
+      .spyOn(ModelRuntime.prototype, "classify")
+      .mockResolvedValue({
+        stopReason: "stop",
+        answers: { visible: { type: "bool", value: true } },
+      } as never);
     let request = 0;
     const stream = vi
       .spyOn(ModelRuntime.prototype, "streamSimple")
       .mockImplementation((model, context) => {
         seen.push(getCurrentTools(context.messages).map((t) => t.name));
-        const name = scenario.endsWith("loop")
-          ? "update_plan"
-          : mode === "plan"
-            ? "submit_plan"
-            : mode === "codemode" && !direct
-              ? "codemode"
-              : "read";
+        const name =
+          scenario === "models"
+            ? "codemode"
+            : scenario.endsWith("loop")
+              ? "update_plan"
+              : mode === "plan"
+                ? "submit_plan"
+                : mode === "codemode" && !direct
+                  ? "codemode"
+                  : "read";
         const args =
-          scenario === "invalid-loop"
-            ? { plan: [] }
-            : scenario === "image-save"
-              ? {
-                  code: 'image("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="); text(await tools.read({path:"fixture.txt"}));',
-                }
-              : scenario.endsWith("loop")
-                ? { steps: [{ step: "Read branches", status: "in_progress" }] }
-                : scenario === "shell"
+          scenario === "models"
+            ? {
+                code: 'const model = await models.getModelOfType("classifier", "openai", "gpt-6-luna"); const result = await models.classify({...model, baseUrl: "https://untrusted.invalid", headers: {"x-untrusted": "bad"}}, {state: {}, images: [{type: "image", data: "aW1hZ2U=", mimeType: "image/png"}], questions: {visible: {type: "bool", instructions: "Is it visible?", criteria: {true: "Visible", false: "Hidden"}}}}); text(result.answers);',
+              }
+            : scenario === "invalid-loop"
+              ? { plan: [] }
+              : scenario === "image-save"
+                ? {
+                    code: 'image("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="); text(await tools.read({path:"fixture.txt"}));',
+                  }
+                : scenario.endsWith("loop")
                   ? {
-                      code: `text(await tools.shell(${JSON.stringify({ command: process.platform === "win32" ? "Write-Output 'SCRIPT_RESULT'" : "printf SCRIPT_RESULT", deadline_seconds: 10, model_approval: { risk: "low", explicit_user_request: false, reason: "Read-only test output" } })}));`,
+                      steps: [{ step: "Read branches", status: "in_progress" }],
                     }
-                  : mode === "plan"
+                  : scenario === "shell"
                     ? {
-                        title: "Full plan",
-                        markdown:
-                          "Goal, steps, interfaces, acceptance, assumptions.",
+                        code: `text(await tools.shell(${JSON.stringify({ command: process.platform === "win32" ? "Write-Output 'SCRIPT_RESULT'" : "printf SCRIPT_RESULT", deadline_seconds: 10, model_approval: { risk: "low", explicit_user_request: false, reason: "Read-only test output" } })}));`,
                       }
-                    : mode === "codemode" && !direct
+                    : mode === "plan"
                       ? {
-                          code: 'text(await tools.read({path:"fixture.txt"}));',
+                          title: "Full plan",
+                          markdown:
+                            "Goal, steps, interfaces, acceptance, assumptions.",
                         }
-                      : { path: "fixture.txt" };
+                      : mode === "codemode" && !direct
+                        ? {
+                            code: 'text(await tools.read({path:"fixture.txt"}));',
+                          }
+                        : { path: "fixture.txt" };
         const message: AssistantMessage = {
           role: "assistant",
           api: model.api,
@@ -187,7 +205,32 @@ it.each(
       expect(seen[0]?.includes("read")).toBe(mode !== "codemode");
       expect(seen[0]?.includes("shell")).toBe(mode === "work");
       expect(seen[0]).toContain("request_user_input");
-      if (mode === "plan") {
+      if (scenario === "models") {
+        if (mode === "codemode") {
+          expect(classify).toHaveBeenCalledOnce();
+          const [model, context, options] = classify.mock.calls[0]!;
+          expect(model.provider).toBe("openai");
+          expect(model.baseUrl).not.toBe("https://untrusted.invalid");
+          expect(model.headers?.["x-untrusted"]).toBeUndefined();
+          expect(context.images).toEqual([
+            { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+          ]);
+          expect(options?.signal).toBeInstanceOf(AbortSignal);
+          expect(
+            payloads.some(
+              (p) =>
+                p.type === "tool.completed" &&
+                !p.isError &&
+                p.output?.includes("visible"),
+            ),
+          ).toBe(true);
+        } else {
+          expect(classify).not.toHaveBeenCalled();
+          expect(
+            payloads.some((p) => p.type === "tool.completed" && p.isError),
+          ).toBe(true);
+        }
+      } else if (mode === "plan") {
         expect(seen[0]).not.toContain("plugin_create_document");
         expect(seen[0]).not.toContain("local_file_write");
         expect(calls).toEqual(["plan.submit"]);
@@ -227,7 +270,7 @@ it.each(
           ),
         ).toBe(true);
       }
-      if (mode === "codemode" && !direct)
+      if (mode === "codemode" && !direct && scenario !== "models")
         expect(
           payloads.some(
             (p) => p.type === "tool.started" && p.parentToolCallId === "call-1",
@@ -256,6 +299,7 @@ it.each(
       expect(payloads.some((p) => p.type === "turn.completed")).toBe(true);
     } finally {
       stream.mockRestore();
+      classify.mockRestore();
       host.dispose();
       await Promise.all(imageFiles.map((path) => rm(path, { force: true })));
       await rm(dir, { recursive: true, force: true });

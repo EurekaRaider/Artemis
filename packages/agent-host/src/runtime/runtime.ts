@@ -2852,7 +2852,7 @@ export class ArtemisAgentHost {
           : {}),
       },
       effectiveCapabilities,
-      toolPolicy: definition.toolPolicy,
+      toolPolicy: { kind: "inherit" },
       invocationSource: explicit ? "user-explicit" : "model-explicit",
       selectionBasis: "explicit-reference",
       ...(explicit ? { invocationId: explicit.invocationId } : {}),
@@ -3057,16 +3057,6 @@ export class ArtemisAgentHost {
           toolName: configured.toolName,
         }
       : { kind: "builtin" as const, toolId: name };
-    const allows = (policy: CustomAgentDefinition["toolPolicy"]) =>
-      policy.kind === "inherit" ||
-      policy.tools.some((candidate) =>
-        candidate.kind === "builtin" && ref.kind === "builtin"
-          ? candidate.toolId === ref.toolId
-          : candidate.kind === "mcp" &&
-            ref.kind === "mcp" &&
-            candidate.serverId === ref.serverId &&
-            candidate.toolName === ref.toolName,
-      );
     const live = this.configuration.customAgents?.find(
       (definition) => definition.id === snapshot.definitionId,
     );
@@ -3079,9 +3069,8 @@ export class ArtemisAgentHost {
       )
     )
       return false;
-    if (!allows(snapshot.toolPolicy) || (live && !allows(live.toolPolicy)))
-      return false;
-    if (configured && !configured.readOnly) return false;
+    if (["model_capabilities", "classify", "generate_image"].includes(name))
+      return isExecutionMode(mode);
     // Unknown/removed MCP tools must not fall through as business reads.
     const classes = resolveCustomAgentToolCapabilities(ref);
     const modeCaps = computeEffectiveCapabilities(
@@ -3096,11 +3085,7 @@ export class ArtemisAgentHost {
     );
     return (
       classes.size > 0 &&
-      [...classes].every(
-        (capability) =>
-          snapshot.effectiveCapabilities.includes(capability) &&
-          modeCaps.has(capability),
-      )
+      [...classes].every((capability) => modeCaps.has(capability))
     );
   }
 
@@ -5977,7 +5962,7 @@ export class ArtemisAgentHost {
                   extensionFactories: [
                     childHooksBridge.factory,
                     codemodePolicyExtension(() => input.mode),
-                    createCodemodeExtension({ mode: "only", models: false }),
+                    createCodemodeExtension({ mode: "only", models: true }),
                   ],
                   ...childOverrides,
                   ...(request.remoteExecution
@@ -6045,38 +6030,11 @@ export class ArtemisAgentHost {
                 const childWaitAgentTool = createWaitAgentTool(agentId);
                 const childWaitTeamTool = createWaitTeamTool(agentId);
                 const childFinishSubteamTool = createFinishSubteamTool(agentId);
-                const readOnlyMcpToolNames = new Set(
-                  configuredMcpTools
-                    .filter((tool) => tool.readOnly)
-                    .map((tool) => tool.piName),
-                );
-                const frozenCaps = frozenSnapshot
-                  ? new Set<CapabilityClass>(
-                      frozenSnapshot.effectiveCapabilities,
-                    )
-                  : null;
-                const allowToolClass = (
-                  ...classes: CapabilityClass[]
-                ): boolean =>
-                  !frozenCaps ||
-                  classes.some((capability) => frozenCaps.has(capability));
-                const childMcpTools = allowToolClass("mcp")
-                  ? createMcpTools(agentId).filter((tool) => {
-                      if (!readOnlyMcpToolNames.has(tool.name)) return false;
-                      if (
-                        frozenSnapshot &&
-                        !this.customAgentToolAllowed(
-                          tool.name,
-                          frozenSnapshot,
-                          input.mode,
-                        )
-                      ) {
-                        return false;
-                      }
-                      return true;
-                    })
+                const childMcpTools = isExecutionMode(input.mode)
+                  ? createMcpTools(agentId)
                   : [];
                 const childTools = [
+                  ...modelCapabilityTools(modelRuntime, () => input.mode),
                   ...createAttachmentTools((operation) =>
                     invokeAttachmentOperation(operation, child.session),
                   ),
@@ -6087,7 +6045,7 @@ export class ArtemisAgentHost {
                       .skills.map((skill) => dirname(skill.filePath)),
                   ),
                   webSearchTool,
-                  ...(allowToolClass("filesystem-write")
+                  ...(isExecutionMode(input.mode)
                     ? [
                         childWriteTool,
                         ...(this.configuration.officeEnabled
@@ -6102,7 +6060,7 @@ export class ArtemisAgentHost {
                   childWaitTeamTool,
                   childSendMessageTool,
                   childFinishSubteamTool,
-                  ...(allowToolClass("shell")
+                  ...(isExecutionMode(input.mode)
                     ? [
                         childBashTools.bashTool,
                         childBashTools.bashWaitTool,
@@ -6523,7 +6481,7 @@ export class ArtemisAgentHost {
         codemodePolicyExtension(
           () => this.threads.get(request.threadId)?.currentMode,
         ),
-        createCodemodeExtension({ mode: "only", models: false }),
+        createCodemodeExtension({ mode: "only", models: true }),
       ],
       ...createResourceOverrides(() => {
         const opened = this.threads.get(request.threadId);

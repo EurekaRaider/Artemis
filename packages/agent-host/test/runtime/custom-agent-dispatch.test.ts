@@ -285,7 +285,7 @@ describe("custom agent dispatch resolution", () => {
     expect(snapshot?.effectiveCapabilities).toEqual(["business-read"]);
   });
 
-  it("empty allowlist removes all business tools and never falls back", () => {
+  it("legacy empty allowlist inherits mode capabilities", () => {
     const { internals } = makeHost([
       definition({ toolPolicy: { kind: "allowlist", tools: [] } }),
     ]);
@@ -305,7 +305,9 @@ describe("custom agent dispatch resolution", () => {
       "def-1",
       undefined,
     );
-    expect(snapshot?.effectiveCapabilities).toEqual([]);
+    expect(snapshot?.effectiveCapabilities).toEqual(
+      expect.arrayContaining(["shell", "filesystem-write", "business-read"]),
+    );
   });
 
   it("rejects an unknown definition id as CUSTOM_AGENT_NOT_FOUND", () => {

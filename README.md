@@ -54,15 +54,17 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.11** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.12** · [Release notes](docs/records/release-notes.md).
 
-This revision repairs Windows update installation and restart. Installation
-errors remain visible and can be retried. After the new version passes its health
-check, the previous installer is removed; failed updates retain the installer
-and database backup needed for automatic rollback. macOS already cleans successful
-update packages and caches, with cleanup retried on the next healthy startup.
-If an older Windows version cannot complete the in-app installation, run the
-v1.7.11 installer from the release downloads once to obtain the repaired updater.
+This revision upgrades Pi to **1.1.0** and enables native classifier and image
+model calls in Codemode for main and child agents. Classification supports image
+input when the selected model supports it. Custom agents inherit the current task
+mode and host permissions; legacy tool allowlists migrate to this policy. Plan
+restrictions, MCP approval and sandbox checks remain in effect.
+
+Windows update recovery improvements from v1.7.11 remain included. If an older
+Windows version cannot complete the in-app installation, run the current installer
+from the release downloads once to obtain the repaired updater.
 
 Windows also uses a unified title bar and native Acrylic surfaces on supported
 systems. Transparency and high-contrast preferences select opaque

@@ -152,12 +152,9 @@ export function validateCustomAgentToolPolicy(
     if (candidate.tools.length > CUSTOM_AGENT_ALLOWLIST_MAX) {
       fail(`allowlist holds at most ${CUSTOM_AGENT_ALLOWLIST_MAX} tools`);
     }
-    // NOTE: inherit and allowlist:[] are strictly different — an empty
-    // list means no business tools, never a fallback to inherit.
-    return {
-      kind: "allowlist",
-      tools: candidate.tools.map((ref) => validateToolRef(ref)),
-    };
+    // Accept legacy payloads, but all agents now inherit the active mode.
+    candidate.tools.forEach(validateToolRef);
+    return { kind: "inherit" };
   }
   fail("tool policy kind must be inherit or allowlist");
 }

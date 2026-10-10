@@ -119,11 +119,16 @@ export class ProviderLoginService {
     };
     this.active = active;
     void runtime
-      .login(providerId, type, {
-        signal: active.controller.signal,
-        prompt: (prompt) => this.prompt(active, prompt),
-        notify: (event) => this.notify(active.state, event),
-      })
+      .login(
+        providerId,
+        type,
+        {
+          signal: active.controller.signal,
+          prompt: (prompt) => this.prompt(active, prompt),
+          notify: (event) => this.notify(active.state, event),
+        },
+        { agentName: "Artemis" },
+      )
       .then(async () => {
         await this.changed();
         active.state.status = "completed";

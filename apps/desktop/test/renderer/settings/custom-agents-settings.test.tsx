@@ -177,7 +177,7 @@ describe("CustomAgentsSettingsSection", () => {
     const scoped = within(row as HTMLElement);
     expect(scoped.getByText("Reviews diffs")).toBeInTheDocument();
     expect(scoped.getByText("Inherit")).toBeInTheDocument();
-    expect(scoped.getByText("1 tools")).toBeInTheDocument();
+    expect(scoped.queryByText("Baseline")).toBeNull();
     expect(scoped.getByText("All projects")).toBeInTheDocument();
     expect(scoped.getByText("Manual only")).toBeInTheDocument();
     expect(row?.querySelector(".custom-agent-color-blue")).not.toBeNull();
@@ -335,40 +335,18 @@ describe("CustomAgentsSettingsSection", () => {
     ).toBeEnabled();
   });
 
-  it("shows partial MCP grants and lets the user revoke them in one click", async () => {
+  it("removes the tool allowlist editor and saves legacy definitions with inherited permissions", async () => {
     const user = userEvent.setup();
-    const { api } = renderSection({
-      snapshotOverrides: {
-        mcpServers: [
-          {
-            config: { id: "server-1", name: "Docs" },
-            tools: [
-              { serverId: "server-1", toolName: "read" },
-              { serverId: "server-1", toolName: "write" },
-            ],
-          },
-        ],
-      },
-      api: {
-        customAgentsGet: vi.fn(async () => ({
-          ...definition,
-          toolPolicy: {
-            kind: "allowlist",
-            tools: [{ kind: "mcp", serverId: "server-1", toolName: "read" }],
-          },
-        })),
-      },
-    });
+    const { api } = renderSection();
     await user.click(screen.getByRole("button", { name: "Edit" }));
-    const server = await screen.findByRole("checkbox", { name: /Docs/u });
-    expect(server).toBeChecked();
-    expect(screen.getByText("1 of 2 tools selected")).toBeVisible();
-    await user.click(server);
+    await screen.findByLabelText("Dedicated prompt");
+    expect(screen.queryByRole("combobox", { name: "Tools" })).toBeNull();
+    expect(screen.queryByText("Allowlist")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save sub-agent" }));
     expect(api.customAgentsUpdate).toHaveBeenCalledWith(
       "def-1",
       3,
-      expect.objectContaining({ toolPolicy: { kind: "allowlist", tools: [] } }),
+      expect.objectContaining({ toolPolicy: { kind: "inherit" } }),
     );
   });
 
@@ -424,14 +402,7 @@ describe("CustomAgentsSettingsSection", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/saving returns to the list/u)).toBeInTheDocument();
 
-    // Opening the editor asks the main process for the effective-capability
-    // preview with the widest mode.
-    await waitFor(() =>
-      expect(api.customAgentsPreviewCapabilities).toHaveBeenCalledWith(
-        { toolPolicy: { kind: "inherit" } },
-        "work",
-      ),
-    );
+    expect(api.customAgentsPreviewCapabilities).not.toHaveBeenCalled();
 
     await user.type(screen.getByLabelText("Name"), "Docs writer");
 
@@ -554,10 +525,7 @@ describe("CustomAgentsSettingsSection", () => {
       name: "Reviewer",
       instructions: "Focus on correctness.",
       triggers: ["review"],
-      toolPolicy: {
-        kind: "allowlist",
-        tools: [{ kind: "builtin", toolId: "write" }],
-      },
+      toolPolicy: { kind: "inherit" },
     });
   });
 

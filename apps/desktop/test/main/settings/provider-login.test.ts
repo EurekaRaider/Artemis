@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import type { AuthInteraction, CredentialStore } from "@earendil-works/pi-ai";
+import type {
+  AuthInteraction,
+  LoginOptions,
+  CredentialStore,
+} from "@earendil-works/pi-ai";
 import { EncryptedSettingsStore } from "../../../src/main/settings/encrypted-settings-store.js";
 import { ProviderLoginService } from "../../../src/main/settings/provider-login-service.js";
 const dirs: string[] = [];
@@ -36,7 +40,9 @@ async function setup() {
         id: string,
         _type: unknown,
         interaction: AuthInteraction,
+        options?: LoginOptions,
       ) => {
+        expect(options?.agentName).toBe("Artemis");
         interaction.notify({
           type: "device_code",
           userCode: "ABCD",

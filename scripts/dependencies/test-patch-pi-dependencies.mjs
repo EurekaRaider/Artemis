@@ -18,12 +18,12 @@ try {
     [fileURLToPath(new URL("./patch-pi-dependencies.mjs", import.meta.url))],
     { cwd: root, encoding: "utf8" },
   );
-  assert.match(cli, /Pi 1\.0\.4 dependency resolution verified/);
+  assert.match(cli, /Pi 1\.1\.0 dependency resolution verified/);
   await mkdir(shared, { recursive: true });
   await mkdir(pi, { recursive: true });
   await writeFile(
     join(pi, "package.json"),
-    JSON.stringify({ version: "1.0.4" }),
+    JSON.stringify({ version: "1.1.0" }),
   );
   await writeFile(join(shared, "package.json"), manifest("5.0.12"));
   await patchPiDependencies(root);

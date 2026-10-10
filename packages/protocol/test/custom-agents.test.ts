@@ -3,8 +3,7 @@
  *
  * These tests pin the approved plan's hard semantics before any storage,
  * runtime, or UI exists: scope must never widen silently, capabilities
- * are an intersection that can only shrink, empty allowlists are not
- * inheritance, frozen snapshots are immutable, invocation dedup never
+ * are an intersection of mode and live grants, legacy allowlists inherit, frozen snapshots are immutable, invocation dedup never
  * silently re-dispatches, and P1 lexical matching is deterministic
  * without substring false positives.
  */
@@ -133,16 +132,16 @@ describe("effective capability intersection", () => {
     expect(effective.has("mcp")).toBe(false);
   });
 
-  it("empty allowlist means no business tools and never falls back to inherit", () => {
+  it("legacy empty allowlist inherits mode capabilities", () => {
     const effective = computeEffectiveCapabilities(
       fullContext("work"),
       { kind: "allowlist", tools: [] },
       resolveNothing,
     );
-    expect(effective.size).toBe(0);
+    expect(effective.has("shell")).toBe(true);
   });
 
-  it("allowlist grants only the capabilities of the listed tools", () => {
+  it("legacy allowlist does not narrow mode capabilities", () => {
     const resolver = (ref: CustomAgentToolRef) =>
       ref.kind === "mcp" && ref.toolName === "query_db"
         ? new Set<CapabilityClass>(["mcp", "business-read"])
@@ -156,8 +155,8 @@ describe("effective capability intersection", () => {
       resolver,
     );
     expect(effective.has("mcp")).toBe(true);
-    expect(effective.has("shell")).toBe(false);
-    expect(effective.has("filesystem-write")).toBe(false);
+    expect(effective.has("shell")).toBe(true);
+    expect(effective.has("filesystem-write")).toBe(true);
   });
 
   it("plan/review mode strips capabilities even when the allowlist names a tool", () => {
@@ -168,7 +167,7 @@ describe("effective capability intersection", () => {
       resolver,
     );
     expect(effective.has("shell")).toBe(false);
-    expect(effective.has("business-read")).toBe(false);
+    expect(effective.has("business-read")).toBe(true);
   });
 
   it("revoked live grants shrink the result at execution time", () => {

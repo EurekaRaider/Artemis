@@ -1,23 +1,21 @@
-# Artemis v1.7.11
+# Artemis v1.7.12
 
 ## 中文
 
-- 修复 Windows 点击“安装更新”后更新助手未就绪、界面重新回到安装按钮的问题；更新助手可在应用退出后继续安装，并避免占用待替换的安装文件。
-- 修复更新恢复状态的中文路径读取和应用重启参数传递，支持包含中文和空格的路径。
-- 安装失败原因持续显示在侧边栏和更新设置中，重试时清除旧错误。
-- 新版本安装成功并通过健康检查后，自动删除上一版本安装包；更新失败时保留旧包并恢复升级前数据库，清理失败不会误触发回滚。
-- 确认 macOS 已有健康启动后清理安装包与更新缓存、清理失败后下次启动重试的逻辑。
-- 若旧版 Windows 仍无法在应用内安装更新，请下载并运行 v1.7.11 安装包一次，替换为修复后的更新助手。
+- 将桌面与 Agent Host 的 Pi 升级到 1.1.0，适配中止事件和登录代理名称，保留依赖完整性检查。
+- 主代理与自定义子代理在 Codemode 中可直接调用 Pi 原生分类和图片生成能力；分类工具支持传入图片，模型发现返回支持的输入类型。
+- 自定义代理统一继承当前任务模式和宿主权限，移除设置中的工具白名单；旧配置与运行快照不再执行独立白名单限制。
+- 保留 Plan 写入阻断、MCP 审批与沙箱、项目作用域、委派写入范围及代理生命周期校验。
+- 包含 v1.7.11 的 Windows 更新恢复修复。若旧版无法在应用内安装更新，请下载并运行当前安装包一次。
 - Computer Use、Design 和 Office 独立运行时沿用现有已发布版本。
 
 ## English
 
-- Fix Windows updates returning to the install button when the recovery helper fails to become ready. The helper continues after the application exits and avoids locking installation files that must be replaced.
-- Correct recovery state decoding and application restart arguments for paths with spaces or non-ASCII characters.
-- Keep installation errors visible in the sidebar and update settings, and clear them when retrying.
-- Remove the previous installer after the new version installs and passes its health check. Failed updates retain the rollback installer and restore the pre-update database; cleanup errors do not trigger rollback of a healthy update.
-- Confirm the existing macOS cleanup of successful update packages and caches, including retries on a later healthy startup when cleanup fails.
-- If an older Windows version cannot install the update in-app, download and run the v1.7.11 installer once to obtain the repaired updater.
+- Upgrade desktop and Agent Host Pi dependencies to 1.1.0, adapt aborted events and the provider login agent name, and retain dependency integrity checks.
+- Enable native Pi classifier and image model operations in Codemode for main and custom child agents. Classification accepts images and model discovery reports supported input types.
+- Make custom agents inherit the active task mode and host permissions. Remove the settings tool allowlist and stop applying separate allowlist restrictions from legacy definitions and runtime snapshots.
+- Retain Plan write denial, MCP approval and sandboxing, project scope, delegated write scopes and agent lifecycle checks.
+- Include the Windows update recovery fixes from v1.7.11. If an older version cannot install the update in-app, download and run the current installer once.
 - Retain the existing published Computer Use, Design and Office runtime versions.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。

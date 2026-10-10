@@ -1,8 +1,10 @@
 [English / 简体中文](pi-upgrade-modes-zh-CN.md)
 
-# Pi 1.0.2 and Artemis task modes
+# Pi 1.1.0 and Artemis task modes
 
 Artemis uses Pi as its only agent loop. New tasks start in **Work**.
+
+The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.1.0. This upgrade includes Codemode output separation, provider retry and pricing fixes, and the updated model catalog. Artemis already uses `createAssistantMessageEventStream()`, as required by the new stream type contract. The event adapter recognizes `agent_settled.aborted` without treating intentional tool-boundary stops as user cancellation. Provider login supplies `Artemis` as the agent name. The install check continues to require `brace-expansion` 5.0.12.
 
 | Mode     | Tools and completion                                                                                                                                              |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -43,7 +45,9 @@ A virtual model uses an ordered `virtualRoutes` array of `{ "providerId", "model
 
 **Model provider authorization** in Settings uses each provider's Pi API-key/OAuth flow. It is optional and starts only on a user click. Answers never enter conversation history; credentials and rotated tokens use OS-encrypted storage. Existing API-key and custom-provider setup remain available.
 
-Work and Codemode expose `model_capabilities`, `generate_image`, and `classify` for configured Pi image/classifier providers. Codemode calls them through `tools`; images appear in tool results and can be downloaded. `edit_context` changes earlier assistant/tool context projections at Pi turn boundaries while retaining original history; it cannot edit user or system instructions.
+Work exposes `model_capabilities`, `generate_image`, and `classify` as thin bridges to Pi for configured image/classifier providers. Main and child agents in Codemode can directly use Pi's native `models.getAvailableOfType()`, `models.getModelOfType()`, `models.classify()`, and `models.generateImages()`; the `tools` bridges remain compatible. Both paths reuse the session model runtime and credentials. Native model calls receive the script cancellation signal and contribute usage to the Codemode result. Use `image(block)` to display generated images. `edit_context` changes earlier assistant/tool context projections at Pi turn boundaries while retaining original history; it cannot edit user or system instructions.
+
+`model_capabilities` includes each model's supported `input`. `classify` accepts optional `images` containing `{ type: "image", data, mimeType }` alongside `state` and `questions`; Pi rejects images for classifiers without image support. GPT-6 Luna classification requires an OpenAI API key and is not available through Sign in with ChatGPT. Classification remains unavailable in Plan.
 
 MCP tools retain host approval and sandbox enforcement, including after discovery. Structured output schemas, structured results and namespace metadata are passed through to Pi. Existing desktop OAuth supports metadata clients, issuer checking and per-server credential storage. User server configurations support `exposure` and `toolExposure`; `.pi/mcp.json` can restrict existing enabled servers by ID/name, hide tools or change discovery exposure. Project files cannot launch new servers or expand the host's permissions. Plan receives no MCP tools.
 
@@ -52,6 +56,8 @@ In Work and Codemode, a local MCP or trusted extension tool may request `sandbox
 An escalated MCP call uses a fresh local server connection, closes it afterward, and preserves the saved server configuration and minimal/explicitly forwarded environment. The original sandboxed connection remains available for subsequent calls. Process-local handles from that original connection cannot be assumed to work in the temporary connection. Executable extensions use desktop-user access for that invocation only. Neither route grants administrator/root or operating-system privacy permissions. Failures do not automatically escalate or replay whole Codemode scripts.
 
 Trusted executable extensions retain their project/content-hash trust and native sandbox. Their output schemas, namespace, annotations and structured results cross the sandbox bridge. Terminal UI renderers, commands, shortcuts and arbitrary lifecycle handlers remain outside the sandboxed desktop tool bridge; Artemis reports unsupported extension surfaces instead of running them in the main process.
+
+Custom sub-agents inherit the active mode and host permissions. The settings editor no longer offers a tool allowlist; legacy stored allowlists are read and saved as `inherit`, and old runtime snapshots cannot restore the removed whitelist. Child MCP tools use the normal host approval and sandbox path, including mutating tools in Work/Codemode. Plan restrictions, connection/trust checks, delegated write scopes and agent lifecycle rules still apply.
 
 ## Validation boundaries
 

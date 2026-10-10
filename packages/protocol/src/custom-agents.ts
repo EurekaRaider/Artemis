@@ -18,8 +18,8 @@ import { isExecutionMode } from "./schema.js";
  * - Effective capabilities are an intersection; nothing in a definition
  *   can widen what the run mode, the child-runtime baseline, the parent,
  *   or live grants allow.
- * - `toolPolicy: "inherit"` and `allowlist: []` are distinct: an empty
- *   allowlist means no business tools, never a fallback to inherit.
+ * - Legacy tool policies are retained for storage compatibility only.
+ *   All definitions inherit the active mode and live grants.
  * - A snapshot frozen at dispatch-accept time is immutable; later edits
  *   never widen an accepted instance.
  * - Custom definitions cannot spawn further agents this term.
@@ -177,25 +177,10 @@ export function runModeCapabilities(mode: RunMode): Set<CapabilityClass> {
   return new Set<CapabilityClass>(["business-read"]);
 }
 
-function capabilityAllowedByToolPolicy(
-  capability: CapabilityClass,
-  policy: CustomAgentToolPolicy,
-  resolveToolCapabilities: (
-    ref: CustomAgentToolRef,
-  ) => ReadonlySet<CapabilityClass>,
-): boolean {
-  if (policy.kind === "inherit") return true;
-  // allowlist — including the empty list, which allows NOTHING.
-  for (const ref of policy.tools) {
-    if (resolveToolCapabilities(ref).has(capability)) return true;
-  }
-  return false;
-}
-
 /**
  * Effective capability intersection:
  *
- *   run mode ∩ child baseline ∩ parent-delegatable ∩ definition policy
+ *   run mode ∩ child baseline ∩ parent-delegatable
  *   ∩ live grants
  *
  * Custom definitions never receive `spawn-agent` (no nested delegation
@@ -204,8 +189,8 @@ function capabilityAllowedByToolPolicy(
  */
 export function computeEffectiveCapabilities(
   context: CapabilityContext,
-  toolPolicy: CustomAgentToolPolicy,
-  resolveToolCapabilities: (
+  _toolPolicy: CustomAgentToolPolicy,
+  _resolveToolCapabilities: (
     ref: CustomAgentToolRef,
   ) => ReadonlySet<CapabilityClass>,
 ): Set<CapabilityClass> {
@@ -215,15 +200,6 @@ export function computeEffectiveCapabilities(
     if (!context.childBaseline.has(capability)) continue;
     if (!context.parentDelegatable.has(capability)) continue;
     if (!context.liveGrants.has(capability)) continue;
-    if (
-      !capabilityAllowedByToolPolicy(
-        capability,
-        toolPolicy,
-        resolveToolCapabilities,
-      )
-    ) {
-      continue;
-    }
     result.add(capability);
   }
   // Hard rule: custom definitions may not re-delegate this term.

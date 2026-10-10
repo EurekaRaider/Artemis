@@ -45,6 +45,75 @@ it("denies every model operation in Plan before any provider call", async () => 
     ).rejects.toThrow(/Work or Codemode/);
   expect(execute).not.toHaveBeenCalled();
 });
+it.each(["work", "codemode"] as const)(
+  "forwards classifier images and cancellation in %s without echoing image data",
+  async (mode) => {
+    const model = {
+      provider: "fixture",
+      id: "vision",
+      type: "classifier",
+      input: ["text", "image"],
+    };
+    const answers = { visible: { type: "bool", value: true } };
+    const classify = vi.fn(async () => ({ stopReason: "stop", answers }));
+    const runtime = {
+      getModelOfType: () => model,
+      hasConfiguredAuth: () => true,
+      getAllAvailable: async () => [model],
+      classify,
+    } as unknown as ModelRuntime;
+    const tools = modelCapabilityTools(runtime, () => mode);
+    const capabilities = await tools[0]!.execute(
+      "list",
+      {},
+      undefined,
+      undefined,
+      {} as never,
+    );
+    expect(JSON.parse(capabilities.content[0]!.text)).toMatchObject([
+      { input: ["text", "image"] },
+    ]);
+    const tool = tools.find((tool) => tool.name === "classify")!;
+    const signal = new AbortController().signal;
+    const args = {
+      provider: "fixture",
+      model: "vision",
+      state: {},
+      images: [
+        { type: "image", data: "private-image-data", mimeType: "image/png" },
+      ],
+      questions: {
+        visible: {
+          type: "bool",
+          instructions: "Is it visible?",
+          criteria: { true: "Visible", false: "Hidden" },
+        },
+      },
+    };
+    const result = await tool.execute(
+      "call",
+      args as never,
+      signal,
+      undefined,
+      {} as never,
+    );
+    expect(classify).toHaveBeenCalledWith(
+      model,
+      { state: args.state, questions: args.questions, images: args.images },
+      { signal },
+    );
+    expect(result.structuredContent).toEqual({ answers });
+    expect(JSON.stringify(result)).not.toContain("private-image-data");
+    classify.mockResolvedValueOnce({
+      stopReason: "error",
+      errorMessage: "Model does not support image input",
+    } as never);
+    await expect(
+      tool.execute("call", args as never, signal, undefined, {} as never),
+    ).rejects.toThrow(/does not support image/);
+  },
+);
+
 it("routes a virtual model through Pi with continuation affinity and bounded retry fallback", () => {
   let definition:
     Parameters<ModelRuntime["registerVirtualModel"]>[0] | undefined;

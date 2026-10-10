@@ -176,6 +176,19 @@ describe("PiAdapter", () => {
     expect(adapter.adapt({ type: "agent_settled" })).toEqual([]);
   });
 
+  it("does not complete an explicitly aborted Pi run without an aborted message", () => {
+    const adapter = new PiAdapter("turn-1");
+    expect(adapter.adapt({ type: "agent_settled", aborted: true })).toEqual([]);
+  });
+
+  it("preserves deliberate tool-boundary completion when Pi reports aborted", () => {
+    const adapter = new PiAdapter("turn-1");
+    adapter.stopAfterTools();
+    expect(adapter.adapt({ type: "agent_settled", aborted: true })).toEqual([
+      { type: "turn.completed", reason: "completed" },
+    ]);
+  });
+
   it("recovers final assistant text when a compatible proxy emits no deltas", () => {
     const adapter = new PiAdapter("turn-1");
 

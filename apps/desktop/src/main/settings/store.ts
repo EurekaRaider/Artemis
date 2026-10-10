@@ -287,7 +287,7 @@ function customAgentFromRow(row: CustomAgentRow): CustomAgentDefinition {
     thinkingPolicy: JSON.parse(
       row.thinking_policy_json,
     ) as CustomAgentThinkingPolicy,
-    toolPolicy: JSON.parse(row.tool_policy_json) as CustomAgentToolPolicy,
+    toolPolicy: { kind: "inherit" },
     allowAutomaticInvocation: row.allow_automatic_invocation === 1,
     triggers: JSON.parse(row.triggers_json) as string[],
     createdAt: Date.parse(row.created_at),
@@ -3760,7 +3760,7 @@ export class AppStore {
     const normalizedName = normalizeAgentToken(input.name);
     const modelPolicy = input.modelPolicy ?? { kind: "inherit" };
     const thinkingPolicy = input.thinkingPolicy ?? { kind: "inherit" };
-    const toolPolicy = input.toolPolicy ?? { kind: "inherit" };
+    const toolPolicy: CustomAgentToolPolicy = { kind: "inherit" };
     const projectIds = input.projectIds ?? [];
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -3912,7 +3912,7 @@ export class AppStore {
           patch.scope ?? current.scope,
           JSON.stringify(patch.modelPolicy ?? current.modelPolicy),
           JSON.stringify(patch.thinkingPolicy ?? current.thinkingPolicy),
-          JSON.stringify(patch.toolPolicy ?? current.toolPolicy),
+          JSON.stringify({ kind: "inherit" }),
           (patch.allowAutomaticInvocation ?? current.allowAutomaticInvocation)
             ? 1
             : 0,

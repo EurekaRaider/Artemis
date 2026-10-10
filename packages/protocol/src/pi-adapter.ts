@@ -46,6 +46,7 @@ interface PiToolEvent {
 interface PiLifecycleEvent {
   type: "agent_end" | "agent_settled";
   willRetry?: boolean;
+  aborted?: boolean;
 }
 
 interface PiRetryEvent {
@@ -585,7 +586,10 @@ export class PiAdapter {
             },
           ];
         }
-        if (this.turnAborted) {
+        if (
+          this.turnAborted ||
+          (event.aborted === true && !this.stoppedAfterTools)
+        ) {
           return [];
         }
         if (

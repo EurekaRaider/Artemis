@@ -1250,7 +1250,7 @@ describe("renderer layout contract", () => {
     expect(childSessionSource).toMatch(
       /childMcpTools\.some\(\s*\(candidate\) => candidate\.name === tool\.name,\s*\)/u,
     );
-    expect(runtimeSource).toMatch(
+    expect(runtimeSource).not.toMatch(
       /configuredMcpTools\s*\.filter\(\(tool\) => tool\.readOnly\)/u,
     );
     expect(cssRule(".child-agent-card")).toMatch(/\bborder-radius:\s*9px/u);

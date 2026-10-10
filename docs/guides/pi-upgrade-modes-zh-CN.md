@@ -1,8 +1,10 @@
 [English / 简体中文](pi-upgrade-modes.md)
 
-# Pi 1.0.2 与 Artemis 任务模式
+# Pi 1.1.0 与 Artemis 任务模式
 
 Artemis 只使用 Pi 作为 Agent 循环。新任务默认进入 **Work**。
+
+桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.1.0。本次升级包含 Codemode 输出分隔、提供商重试与计费修复，以及更新后的模型目录。Artemis 已使用新版流类型要求的 `createAssistantMessageEventStream()`。事件适配器识别 `agent_settled.aborted`，同时保留宿主在工具执行完毕后主动结束任务的语义。提供商登录传入 `Artemis` 作为 Agent 名称。安装检查继续要求 `brace-expansion` 5.0.12。
 
 | 模式     | 工具与完成方式                                                                                                  |
 | -------- | --------------------------------------------------------------------------------------------------------------- |
@@ -43,7 +45,7 @@ Pi 和独立 Responses 传输会重试空启动、中断流以及缺少服务商
 
 设置中的 **模型服务商授权**使用各服务商的 Pi API Key/OAuth 流程。它是可选功能，仅在用户点击后开始。回答不进入会话历史；凭据和轮换后的令牌使用操作系统加密存储。原有 API Key 和自定义服务商配置仍可使用。
 
-Work 和 Codemode 为已配置的 Pi 图片／分类服务商暴露 `model_capabilities`、`generate_image` 和 `classify`。Codemode 通过 `tools` 调用，图片显示在工具结果中并可下载。`edit_context` 在 Pi 轮次边界调整此前助手／工具上下文投影，保留原始历史，不能修改用户或系统指令。
+Work 通过 `model_capabilities`、`generate_image` 和 `classify` 薄封装调用已配置的 Pi 图片／分类服务商。Codemode 中的主 Agent 和子 Agent 可直接使用 Pi 原生 `models.getAvailableOfType()`、`models.getModelOfType()`、`models.classify()` 和 `models.generateImages()`；原 `tools` 入口仍兼容。两种入口复用会话的模型运行时与凭据。原生调用接收脚本取消信号，并将用量计入 Codemode 结果。生成的图片通过 `image(block)` 显示。`edit_context` 在 Pi 轮次边界调整此前助手／工具上下文投影，保留原始历史，不能修改用户或系统指令。
 
 MCP 工具在发现后仍受宿主审批和沙箱约束。结构化输出 Schema、结构化结果与命名空间元数据传递给 Pi。桌面 OAuth 支持元数据客户端、issuer 校验和按服务器存储凭据。用户服务器配置支持 `exposure` 与 `toolExposure`；`.pi/mcp.json` 可按 ID／名称限制现有已启用服务器、隐藏工具或调整发现暴露方式。项目文件不能启动新服务器或扩大宿主权限。Plan 不接收 MCP 工具。
 
@@ -52,6 +54,10 @@ Work 和 Codemode 中，本地 MCP 或受信任扩展工具在沙箱拒绝后，
 提权 MCP 调用使用新的本地服务器连接，调用后关闭；保留已保存服务器配置与最小或明确转发的环境。原沙箱连接仍可处理后续调用，不能假设其进程内句柄可在临时连接使用。可执行扩展只在该次调用中获得桌面用户访问。两种方式都不授予管理员／root 或操作系统隐私权限。失败不会自动提权，也不会重放整个 Codemode 脚本。
 
 受信任的可执行扩展仍需项目／内容哈希信任，并使用原生沙箱。输出 Schema、命名空间、注解和结构化结果跨沙箱桥传递。终端 UI 渲染器、命令、快捷键与任意生命周期处理器不在桌面沙箱工具桥范围内；Artemis 报告不支持的扩展接口，不会在主进程运行它们。
+
+`model_capabilities` 返回各模型支持的 `input`。`classify` 在 `state` 和 `questions` 之外接受可选的 `images`，每项为 `{ type: "image", data, mimeType }`；Pi 会拒绝向不支持图片的分类模型传入图片。GPT-6 Luna 分类需要 OpenAI API Key，不能通过 Sign in with ChatGPT 使用。Plan 仍不能调用分类能力。
+
+自定义子 Agent 继承当前模式和宿主权限。设置界面不再提供工具白名单；旧配置读取和保存时统一为 `inherit`，旧运行快照也不能恢复已取消的白名单限制。子 Agent 的 MCP 工具沿用宿主审批与沙箱路径，包括 Work／Codemode 中的写操作。Plan 限制、连接／信任校验、委派写入范围和 Agent 生命周期规则仍然生效。
 
 ## 验证边界
 

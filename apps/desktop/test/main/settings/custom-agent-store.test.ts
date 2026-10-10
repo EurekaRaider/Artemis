@@ -40,6 +40,46 @@ function makeProject(store: AppStore, path: string): string {
 }
 
 describe("custom agent store", () => {
+  it("normalizes persisted legacy allowlists when reading and saving definitions", async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "artemis-agent-legacy-policy-"),
+    );
+    temporaryDirectories.push(directory);
+    const path = join(directory, "state.sqlite");
+    const store = new AppStore(path);
+    const created = store.createCustomAgent({
+      name: "Legacy",
+      description: "",
+      color: "green",
+      instructions: "Review",
+      scope: "all",
+      toolPolicy: { kind: "allowlist", tools: [] },
+    });
+    expect(created.toolPolicy).toEqual({ kind: "inherit" });
+    store.close();
+    const { DatabaseSync } = await import("node:sqlite");
+    const raw = new DatabaseSync(path);
+    raw
+      .prepare("UPDATE custom_agents SET tool_policy_json = ? WHERE id = ?")
+      .run(JSON.stringify({ kind: "allowlist", tools: [] }), created.id);
+    raw.close();
+    const reopened = new AppStore(path);
+    try {
+      expect(reopened.getCustomAgent(created.id)?.toolPolicy).toEqual({
+        kind: "inherit",
+      });
+      const updated = reopened.updateCustomAgent(created.id, created.revision, {
+        toolPolicy: {
+          kind: "allowlist",
+          tools: [{ kind: "builtin", toolId: "read" }],
+        },
+      });
+      expect(updated.toolPolicy).toEqual({ kind: "inherit" });
+    } finally {
+      reopened.close();
+    }
+  });
+
   it("creates definitions with defaults and lists them ordered by name", async () => {
     const store = await openStore();
     const created = store.createCustomAgent({

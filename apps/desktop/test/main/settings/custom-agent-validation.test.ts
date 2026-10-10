@@ -113,7 +113,7 @@ describe("validateCustomAgentInput", () => {
     ).toThrowError(/CUSTOM_AGENT_INVALID.*trigger/);
   });
 
-  it("keeps inherit and empty allowlist strictly distinct", () => {
+  it("normalizes legacy empty allowlist to inherited mode permissions", () => {
     const inherited = validateCustomAgentInput(
       validInput({ toolPolicy: { kind: "inherit" } }),
       projectExists,
@@ -123,10 +123,10 @@ describe("validateCustomAgentInput", () => {
       validInput({ toolPolicy: { kind: "allowlist", tools: [] } }),
       projectExists,
     );
-    expect(empty.toolPolicy).toEqual({ kind: "allowlist", tools: [] });
+    expect(empty.toolPolicy).toEqual({ kind: "inherit" });
   });
 
-  it("accepts builtin and MCP tool references by stable identifiers", () => {
+  it("normalizes valid legacy builtin and MCP policies to inherit", () => {
     const result = validateCustomAgentInput(
       validInput({
         toolPolicy: {
@@ -139,13 +139,7 @@ describe("validateCustomAgentInput", () => {
       }),
       projectExists,
     );
-    expect(result.toolPolicy).toEqual({
-      kind: "allowlist",
-      tools: [
-        { kind: "builtin", toolId: "shell" },
-        { kind: "mcp", serverId: "srv-1", toolName: "search" },
-      ],
-    });
+    expect(result.toolPolicy).toEqual({ kind: "inherit" });
   });
 
   it("rejects malformed policies and tool references", () => {
