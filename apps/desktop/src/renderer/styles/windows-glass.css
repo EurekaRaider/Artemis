@@ -1,5 +1,15 @@
 /* Keep macOS's native vibrancy and existing chrome untouched. Acrylic supplies
    the desktop blur; CSS adds only tint, edge light and depth on Windows. */
+@property --environment-panel-inline-offset {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+:root:not([dir="rtl"]) .app-shell[data-platform="win32"] .workspace {
+  --environment-panel-inline-offset: calc(
+    100vw - env(titlebar-area-width, calc(100vw - 138px))
+  );
+}
 .app-shell[data-platform="win32"] {
   /* Windows Acrylic keeps much more wallpaper chroma than macOS vibrancy.
      A neutral veil keeps the sidebar close to the canvas in either theme. */
@@ -34,6 +44,8 @@
   -webkit-app-region: no-drag;
 }
 .app-shell[data-platform="win32"] .environment-popover {
+  /* Panels below the caption row retain the existing reading-area space. */
+  inset-inline-end: calc(-1 * var(--environment-panel-inline-offset));
   -webkit-app-region: no-drag;
 }
 .app-shell[data-platform="win32"][data-sidebar-resizing="true"] {

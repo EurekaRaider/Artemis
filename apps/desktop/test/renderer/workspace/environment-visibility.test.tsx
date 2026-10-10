@@ -39,11 +39,13 @@ const props: ComponentProps<typeof EnvironmentPanel> = {
 let workspaceWidth: number;
 let timelineWidth: number;
 let composerWidth: number;
+let captionReserve: number;
 const resizeCallbacks = new Set<() => void>();
 beforeEach(() => {
   workspaceWidth = 1800;
   timelineWidth = 960;
   composerWidth = 960;
+  captionReserve = 0;
   resizeCallbacks.clear();
   vi.stubGlobal(
     "ResizeObserver",
@@ -68,7 +70,12 @@ beforeEach(() => {
           '[data-artemis-component="environment-control"][data-part="root"]',
         )
       )
-        return new DOMRect(workspaceLeft + workspaceWidth - 80, 0, 30, 40);
+        return new DOMRect(
+          workspaceLeft + workspaceWidth - 80 - captionReserve,
+          0,
+          30,
+          40,
+        );
       if (
         this.matches(".timeline, .conversation-empty-state, .composer-wrap")
       ) {
@@ -102,13 +109,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function fixture(overrides: Partial<typeof props> = {}, panelWidth = 280) {
+function fixture(
+  overrides: Partial<typeof props> = {},
+  panelWidth = 280,
+  inlineOffset = 0,
+) {
   return (
     <div
       className="workspace"
       style={
         {
           "--environment-panel-inline-size": `${panelWidth}px`,
+          "--environment-panel-inline-offset": `${inlineOffset}px`,
         } as CSSProperties
       }
     >
@@ -567,6 +579,17 @@ describe("environment panel automatic visibility", () => {
     resize(1800);
     expect(dialog()).toBeVisible();
     expect(prompt).toHaveFocus();
+  });
+
+  it("preserves the opening threshold when caption buttons shift the trigger inward", async () => {
+    workspaceWidth = 858;
+    captionReserve = 138;
+    await renderReady(fixture({}, 280, captionReserve));
+    expect(dialog()).toBeVisible();
+    resize(857);
+    expect(dialog()).toBeNull();
+    resize(858);
+    expect(dialog()).toBeVisible();
   });
 
   it("measures actual content bounds and configured panel width, including sidebar-only resizes", async () => {

@@ -869,6 +869,10 @@ export function EnvironmentPanel({
         style.getPropertyValue("--environment-panel-inline-size"),
       ) || 280;
     const panelWidth = Math.min(configuredWidth, window.innerWidth - 62);
+    const inlineOffset =
+      Number.parseFloat(
+        style.getPropertyValue("--environment-panel-inline-offset"),
+      ) || 0;
     const panelBounds = panel.current?.getBoundingClientRect();
     const rtl = style.direction === "rtl";
     const panelStart = panelBounds?.width
@@ -877,7 +881,7 @@ export function EnvironmentPanel({
         : panelBounds.left
       : rtl
         ? anchor.left + panelWidth
-        : anchor.right - panelWidth;
+        : anchor.right - panelWidth + inlineOffset;
     // Measure against the conversation, so a panel above the tool dock
     // reserves nothing when it is already outside the reading area.
     const inset = Math.max(
