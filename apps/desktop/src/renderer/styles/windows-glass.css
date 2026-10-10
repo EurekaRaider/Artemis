@@ -17,8 +17,8 @@
     inset -1px 0 0 rgb(255 255 255 / 0.04), 0 6px 18px rgb(0 0 0 / 0.2);
 }
 .app-shell[data-platform="win32"] .workspace-header {
-  /* Reserve the system caption buttons while keeping one continuous header. */
-  padding-inline-end: calc(
+  /* Windows caption buttons stay on the physical right in either direction. */
+  padding-right: calc(
     100vw - env(titlebar-area-width, calc(100vw - 138px)) + 12px
   );
   -webkit-app-region: drag;
