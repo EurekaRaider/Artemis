@@ -4368,23 +4368,12 @@ export function App() {
   useLayoutEffect(() => {
     const container = timelineScroll.current;
     if (!container || typeof ResizeObserver === "undefined") return;
-    let frame: number | undefined;
     const observer = new ResizeObserver(() => {
-      if (!timelinePinned.current) return;
-      if (frame !== undefined) window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(() => {
-        frame = undefined;
-        if (timelinePinned.current) {
-          container.scrollTop = container.scrollHeight;
-        }
-      });
+      if (timelinePinned.current) container.scrollTop = container.scrollHeight;
     });
     observer.observe(container);
     for (const child of container.children) observer.observe(child);
-    return () => {
-      observer.disconnect();
-      if (frame !== undefined) window.cancelAnimationFrame(frame);
-    };
+    return () => observer.disconnect();
   }, [activeEvents.length, activeThreadId]);
 
   useEffect(() => {
