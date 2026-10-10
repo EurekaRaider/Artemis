@@ -138,18 +138,31 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   const rtl = localeDirection(props.locale) === "rtl";
   const previousLocale = useRef(props.locale);
   const initialUrl = useRef(props.initialUrl);
+  const sessionEventRevision = useRef(0);
   const command = useCallback(
     async (
       action: "back" | "forward" | "reload" | "navigate",
       url?: string,
     ) => {
       if (!props.threadId) return;
-      const result = await window.artemis.browserSession(
-        action === "navigate"
-          ? { action, threadId: props.threadId, tabId: props.tabId, url: url! }
-          : { action, threadId: props.threadId, tabId: props.tabId },
-      );
-      if (result) setSession(result);
+      const revision = sessionEventRevision.current;
+      try {
+        const result = await window.artemis.browserSession(
+          action === "navigate"
+            ? {
+                action,
+                threadId: props.threadId,
+                tabId: props.tabId,
+                url: url!,
+              }
+            : { action, threadId: props.threadId, tabId: props.tabId },
+        );
+        if (result && revision === sessionEventRevision.current)
+          setSession(result);
+      } catch (reason) {
+        // A newer live event already carries the current navigation state.
+        if (revision === sessionEventRevision.current) throw reason;
+      }
     },
     [props.threadId, props.tabId],
   );
@@ -161,11 +174,13 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
   };
   useEffect(() => {
     if (!props.threadId) return;
+    sessionEventRevision.current += 1;
     let active = true;
     let latestEvent: typeof session;
     const unsubscribe = window.artemis.onBrowserSession((value) => {
       if (value.threadId !== props.threadId || value.tabId !== props.tabId)
         return;
+      sessionEventRevision.current += 1;
       latestEvent = value;
       setSession(value);
       setError(value.error);

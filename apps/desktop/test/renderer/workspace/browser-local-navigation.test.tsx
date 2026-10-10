@@ -135,3 +135,68 @@ it("keeps a newer ready event when the initial open response arrives late", asyn
     "ready",
   );
 });
+
+it.each([false, true])(
+  "handles a navigation rejection after a newer browser event: %s",
+  async (newerEvent) => {
+    const ready: BrowserSessionSnapshot = {
+      threadId: "task",
+      tabId: "browser",
+      sessionId: crypto.randomUUID(),
+      contentsId: 1,
+      url: "about:blank",
+      title: "",
+      canGoBack: false,
+      canGoForward: false,
+      loading: false,
+      width: 1280,
+      height: 720,
+    };
+    let publish!: (value: BrowserSessionSnapshot) => void;
+    let rejectNavigation!: (error: Error) => void;
+    stubWindowArtemis({
+      browserSession: vi.fn((input) =>
+        input.action === "navigate"
+          ? new Promise((_resolve, reject) => (rejectNavigation = reject))
+          : Promise.resolve(ready),
+      ),
+      onBrowserSession: (listener) => {
+        publish = listener;
+        return () => {};
+      },
+      browserPreview: vi.fn().mockResolvedValue({ entries: [] }),
+    });
+    const { container } = render(
+      <WorkspaceBrowserPanel
+        threadId="task"
+        tabId="browser"
+        title="Browser"
+        emptyMessage="Empty"
+        refreshLabel="Refresh"
+        addressPlaceholder="Address"
+        backLabel="Back"
+        forwardLabel="Forward"
+        goLabel="Go"
+        locale="en"
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Go" })).toBeEnabled(),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Address" }), {
+      target: { value: "https://failure.test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+    await act(async () => {
+      if (newerEvent) publish({ ...ready, url: "https://current.test" });
+      rejectNavigation(new Error("Previous navigation failed"));
+    });
+    expect(container.querySelector(".browser-panel")).toHaveAttribute(
+      "data-state",
+      newerEvent ? "ready" : "error",
+    );
+    expect(container.querySelector(".browser-error")?.textContent).toBe(
+      newerEvent ? undefined : "Previous navigation failed",
+    );
+  },
+);
