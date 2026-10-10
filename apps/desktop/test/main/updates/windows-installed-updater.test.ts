@@ -3,10 +3,18 @@ import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WindowsInstalledUpdater } from "../../../src/main/updates/windows-installed-updater.js";
+import { EventEmitter } from "node:events";
+import { spawn } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
+import {
+  WindowsInstalledUpdater,
+  type WindowsInstalledUpdaterOptions,
+} from "../../../src/main/updates/windows-installed-updater.js";
 import { canonicalUpdatePayload } from "../../../src/main/updates/signed-update-index.js";
+vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 const roots: string[] = [];
 afterEach(async () => {
+  vi.mocked(spawn).mockReset();
   await Promise.all(
     roots.splice(0).map((path) => rm(path, { recursive: true, force: true })),
   );
@@ -43,7 +51,10 @@ function signed(version = "2.0.0", sequence = 2) {
     ).toString("base64"),
   });
 }
-async function fixture(fetcher: typeof fetch) {
+async function fixture(
+  fetcher: typeof fetch,
+  options: Partial<WindowsInstalledUpdaterOptions> = {},
+) {
   const userData = await mkdtemp(join(tmpdir(), "artemis-installed-update-"));
   roots.push(userData);
   const quit = vi.fn();
@@ -57,6 +68,7 @@ async function fixture(fetcher: typeof fetch) {
     onStatus: () => {},
     prepareToQuit: async () => {},
     quit,
+    ...options,
   });
   await service.initialize();
   return { service, userData, quit };
@@ -124,5 +136,129 @@ it("requires a verified previous version before attempting installation", async 
   await service.check();
   await service.download();
   await expect(service.install()).rejects.toThrow("Rollback version mismatch");
+  expect(service.getStatus()).toMatchObject({
+    state: "downloaded",
+    message: "Rollback version mismatch",
+  });
   expect(quit).not.toHaveBeenCalled();
+});
+
+const installationFetcher: typeof fetch = async (input) =>
+  new Response(
+    String(input).endsWith(".json")
+      ? signed(String(input).includes("v1.0.0/") ? "1.0.0" : "2.0.0")
+      : installer,
+  );
+
+it("keeps preparation failures visible and clears them when installation is retried", async () => {
+  const prepareToQuit = vi
+    .fn()
+    .mockRejectedValue(new Error("Unsaved document"));
+  const cancelPreparation = vi.fn();
+  const onStatus = vi.fn();
+  const { service, quit } = await fixture(installationFetcher, {
+    prepareToQuit,
+    cancelPreparation,
+    onStatus,
+  });
+  await service.check();
+  await service.download();
+  await expect(service.install()).rejects.toThrow("Unsaved document");
+  expect(onStatus).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      state: "downloaded",
+      message: "Unsaved document",
+    }),
+  );
+  expect(cancelPreparation).toHaveBeenCalledOnce();
+  expect(quit).not.toHaveBeenCalled();
+  prepareToQuit.mockImplementationOnce(async () => {
+    expect(service.getStatus().message).toBe("");
+    throw new Error("Still unsaved");
+  });
+  await expect(service.install()).rejects.toThrow("Still unsaved");
+  expect(service.getStatus().message).toBe("Still unsaved");
+});
+
+it("reports recovery helper failures, cancels the transaction, and permits a verified retry", async () => {
+  const cancelPreparation = vi.fn();
+  const { service, userData, quit } = await fixture(installationFetcher, {
+    cancelPreparation,
+  });
+  const database = new DatabaseSync(join(userData, "artemis.sqlite"));
+  database.exec(
+    "CREATE TABLE records(value TEXT); INSERT INTO records VALUES('preserved')",
+  );
+  database.close();
+  await writeFile(join(userData, "helper.ps1"), "# fixture");
+  await writeFile(join(userData, "windows-install-recover.cjs"), "// fixture");
+  for (const name of [
+    "Artemis.exe",
+    "icudtl.dat",
+    "snapshot_blob.bin",
+    "v8_context_snapshot.bin",
+  ]) {
+    await writeFile(join(userData, name), name);
+  }
+  await service.check();
+  await service.download();
+  const root = join(userData, "windows-update");
+  const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
+  vi.mocked(spawn).mockImplementationOnce(() => {
+    void writeFile(join(root, "helper.log"), "Installer hash mismatch").then(
+      () => {
+        child.emit("spawn");
+        child.emit("exit", 1);
+      },
+    );
+    return child as unknown as ReturnType<typeof spawn>;
+  });
+  await expect(service.install()).rejects.toThrow("Installer hash mismatch");
+  expect(service.getStatus()).toMatchObject({
+    state: "downloaded",
+    message: expect.stringContaining("Installer hash mismatch"),
+  });
+  expect(quit).not.toHaveBeenCalled();
+  expect(cancelPreparation).toHaveBeenCalledOnce();
+  expect(await readFile(join(root, "cancel.marker"), "utf8")).toBe("cancelled");
+  expect(
+    JSON.parse(await readFile(join(root, "recovery.json"), "utf8")).pending,
+  ).toBeUndefined();
+  const retryChild = Object.assign(new EventEmitter(), { unref: vi.fn() });
+  vi.mocked(spawn).mockImplementationOnce(() => {
+    void writeFile(join(root, "helper-ready.marker"), "2.0.0").then(() => {
+      retryChild.emit("spawn");
+    });
+    return retryChild as unknown as ReturnType<typeof spawn>;
+  });
+  const first = service.install();
+  expect(service.install()).toBe(first);
+  await first;
+  expect(spawn).toHaveBeenLastCalledWith(
+    join(root, "helper-runtime", "update-recovery.exe"),
+    [
+      join(root, "launch-recovery.cjs"),
+      join(root, "install-and-recover.ps1"),
+      join(root, "recovery.json"),
+    ],
+    expect.objectContaining({
+      detached: true,
+      windowsHide: true,
+      env: expect.objectContaining({ ELECTRON_RUN_AS_NODE: "1" }),
+    }),
+  );
+  expect(quit).toHaveBeenCalledOnce();
+  expect(
+    await readFile(join(root, "helper-runtime", "update-recovery.exe"), "utf8"),
+  ).toBe("Artemis.exe");
+  expect(service.getStatus().message).toBe("");
+  expect(
+    JSON.parse(await readFile(join(root, "recovery.json"), "utf8")).pending
+      .version,
+  ).toBe("2.0.0");
+  const restored = new DatabaseSync(join(root, "pre-update.sqlite"));
+  expect(restored.prepare("SELECT value FROM records").get()?.value).toBe(
+    "preserved",
+  );
+  restored.close();
 });

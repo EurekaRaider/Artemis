@@ -2091,11 +2091,12 @@ ${model.providerId} · ${model.modelId}`,
                         />
                       </div>
                     )}
-                    {settings.update.state === "downloaded" && (
-                      <InlineNotice tone="success">
-                        {uiText(locale, "Update.downloaded")}
-                      </InlineNotice>
-                    )}
+                    {settings.update.state === "downloaded" &&
+                      !settings.update.message && (
+                        <InlineNotice tone="success">
+                          {uiText(locale, "Update.downloaded")}
+                        </InlineNotice>
+                      )}
                     {settings.update.completedVersion && (
                       <InlineNotice tone="success">
                         {uiText(locale, "Update.completed", {
@@ -2114,7 +2115,8 @@ ${model.providerId} · ${model.modelId}`,
                     {settings.update.message && (
                       <InlineNotice
                         tone={
-                          settings.update.state === "error"
+                          settings.update.state === "error" ||
+                          settings.update.state === "downloaded"
                             ? "danger"
                             : "neutral"
                         }

@@ -223,7 +223,7 @@ export class WindowsInstalledUpdater {
   private async downloadOnce(): Promise<ReleaseUpdateStatus> {
     if (!this.index || !gt(this.index.version, this.options.currentVersion))
       throw new Error("No update available");
-    this.emit({ state: "downloading", progress: 0 });
+    this.emit({ state: "downloading", progress: 0, message: "" });
     try {
       this.downloaded = await this.installer(this.index);
       this.emit({ state: "downloaded", progress: 100 });
@@ -237,14 +237,20 @@ export class WindowsInstalledUpdater {
     if (this.installOperation) return this.installOperation;
     this.installOperation = this.installOnce()
       .catch(async (error) => {
-        if (this.recovery.pending) {
-          await writeFile(this.recovery.pending.cancelMarker, "cancelled", {
-            mode: 0o600,
-          });
-          delete this.recovery.pending;
-          await this.save();
+        this.emit({
+          message: error instanceof Error ? error.message : String(error),
+        });
+        try {
+          if (this.recovery.pending) {
+            await writeFile(this.recovery.pending.cancelMarker, "cancelled", {
+              mode: 0o600,
+            });
+            delete this.recovery.pending;
+            await this.save();
+          }
+        } finally {
+          this.options.cancelPreparation?.();
         }
-        this.options.cancelPreparation?.();
         throw error;
       })
       .finally(() => {
@@ -257,6 +263,7 @@ export class WindowsInstalledUpdater {
       throw new Error("An update recovery is already pending");
     if (!this.index || !this.downloaded || this.status.state !== "downloaded")
       throw new Error("No verified installer ready");
+    this.emit({ message: "" });
     // A recoverable previous version is mandatory, including the first update.
     const previous = await this.indexAt(
       `${RELEASES}v${this.options.currentVersion}/windows-x64-update.json`,
@@ -307,29 +314,50 @@ export class WindowsInstalledUpdater {
     await this.save();
     const helper = join(this.root, "install-and-recover.ps1");
     await copyFile(this.options.helperPath, helper);
-    const child = spawn(
-      join(
-        process.env.SystemRoot ?? "C:\\Windows",
-        "System32/WindowsPowerShell/v1.0/powershell.exe",
-      ),
-      [
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        helper,
-        "-StatePath",
-        this.statePath,
-      ],
-      { detached: true, stdio: "ignore", windowsHide: true },
+    const launcher = join(this.root, "launch-recovery.cjs");
+    await copyFile(
+      join(dirname(this.options.helperPath), "windows-install-recover.cjs"),
+      launcher,
     );
-    await new Promise<void>((resolve, reject) => {
-      child.once("spawn", resolve);
-      child.once("error", reject);
-    });
+    // The relay must survive quitting without locking files NSIS replaces.
+    const runtime = join(this.root, "helper-runtime");
+    await mkdir(runtime, { recursive: true });
+    const host = join(runtime, "update-recovery.exe");
+    await copyFile(this.options.executable, host);
+    for (const name of [
+      "icudtl.dat",
+      "snapshot_blob.bin",
+      "v8_context_snapshot.bin",
+    ]) {
+      await copyFile(
+        join(dirname(this.options.executable), name),
+        join(runtime, name),
+      );
+    }
+    const logPath = join(this.root, "helper.log");
+    const log = await open(logPath, "w", 0o600);
+    let child: ReturnType<typeof spawn>;
+    let helperExit: number | null | undefined;
+    try {
+      child = spawn(host, [launcher, helper, this.statePath], {
+        detached: true,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+        stdio: ["ignore", log.fd, log.fd],
+        windowsHide: true,
+      });
+      child.once("exit", (code) => {
+        helperExit = code;
+      });
+      await new Promise<void>((resolve, reject) => {
+        child.once("spawn", resolve);
+        child.once("error", reject);
+      });
+    } finally {
+      await log.close();
+    }
     child.unref();
     for (let attempt = 0; attempt < 100; attempt++) {
+      if (helperExit !== undefined) break;
       let ready = false;
       try {
         ready =
@@ -343,9 +371,12 @@ export class WindowsInstalledUpdater {
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    throw new Error(
-      "Update recovery helper did not become ready; application remains open",
-    );
+    const detail = (await readFile(logPath, "utf8")).trim().slice(-4096);
+    const reason =
+      helperExit === undefined
+        ? "Update recovery helper did not become ready; application remains open"
+        : `Update recovery helper exited (${helperExit}) before becoming ready`;
+    throw new Error(detail ? `${reason}\n${detail}` : reason);
   }
   async markHealthy(): Promise<void> {
     if (this.recovery.pending?.version !== this.options.currentVersion) return;

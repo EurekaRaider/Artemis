@@ -1,9 +1,30 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
 import { SettingsPanel } from "../../../src/renderer/app/SettingsPanel.js";
+import { App } from "../../../src/renderer/app/App.js";
 import type { SettingsSnapshot } from "../../../src/shared/api.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ i18n: { changeLanguage: vi.fn() } }),
+}));
+vi.mock("../../../src/renderer/appearance/desktop-skin-bootstrap.js", () => ({
+  desktopSkinHost: { setTheme: vi.fn() },
+  desktopSkinReady: Promise.resolve(),
+}));
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  localStorage.removeItem("artemis-sidebar-open");
+});
 
 function fixture(): SettingsSnapshot {
   return {
@@ -108,3 +129,109 @@ it.each([false, true])(
     );
   },
 );
+
+it("shows a failed installation in maintenance instead of a successful download notice", async () => {
+  const settings = fixture();
+  settings.update = {
+    state: "downloaded",
+    currentVersion: "1.0.0",
+    availableVersion: "1.1.0",
+    rollbackAvailable: false,
+    message: "Update recovery helper exited (1) before becoming ready",
+  };
+  stubWindowArtemis({
+    getSettings: async () => settings,
+    onUpdateStatus: () => () => {},
+  });
+  render(
+    <SettingsPanel
+      locale="en"
+      initialTab="maintenance"
+      initialSettings={settings}
+      onClose={() => {}}
+      onSettingsChange={() => {}}
+    />,
+  );
+  expect(await screen.findByText(settings.update.message)).toBeInTheDocument();
+  expect(
+    screen.queryByText("Download complete. Restart to install."),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Install update" })).toBeEnabled();
+});
+
+it("keeps the sidebar installation failure visible and supports retry", async () => {
+  vi.stubGlobal("requestIdleCallback", () => 0);
+  vi.stubGlobal("cancelIdleCallback", () => {});
+  localStorage.setItem(
+    "artemis-sidebar-open",
+    JSON.stringify({ protocolVersion: 1, value: true }),
+  );
+  const settings = fixture();
+  settings.update = {
+    state: "downloaded",
+    currentVersion: "1.0.0",
+    availableVersion: "1.1.0",
+    rollbackAvailable: false,
+  };
+  let updateStatus: ((value: SettingsSnapshot["update"]) => void) | undefined;
+  const errorMessage =
+    "Update recovery helper exited (1) before becoming ready";
+  const installUpdate = vi
+    .fn()
+    .mockImplementationOnce(async () => {
+      updateStatus?.({ ...settings.update, message: errorMessage });
+      throw new Error(errorMessage);
+    })
+    .mockImplementationOnce(async () => {
+      updateStatus?.({ ...settings.update, message: "" });
+    });
+  const pending = new Promise(() => {});
+  const handlers: Record<string, unknown> = {
+    getSnapshot: async () => ({
+      projects: [],
+      threads: [],
+      worktrees: [],
+      events: {},
+      locale: "en",
+      platform: "win32",
+      userName: "Update Test",
+      sandbox: { available: true },
+    }),
+    getSettings: async () => settings,
+    onUpdateStatus: (callback: typeof updateStatus) => {
+      updateStatus = callback;
+      return () => {};
+    },
+    installUpdate,
+  };
+  stubWindowArtemis(
+    new Proxy(handlers, {
+      get(target, key) {
+        if (String(key) in target) return target[String(key)];
+        if (String(key).startsWith("on")) return () => () => {};
+        return () => pending;
+      },
+    }),
+  );
+  const { container } = render(<App />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Install update" }),
+  );
+  const footer = container.querySelector(".sidebar-footer")! as HTMLElement;
+  expect(await within(footer).findByRole("alert")).toHaveTextContent(
+    errorMessage,
+  );
+  expect(
+    within(footer).getByRole("button", { name: "Install update" }),
+  ).toBeEnabled();
+  await act(async () => {
+    fireEvent.click(
+      within(footer).getByRole("button", { name: "Install update" }),
+    );
+  });
+  expect(installUpdate).toHaveBeenCalledTimes(2);
+  expect(within(footer).queryByRole("alert")).not.toBeInTheDocument();
+  expect(within(footer).getByRole("status")).toHaveTextContent(
+    "Installing update",
+  );
+});

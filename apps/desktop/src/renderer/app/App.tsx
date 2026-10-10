@@ -6169,9 +6169,15 @@ export function App() {
               </button>
             )}
             {(runtimeSettings?.update.state === "downloading" ||
-              runtimeSettings?.update.state === "downloaded") && (
+              runtimeSettings?.update.state === "downloaded" ||
+              (runtimeSettings?.update.state === "error" &&
+                runtimeSettings.update.message)) && (
               <div className="sidebar-update-progress">
-                {runtimeSettings.update.state === "downloading" ? (
+                {runtimeSettings.update.message &&
+                runtimeSettings.update.state !== "downloading" &&
+                !installingUpdate ? (
+                  <span role="alert">{runtimeSettings.update.message}</span>
+                ) : runtimeSettings.update.state === "downloading" ? (
                   <>
                     <span>
                       {statusText(locale, "downloading")}{" "}

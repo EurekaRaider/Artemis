@@ -1,7 +1,7 @@
 param([Parameter(Mandatory = $true)][string]$StatePath)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$state = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
+$state = Get-Content -LiteralPath $StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
 $pending = $state.pending
 if (-not $pending) { throw 'Missing update transaction' }
 $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -13,13 +13,20 @@ function Save-State {
 function Test-Installer([string]$Path, [string]$Hash) {
   if ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Hash) { throw 'Installer hash mismatch' }
 }
+function Start-Executable([string]$Path, [string]$Arguments) {
+  $start = New-Object System.Diagnostics.ProcessStartInfo
+  $start.FileName = $Path
+  $start.Arguments = $Arguments
+  $start.UseShellExecute = $false
+  return [System.Diagnostics.Process]::Start($start)
+}
 function Run-Installer([string]$Path) {
-  $process = Start-Process -FilePath $Path -ArgumentList '/S' -PassThru
+  $process = Start-Executable $Path '/S --updated'
   if (-not $process.WaitForExit(180000)) { Stop-Process -Id $process.Id -Force; throw 'Installer timed out' }
   if ($process.ExitCode -ne 0) { throw "Installer exited $($process.ExitCode)" }
 }
 function Start-Artemis {
-  return Start-Process -FilePath $pending.executable -ArgumentList ('--user-data-dir="' + $pending.userData + '"') -PassThru
+  return Start-Executable $pending.executable ('--user-data-dir="' + $pending.userData + '"')
 }
 Test-Installer $pending.installer $pending.installerHash
 Test-Installer $pending.previousInstaller $pending.previousHash
@@ -44,14 +51,21 @@ try {
   $newProcess = Start-Artemis
   $deadline = [DateTime]::UtcNow.AddSeconds(120)
   while ([DateTime]::UtcNow -lt $deadline) {
-    if ((Test-Path -LiteralPath $pending.healthMarker) -and (Get-Content -LiteralPath $pending.healthMarker -Raw).Trim() -eq $pending.version) {
+    if ((Test-Path -LiteralPath $pending.healthMarker) -and (Get-Content -LiteralPath $pending.healthMarker -Raw -Encoding UTF8).Trim() -eq $pending.version) {
       $state.PSObject.Properties.Remove('pending'); Save-State
+      # Cleanup must never turn a healthy installation into a rollback.
+      try {
+        Remove-Item -LiteralPath $pending.previousInstaller -Force
+      } catch {
+        Write-Output ("Update succeeded; previous installer cleanup failed: " + $_.Exception.Message)
+      }
       exit 0
     }
     Start-Sleep -Milliseconds 250
   }
   throw 'Application health deadline exceeded'
 } catch {
+  Write-Output ("Update failed: " + $_.Exception.Message)
   if ($newProcess -and -not $newProcess.HasExited) {
     & "$env:SystemRoot\System32\taskkill.exe" /PID $newProcess.Id /T /F | Out-Null
     if (-not $newProcess.WaitForExit(10000)) { throw 'Cannot stop unhealthy application; database preserved' }

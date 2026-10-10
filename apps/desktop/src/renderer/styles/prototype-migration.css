@@ -310,6 +310,11 @@
   display: flex;
   justify-content: space-between;
 }
+.sidebar-update-progress > [role="alert"] {
+  color: var(--danger);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .sidebar-update-progress progress {
   appearance: none;
   inline-size: 100%;
