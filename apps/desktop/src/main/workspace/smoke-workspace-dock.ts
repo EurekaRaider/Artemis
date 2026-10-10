@@ -529,6 +529,7 @@ export async function driveSmokeWorkspaceDockEvidence(
       () =>
         controls.submit === 1 &&
         events.failures.length > failureBaseline &&
+        !current.loading &&
         surface.getAttribute('data-state') === 'error',
       'submitted loading/error state',
       30_000, // Windows loopback connection refusal can exceed ten seconds.
