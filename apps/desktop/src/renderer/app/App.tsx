@@ -4,6 +4,7 @@ import {
   preserveLoadedEvents,
 } from "../conversation/stream-snapshot.js";
 import { BoundedStateCache } from "./bounded-state-cache.js";
+import type { WindowMaterial } from "../../shared/window-material.js";
 import { PlanConfirmationCard } from "../conversation/PlanConfirmationCard.js";
 import { isExecutionMode } from "@artemis/protocol";
 import { claimUpdateAnnouncement } from "../updates/update-announcement.js";
@@ -936,6 +937,7 @@ export function App() {
   const imThreadStatus = useImThreadStatus();
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
+  const [windowMaterial, setWindowMaterial] = useState<WindowMaterial>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
   const [activeThreadId, setActiveThreadId] = useState<string>();
   const [composerDrafts, setComposerDrafts] = useState<ComposerDrafts>({});
@@ -3107,6 +3109,13 @@ export function App() {
   useEffect(() => {
     let mounted = true;
     // History capability icons need plugin metadata before the skill menu opens.
+    let receivedMaterial = false;
+    const unsubscribeMaterial = window.artemis.onWindowMaterialChanged?.(
+      (material) => {
+        receivedMaterial = true;
+        setWindowMaterial(material);
+      },
+    );
     void window.artemis
       .listArtemisPlugins()
       .then((plugins) => {
@@ -3122,6 +3131,7 @@ export function App() {
       if (!mounted) return;
       performance.mark?.("artemis:snapshot-ready");
       setSnapshot(value);
+      if (!receivedMaterial) setWindowMaterial(value.windowMaterial);
       const project = value.projects[0];
       setActiveProjectId(project?.id);
       setActiveThreadId(undefined);
@@ -3355,6 +3365,7 @@ export function App() {
     );
     return () => {
       mounted = false;
+      unsubscribeMaterial?.();
       unsubscribe();
       unsubscribeBatch();
       unsubscribeImTasks?.();
@@ -5965,8 +5976,10 @@ export function App() {
         } as CSSProperties
       }
       data-sidebar-animating={sidebarAnimating || undefined}
+      data-sidebar-resizing={projectSidebarResizing || undefined}
       data-sidebar-peek={(sidebarPeek && !sidebarOpen) || undefined}
       data-platform={snapshot.platform}
+      data-window-material={windowMaterial}
       data-renderer-ready="true"
       sidebarOpen={sidebarOpen}
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
@@ -7651,7 +7664,10 @@ export function App() {
                   <div className="composer-wrap">
                     {turnFailureBanner}
                     <Suspense fallback={null}>
-                      <ComputerUseControls locale={locale} />
+                      <ComputerUseControls
+                        locale={locale}
+                        nativeGlass={windowMaterial === "acrylic"}
+                      />
                       <ComputerPreview
                         locale={locale}
                         threadId={activeThreadId}

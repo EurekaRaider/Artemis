@@ -789,6 +789,7 @@ export interface RendererDiagnostic {
 
 export interface DesktopSnapshot extends AppSnapshot {
   userName: string;
+  windowMaterial?: import("./window-material.js").WindowMaterial;
 }
 
 export interface ProjectGitBranch {
@@ -948,6 +949,9 @@ export interface ArtemisApi {
   saveImSettings(settings: ImSettings): Promise<ImStatus>;
   manageIm(input: ImManagement): Promise<unknown>;
   getSnapshot(): Promise<DesktopSnapshot>;
+  onWindowMaterialChanged(
+    listener: (material: import("./window-material.js").WindowMaterial) => void,
+  ): () => void;
   getThreadHistory(
     threadId: string,
     cursor?: ThreadHistoryCursor,
@@ -1528,6 +1532,7 @@ export const IPC = {
   imSave: "artemis:im-save",
   imManage: "artemis:im-manage",
   snapshot: "artemis:snapshot",
+  windowMaterialChanged: "artemis:window-material-changed",
   threadHistory: "artemis:thread-history",
   threadEvents: "artemis:thread-events",
   threadTaskSummary: "artemis:thread-task-summary",

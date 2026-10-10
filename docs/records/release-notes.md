@@ -1,15 +1,17 @@
-# Artemis v1.7.9
+# Artemis v1.7.10
 
 ## 中文
 
-- 聊天轮次的文件变更卡展开后使用一个连续列表；展开/收起按钮始终位于列表下方，默认显示前三个文件。
-- 展开/收起按钮保留键盘焦点，支持 Enter 和空格，向辅助技术提供关联列表及当前展开状态，并补齐 14 种界面语言的收起文案。
+- Windows 主窗口使用统一标题栏，在支持的系统上使用原生 Acrylic 玻璃材质，并保留系统窗口按钮。
+- Windows 面板支持展开、收起与反向切换动画；拖动调整宽度时直接跟随指针，减少动态效果偏好禁用动画。
+- 减少透明度、高对比度或强制颜色模式使用不透明表面；Computer Use 控件随窗口材质变化清除或恢复透明区域。
 - Computer Use、Design 和 Office 独立运行时沿用现有已发布版本。
 
 ## English
 
-- Keep expanded turn changes in one continuous file list. Place the show/hide button below the list and show the first three files by default.
-- Preserve keyboard focus on the show/hide button, support Enter and Space, expose its associated list and expanded state to assistive technology, and add the hide label in all 14 interface languages.
+- Use a unified Windows main-window title bar with native Acrylic surfaces on supported systems and retain the system caption buttons.
+- Animate Windows panel opening, closing and reversals. Follow pointer resizing directly and disable animation when reduced motion is requested.
+- Use opaque surfaces for reduced transparency, high contrast or forced colors. Remove or restore the Computer Use control cutout when the window material changes.
 - Retain the existing published Computer Use, Design and Office runtime versions.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。

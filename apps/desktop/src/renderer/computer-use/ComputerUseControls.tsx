@@ -38,9 +38,11 @@ const reasonKeys: Readonly<Record<string, UiMessageKey>> = {
 export function ComputerUseControls({
   locale,
   permissionsOnly = false,
+  nativeGlass = false,
 }: {
   locale: AppLocale;
   permissionsOnly?: boolean;
+  nativeGlass?: boolean;
 }) {
   const copy = COMPUTER_USE_RESOURCES[locale];
   const [state, setState] = useState<ComputerControlState>({
@@ -64,13 +66,13 @@ export function ComputerUseControls({
       !active ||
       !control ||
       !conversation ||
-      !control.closest('.app-shell[data-platform="darwin"]')
+      (!nativeGlass && !control.closest('.app-shell[data-platform="darwin"]'))
     )
       return;
     const update = () => {
       const pane = conversation.getBoundingClientRect();
       const bar = control.getBoundingClientRect();
-      // The BrowserWindow already has the sidebar's native vibrancy underneath.
+      // The BrowserWindow already has its native material underneath.
       // Cut only this rounded rectangle out of the opaque conversation canvas.
       const mask = `<svg xmlns="http://www.w3.org/2000/svg" width="${pane.width}" height="${pane.height}"><defs><mask id="cutout"><rect width="100%" height="100%" fill="white"/><rect x="${bar.x - pane.x}" y="${bar.y - pane.y}" width="${bar.width}" height="${bar.height}" rx="12" fill="black"/></mask></defs><rect width="100%" height="100%" mask="url(#cutout)"/></svg>`;
       conversation.style.setProperty(
@@ -97,7 +99,7 @@ export function ComputerUseControls({
       delete conversation.dataset.computerGlass;
       conversation.style.removeProperty("--computer-glass-mask");
     };
-  }, [active]);
+  }, [active, nativeGlass]);
   useEffect(() => {
     if (permissionsOnly || !window.artemis.onComputerState) return;
     let live = true;

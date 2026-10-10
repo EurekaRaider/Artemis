@@ -96,6 +96,14 @@ const api: ArtemisApi = {
   saveImSettings: (settings) => ipcRenderer.invoke(IPC.imSave, settings),
   manageIm: (input) => ipcRenderer.invoke(IPC.imManage, input),
   getSnapshot: () => ipcRenderer.invoke(IPC.snapshot),
+  onWindowMaterialChanged(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      material: import("../shared/window-material.js").WindowMaterial,
+    ) => listener(material);
+    ipcRenderer.on(IPC.windowMaterialChanged, handler);
+    return () => ipcRenderer.removeListener(IPC.windowMaterialChanged, handler);
+  },
   getThreadHistory: (threadId, cursor) =>
     ipcRenderer.invoke(IPC.threadHistory, threadId, cursor),
   getThreadEvents: (threadId) => ipcRenderer.invoke(IPC.threadEvents, threadId),

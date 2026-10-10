@@ -54,11 +54,12 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.9** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.10** · [Release notes](docs/records/release-notes.md).
 
-This revision keeps expanded turn changes in one file list, with a localized
-button below the list to show or hide additional files. The button preserves
-keyboard focus and supports Enter and Space. Computer Use runtime **1.2.2** requires Artemis **1.7.8** or
+This revision adds a unified Windows title bar and native Acrylic surfaces on
+supported systems. Transparency and high-contrast preferences select opaque
+surfaces, while reduced-motion preferences disable panel animations. Computer
+Use controls follow the current window material. Computer Use runtime **1.2.2** requires Artemis **1.7.8** or
 newer. Development Electron uses a matching development helper; signed releases
 use the independently verified runtime. Previews align below the environment
 panel, and completed agent activity leaves the compact list after five seconds.

@@ -92,3 +92,48 @@ it("stops, resumes and revokes the actual target's grant", async () => {
   expect(revoke).toHaveBeenCalledWith("browser");
   expect(await screen.findByText("没有应用授权")).toBeVisible();
 });
+
+it("removes the Windows native cutout when Acrylic falls back to an opaque surface", async () => {
+  const disconnect = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      disconnect = disconnect;
+    },
+  );
+  stubWindowArtemis({
+    getComputerState: async () => ({
+      version: 1,
+      state: "paused",
+      threadId: "task",
+    }),
+    onComputerState: () => () => {},
+  });
+  const view = (nativeGlass: boolean) => (
+    <div className="app-shell" data-platform="win32">
+      <div className="conversation">
+        <ComputerUseControls locale="zh-CN" nativeGlass={nativeGlass} />
+      </div>
+    </div>
+  );
+  const rendered = render(view(true));
+  try {
+    const control = await screen.findByRole("complementary");
+    const conversation = control.closest<HTMLElement>(".conversation")!;
+    expect(control.dataset.nativeGlass).toBe("true");
+    expect(
+      conversation.style.getPropertyValue("--computer-glass-mask"),
+    ).toContain("data:image/svg+xml");
+    rendered.rerender(view(false));
+    expect(control.dataset.nativeGlass).toBeUndefined();
+    expect(conversation.dataset.computerGlass).toBeUndefined();
+    expect(conversation.style.getPropertyValue("--computer-glass-mask")).toBe(
+      "",
+    );
+    expect(disconnect).toHaveBeenCalledOnce();
+  } finally {
+    rendered.unmount();
+    vi.unstubAllGlobals();
+  }
+});

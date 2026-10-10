@@ -421,8 +421,8 @@ describe("renderer layout contract", () => {
       "utf8",
     );
     expect(appSource).toContain("data-platform={snapshot.platform}");
-    expect(mainProcessSource).toContain(
-      'titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default"',
+    expect(mainProcessSource).toMatch(
+      /titleBarStyle:\s*process\.platform === "darwin"\s*\? "hiddenInset"\s*:\s*process\.platform === "win32"\s*\? "hidden"\s*: "default"/u,
     );
     expect(mainProcessSource).toContain(
       "trafficLightPosition: { x: 18, y: 17 }",

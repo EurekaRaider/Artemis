@@ -159,6 +159,20 @@ jobs:
             ${{ runner.temp }}/artemis-visual-convergence/**/*.log
           if-no-files-found: warn
           retention-days: 7
+      - name: Verify Windows window material and panel motion
+        if: matrix.platform == 'windows-x64'
+        run: node apps/desktop/scripts/verify/ui/verify-window-glass.mjs
+        env:
+          ARTEMIS_GLASS_EXTENDED: "1"
+          ARTEMIS_GLASS_ASSERT_MOTION: "1"
+      - name: Preserve Windows window material evidence
+        if: always() && matrix.platform == 'windows-x64'
+        uses: actions/upload-artifact@v6
+        with:
+          name: window-glass-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: artifacts/verification/window-glass
+          if-no-files-found: warn
+          retention-days: 7
   hooks-native:
     name: Hooks native acceptance (${{ matrix.platform }})
     env:

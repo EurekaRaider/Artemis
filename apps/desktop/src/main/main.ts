@@ -31,6 +31,11 @@ import { PanelSendEntryService } from "./design/design-plugin-send-entry.js";
 import { ProviderLoginService } from "./settings/provider-login-service.js";
 import { isExecutionMode } from "@artemis/protocol";
 import { AppearanceService } from "./appearance/appearance-service.js";
+import {
+  applyWindowsWindowMaterial,
+  windowsTitleBarOverlay,
+} from "./appearance/windows-window-material.js";
+import type { WindowMaterial } from "../shared/window-material.js";
 import { HooksService, type HookContext } from "./hooks/hooks-service.js";
 import { migratePluginUserData } from "./plugins/plugin-data-migration.js";
 import {
@@ -114,7 +119,7 @@ import {
   stat,
   writeFile,
 } from "node:fs/promises";
-import { userInfo } from "node:os";
+import { userInfo, release as osRelease } from "node:os";
 import { monitorEventLoopDelay, type IntervalHistogram } from "node:perf_hooks";
 import {
   basename,
@@ -546,6 +551,8 @@ interface PendingMultiUserInput {
 }
 
 let mainWindow: BrowserWindow | undefined;
+let windowMaterial: WindowMaterial =
+  process.platform === "darwin" ? "vibrancy" : "web";
 let store: AppStore | undefined;
 // S1 design-plugin panel host; created in the ready handler below.
 let designPanelHost: DesignPanelHost | undefined;
@@ -880,11 +887,33 @@ function applyMacDockIcon(): void {
 
 function syncWindowBackgroundColors(): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    window.setBackgroundColor(windowBackgroundColor());
+    if (process.platform === "win32" && window === mainWindow) {
+      syncMainWindowMaterial(window);
+    } else {
+      window.setBackgroundColor(windowBackgroundColor());
+    }
   }
   designPanelHost?.broadcastTheme(
     nativeTheme.shouldUseDarkColors ? "dark" : "light",
   );
+}
+
+function syncMainWindowMaterial(window: BrowserWindow): void {
+  if (process.platform !== "win32") return;
+  window.setTitleBarOverlay(
+    windowsTitleBarOverlay(nativeTheme.shouldUseDarkColors),
+  );
+  const next = applyWindowsWindowMaterial(window, {
+    release: osRelease(),
+    dark: nativeTheme.shouldUseDarkColors,
+    reducedTransparency: nativeTheme.prefersReducedTransparency,
+    highContrast: nativeTheme.shouldUseHighContrastColors,
+    forcedColors: nativeTheme.inForcedColorsMode,
+  });
+  if (next !== windowMaterial) {
+    windowMaterial = next;
+    window.webContents.send(IPC.windowMaterialChanged, next);
+  }
 }
 
 function applyNativeTheme(theme: AppTheme): void {
@@ -8225,6 +8254,7 @@ function registerIpc(): void {
     return {
       ...snapshot,
       userName: smokeMode ? "Artemis" : userInfo().username,
+      windowMaterial,
     };
   });
   ipcMain.handle(
@@ -18097,7 +18127,20 @@ function createMainWindow(): BrowserWindow {
     title: "Artemis",
     show: !smokeArtifacts,
     enableLargerThanScreen: smokeArtifacts && process.platform === "darwin",
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    titleBarStyle:
+      process.platform === "darwin"
+        ? "hiddenInset"
+        : process.platform === "win32"
+          ? "hidden"
+          : "default",
+    ...(process.platform === "win32"
+      ? {
+          titleBarOverlay: windowsTitleBarOverlay(
+            nativeTheme.shouldUseDarkColors,
+          ),
+          autoHideMenuBar: true,
+        }
+      : {}),
     ...(process.platform === "darwin"
       ? {
           trafficLightPosition: { x: 18, y: 17 },
@@ -18118,6 +18161,7 @@ function createMainWindow(): BrowserWindow {
     // Set the final content viewport before React initializes its sidebar state.
     window.setContentSize(smokeWidth, smokeHeight);
   }
+  syncMainWindowMaterial(window);
   let editorsFlushed = false;
   let flushingEditors = false;
   window.on("close", (event) => {

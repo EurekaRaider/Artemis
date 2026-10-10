@@ -1,0 +1,99 @@
+/* Keep macOS's native vibrancy and existing chrome untouched. Acrylic supplies
+   the desktop blur; CSS adds only tint, edge light and depth on Windows. */
+.app-shell[data-platform="win32"] {
+  /* Windows Acrylic keeps much more wallpaper chroma than macOS vibrancy.
+     A neutral veil keeps the sidebar close to the canvas in either theme. */
+  --sidebar-native-tint: 86%;
+  --sidebar-glass-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 0.14), 0 6px 18px rgb(0 0 0 / 0.08);
+  /* Keep both endpoints animated, including reversals after the JS toggle timer.
+     Match the existing macOS sidebar timing without animating pointer resizing. */
+  transition: grid-template-columns var(--sidebar-toggle-duration)
+    var(--sidebar-toggle-ease);
+}
+[data-artemis-theme="dark"] .app-shell[data-platform="win32"] {
+  --sidebar-native-tint: 72%;
+  --sidebar-glass-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 0.04), 0 6px 18px rgb(0 0 0 / 0.2);
+}
+.app-shell[data-platform="win32"] .workspace-header {
+  /* Reserve the system caption buttons while keeping one continuous header. */
+  padding-inline-end: calc(
+    100vw - env(titlebar-area-width, calc(100vw - 138px)) + 12px
+  );
+  -webkit-app-region: drag;
+  transition:
+    margin-inline-start var(--sidebar-toggle-duration)
+      var(--sidebar-toggle-ease),
+    padding-inline-start var(--sidebar-toggle-duration)
+      var(--sidebar-toggle-ease);
+}
+.app-shell[data-platform="win32"]
+  .workspace-header
+  :is(button, a, input, [role="menu"], [role="dialog"]) {
+  -webkit-app-region: no-drag;
+}
+.app-shell[data-platform="win32"] .environment-popover {
+  -webkit-app-region: no-drag;
+}
+.app-shell[data-platform="win32"][data-sidebar-resizing="true"] {
+  transition: none;
+}
+.app-shell[data-platform="win32"]
+  [data-artemis-component="workspace-dock"]:not([data-state="resizing"]) {
+  transition:
+    flex-basis var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+    min-inline-size var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+    max-inline-size var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+    inline-size var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+    opacity 180ms ease,
+    transform var(--sidebar-motion-duration) var(--sidebar-motion-ease),
+    visibility 0s linear;
+}
+.app-shell[data-platform="win32"]
+  [data-artemis-component="workspace-dock"][data-state="closed"] {
+  border-inline-start-width: 0;
+  transition-delay: 0s, 0s, 0s, 0s, 0s, 0s, var(--sidebar-motion-duration);
+}
+body:has(.app-shell[data-platform="win32"][data-window-material="acrylic"]),
+.app-shell[data-platform="win32"][data-window-material="acrylic"] {
+  background: transparent;
+}
+.app-shell[data-platform="win32"][data-window-material="acrylic"]
+  :is(.sidebar > [data-part="main"], .sidebar-rail) {
+  background:
+    var(--sidebar-glass-sheen),
+    color-mix(
+      in srgb,
+      var(--sidebar-native-color) var(--sidebar-native-tint),
+      transparent
+    );
+  backdrop-filter: none;
+  box-shadow: var(--sidebar-glass-shadow);
+}
+.app-shell[data-platform="win32"][data-window-material="acrylic"]
+  .sidebar[data-state="collapsed"] {
+  background: transparent;
+}
+.app-shell[data-platform="win32"][data-window-material="solid"]
+  :is(.sidebar > [data-part="main"], .sidebar-rail, .environment-popover) {
+  background: var(--artemis-color-background-sidebar);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-transparency: reduce), (forced-colors: active) {
+  .app-shell[data-platform="win32"]
+    :is(.sidebar > [data-part="main"], .sidebar-rail, .environment-popover) {
+    background: var(--artemis-color-background-sidebar);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell[data-platform="win32"],
+  .app-shell[data-platform="win32"] .workspace-header,
+  .app-shell[data-platform="win32"]
+    [data-artemis-component="workspace-dock"]:not([data-state="resizing"]) {
+    transition: none;
+  }
+}
