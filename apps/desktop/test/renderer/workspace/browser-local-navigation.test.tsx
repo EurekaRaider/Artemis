@@ -136,9 +136,14 @@ it("keeps a newer ready event when the initial open response arrives late", asyn
   );
 });
 
-it.each([false, true])(
-  "handles a navigation rejection after a newer browser event: %s",
-  async (newerEvent) => {
+it.each([
+  { newerEvent: false, rejected: true },
+  { newerEvent: true, rejected: true },
+  { newerEvent: false, rejected: false },
+  { newerEvent: true, rejected: false },
+])(
+  "handles a delayed navigation reply: %j",
+  async ({ newerEvent, rejected }) => {
     const ready: BrowserSessionSnapshot = {
       threadId: "task",
       tabId: "browser",
@@ -153,11 +158,16 @@ it.each([false, true])(
       height: 720,
     };
     let publish!: (value: BrowserSessionSnapshot) => void;
-    let rejectNavigation!: (error: Error) => void;
+    let finishNavigation!: () => void;
     stubWindowArtemis({
       browserSession: vi.fn((input) =>
         input.action === "navigate"
-          ? new Promise((_resolve, reject) => (rejectNavigation = reject))
+          ? new Promise((resolve, reject) => {
+              finishNavigation = () =>
+                rejected
+                  ? reject(new Error("Previous navigation failed"))
+                  : resolve({ ...ready, loading: true });
+            })
           : Promise.resolve(ready),
       ),
       onBrowserSession: (listener) => {
@@ -189,14 +199,14 @@ it.each([false, true])(
     fireEvent.click(screen.getByRole("button", { name: "Go" }));
     await act(async () => {
       if (newerEvent) publish({ ...ready, url: "https://current.test" });
-      rejectNavigation(new Error("Previous navigation failed"));
+      finishNavigation();
     });
     expect(container.querySelector(".browser-panel")).toHaveAttribute(
       "data-state",
-      newerEvent ? "ready" : "error",
+      newerEvent ? "ready" : rejected ? "error" : "loading",
     );
     expect(container.querySelector(".browser-error")?.textContent).toBe(
-      newerEvent ? undefined : "Previous navigation failed",
+      !newerEvent && rejected ? "Previous navigation failed" : undefined,
     );
   },
 );
