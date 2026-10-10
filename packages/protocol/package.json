@@ -1,6 +1,6 @@
 {
   "name": "@artemis/protocol",
-  "version": "1.7.10",
+  "version": "1.7.11",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -21,6 +21,6 @@
   },
   "dependencies": {
     "zod": "4.4.3",
-    "@artemis/plugin-contract": "1.7.10"
+    "@artemis/plugin-contract": "1.7.11"
   }
 }

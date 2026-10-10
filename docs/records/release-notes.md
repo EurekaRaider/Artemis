@@ -1,23 +1,23 @@
-# Artemis v1.7.10
+# Artemis v1.7.11
 
 ## 中文
 
-- Windows 主窗口使用统一标题栏，在支持的系统上使用原生 Acrylic 玻璃材质，并保留系统窗口按钮。
-- Windows 标题按钮始终在右侧预留空间，修复 RTL 高倍缩放时环境面板自动关闭的问题。
-- Windows 环境弹窗在标题栏下方保留原有阅读空间，避免中等宽度窗口意外关闭面板。
-- Windows 面板支持展开、收起与反向切换动画；拖动调整宽度时直接跟随指针，减少动态效果偏好禁用动画。
-- 减少透明度、高对比度或强制颜色模式使用不透明表面；Computer Use 控件随窗口材质变化清除或恢复透明区域。
-- 已固定在底部的聊天在展开内容及面板尺寸变化时及时跟随最新内容。
+- 修复 Windows 点击“安装更新”后更新助手未就绪、界面重新回到安装按钮的问题；更新助手可在应用退出后继续安装，并避免占用待替换的安装文件。
+- 修复更新恢复状态的中文路径读取和应用重启参数传递，支持包含中文和空格的路径。
+- 安装失败原因持续显示在侧边栏和更新设置中，重试时清除旧错误。
+- 新版本安装成功并通过健康检查后，自动删除上一版本安装包；更新失败时保留旧包并恢复升级前数据库，清理失败不会误触发回滚。
+- 确认 macOS 已有健康启动后清理安装包与更新缓存、清理失败后下次启动重试的逻辑。
+- 若旧版 Windows 仍无法在应用内安装更新，请下载并运行 v1.7.11 安装包一次，替换为修复后的更新助手。
 - Computer Use、Design 和 Office 独立运行时沿用现有已发布版本。
 
 ## English
 
-- Use a unified Windows main-window title bar with native Acrylic surfaces on supported systems and retain the system caption buttons.
-- Reserve Windows caption space on the physical right so the environment panel remains available in RTL layouts at high zoom.
-- Keep the existing reading area below the Windows caption row so medium-width windows do not unexpectedly close the environment panel.
-- Animate Windows panel opening, closing and reversals. Follow pointer resizing directly and disable animation when reduced motion is requested.
-- Use opaque surfaces for reduced transparency, high contrast or forced colors. Remove or restore the Computer Use control cutout when the window material changes.
-- Keep chats pinned to the latest content as disclosures expand and panels change size.
+- Fix Windows updates returning to the install button when the recovery helper fails to become ready. The helper continues after the application exits and avoids locking installation files that must be replaced.
+- Correct recovery state decoding and application restart arguments for paths with spaces or non-ASCII characters.
+- Keep installation errors visible in the sidebar and update settings, and clear them when retrying.
+- Remove the previous installer after the new version installs and passes its health check. Failed updates retain the rollback installer and restore the pre-update database; cleanup errors do not trigger rollback of a healthy update.
+- Confirm the existing macOS cleanup of successful update packages and caches, including retries on a later healthy startup when cleanup fails.
+- If an older Windows version cannot install the update in-app, download and run the v1.7.11 installer once to obtain the repaired updater.
 - Retain the existing published Computer Use, Design and Office runtime versions.
 
 发布验收结果以本版本关联的 CI、最终产物检查和实际平台测试为准；源码变更清单不替代验收证据。
