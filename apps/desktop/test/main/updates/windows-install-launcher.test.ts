@@ -29,6 +29,7 @@ it.skipIf(process.platform !== "win32")(
     const ready = join(root, "ready.marker");
     const survived = join(root, "survived.marker");
     const release = join(root, "release.marker");
+    const relayPid = join(root, "relay.pid");
     const application = join(root, "Artemis.exe");
     const host = join(root, "update-recovery.exe");
     try {
@@ -59,6 +60,7 @@ const { spawn } = require('node:child_process');
 fs.writeFileSync(${JSON.stringify(state)}, JSON.stringify({ parentPid: process.pid, ready: ${JSON.stringify(ready)}, survived: ${JSON.stringify(survived)}, release: ${JSON.stringify(release)} }));
 const log = fs.openSync(${JSON.stringify(join(root, "helper.log"))}, 'w');
 const child = spawn(${JSON.stringify(host)}, ${JSON.stringify([launcher, helper, state])}, { detached: true, windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+if (child.pid) fs.writeFileSync(${JSON.stringify(relayPid)}, String(child.pid));
 fs.closeSync(log);
 child.unref();
 child.once('error', () => process.exit(1));
@@ -76,6 +78,27 @@ setInterval(() => {
       await rename(application, `${application}.replaced`);
     } finally {
       await writeFile(release, "release");
+      const pid = await readFile(relayPid, "utf8").catch((error) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT")
+          return undefined;
+        throw error;
+      });
+      if (pid)
+        await expect
+          .poll(
+            () => {
+              try {
+                process.kill(Number(pid), 0);
+                return false;
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code !== "ESRCH")
+                  throw error;
+                return true;
+              }
+            },
+            { timeout: 10000 },
+          )
+          .toBe(true);
       await rm(root, { recursive: true, force: true, maxRetries: 3 });
     }
   },
