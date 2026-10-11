@@ -28,6 +28,8 @@ The 11 visual workloads for each macOS architecture run on three independent run
 
 Intel uses `macos-15-intel` and asserts that Node runs natively as x64. The complete desktop suite runs across two independent runners; shared builds, typechecking, formatting and workspace checks run separately. Desktop acceptance requires the shared checks and both shards to succeed. Windows desktop tests retain four shards. Sharding reduces elapsed time while preserving test isolation, performance budgets and security assertions.
 
+The UI Gallery traversal re-queries controls within their component sections at each of its 64 vertices, reducing repeated scans of the complete page. Role, accessible-name, visibility, node-identity and all state assertions remain, with the same 90-second timeout. Release version and credential preflight uses only Node and Git Bash and runs on Windows to avoid consuming shared macOS concurrency. Actual signing, notarization and native acceptance still run on each architecture's macOS runner.
+
 Final release acceptance is separate from ordinary CI. Release consumes the [current bilingual release notes](release-notes.md) and verifies the version heading; do not remove this file as an obsolete audit. Office Runtime has an independent release process. The desktop release reuses an existing runtime; desktop CI does not prove that runtime publication is complete.
 
 ## Diagnosing failures and preserving evidence

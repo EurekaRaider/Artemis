@@ -2815,7 +2815,11 @@ async function selectAxis(
   label: "Skin" | "Theme" | "Contrast",
   option: string,
 ): Promise<void> {
-  const group = screen.getByRole("group", { name: label });
+  const group = within(
+    document.querySelector<HTMLElement>(
+      '[aria-label="Gallery mode controls"]',
+    )!,
+  ).getByRole("group", { name: label });
   const button = within(group).getByRole("button", { name: option });
   if (button.getAttribute("aria-pressed") !== "true") await user.click(button);
 }
@@ -2850,7 +2854,13 @@ function expectPressedAxis(
   selectedOption: string,
 ): void {
   const buttons = within(
-    screen.getByRole("group", { name: label }),
+    within(
+      document.querySelector<HTMLElement>(
+        '[aria-label="Gallery mode controls"]',
+      )!,
+    ).getByRole("group", {
+      name: label,
+    }),
   ).getAllByRole("button");
   for (const button of buttons) {
     expect(button.getAttribute("aria-pressed")).toBe(
@@ -3233,12 +3243,21 @@ describe("default and synthetic stress skin conformance", () => {
       expect(matchMedia("(prefers-reduced-motion: reduce)").matches).toBe(
         environment.reducedMotion,
       );
-      const afterSwitch = screen.getByRole("textbox", {
+      const afterSwitch = within(
+        container.querySelector<HTMLElement>(
+          '[data-artemis-component="conformance-probe"]',
+        )!,
+      ).getByRole("textbox", {
         name: "Synthetic value",
       });
       expect(afterSwitch).toBe(probeControl);
       expect(afterSwitch).toHaveProperty("value", "preserve-changed");
-      const afterFormControl = screen.getByRole("textbox", {
+      const formQueries = within(
+        container.querySelector<HTMLElement>(
+          'section[aria-labelledby="form-heading"]',
+        )!,
+      );
+      const afterFormControl = formQueries.getByRole("textbox", {
         name: "Controlled text",
       });
       expect(afterFormControl).toBe(formControl);
@@ -3254,14 +3273,14 @@ describe("default and synthetic stress skin conformance", () => {
       );
       expect(
         (
-          screen.getByRole("checkbox", {
+          formQueries.getByRole("checkbox", {
             name: "Controlled checkbox",
           }) as HTMLInputElement
         ).checked,
       ).toBe(false);
       expect(
         (
-          screen.getByRole("switch", {
+          formQueries.getByRole("switch", {
             name: "Controlled switch",
           }) as HTMLInputElement
         ).checked,
@@ -3324,14 +3343,23 @@ describe("default and synthetic stress skin conformance", () => {
       }
       expect(splitSeparator.getAttribute("aria-valuenow")).toBe("256");
       expect(
-        screen.getByRole("tabpanel", {
+        within(
+          container.querySelector<HTMLElement>(
+            'section[aria-labelledby="navigation-heading"]',
+          )!,
+        ).getByRole("tabpanel", {
           name: "A very long localized activity comparison",
         }).id,
       ).toBe("gallery-details-panel");
-      const afterPrimaryAction = screen.getByRole("button", {
+      const actionQueries = within(
+        container.querySelector<HTMLElement>(
+          'section[aria-labelledby="action-heading"]',
+        )!,
+      );
+      const afterPrimaryAction = actionQueries.getByRole("button", {
         name: "compact primary",
       });
-      const afterActionStatus = screen
+      const afterActionStatus = actionQueries
         .getByText("2.5K / 10K")
         .closest('[data-artemis-component="status"]')!;
       expect(afterPrimaryAction).toBe(primaryAction);
@@ -3368,8 +3396,7 @@ describe("default and synthetic stress skin conformance", () => {
     expect(
       document.head.querySelector("style[data-gallery-stress-skin]"),
     ).not.toBeNull();
-    // The complete 64-vertex traversal takes about 49 seconds on the hosted
-    // Windows runner. Keep the matrix fail-closed while allowing runner variance.
+    // Keep every vertex and visibility/ARIA check within the same time budget.
   }, 90_000);
 
   it("binds every declared matrix case to a real behavior runner", () => {
