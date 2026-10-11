@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { renderToString } from "react-dom/server";
@@ -318,6 +324,51 @@ describe("TextField and SearchField", () => {
 });
 
 describe("Select", () => {
+  it.each(["Escape", "Enter"])(
+    "preserves newer input focus before the delayed %s return",
+    (key) => {
+      const frames = new Map<number, FrameRequestCallback>();
+      let nextFrame = 0;
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        (callback: FrameRequestCallback) => {
+          frames.set(++nextFrame, callback);
+          return nextFrame;
+        },
+      );
+      vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
+      const flushFrames = () =>
+        act(() => {
+          const pending = [...frames.values()];
+          frames.clear();
+          pending.forEach((callback) => callback(0));
+        });
+      render(
+        <>
+          <Select
+            label="Model"
+            onValueChange={vi.fn()}
+            options={OPTIONS}
+            searchPlaceholder="Find model"
+            value="alpha"
+          />
+          <input aria-label="Next input" type="number" />
+        </>,
+      );
+      const trigger = screen.getByRole("button", { name: "Model Alpha model" });
+      fireEvent.click(trigger);
+      flushFrames();
+      const search = screen.getByRole("combobox", { name: "Find model" });
+      expect(document.activeElement).toBe(search);
+      fireEvent.keyDown(search, { key });
+      expect(screen.queryByRole("listbox")).toBeNull();
+      const nextInput = screen.getByRole("spinbutton", { name: "Next input" });
+      nextInput.focus();
+      flushFrames();
+      expect(document.activeElement).toBe(nextInput);
+    },
+  );
+
   it("preserves upward stylesheet placement while anchoring an open menu", async () => {
     const { container } = render(
       <div className="upward-select">

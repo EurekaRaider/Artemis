@@ -1103,9 +1103,12 @@ export function Select<Value extends string>({
   const closeAndFocus = () => {
     setOpen(false);
     setQuery("");
-    requestAnimationFrame(() =>
-      trigger.current?.focus({ preventScroll: true }),
-    );
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active === document.body || root.current?.contains(active)) {
+        trigger.current?.focus({ preventScroll: true });
+      }
+    });
   };
   const choose = (option: SelectOption<Value> | undefined) => {
     if (option === undefined || option.disabled) return;
