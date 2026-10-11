@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { assertInstalledComputerUse } from "./installed-computer-use-state.mjs";
 
 if (process.platform !== "darwin" || process.arch !== "x64")
   throw new Error("Intel capability acceptance requires native macOS x64");
@@ -70,26 +71,22 @@ try {
       { kind: "builtin", pluginName: "computer-use" },
       crypto.randomUUID(),
     );
+    const plugin = (await window.artemis.listArtemisPlugins()).find(
+      (plugin) => plugin.name === "computer-use",
+    );
     return {
       before,
       after: await window.artemis.computerRuntimeStatus(),
-      plugin: (await window.artemis.listArtemisPlugins()).find(
-        (plugin) => plugin.name === "computer-use",
-      ),
+      plugin,
+      skills: (await window.artemis.listInstalledSkills())
+        .filter((skill) => plugin?.skillNames.includes(skill.name))
+        .map(({ name, enabled }) => ({ name, enabled })),
+      mcpServers: (await window.artemis.listMcpServers())
+        .filter(({ config }) => plugin?.mcpServerIds.includes(config.id))
+        .map(({ config }) => ({ id: config.id, enabled: config.enabled })),
     };
   });
-  assert.equal(report.computerUse.before.activeVersion, undefined);
-  assert.equal(report.computerUse.before.supported, true);
-  assert(report.computerUse.before.availableVersion);
-  assert.equal(
-    report.computerUse.after.activeVersion,
-    report.computerUse.before.availableVersion,
-  );
-  assert.equal(
-    report.computerUse.plugin?.version,
-    report.computerUse.after.activeVersion,
-  );
-  assert.equal(report.computerUse.plugin?.enabled, true);
+  assertInstalledComputerUse(report.computerUse);
   report.checks.push(
     "Computer Use discovered, installed and probed by the signed packaged host in a fresh profile",
   );
