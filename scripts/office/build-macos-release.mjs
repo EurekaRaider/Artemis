@@ -24,6 +24,11 @@ import {
   capabilityPackManifestSchema,
 } from "@artemis/protocol";
 import { inventoryTree } from "../design-pack/pack.mjs";
+import {
+  macOfficeRuntimeSourceFilter,
+  macOfficeSigningTargets,
+  macOfficeIsMachO,
+} from "./macos-release-layout.mjs";
 import { withMacSigningKeychain } from "../release/macos-capability-signing.mjs";
 import { notarizeExistingMacApp } from "../../apps/desktop/scripts/release/notarize-macos-app.mjs";
 
@@ -81,10 +86,7 @@ try {
   await cp(resolve(source), app, {
     recursive: true,
     dereference: true,
-    filter: (path) =>
-      !/(?:^|\/)(?:_CodeSignature|sdk|help|gallery|template|Scripts|python(?:-core-[^/]+|[0-9.]*|\.bin)|LibreOfficePython\.framework)(?:\/|$)|\/(?:libpython[^/]*|pyuno\.so|libpyuno[^/]*|libpythonloader[^/]*)$/iu.test(
-        path,
-      ),
+    filter: macOfficeRuntimeSourceFilter,
   });
   await copyFile(resolve(bridge), join(app, "Contents/MacOS/office-bridge"));
   run("/usr/bin/install_name_tool", [
@@ -117,13 +119,7 @@ try {
         } finally {
           await handle.close();
         }
-        if (
-          [
-            0xfeedface, 0xfeedfacf, 0xcefaedfe, 0xcffaedfe, 0xcafebabe,
-            0xbebafeca, 0xcafebabf,
-          ].includes(header.readUInt32BE())
-        )
-          macho.push(path);
+        if (macOfficeIsMachO(path, header)) macho.push(path);
       } else throw new Error("Unexpected runtime link or device");
     }
   }
@@ -133,21 +129,9 @@ try {
     process.env,
     async ({ identity, keychain }) => {
       const nativeArch = process.arch === "x64" ? "x86_64" : "arm64";
-      for (const path of macho) {
+      for (const path of macho)
         run("/usr/bin/lipo", [path, "-verify_arch", nativeArch]);
-        run("/usr/bin/codesign", [
-          "--force",
-          "--timestamp",
-          "--options",
-          "runtime",
-          "--keychain",
-          keychain,
-          "--sign",
-          identity,
-          path,
-        ]);
-      }
-      for (const path of [...bundles, app])
+      for (const path of macOfficeSigningTargets(macho, bundles, app))
         run("/usr/bin/codesign", [
           "--force",
           "--timestamp",

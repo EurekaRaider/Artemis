@@ -3,6 +3,234 @@
   "publicKeys": {
     "artemis-office-release-2026-09": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAc1P2TQIuspA6pWz9L8dYLjox/bTnqyl5XcRRMck49ZI=\n-----END PUBLIC KEY-----\n"
   },
-  "manifests": [],
-  "updateUrl": "https://github.com/EurekaRaider/Artemis/releases/download/computer-use-stable/catalog.json"
+  "manifests": [
+    {
+      "schemaVersion": 1,
+      "id": "computer-use",
+      "version": "1.2.3",
+      "hostRange": ">=1.7.8 <2",
+      "platform": "darwin",
+      "arch": "arm64",
+      "minimumOS": "14",
+      "helperProtocol": 1,
+      "preview": {
+        "protocol": 1,
+        "module": "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node"
+      },
+      "sourceDigest": "45025d095c7d12f7320c73c37fae24d7c0efacc8c32be08befb73e4499e3665b",
+      "entrypoint": "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use",
+      "pluginRoot": "plugin",
+      "archive": {
+        "url": "https://github.com/EurekaRaider/Artemis/releases/download/computer-use-v1.2.3/computer-use-darwin-arm64.zip",
+        "sha256": "43793554ad0fa9f895c3b7d18c6c5d4bd26dea1c88a4d749e1d45243fe0d73f7",
+        "downloadBytes": 124219,
+        "unpackedBytes": 398104
+      },
+      "files": [
+        {
+          "path": "ArtemisComputerUse.app/Contents/_CodeSignature/CodeResources",
+          "sha256": "0612448e182019ef01b4f6cb63e28bb512a0c5fef6906646c1c49cdbbac678f5",
+          "bytes": 2642,
+          "executable": false
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/CodeResources",
+          "sha256": "4f9b4914ff40e9f1e18a286392c0b666bf94fab3a16826f2b3bc163e35d1c638",
+          "bytes": 1674,
+          "executable": false
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node",
+          "sha256": "6db3d9496034944e47014ff64bbdb2dcb4b81e407281d930266d1089bffde674",
+          "bytes": 105232,
+          "executable": true
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/Info.plist",
+          "sha256": "9cf49ebfff471651580aa78d1550e30097543bf3444f325e88f33327810d7cb7",
+          "bytes": 638,
+          "executable": false
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use",
+          "sha256": "6b859bd4bf5b5add96e65407535852d38da52e6539ef26476177e20bd158c199",
+          "bytes": 270976,
+          "executable": true
+        },
+        {
+          "path": "plugin/.mcp.json",
+          "sha256": "4a6ad28bb23761a7ef89ef66756160de1c63c7d90ed2532ddda53b80b5c6f3ba",
+          "bytes": 131,
+          "executable": false
+        },
+        {
+          "path": "plugin/artemis.plugin.json",
+          "sha256": "9d04f25c449aac9274c3e3a7f07615e7285cc6ce8dce026fd50536e32e36c5c9",
+          "bytes": 10883,
+          "executable": false
+        },
+        {
+          "path": "plugin/skills/computer-use/SKILL.md",
+          "sha256": "03c90a75b8d4581bdbb8cf610a9f4bc0ea2edc0f75eae632bf5ccfbad932102d",
+          "bytes": 5928,
+          "executable": false
+        }
+      ],
+      "native": {
+        "signer": "7GG7M8Q3LY",
+        "notarization": "accepted-stapled"
+      },
+      "signature": {
+        "keyId": "artemis-office-release-2026-09",
+        "value": "qMalbTLX0cbgngso5pQUNqhBvEl405i54Q3dF238b8E5qJXyt935ze4v0fdCeNJ/B++1hQRIzf8SKAZN8KflDQ=="
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "id": "computer-use",
+      "version": "1.2.3",
+      "hostRange": ">=1.7.8 <2",
+      "platform": "win32",
+      "arch": "x64",
+      "minimumOS": "11",
+      "helperProtocol": 1,
+      "preview": {
+        "protocol": 1,
+        "module": "artemis-computer-preview.node"
+      },
+      "sourceDigest": "45025d095c7d12f7320c73c37fae24d7c0efacc8c32be08befb73e4499e3665b",
+      "entrypoint": "artemis-computer-use.exe",
+      "pluginRoot": "plugin",
+      "archive": {
+        "url": "https://github.com/EurekaRaider/Artemis/releases/download/computer-use-v1.2.3/computer-use-win32-x64.zip",
+        "sha256": "4f7ac58abfd74307c3dd30af090c87060572990ba65b8642acee003fdd61034a",
+        "downloadBytes": 265372,
+        "unpackedBytes": 555054
+      },
+      "files": [
+        {
+          "path": "artemis-computer-preview.node",
+          "sha256": "ccde964f86abc542f43b8e0b862eed9328b1efb361d23933f5e73e92fd32a7d3",
+          "bytes": 199680,
+          "executable": true
+        },
+        {
+          "path": "artemis-computer-use.exe",
+          "sha256": "2de3ad055f0fc35dd2f6bf7a8165b6c02642e6a48cdc92bd31464e22a2aaeee1",
+          "bytes": 338432,
+          "executable": true
+        },
+        {
+          "path": "plugin/.mcp.json",
+          "sha256": "4a6ad28bb23761a7ef89ef66756160de1c63c7d90ed2532ddda53b80b5c6f3ba",
+          "bytes": 131,
+          "executable": false
+        },
+        {
+          "path": "plugin/artemis.plugin.json",
+          "sha256": "9d04f25c449aac9274c3e3a7f07615e7285cc6ce8dce026fd50536e32e36c5c9",
+          "bytes": 10883,
+          "executable": false
+        },
+        {
+          "path": "plugin/skills/computer-use/SKILL.md",
+          "sha256": "03c90a75b8d4581bdbb8cf610a9f4bc0ea2edc0f75eae632bf5ccfbad932102d",
+          "bytes": 5928,
+          "executable": false
+        }
+      ],
+      "native": {
+        "signer": null,
+        "notarization": "not-applicable"
+      },
+      "signature": {
+        "keyId": "artemis-office-release-2026-09",
+        "value": "/jjItvdKGUyMx49SgTEAL6gNlATituVKsEJ4/6Du689lw9O+ea89yOUFxY0gWSN4lDOzR+A++swQdet462YfAQ=="
+      }
+    }
+  ],
+  "updateUrl": "https://github.com/EurekaRaider/Artemis/releases/download/computer-use-stable/catalog.json",
+  "additionalManifests": [
+    {
+      "schemaVersion": 1,
+      "id": "computer-use",
+      "version": "1.2.3",
+      "hostRange": ">=1.7.14 <2",
+      "platform": "darwin",
+      "arch": "x64",
+      "minimumOS": "14",
+      "helperProtocol": 1,
+      "preview": {
+        "protocol": 1,
+        "module": "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node"
+      },
+      "sourceDigest": "45025d095c7d12f7320c73c37fae24d7c0efacc8c32be08befb73e4499e3665b",
+      "entrypoint": "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use",
+      "pluginRoot": "plugin",
+      "archive": {
+        "url": "https://github.com/EurekaRaider/Artemis/releases/download/computer-use-v1.2.3/computer-use-darwin-x64.zip",
+        "sha256": "d6b1a831b5c6fece09cc0d69f929cae2cddb2627e5e037c0a892aaac6f5e2919",
+        "downloadBytes": 130495,
+        "unpackedBytes": 352072
+      },
+      "files": [
+        {
+          "path": "ArtemisComputerUse.app/Contents/_CodeSignature/CodeResources",
+          "sha256": "492e7b0ce2b9701c4f47b2378b94414279f70e34af4e8a029c8b950193254095",
+          "bytes": 2642,
+          "executable": false
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/CodeResources",
+          "sha256": "05a4784c8fec7c41eb514f3c63dd91c85ccdefdd8c7b065b9138972c0adf456e",
+          "bytes": 1674,
+          "executable": false
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node",
+          "sha256": "09dccad0400f80cbcac1a384b78bc290c34b41d6bb3e5d1164f6160ed75a4219",
+          "bytes": 75440,
+          "executable": true
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/Info.plist",
+          "sha256": "9cf49ebfff471651580aa78d1550e30097543bf3444f325e88f33327810d7cb7",
+          "bytes": 638,
+          "executable": false
+        },
+        {
+          "path": "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use",
+          "sha256": "0f890591d8a50ac07efe4871aff3c35409ad5e6277747c39d073c9ef51dd52f7",
+          "bytes": 254736,
+          "executable": true
+        },
+        {
+          "path": "plugin/.mcp.json",
+          "sha256": "4a6ad28bb23761a7ef89ef66756160de1c63c7d90ed2532ddda53b80b5c6f3ba",
+          "bytes": 131,
+          "executable": false
+        },
+        {
+          "path": "plugin/artemis.plugin.json",
+          "sha256": "9d04f25c449aac9274c3e3a7f07615e7285cc6ce8dce026fd50536e32e36c5c9",
+          "bytes": 10883,
+          "executable": false
+        },
+        {
+          "path": "plugin/skills/computer-use/SKILL.md",
+          "sha256": "03c90a75b8d4581bdbb8cf610a9f4bc0ea2edc0f75eae632bf5ccfbad932102d",
+          "bytes": 5928,
+          "executable": false
+        }
+      ],
+      "native": {
+        "signer": "7GG7M8Q3LY",
+        "notarization": "accepted-stapled"
+      },
+      "signature": {
+        "keyId": "artemis-office-release-2026-09",
+        "value": "BdJwEDk9T6CXDCZoChQZw4qgNaz+jpo8hBqYlHdsPW9BlSAMV7xvsWXIx+OkbapkleLgH/cOLhJLXEIhzx/xDA=="
+      }
+    }
+  ]
 }

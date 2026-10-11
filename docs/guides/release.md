@@ -34,6 +34,8 @@ Office 使用 `scripts/office/sources.json` 中的固定版本与 SHA-256；空�
 
 `office-macos-release.yml` 在 `macos-15-intel` 上构建 Intel Office runtime：下载并核对固定引擎与 SDK，编译 UNO bridge，逐个验证 Mach-O 架构并签名，完成公证和 stapling，再安装最终签名 ZIP，执行 Word、Excel、PowerPoint 样本的编辑、导出与重新打开检查。公开附件后再次验证匿名在线安装，最后提出目录 PR。新增 Intel 清单要求 Artemis `>=1.7.14 <2`；发布前必须先更新宿主版本。使用新的不可变 runtime 版本号，保留现有 arm64 与 Windows 清单。
 
+macOS 运行时排除邮件与 SDK 辅助 shell 脚本 `senddoc`、`unoinfo`，避免普通 ZIP 丢失它们的扩展属性签名；同时排除代码目录中的可选数据库配置 `fbintl.conf`。先签署嵌套代码，最后签署主 bundle；保留真实 Mach-O 的架构校验，并区分共享 `CAFEBABE` 文件头的 Java 资源。
+
 Design 包仅生成 darwin-arm64 和 win32-x64。发布凭据只出现在受信任发布作业。Office 和 Design 目录变更生成 PR，维护者审查合并后客户端才能从目录发现新增能力包；自动化不直接写 main。
 
 Office 和 Design 目录 PR 仍使用 `ARTEMIS_RELEASE_TOKEN`，该令牌需拥有 `EurekaRaider/Artemis` 的 Contents 和 Pull requests 写权限。目录路径为 main 分支上的 `apps/desktop/resources/office-runtime/catalog.json` 和 `apps/desktop/resources/design-plugins/catalog.json`。

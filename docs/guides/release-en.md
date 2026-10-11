@@ -34,6 +34,8 @@ Office uses fixed versions and SHA-256 digests from `scripts/office/sources.json
 
 `office-macos-release.yml` builds the Intel Office runtime on `macos-15-intel`: it fetches pinned engine and SDK inputs, compiles the UNO bridge, verifies and signs each Mach-O architecture, notarizes and staples the app, then installs the final signed ZIP and exercises editing, PDF export and reopening of the Word, Excel and PowerPoint corpus. After publication it verifies anonymous online installation before proposing a catalog PR. New Intel manifests require Artemis `>=1.7.14 <2`; update the host version before releasing them. Use a new immutable runtime version and preserve the existing arm64 and Windows manifests.
 
+The macOS runtime excludes the optional mail and SDK shell helpers `senddoc` and `unoinfo`, whose signatures rely on extended attributes that plain ZIPs lose, and the optional database configuration `fbintl.conf` from code directories. Sign nested code before the main bundle. Preserve architecture checks for every real Mach-O file and distinguish Java resources that share the `CAFEBABE` header.
+
 Design packs are built only for darwin-arm64 and win32-x64. Release credentials exist only in trusted publishing jobs. Office and Design catalog changes create PRs; clients discover new capability packs after maintainer review and merge. Automation does not write directly to main.
 
 Office and Design catalog PRs still use `ARTEMIS_RELEASE_TOKEN`, which must have Contents and Pull requests write access to `EurekaRaider/Artemis`. The catalog paths are `apps/desktop/resources/office-runtime/catalog.json` and `apps/desktop/resources/design-plugins/catalog.json` on main.

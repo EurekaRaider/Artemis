@@ -83,8 +83,9 @@ from the release downloads once to obtain the repaired updater.
 Windows also uses a unified title bar and native Acrylic surfaces on supported
 systems. Transparency and high-contrast preferences select opaque
 surfaces, while reduced-motion preferences disable panel animations. Computer
-Use controls follow the current window material. Computer Use runtime **1.2.2** requires Artemis **1.7.8** or
-newer. Development Electron uses a matching development helper; signed releases
+Use controls follow the current window material. Computer Use runtime **1.2.3** requires Artemis
+**1.7.8** or newer on macOS arm64 and Windows x64, and **1.7.14** or newer on Intel macOS.
+Development Electron uses a matching development helper; signed releases
 use the independently verified runtime. Previews align below the environment
 panel, and completed agent activity leaves the compact list after five seconds.
 Design chats use the ordinary Plan, Work and Codemode tool policies, with plugin
