@@ -122,8 +122,12 @@ gh(
 );
 for (const name of digests.keys())
   gh("release", "upload", tag, join(out, name), "--repo", repo);
-const release = api("releases/tags/" + tag);
+// The tag endpoint can return 404 for a draft, even after all uploads finish.
+const release = api("releases?per_page=100").find(
+  (entry) => entry.tag_name === tag,
+);
 if (
+  !release?.draft ||
   release.assets.length !== digests.size ||
   release.assets.some(
     (a) =>

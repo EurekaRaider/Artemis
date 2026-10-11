@@ -115,8 +115,9 @@ function publish(
   writeFileSync(
     preload,
     `import cp from 'node:child_process';import {syncBuiltinESMExports} from 'node:module';import {readFileSync,writeFileSync} from 'node:fs';import {createHash} from 'node:crypto';import {basename} from 'node:path';
-const calls=[],assets=[];cp.execFileSync=(command,args)=>{if(command!=='gh')throw Error('unexpected command');calls.push(args);writeFileSync(${JSON.stringify(requests)},JSON.stringify(calls));
-if(args[0]==='api'){if(args[1].endsWith('releases/latest'))return JSON.stringify({tag_name:'v1.7.14'});if(args[1].includes('releases?'))return JSON.stringify(${options.existing ? "[{tag_name:'office-runtime-v1.0.2'}]" : "[]"});return JSON.stringify({assets});}
+const calls=[],assets=[];let created=false;cp.execFileSync=(command,args)=>{if(command!=='gh')throw Error('unexpected command');calls.push(args);writeFileSync(${JSON.stringify(requests)},JSON.stringify(calls));
+if(args[0]==='api'){if(args[1].endsWith('releases/latest'))return JSON.stringify({tag_name:'v1.7.14'});if(args[1].includes('releases/tags/'))throw Error('Not Found (HTTP 404)');if(args[1].includes('releases?'))return JSON.stringify(${options.existing ? "true" : "false"}||created?[{tag_name:'office-runtime-v1.0.2',draft:true,assets}]:[]);throw Error('unexpected API');}
+if(args[1]==='create')created=true;
 if(args[1]==='upload'){const path=args[3];const bytes=readFileSync(path);assets.push({name:basename(path),state:'uploaded',size:bytes.length,digest:'sha256:'+(${options.badUpload ? "'wrong'" : "createHash('sha256').update(bytes).digest('hex')"})});}return '';};syncBuiltinESMExports();`,
   );
   try {
@@ -146,7 +147,7 @@ if(args[1]==='upload'){const path=args[3];const bytes=readFileSync(path);assets.
     rmSync(root, { recursive: true, force: true });
   }
 }
-it("publishes verified immutable bytes without changing the app Latest", () => {
+it("validates draft uploads when the tag endpoint returns 404 and preserves Latest", () => {
   const result = publish();
   expect(result.error).toBe("");
   expect(result.calls.find((args) => args[1] === "create")).toContain(
@@ -154,6 +155,9 @@ it("publishes verified immutable bytes without changing the app Latest", () => {
   );
   expect(result.calls.find((args) => args[1] === "edit")).toContain(
     "--draft=false",
+  );
+  expect(result.calls.some((args) => args[1]?.includes("releases/tags/"))).toBe(
+    false,
   );
 });
 it("rejects bytes modified after native acceptance before creating a release", () => {
