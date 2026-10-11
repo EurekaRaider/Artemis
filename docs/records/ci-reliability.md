@@ -30,7 +30,7 @@ Intel 使用 `macos-15-intel`，并检查 Node 的原生架构为 x64。完整�
 
 UI Gallery 的 64 组合遍历在每个组件区域内重新查找控件，减少反复扫描完整页面的开销；角色、可访问名称、可见性、节点身份与全部状态断言仍保留，超时仍为 90 秒。Release 的版本与凭据预检只使用 Node 和 Git Bash，在 Windows runner 上执行，避免占用共享的 macOS 并发名额；实际签名、公证与原生验收仍在各架构的 macOS runner 上执行。
 
-macOS 汇总任务只核对前置任务状态，在 Windows runner 上执行，避免已通过的 Mac 检查等待 macOS 并发名额。Pi 模式策略测试复用一次真实 Shell 检测结果，Shell 调用仍使用真实原生执行路径；独立的 Shell 检测与配置测试继续覆盖环境变化。Intel Design 插件宿主使用与 arm64 相同的 Seatbelt 限制，内置能力包的安装架构仍由各自签名清单决定。
+macOS 汇总任务只核对前置任务状态，在 Windows runner 上执行，避免已通过的 Mac 检查等待 macOS 并发名额。Pi 模式策略测试复用一次真实 Shell 检测结果，并显式禁用该测试夹具的 profile 导入，Shell 调用仍使用真实原生执行路径；独立的 Shell 检测与配置测试继续覆盖默认 profile 行为和环境变化。测试超时也会取消真实 Pi 会话并恢复 mock，避免污染后续用例。Intel Design 插件宿主使用与 arm64 相同的 Seatbelt 限制，内置能力包的安装架构仍由各自签名清单决定。
 
 最终发布与普通 CI 是不同验收层次。Release 消费[当前中英文发布说明](release-notes.md)，并校验版本标题；此文件不能作为旧审计稿删除。Office Runtime 由独立发布流程维护，主程序发布复用已有运行时，不能据主程序 CI 推断运行时已经完成发布。
 

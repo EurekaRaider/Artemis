@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, it, vi } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 import {
   ModelRuntime,
   type AgentSession,
@@ -160,6 +160,18 @@ it.each(
         events.push({ type: "done", reason: message.stopReason, message });
         return events;
       });
+    let cleanup: Promise<void> | undefined;
+    const finish = () =>
+      (cleanup ??= (async () => {
+        await host.cancel("task");
+        stream.mockRestore();
+        classify.mockRestore();
+        host.dispose();
+        await Promise.all(imageFiles.map((path) => rm(path, { force: true })));
+        await rm(dir, { recursive: true, force: true });
+      })());
+    // Vitest timeouts must cancel the turn before later cases install new spies.
+    onTestFinished(finish);
     try {
       const selection = {
         providerId: "fixture",
@@ -169,6 +181,9 @@ it.each(
       await host.configure({
         credentials: {},
         selection,
+        // This matrix checks tool policy, not runner profile import. Commands
+        // remain native; bash-tool and shell-execution cover profile behavior.
+        shell: { windowsPreference: "auto", profileMode: "disabled" },
         providers: [
           {
             id: "fixture",
@@ -314,11 +329,7 @@ it.each(
       }
       expect(payloads.some((p) => p.type === "turn.completed")).toBe(true);
     } finally {
-      stream.mockRestore();
-      classify.mockRestore();
-      host.dispose();
-      await Promise.all(imageFiles.map((path) => rm(path, { force: true })));
-      await rm(dir, { recursive: true, force: true });
+      await finish();
     }
   },
 );
