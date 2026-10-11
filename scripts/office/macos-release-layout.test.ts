@@ -74,15 +74,25 @@ it.skipIf(process.platform !== "darwin")(
       const javaHeader = Buffer.from("cafebabe00000034", "hex");
       await writeFile(java, javaHeader);
       expect(macOfficeIsMachO(java, javaHeader.subarray(0, 4))).toBe(false);
-      const source = join(root, "main.c");
-      await writeFile(source, "int main(void) { return 0; }\n");
-      for (const arch of ["arm64", "x86_64"]) {
+      // Use real system code without making a format regression wait for clang.
+      const arches = execFileSync(
+        "/usr/bin/lipo",
+        ["/usr/bin/true", "-archs"],
+        {
+          encoding: "utf8",
+        },
+      )
+        .trim()
+        .split(/\s+/u)
+        .filter((arch) => arch === "x86_64" || /^arm64e?$/u.test(arch));
+      expect(arches).toHaveLength(2);
+      for (const arch of arches) {
         const executable = join(root, arch);
-        execFileSync("/usr/bin/clang", [
-          "-arch",
+        execFileSync("/usr/bin/lipo", [
+          "/usr/bin/true",
+          "-thin",
           arch,
-          source,
-          "-o",
+          "-output",
           executable,
         ]);
         expect(
@@ -95,8 +105,7 @@ it.skipIf(process.platform !== "darwin")(
       const universal = join(root, "universal");
       execFileSync("/usr/bin/lipo", [
         "-create",
-        join(root, "arm64"),
-        join(root, "x86_64"),
+        ...arches.map((arch) => join(root, arch)),
         "-output",
         universal,
       ]);
