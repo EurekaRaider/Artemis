@@ -424,6 +424,8 @@ the same source commit. Pull request jobs have read-only permissions and no
 release secrets. Native checks and actual installation evidence remain separate.
 Both macOS architectures split visual acceptance across three independent runners.
 Intel desktop tests also use two isolated shards; Windows keeps four.
+macOS jobs share npm and Electron download caches keyed by architecture and the
+lockfile; each job still installs dependencies and builds from its own checkout.
 
 ### Package the desktop
 

@@ -4,6 +4,8 @@
 
 Desktop builds and validation cover Windows x64, macOS arm64 and macOS x64. CI uses GitHub-hosted `windows-2025`, `macos-15` and `macos-15-intel` runners for main pushes, external fork PRs and manual invocations. PR permissions are read-only: they do not read signing keys or execute contributor code through `pull_request_target`. Public Intel downloads await the first official Release containing x64 assets.
 
+macOS CI and packaging jobs cache npm and Electron downloads by architecture and lockfile. Each job still runs `npm ci` and its required builds; user data, signing credentials and acceptance results are not cached.
+
 ## Desktop application
 
 The Release workflow may be started manually only from main. `release_tag` must equal `v<version>` in package.json, and the first release-notes line must match. All three targets rerun CI against that same commit every time; evidence from other commits is not reused. `publish=false` performs complete signing, notarization, packaging and artifact-collection validation without creating a Release or updating channels. Only `publish=true` publishes artifacts.

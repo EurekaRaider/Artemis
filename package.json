@@ -74,7 +74,7 @@
     "verify:skin-conformance": "npm run build:ui-foundation && npm run test -w @artemis/ui && npm run test -w @artemis/ui-gallery && node scripts/ui/verify-skin-conformance.mjs && node scripts/ui/test-skin-conformance.mjs",
     "test": "npm run test:shared && npm run test -w @artemis/desktop",
     "test:audit-production": "node scripts/dependencies/test-audit-production-dependencies.mjs && node scripts/dependencies/test-patch-pi-dependencies.mjs",
-    "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop",
+    "typecheck": "npm run build:core && npm run build:ui-libraries && npm run typecheck:built",
     "verify:latest-dock": "npm run build && node apps/desktop/scripts/verify/ui/verify-latest-dock.mjs",
     "verify:ci": "node scripts/ci/verify-ci.mjs",
     "verify:computer-use": "npm run build:core && node apps/desktop/scripts/verify/native/verify-computer-browser-input.mjs && node apps/desktop/scripts/verify/native/verify-computer-use.mjs",
@@ -95,11 +95,12 @@
     "plugin": "node scripts/plugin-tools/cli.mjs",
     "verify:layout": "node scripts/ci/verify-repository-layout.mjs",
     "verify:docs": "node scripts/ci/verify-bilingual-docs.mjs",
-    "test:shared": "npm run verify:layout && npm run verify:docs && node --test scripts/ci/test-pre-push.mjs scripts/slack/test-slack-cli.mjs && npm run test:audit-production && npm run build && node --test scripts/plugin-tools/test-plugin-tools.mjs scripts/build/test-desktop-css-optimization.mjs scripts/build/test-desktop-locale-optimization.mjs && npm run test -w @artemis/gateway && npm run test -w @artemis/plugin-contract && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && node scripts/ui/verify-skin-package.mjs && node scripts/ui/test-skin-package.mjs && npm run build:skin-tools && node --test scripts/ui/test-skin-tools.mjs && node scripts/ui/verify-skin-conformance.mjs && node scripts/ui/test-skin-conformance.mjs && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/ui/verify-ui-package-consumer.mjs && node scripts/ui/verify-ui-performance.mjs && node scripts/ui/test-ui-performance.mjs && node scripts/ui/verify-ui-gallery.mjs",
+    "test:shared": "npm run verify:layout && npm run verify:docs && node --test scripts/ci/test-pre-push.mjs scripts/slack/test-slack-cli.mjs && npm run test:audit-production && npm run build && node --test scripts/plugin-tools/test-plugin-tools.mjs scripts/build/test-desktop-css-optimization.mjs scripts/build/test-desktop-locale-optimization.mjs && npm run test -w @artemis/gateway && npm run test -w @artemis/plugin-contract && npm run test -w @artemis/protocol && npm run test -w @artemis/platform && npm run test -w @artemis/agent-host && npm run test -w @artemis/theme-contract && npm run test -w @artemis/ui && npm run test -w @artemis/theme-artemis && npm run test -w @artemis/ui-gallery && node scripts/ui/verify-skin-package.mjs && node scripts/ui/test-skin-package.mjs && node scripts/ui/build-skin-tools.mjs && node --test scripts/ui/test-skin-tools.mjs && node scripts/ui/verify-skin-conformance.mjs && node scripts/ui/test-skin-conformance.mjs && npm run verify:ui-convergence && npm run verify:ui-boundaries && node scripts/ui/verify-ui-package-consumer.mjs && node scripts/ui/verify-ui-performance.mjs && node scripts/ui/test-ui-performance.mjs && node scripts/ui/verify-ui-gallery.mjs",
     "package:mac:x64": "npm run package:mac:x64 -w @artemis/desktop",
     "sign:mac:x64": "npm run sign:mac:x64 -w @artemis/desktop",
     "notarize:mac:x64": "npm run notarize:mac:x64 -w @artemis/desktop",
-    "release:mac:x64": "npm run release:mac:x64 -w @artemis/desktop"
+    "release:mac:x64": "npm run release:mac:x64 -w @artemis/desktop",
+    "typecheck:built": "npm run typecheck -w @artemis/theme-contract && npm run typecheck -w @artemis/ui && npm run typecheck -w @artemis/theme-artemis && npm run typecheck -w @artemis/ui-gallery && npm run typecheck -w @artemis/desktop"
   },
   "devDependencies": {
     "@electron-internal/extract-zip": "1.0.4",

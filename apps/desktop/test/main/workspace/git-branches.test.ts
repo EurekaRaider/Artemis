@@ -482,12 +482,16 @@ describe("project Git branches", () => {
 
   it("reports conflicts and blocks commit and push", async () => {
     const path = await repository();
-    await createGitBranch(path, "conflict-side");
+    // Prepare the real conflict without unrelated desktop status refreshes.
+    // Branch and successful commit behavior have their own cases above.
+    await git(path, "switch", "-c", "conflict-side");
     await writeFile(join(path, "README.md"), "side\n", "utf8");
-    await commitProjectChanges(path, "side change");
-    await switchGitBranch(path, "main");
+    await git(path, "add", "README.md");
+    await git(path, "commit", "-m", "side change");
+    await git(path, "switch", "main");
     await writeFile(join(path, "README.md"), "main\n", "utf8");
-    await commitProjectChanges(path, "main change");
+    await git(path, "add", "README.md");
+    await git(path, "commit", "-m", "main change");
     await expect(git(path, "merge", "conflict-side")).rejects.toThrow();
 
     const info = await inspectGitBranches(path);

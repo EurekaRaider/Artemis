@@ -20879,7 +20879,30 @@ function createMainWindow(): BrowserWindow {
           ? 1_500
           : 500;
       void Promise.all([prepareSmokeView, nativeFilesSelection])
-        .then(() => new Promise((resolve) => setTimeout(resolve, settleDelay)))
+        .then(async () => {
+          if (
+            !Number.isFinite(requestedSettleDelay) &&
+            requestedSmokeView?.startsWith("environment")
+          ) {
+            // Environment drivers already wait for their actual UI state.
+            // Capture completed transitions and painted frames instead of
+            // adding the same 1.5-second sleep to every isolated case.
+            await window.webContents.executeJavaScript(`(async () => {
+              await document.fonts.ready;
+              await new Promise((resolve) => requestAnimationFrame(resolve));
+              const animations = document.getAnimations().filter((animation) =>
+                animation.playState === 'running' &&
+                Number.isFinite(animation.effect?.getComputedTiming().endTime),
+              );
+              await Promise.allSettled(animations.map((animation) => animation.finished));
+              await new Promise((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)),
+              );
+            })()`);
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, settleDelay));
+        })
         .then(async () => {
           // PR9B card-heatmap smoke: view routing has settled, so the Token
           // Usage page is mounted with its live subscription active and the

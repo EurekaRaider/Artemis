@@ -7,7 +7,8 @@ const commands = [
   "verify:slack-cli",
   "format:check",
   process.argv.includes("--shared-tests") ? "test:shared" : "test",
-  "typecheck",
+  // The successful test command already built these exact workspace sources.
+  "typecheck:built",
 ];
 if (process.env.ARTEMIS_SKIP_PRODUCTION_AUDIT !== "true") {
   commands.push("audit:production");

@@ -4,6 +4,8 @@
 
 主程序构建与验证覆盖 Windows x64、macOS arm64 与 macOS x64。CI 使用 GitHub 托管的 `windows-2025`、`macos-15` 与 `macos-15-intel`，覆盖 main push、外部 fork PR 和手动调用。PR 权限只读，不读取签名密钥，不使用 `pull_request_target` 执行贡献者代码。公开 Intel 下载需等待首个包含 x64 附件的正式 Release。
 
+macOS CI 与打包任务按架构和锁文件缓存 npm 与 Electron 下载；每个任务仍执行 `npm ci` 和自身所需的构建，不缓存用户数据、签名凭据或验收结果。
+
 ## 主程序
 
 Release 工作流只允许从 main 手动启动，`release_tag` 必须等于 package.json 的 `v<version>`，发布说明首行必须匹配。每次从同一提交重新执行三种目标的 CI；不复用其他提交的验收记录。`publish=false` 运行完整签名、公证、打包与产物汇总验证，但不创建 Release 或更新通道；只有 `publish=true` 才执行发布。
