@@ -18,7 +18,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    name: Test, typecheck, build and format (${{ matrix.platform }})
+    name: ${{ matrix.platform == 'windows-x64' && 'Shared checks (windows-x64)' || 'Test, typecheck, build and format (macos-arm64)' }}
     if: ${{ !inputs.hooks_only }}
     strategy:
       fail-fast: false
@@ -160,6 +160,19 @@ jobs:
         run: npm run build
       - name: Run isolated desktop test shard
         run: npm run test -w @artemis/desktop -- --shard=${{ matrix.shard }}/4
+  windows-acceptance:
+    name: Test, typecheck, build and format (windows-x64)
+    needs: [verify, windows-desktop-tests]
+    if: ${{ !inputs.hooks_only && always() }}
+    runs-on: windows-2025
+    timeout-minutes: 3
+    steps:
+      - name: Require shared checks and every desktop shard
+        shell: pwsh
+        run: |
+          if ('${{ needs.verify.result }}' -ne 'success' -or '${{ needs.windows-desktop-tests.result }}' -ne 'success') {
+            throw 'Windows CI requires successful shared checks and all four desktop test shards.'
+          }
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
     if: ${{ !inputs.hooks_only }}

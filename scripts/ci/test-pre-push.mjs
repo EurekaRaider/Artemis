@@ -39,6 +39,14 @@ test("Windows CI keeps the full desktop suite across isolated shards", () => {
       "vitest run --no-file-parallelism",
     ),
   );
+  const gate = workflow.jobs["windows-acceptance"];
+  assert.equal(gate?.name, "Test, typecheck, build and format (windows-x64)");
+  assert.deepEqual(gate.needs, ["verify", "windows-desktop-tests"]);
+  assert.equal(gate.if, "${{ !inputs.hooks_only && always() }}");
+  const verdict = gate.steps[0].run;
+  for (const job of gate.needs)
+    assert(verdict.includes(`'\${{ needs.${job}.result }}' -ne 'success'`));
+  assert(verdict.includes("throw"));
 });
 test("only non-deletion main updates trigger the expensive check", () => {
   assert.deepEqual(
