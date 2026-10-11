@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { runInNewContext } from "node:vm";
 import { load } from "js-yaml";
 import { selectVisualConvergenceWorkloads } from "../../apps/desktop/scripts/verify/ui/visual-convergence-workloads.mjs";
 import {
@@ -216,6 +217,30 @@ test("Release verifies both native macOS architectures and supports packaging wi
   assert.equal(workflow.jobs.publish.if, "inputs.publish");
   for (const [name, job] of Object.entries(workflow.jobs))
     if (name !== "publish") assert.notEqual(job.permissions?.contents, "write");
+});
+test("native macOS package verification accepts Intel Mach-O architecture names", () => {
+  const source = readFileSync(
+    new URL(
+      "../../apps/desktop/scripts/verify/native/verify-macos-native.mjs",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const check = source.slice(
+    source.indexOf("const architectures = run("),
+    source.indexOf("const temporaryRoot ="),
+  );
+  assert(check.includes("/usr/bin/lipo"));
+  const verify = (arch, output) =>
+    runInNewContext(check, {
+      process: { arch },
+      executablePath: "/Artemis.app/Contents/MacOS/Artemis",
+      run: () => output,
+    });
+  assert.doesNotThrow(() => verify("x64", "x86_64\n"));
+  assert.doesNotThrow(() => verify("arm64", "arm64\n"));
+  assert.throws(() => verify("x64", "arm64\n"), /does not contain/u);
+  assert.throws(() => verify("arm64", "x86_64\n"), /does not contain/u);
 });
 test("Windows CI keeps the full desktop suite across isolated shards", () => {
   const read = (path) =>

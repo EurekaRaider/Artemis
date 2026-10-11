@@ -64,8 +64,9 @@ run("/usr/sbin/spctl", [
 ]);
 run("/usr/bin/xcrun", ["stapler", "validate", appPath]);
 const architectures = run("/usr/bin/lipo", ["-archs", executablePath]);
-if (!architectures.split(/\s+/u).includes(process.arch)) {
-  throw new Error(`Packaged app does not contain ${process.arch}`);
+const machoArchitecture = process.arch === "x64" ? "x86_64" : process.arch;
+if (!architectures.split(/\s+/u).includes(machoArchitecture)) {
+  throw new Error(`Packaged app does not contain ${machoArchitecture}`);
 }
 
 const temporaryRoot = await realpath(
