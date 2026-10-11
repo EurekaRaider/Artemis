@@ -42,7 +42,7 @@ it.skipIf(process.env.ARTEMIS_ATTACHMENT_SCALE !== "1")(
               action: "read",
               id: ref.id,
               offset,
-              maxTokens: 10,
+              maxTokens: 200,
             }),
           ),
         ).toContain(marker);

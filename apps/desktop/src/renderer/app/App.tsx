@@ -8119,6 +8119,7 @@ export function App() {
                               <ComposerAttachments
                                 key={activeComposerDraftKey}
                                 attachments={attachments}
+                                threadId={activeThreadId}
                                 locale={locale}
                                 onRemove={(index) => {
                                   const attachment = attachments[index];

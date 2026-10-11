@@ -21,6 +21,7 @@ import {
   type AttachmentOperation,
 } from "@artemis/protocol";
 import type { AttachmentImportProgress } from "../../shared/api.js";
+import { INDEX_VERSION } from "./attachment-index.js";
 import type { AttachmentWork } from "./attachment-worker.js";
 
 const mimeTypes: Record<string, string> = {
@@ -115,15 +116,23 @@ async function runWork<T>(
           });
       const child = (utility ?? nodeChild)!;
       let settled = false;
-      const finish = (error?: Error, result?: T) => {
+      const finish = (error?: Error, result?: T, exited = false) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         signal?.removeEventListener("abort", abort);
-        if (utility) utility.kill();
-        else nodeChild?.kill("SIGKILL");
-        if (error) reject(error);
-        else resolve(result!);
+        const complete = () => {
+          if (error) reject(error);
+          else resolve(result!);
+        };
+        // Release the parser slot only after its SQLite handles are closed.
+        if (exited) complete();
+        else {
+          if (utility) utility.once("exit", complete);
+          else nodeChild!.once("exit", complete);
+          if (utility) utility.kill();
+          else nodeChild?.kill("SIGKILL");
+        }
       };
       const abort = () => finish(new Error("Attachment processing cancelled"));
       const timer = setTimeout(
@@ -134,12 +143,20 @@ async function runWork<T>(
         60000,
       );
       signal?.addEventListener("abort", abort, { once: true });
-      nodeChild?.on("error", (error) => finish(error));
+      nodeChild?.on("error", (error) => finish(error, undefined, true));
       utility?.on("exit", () =>
-        finish(new Error("Attachment worker exited before completion")),
+        finish(
+          new Error("Attachment worker exited before completion"),
+          undefined,
+          true,
+        ),
       );
       nodeChild?.on("exit", () =>
-        finish(new Error("Attachment worker exited before completion")),
+        finish(
+          new Error("Attachment worker exited before completion"),
+          undefined,
+          true,
+        ),
       );
       child.on(
         "message",
@@ -154,6 +171,10 @@ async function runWork<T>(
           );
         },
       );
+      if (signal?.aborted) {
+        abort();
+        return;
+      }
       if (utility) utility.postMessage(work);
       else nodeChild!.send(work);
     });
@@ -171,7 +192,14 @@ function safeId(id: string): string {
 export class AttachmentStore {
   private copyActive = 0;
   private copyWaiting: Array<() => void> = [];
-  private preparations = new Map<string, Promise<PromptAttachmentReference>>();
+  private preparations = new Map<
+    string,
+    {
+      promise: Promise<PromptAttachmentReference>;
+      controller: AbortController;
+      waiters: number;
+    }
+  >();
   private tail: Promise<unknown> = Promise.resolve();
   private imports = new Map<string, AbortController>();
   private failedImports = new Map<string, string>();
@@ -253,9 +281,14 @@ export class AttachmentStore {
   }
   async discardDraft(id: string): Promise<void> {
     this.imports.get(id)?.abort();
+    const record = await this.record(id).catch(() => undefined);
+    if (record?.owners.length) return;
+    const job = this.preparations.get(id);
+    job?.controller.abort();
+    await job?.promise.catch(() => undefined);
     await this.locked(async () => {
-      const record = await this.record(id).catch(() => undefined);
-      if (record && !record.owners.length)
+      const current = await this.record(id).catch(() => undefined);
+      if (current && !current.owners.length)
         await rm(this.directory(id), { recursive: true, force: true });
     });
   }
@@ -371,6 +404,7 @@ export class AttachmentStore {
             after.ctimeMs !== info.ctimeMs
           )
             throw new Error(`Attachment changed while copying: ${name}`);
+          copySignal.throwIfAborted();
           await output.sync();
         } finally {
           await output.close();
@@ -379,7 +413,9 @@ export class AttachmentStore {
           join(directory, "original.partial"),
           join(directory, "original"),
         );
+        copySignal.throwIfAborted();
         await this.save({ ref, owners: [] });
+        copySignal.throwIfAborted();
         report("saved");
         return ref;
       } finally {
@@ -452,19 +488,53 @@ export class AttachmentStore {
       return records.map((r) => r.ref);
     });
   }
+  async prepareDraft(id: string, signal?: AbortSignal) {
+    await this.previewRecord(id);
+    return this.prepare(id, signal);
+  }
   async prepare(
     id: string,
     signal?: AbortSignal,
   ): Promise<PromptAttachmentReference> {
-    const running = this.preparations.get(id);
-    if (running) return running;
-    const promise = this.prepareOriginal(id, signal);
-    this.preparations.set(id, promise);
-    try {
-      return await promise;
-    } finally {
-      this.preparations.delete(id);
+    signal?.throwIfAborted();
+    let job = this.preparations.get(id);
+    if (job?.controller.signal.aborted) {
+      await job.promise.catch(() => undefined);
+      signal?.throwIfAborted();
+      return this.prepare(id, signal);
     }
+    if (!job) {
+      const controller = new AbortController();
+      const promise = this.prepareOriginal(id, controller.signal);
+      job = { promise, controller, waiters: 0 };
+      this.preparations.set(id, job);
+      const current = job;
+      const cleanup = () => {
+        if (this.preparations.get(id) === current) this.preparations.delete(id);
+      };
+      void promise.then(cleanup, cleanup);
+    }
+    const current = job;
+    current.waiters++;
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const finish = (error?: unknown, ref?: PromptAttachmentReference) => {
+        if (done) return;
+        done = true;
+        signal?.removeEventListener("abort", abort);
+        current.waiters--;
+        if (!current.waiters) current.controller.abort();
+        if (error) reject(error);
+        else resolve(ref!);
+      };
+      const abort = () => finish(new Error("Attachment processing cancelled"));
+      signal?.addEventListener("abort", abort, { once: true });
+      void current.promise.then(
+        (ref) => finish(undefined, ref),
+        (error) => finish(error),
+      );
+      if (signal?.aborted) abort();
+    });
   }
   private async prepareOriginal(
     id: string,
@@ -474,9 +544,17 @@ export class AttachmentStore {
     if (
       record.ref.status === "ready" &&
       (record.ref.kind === "image" ||
-        (record as RecordData & { indexVersion?: number }).indexVersion === 1)
-    )
-      return record.ref;
+        (record as RecordData & { indexVersion?: number }).indexVersion ===
+          INDEX_VERSION)
+    ) {
+      const cached = await stat(
+        join(
+          this.directory(id),
+          record.ref.kind === "image" ? "image.json" : "text.sqlite",
+        ),
+      ).catch(() => undefined);
+      if (cached) return record.ref;
+    }
     record.ref.parseStatus = "processing";
     await this.locked(async () => {
       const current = await this.record(id);
@@ -522,9 +600,9 @@ export class AttachmentStore {
           characters: result.characters,
           pages: result.pages,
         });
-        record.indexVersion = 1;
-        record.ref.indexVersion = 1;
-        if (!result.characters)
+        record.indexVersion = INDEX_VERSION;
+        record.ref.indexVersion = INDEX_VERSION;
+        if (!result.characters && record.ref.mimeType === "application/pdf")
           throw new Error(
             "No extractable text. For scanned PDFs, use attachment_read with visual=true and a page number.",
           );
@@ -581,25 +659,49 @@ export class AttachmentStore {
     op: AttachmentOperation,
     signal?: AbortSignal,
   ): Promise<unknown> {
+    signal?.throwIfAborted();
+    const budget = Math.min(4000, op.maxTokens ?? 4000);
+    if (!Number.isSafeInteger(budget) || budget <= 0)
+      throw new Error("No context budget remains for attachment content");
+    if (
+      op.offset !== undefined &&
+      (!Number.isSafeInteger(op.offset) || op.offset < 0)
+    )
+      throw new Error("Invalid attachment offset");
+    if (op.id && op.ids && !op.ids.includes(op.id))
+      throw new Error("Attachment is outside the current message scope");
+    const bounded = (result: unknown) => {
+      if (estimateTextTokens(JSON.stringify(result)) > budget)
+        throw new Error(
+          "Attachment token budget is too small for result metadata",
+        );
+      return result;
+    };
     if (op.action === "list") {
       const refs = await this.list(threadId, op.ids),
         offset = op.offset ?? 0;
       const items = [];
-      let remaining = Math.min(4000, op.maxTokens ?? 4000);
+
       for (const ref of refs.slice(offset)) {
         const item = { ...ref, thumbnail: undefined };
-        const size = estimateTextTokens(JSON.stringify(item));
-        if (size > remaining) break;
+        const candidate = {
+          attachments: [...items, item],
+          nextOffset: offset + items.length + 1,
+        };
+        if (estimateTextTokens(JSON.stringify(candidate)) > budget) break;
         items.push(item);
-        remaining -= size;
       }
-      return {
+      if (!items.length && offset < refs.length)
+        throw new Error(
+          "Attachment token budget is too small for directory metadata",
+        );
+      return bounded({
         attachments: items,
         nextOffset:
           offset + items.length < refs.length
             ? offset + items.length
             : undefined,
-      };
+      });
     }
     if (op.action === "search" && !op.id) {
       const refs = (await this.list(threadId, op.ids)).filter(
@@ -610,32 +712,28 @@ export class AttachmentStore {
         throw new Error("Invalid attachment cursor");
       // One document per call keeps cross-document searches cancellable and bounded.
       const ref = refs[position];
-      if (!ref) return { matches: [], complete: true };
+      if (!ref) return bounded({ matches: [], complete: true });
       const result = (await this.operate(
         threadId,
-        { ...op, id: ref.id },
+        { ...op, id: ref.id, maxTokens: budget - 64 },
         signal,
       )) as { nextOffset?: number };
-      return {
+      return bounded({
         ...result,
         attachmentOffset:
           result.nextOffset === undefined ? position + 1 : position,
         offset: result.nextOffset ?? 0,
         complete:
           result.nextOffset === undefined && position + 1 >= refs.length,
-      };
+      });
     }
     if (!op.id) throw new Error("Attachment id is required");
     await this.authorized(threadId, op.id);
     const ref = op.visual
       ? (await this.record(op.id)).ref
       : await this.prepare(op.id, signal);
-    const budget = Math.min(
-      4000,
-      Math.max(0, Math.floor(op.maxTokens ?? 4000)),
-    );
-    if (!budget)
-      throw new Error("No context budget remains for attachment content");
+    signal?.throwIfAborted();
+    await this.authorized(threadId, op.id);
     if (op.visual || ref.kind === "image") {
       if (op.action === "search")
         throw new Error("Image text search is unavailable; use visual reading");
@@ -655,6 +753,8 @@ export class AttachmentStore {
               },
               signal,
             );
+      signal?.throwIfAborted();
+      await this.authorized(threadId, op.id);
       return {
         id: ref.id,
         name: ref.name,
@@ -664,7 +764,7 @@ export class AttachmentStore {
       };
     }
     if (ref.status === "error") throw new Error(ref.error);
-    return runWork(
+    const result = await runWork(
       {
         action: op.action,
         path: join(this.directory(op.id), "text.sqlite"),
@@ -678,16 +778,28 @@ export class AttachmentStore {
       },
       signal,
     );
+    signal?.throwIfAborted();
+    await this.authorized(threadId, op.id);
+    return result;
   }
 
+  private async previewRecord(id: string, threadId?: string) {
+    const record = await this.record(id);
+    if (
+      record.owners.length &&
+      (!threadId || !record.owners.includes(threadId))
+    )
+      throw new Error(
+        "Attachment is not available to this task; bound preview requires its owner",
+      );
+    return record;
+  }
   async previewFile(
     id: string,
     offset = 0,
     threadId?: string,
   ): Promise<import("../../shared/api.js").AttachmentFilePreview> {
-    const record = threadId
-      ? await this.authorized(threadId, id)
-      : await this.record(id);
+    const record = await this.previewRecord(id, threadId);
     if (record.ref.kind !== "file") throw new Error("Attachment is not a file");
     if (!Number.isSafeInteger(offset) || offset < 0)
       throw new Error("Invalid attachment offset");
@@ -701,6 +813,7 @@ export class AttachmentStore {
       offset,
       maxTokens: 4000,
     });
+    await this.previewRecord(id, threadId);
     return { name: ref.name, text: result.text, nextOffset: result.nextOffset };
   }
 
@@ -708,9 +821,7 @@ export class AttachmentStore {
     id: string,
     threadId?: string,
   ): Promise<{ name: string; mimeType: string; data: string }> {
-    const record = threadId
-      ? await this.authorized(threadId, id)
-      : await this.record(id);
+    const record = await this.previewRecord(id, threadId);
     if (record.ref.kind !== "image")
       throw new Error("Attachment is not an image");
     const result = await runWork<ImageResult>({
@@ -719,7 +830,7 @@ export class AttachmentStore {
       mimeType: record.ref.mimeType,
     });
     return {
-      name: record.ref.name,
+      name: (await this.previewRecord(id, threadId)).ref.name,
       mimeType: result.mimeType,
       data: result.data,
     };
@@ -735,13 +846,15 @@ export class AttachmentStore {
     });
   }
   async deleteThread(thread: string) {
+    const orphaned: string[] = [];
     await this.locked(async () => {
       for (const ref of await this.list(thread)) {
         const record = await this.record(ref.id);
         record.owners = record.owners.filter((id) => id !== thread);
-        if (record.owners.length) await this.save(record);
-        else await rm(this.directory(ref.id), { recursive: true, force: true });
+        await this.save(record);
+        if (!record.owners.length) orphaned.push(ref.id);
       }
     });
+    for (const id of orphaned) await this.discardDraft(id);
   }
 }

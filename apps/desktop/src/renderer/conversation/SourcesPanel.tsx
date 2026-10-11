@@ -489,7 +489,7 @@ export function SourcesPanel({
                 if (!("type" in attachment)) setPreview(attachment);
                 else if (isAttachmentReference(attachment))
                   void window.artemis
-                    .previewPromptAttachment(attachment.id)
+                    .previewPromptAttachment(attachment.id, threadId)
                     .then(setPreview)
                     .catch(() => setPreviewError(t.previewUnavailable));
               }}

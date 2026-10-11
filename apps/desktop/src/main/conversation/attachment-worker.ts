@@ -120,7 +120,18 @@ export async function processAttachment(
                   n,
                   `page ${n} annotation`,
                 );
+            for (const note of annotations)
+              if (note.fieldName || note.fieldValue !== undefined)
+                index.add(
+                  `\nForm field ${note.fieldName ?? ""}: ${JSON.stringify(note.fieldValue ?? "")}\n`,
+                  n,
+                  `page ${n} form`,
+                );
             if (hasText) index.add("\n", n, `page ${n}`);
+            else
+              index.db
+                .prepare("INSERT OR IGNORE INTO parts VALUES (?)")
+                .run(`empty-page:${n}`);
             index.db.prepare("INSERT INTO parts VALUES (?)").run(`page:${n}`);
             index.db.exec("COMMIT");
             page.cleanup();

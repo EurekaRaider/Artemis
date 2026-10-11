@@ -1,9 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { createReadStream } from "node:fs";
+import { open } from "node:fs/promises";
 import { estimateTextTokens, textWithinTokenBudget } from "@artemis/protocol";
 import type { AttachmentWork } from "./attachment-worker.js";
 
-export const INDEX_VERSION = 1;
+export const INDEX_VERSION = 2;
 const CHUNK = 16384;
 export class AttachmentIndex {
   readonly db: DatabaseSync;
@@ -17,6 +18,17 @@ export class AttachmentIndex {
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE IF NOT EXISTS parts (name TEXT PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS strings (id INTEGER, part INTEGER, text TEXT, PRIMARY KEY(id,part));`);
+      const version = this.db
+        .prepare("SELECT value FROM meta WHERE key='format'")
+        .get()?.value;
+      if (version !== String(INDEX_VERSION)) {
+        this.db.exec(
+          "DELETE FROM segments; DELETE FROM meta; DELETE FROM parts; DELETE FROM strings;",
+        );
+        this.db
+          .prepare("INSERT INTO meta VALUES (?,?)")
+          .run("format", String(INDEX_VERSION));
+      }
       this.position = Number(
         this.db.prepare("SELECT MAX(end) AS end FROM segments").get()?.end ?? 0,
       );
@@ -44,7 +56,18 @@ export class AttachmentIndex {
       version: INDEX_VERSION,
       complete: true,
       characters: this.position,
-      ...(pages ? { pages } : {}),
+      ...(pages
+        ? {
+            pages,
+            pagesWithoutText: Number(
+              this.db
+                .prepare(
+                  "SELECT COUNT(*) AS n FROM parts WHERE name LIKE 'empty-page:%'",
+                )
+                .get()?.n ?? 0,
+            ),
+          }
+        : {}),
     };
     this.db
       .prepare("INSERT OR REPLACE INTO meta VALUES (?,?)")
@@ -60,7 +83,20 @@ export async function indexText(
   index: AttachmentIndex,
   progress: () => void,
 ) {
-  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  const file = await open(path, "r"),
+    header = Buffer.alloc(4);
+  try {
+    await file.read(header, 0, 4, 0);
+  } finally {
+    await file.close();
+  }
+  const encoding =
+    header[0] === 0xff && header[1] === 0xfe
+      ? "utf-16le"
+      : header[0] === 0xfe && header[1] === 0xff
+        ? "utf-16be"
+        : "utf-8";
+  const decoder = new TextDecoder(encoding, { fatal: true, ignoreBOM: true });
   let offset = Number(
     index.db.prepare("SELECT value FROM meta WHERE key=?").get("bytes")
       ?.value ?? 0,
@@ -74,7 +110,10 @@ export async function indexText(
     index.db.exec("BEGIN");
     try {
       index.add(text);
-      offset += Buffer.byteLength(text, "utf8");
+      offset += Buffer.byteLength(
+        text,
+        encoding === "utf-8" ? "utf8" : "utf16le",
+      );
       checkpoint.run("bytes", String(offset));
       index.db.exec("COMMIT");
     } catch (error) {
@@ -105,14 +144,23 @@ export function readIndex(
     );
     if (!summary.complete || summary.version !== INDEX_VERSION)
       throw new Error("Attachment index is incomplete; retry parsing");
-    const budget = Math.min(3000, Math.max(1, work.maxTokens ?? 4000));
+    const budget = Math.min(4000, work.maxTokens ?? 4000);
+    if (!Number.isSafeInteger(budget) || budget <= 0)
+      throw new Error("No context budget remains for attachment content");
+    if (
+      work.page !== undefined &&
+      (!Number.isSafeInteger(work.page) ||
+        work.page < 1 ||
+        work.page > (summary.pages ?? 0))
+    )
+      throw new Error("Page is outside the document");
     const pageStart =
       work.page === undefined
         ? 0
         : Number(
             db
               .prepare("SELECT MIN(start) AS start FROM segments WHERE page=?")
-              .get(work.page)?.start ?? -1,
+              .get(work.page)?.start ?? 0,
           );
     if (pageStart < 0) throw new Error("Page is outside the document");
     const total =
@@ -149,7 +197,14 @@ export function readIndex(
         const base = Number(row.start) - pageStart - carry.length;
         let from = Math.max(0, offset - base);
         while (remaining > 0) {
-          const found = text.toLowerCase().indexOf(query, from);
+          // Unicode case folding may expand characters. RegExp keeps offsets in the original text.
+          const expression = new RegExp(
+            work.query!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+            "giu",
+          );
+          expression.lastIndex = from;
+          const hit = expression.exec(text);
+          const found = hit?.index ?? -1;
           if (found < 0) break;
           const excerpt = textWithinTokenBudget(
             text.slice(Math.max(0, found - 100), found + query.length + 200),
@@ -167,7 +222,7 @@ export function readIndex(
             break;
           }
           matches.push(match);
-          from = found + query.length;
+          from = found + hit![0].length;
           remaining -= cost;
           if (remaining <= 0 || matches.length >= 20) {
             nextOffset = base + from;
@@ -178,14 +233,32 @@ export function readIndex(
         carry = text.slice(-Math.max(0, query.length - 1));
         if (query.length === 1) carry = "";
       }
-      return {
+      const result = {
         id: work.id,
         matches,
         nextOffset,
         limited: nextOffset !== undefined,
-        complete: true,
+        complete: nextOffset === undefined,
         totalCharacters: total,
       };
+      while (
+        estimateTextTokens(JSON.stringify(result)) > budget &&
+        matches.length
+      ) {
+        const removed = matches.pop()!;
+        result.nextOffset = removed.offset;
+        result.limited = true;
+        result.complete = false;
+      }
+      if (!matches.length && result.nextOffset !== undefined)
+        throw new Error(
+          "Attachment token budget is too small for a search result",
+        );
+      if (estimateTextTokens(JSON.stringify(result)) > budget)
+        throw new Error(
+          "Attachment token budget is too small for result metadata",
+        );
+      return result;
     }
     let content = "";
     const locations = [];
@@ -217,7 +290,7 @@ export function readIndex(
       throw new Error(
         "Attachment token budget is too small for the next character",
       );
-    return {
+    const result = {
       id: work.id,
       name: work.name,
       page: work.page,
@@ -228,8 +301,41 @@ export function readIndex(
         offset + content.length < total ? offset + content.length : undefined,
       totalCharacters: total,
       empty: !total,
-      complete: true,
+      ...(summary.pagesWithoutText ? { visualReadingRequired: true } : {}),
+      complete: false,
     };
+    while (
+      result.locations.length &&
+      estimateTextTokens(JSON.stringify({ ...result, text: "" })) >= budget
+    )
+      result.locations.pop();
+    let low = 0,
+      high = content.length;
+    while (low < high) {
+      const middle = Math.ceil((low + high) / 2);
+      const candidate = {
+        ...result,
+        text: content.slice(0, middle),
+        nextOffset: offset + middle < total ? offset + middle : undefined,
+      };
+      if (estimateTextTokens(JSON.stringify(candidate)) <= budget) low = middle;
+      else high = middle - 1;
+    }
+    if (low > 0 && /[\uD800-\uDBFF]/u.test(content[low - 1]!)) low--;
+    result.text = content.slice(0, low);
+    result.nextOffset = offset + low < total ? offset + low : undefined;
+    result.complete = result.nextOffset === undefined;
+    result.locations = result.locations.filter(
+      (location) => location.offset < offset + low,
+    );
+    if (
+      (!low && offset < total) ||
+      estimateTextTokens(JSON.stringify(result)) > budget
+    )
+      throw new Error(
+        "Attachment token budget is too small for result metadata and the next character",
+      );
+    return result;
   } finally {
     index.close();
   }

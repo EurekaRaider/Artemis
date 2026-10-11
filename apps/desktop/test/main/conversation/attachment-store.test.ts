@@ -1,3 +1,4 @@
+import { estimateTextTokens } from "@artemis/protocol";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -151,8 +152,11 @@ describe("large documents and image normalization", () => {
         id: ref.id,
         maxTokens: 100,
       })) as { text: string; nextOffset: number };
-      expect(first.text).toHaveLength(100);
-      expect(Buffer.byteLength(first.text)).toBe(300);
+      expect(first.text.length).toBeGreaterThan(0);
+      expect(estimateTextTokens(JSON.stringify(first))).toBeLessThanOrEqual(
+        100,
+      );
+      expect(first.nextOffset).toBe(first.text.length);
       expect(first.text).not.toContain("\uFFFD");
       const last = (await store.operate("task", {
         action: "read",
@@ -198,9 +202,9 @@ it("reports empty scanned pages honestly while retaining visual access and cance
     const cancelled = await store.importPath(path);
     const controller = new AbortController();
     controller.abort();
-    expect((await store.prepare(cancelled.id, controller.signal)).status).toBe(
-      "error",
-    );
+    await expect(
+      store.prepare(cancelled.id, controller.signal),
+    ).rejects.toThrow();
     await store.bind("retained", [cancelled]);
     expect(await store.list("retained")).toHaveLength(1);
   } finally {

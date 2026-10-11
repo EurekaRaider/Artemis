@@ -4781,6 +4781,13 @@ async function handleBrokerRequest(
           request.operation,
           controller.signal,
         );
+        if (
+          controller.signal.aborted ||
+          activeTurns.get(request.threadId) !== request.turnId ||
+          store.getThread(request.threadId)?.mode !== request.mode ||
+          cancellingTurns.has(request.threadId)
+        )
+          throw new Error("Attachment access requires the current active turn");
         agentProcess.post({
           type: "broker.resolve",
           requestId: workerRequestId,
@@ -12344,7 +12351,7 @@ function registerIpc(): void {
   >();
   ipcMain.handle(IPC.promptAttachmentPrepare, async (_event, id: string) => {
     const controller = new AbortController();
-    const promise = attachmentStore().prepare(id, controller.signal);
+    const promise = attachmentStore().prepareDraft(id, controller.signal);
     attachmentPreparations.set(id, { controller, promise });
     try {
       return await promise;
@@ -12365,8 +12372,18 @@ function registerIpc(): void {
       );
     },
   );
-  ipcMain.handle(IPC.promptAttachmentPreview, async (_event, id: string) =>
-    promptImageSchema.parse(await attachmentStore().preview(id)),
+  ipcMain.handle(
+    IPC.promptAttachmentPreview,
+    async (_event, id: string, threadId?: string) => {
+      if (threadId !== undefined && !store?.getThread(threadId))
+        throw new Error("Task was not found.");
+      return promptImageSchema.parse(
+        await attachmentStore().preview(
+          id,
+          threadId === undefined ? undefined : attachmentScope(threadId),
+        ),
+      );
+    },
   );
   ipcMain.handle(IPC.promptAttachmentCancel, async (_event, id: string) => {
     const preparation = attachmentPreparations.get(id);

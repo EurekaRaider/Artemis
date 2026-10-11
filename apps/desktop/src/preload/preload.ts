@@ -164,8 +164,8 @@ const api: ArtemisApi = {
     ipcRenderer.invoke(IPC.promptAttachmentsSelect),
   previewPromptFile: (id, offset, threadId) =>
     ipcRenderer.invoke(IPC.promptFilePreview, id, offset, threadId),
-  previewPromptAttachment: (id) =>
-    ipcRenderer.invoke(IPC.promptAttachmentPreview, id),
+  previewPromptAttachment: (id, threadId) =>
+    ipcRenderer.invoke(IPC.promptAttachmentPreview, id, threadId),
   cancelPromptAttachment: (id) =>
     ipcRenderer.invoke(IPC.promptAttachmentCancel, id),
   readPromptAttachments: async (files) => {

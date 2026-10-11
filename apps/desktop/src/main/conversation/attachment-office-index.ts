@@ -29,18 +29,25 @@ export async function indexOffice(
     throw new Error("Office ZIP part name exceeds resource limit");
   if (archive.files.length > 100000)
     throw new Error("Office ZIP exceeds the 100000 entry resource limit");
-  for (const entry of archive.files.filter((e) => /\/media\//.test(e.path)))
-    if (!index.db.prepare("SELECT name FROM parts WHERE name=?").get("media"))
+  if (!index.db.prepare("SELECT name FROM parts WHERE name=?").get("media")) {
+    index.db.exec("BEGIN");
+    for (const entry of archive.files.filter((e) => /\/media\//.test(e.path)))
       index.add(
         `\nEmbedded image: ${entry.path} (${entry.uncompressedSize} bytes); read with visual=true and part=${entry.path}\n`,
         undefined,
         entry.path,
       );
-  index.db.prepare("INSERT OR IGNORE INTO parts VALUES (?)").run("media");
+    index.db.prepare("INSERT INTO parts VALUES (?)").run("media");
+    index.db.exec("COMMIT");
+  }
+  if (new Set(archive.files.map((e) => e.path)).size !== archive.files.length)
+    throw new Error("Duplicate Office ZIP part names");
   let expanded = 0;
   const entries = archive.files.filter((e) =>
     /^(word|xl|ppt)\/.*\.(?:xml|rels)$/i.test(e.path),
   );
+  if (entries.reduce((sum, e) => sum + e.uncompressedSize, 0) > 16 * 1024 ** 3)
+    throw new Error("Office expanded XML exceeds 16 GiB resource limit");
   entries.sort(
     (a, b) =>
       Number(!/sharedStrings\.xml$/.test(a.path)) -
@@ -64,6 +71,7 @@ export async function indexOffice(
       cellRef = "",
       value = "",
       formula = "",
+      formulaAttributes = "",
       inline = "",
       buffer = "";
     const flush = () => {
@@ -95,9 +103,16 @@ export async function indexOffice(
         cellRef = attr("r");
         value = "";
         formula = "";
+        formulaAttributes = "";
         inline = "";
         emit(`[${cellRef}] `);
       }
+      if (node.local === "f" && stack.includes("c"))
+        formulaAttributes = JSON.stringify(
+          Object.fromEntries(
+            Object.values(node.attributes).map((a) => [a.local, a.value]),
+          ),
+        );
       if (node.local === "Relationship")
         emit(
           `\nRelationship ${attr("Id")}: ${attr("Target")} ${attr("TargetMode")}\n`,
@@ -115,12 +130,17 @@ export async function indexOffice(
       if (node.local === "tab") emit("\t");
       if (["br", "cr"].includes(node.local)) emit("\n");
     });
-    parser.on("text", (text) => {
+    const onText = (text: string) => {
       const tag = stack.at(-1);
       if (shared) {
         if (tag === "t")
-          for (let p = 0; p < text.length; p += 16384)
-            putString.run(stringId, stringPart++, text.slice(p, p + 16384));
+          for (let p = 0; p < text.length;) {
+            let end = Math.min(text.length, p + 16384);
+            if (end < text.length && /[\uD800-\uDBFF]/u.test(text[end - 1]!))
+              end--;
+            putString.run(stringId, stringPart++, text.slice(p, end));
+            p = end;
+          }
         return;
       }
       if (stack.includes("c")) {
@@ -152,15 +172,25 @@ export async function indexOffice(
         ].includes(tag)
       )
         emit(text);
-    });
+    };
+    parser.on("text", onText);
+    parser.on("cdata", onText);
     parser.on("closetag", (node) => {
+      if (shared && node.local === "si" && stringPart === 0)
+        putString.run(stringId, stringPart++, "");
       if (!shared) {
         if (node.local === "c") {
-          if (formula) emit(`formula=${formula}; cached=`);
+          if (formula || formulaAttributes) {
+            if (formulaAttributes !== "{}")
+              emit(`formulaAttributes=${formulaAttributes}; `);
+            emit(`formula=${formula}; cached=`);
+          }
           if (cellType === "s") {
             const id = Number(value);
             if (!Number.isSafeInteger(id) || id < 0)
               throw new Error("Invalid shared string reference");
+            if (!getString.get(id))
+              throw new Error("Missing shared string reference");
             for (const part of getString.iterate(id)) emit(String(part.text));
           } else if (!inline) emit(value);
           emit("\t");
@@ -178,9 +208,11 @@ export async function indexOffice(
     let xmlRun = 0;
     const decoder = new TextDecoder("utf-8", { fatal: true });
     const stream = entry.stream();
+    let entryBytes = 0;
     try {
       for await (const chunk of stream) {
         expanded += chunk.length;
+        entryBytes += chunk.length;
         if (expanded > 16 * 1024 ** 3)
           throw new Error("Office expanded XML exceeds 16 GiB resource limit");
         const decoded = decoder.decode(chunk, { stream: true });
@@ -192,6 +224,8 @@ export async function indexOffice(
         parser.write(decoded);
         progress();
       }
+      if (entryBytes !== entry.uncompressedSize)
+        throw new Error("Office ZIP part size mismatch");
       parser.write(decoder.decode()).close();
       flush();
       if (!shared) index.add("\n", undefined, entry.path);

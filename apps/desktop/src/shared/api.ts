@@ -1009,7 +1009,7 @@ export interface ArtemisApi {
     offset?: number,
     threadId?: string,
   ): Promise<AttachmentFilePreview>;
-  previewPromptAttachment(id: string): Promise<PromptImage>;
+  previewPromptAttachment(id: string, threadId?: string): Promise<PromptImage>;
   cancelPromptAttachment(id: string): Promise<void>;
   preparePromptAttachment(
     id: string,

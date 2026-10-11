@@ -24,10 +24,12 @@ function thumbnail(attachment: PromptAttachment) {
 export function ComposerAttachments({
   attachments,
   locale,
+  threadId,
   onRemove,
 }: {
   attachments: PromptAttachment[];
   locale: AppLocale;
+  threadId?: string | undefined;
   onRemove: (index: number) => void;
 }) {
   const [page, setPage] = useState(0);
@@ -49,7 +51,7 @@ export function ComposerAttachments({
     setPreviewError(undefined);
     try {
       const image = isAttachmentReference(attachment)
-        ? await window.artemis.previewPromptAttachment(attachment.id)
+        ? await window.artemis.previewPromptAttachment(attachment.id, threadId)
         : !("type" in attachment)
           ? attachment
           : undefined;
@@ -111,6 +113,7 @@ export function ComposerAttachments({
               ) : (
                 <FileAttachment
                   name={attachment.name}
+                  threadId={threadId}
                   locale={locale}
                   id={
                     isAttachmentReference(attachment)
