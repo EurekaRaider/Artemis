@@ -347,15 +347,25 @@ describe("Office workbench review flow", () => {
   it("switches sheets and retains access to the original print rendering", async () => {
     const { container } = fixture("excel");
     await screen.findByRole("grid");
-    expect(screen.getByRole("gridcell", { name: "A1 · Design" })).toBeVisible();
+    // The full grid has 1,300 cells; compute accessible names only in A1's row.
+    const firstRow = () =>
+      within(container.querySelector(".office-sheet-grid tbody tr")!);
+    expect(
+      firstRow().getByRole("gridcell", { name: "A1 · Design" }),
+    ).toBeVisible();
     fireEvent.click(
       within(screen.getByRole("navigation", { name: "Sheet" })).getByRole(
         "button",
         { name: "Summary" },
       ),
     );
-    expect(screen.getByRole("gridcell", { name: "A1 · Total" })).toBeVisible();
-    expect(screen.queryByRole("gridcell", { name: "A1 · Design" })).toBeNull();
+    expect(
+      firstRow().getByRole("gridcell", { name: "A1 · Total" }),
+    ).toBeVisible();
+    expect(
+      firstRow().queryByRole("gridcell", { name: "A1 · Design" }),
+    ).toBeNull();
+    expect(screen.queryByText("Design")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Print preview" }));
     await waitFor(() =>
       expect(
