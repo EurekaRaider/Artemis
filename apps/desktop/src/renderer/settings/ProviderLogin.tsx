@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
 import { Select, TextField } from "@artemis/ui/forms";
@@ -85,7 +85,7 @@ export function ProviderLogin({
       clearTimeout(timer);
     };
   }, [state?.id, state?.status]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     setAnswer(state?.prompt?.options?.[0]?.id ?? "");
   }, [state?.prompt?.id]);
   const run = async (action: () => Promise<void>) => {

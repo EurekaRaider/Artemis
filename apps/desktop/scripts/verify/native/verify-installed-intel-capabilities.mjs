@@ -93,6 +93,29 @@ try {
   report.checks.push(
     "Computer Use discovered, installed and probed by the signed packaged host in a fresh profile",
   );
+  report.preview = await app.evaluate(({ app }, version) => {
+    const path = process.getBuiltinModule("path");
+    const require = process
+      .getBuiltinModule("module")
+      .createRequire(path.join(app.getAppPath(), "package.json"));
+    const binding = require(
+      path.join(
+        app.getPath("userData"),
+        "capability-packs",
+        "computer-use",
+        version,
+        "ArtemisComputerUse.app",
+        "Contents",
+        "Frameworks",
+        "artemis-computer-preview.node",
+      ),
+    );
+    return { loaded: true, exports: Object.getOwnPropertyNames(binding) };
+  }, report.computerUse.after.activeVersion);
+  assert.equal(report.preview.loaded, true);
+  report.checks.push(
+    "Installed Intel preview module loads in the final signed Electron host",
+  );
 } catch (error) {
   report.failure = String(error.stack ?? error);
   process.exitCode = 1;

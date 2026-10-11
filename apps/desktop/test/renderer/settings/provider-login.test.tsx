@@ -4,6 +4,64 @@ import { expect, it, vi } from "vitest";
 import { ProviderLogin } from "../../../src/renderer/settings/ProviderLogin.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 
+it("retains an answer entered as soon as an asynchronous login prompt appears", async () => {
+  const running = {
+    id: "prompt-login",
+    providerId: "fixture",
+    status: "running" as const,
+    messages: [],
+    links: [],
+    prompt: {
+      id: "prompt",
+      type: "text" as const,
+      message: "Authorization value",
+    },
+  };
+  const answer = vi.fn(async () => ({
+    ...running,
+    status: "completed" as const,
+    prompt: undefined,
+  }));
+  stubWindowArtemis({
+    providerLoginOptions: async () => [
+      { providerId: "fixture", name: "Fixture", type: "oauth" },
+    ],
+    providerLoginStart: async () => running,
+    providerLoginStatus: async () => running,
+    providerLoginAnswer: answer,
+    providerLoginCancel: async () => {},
+  });
+  render(
+    <ProviderLogin locale="en" disabled={false} onComplete={async () => {}} />,
+  );
+  const start = await screen.findByRole("button", { name: "Sign in" });
+  await waitFor(() => expect(start).toBeEnabled());
+  let typed = false;
+  const observer = new MutationObserver(() => {
+    const input = document.querySelector("input");
+    if (input && !typed) {
+      typed = true;
+      fireEvent.change(input, { target: { value: "fixture-answer" } });
+    }
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  try {
+    fireEvent.click(start);
+    const next = await screen.findByRole("button", { name: "Continue" });
+    await waitFor(() => expect(next).toBeEnabled());
+    fireEvent.click(next);
+    await waitFor(() =>
+      expect(answer).toHaveBeenCalledWith(
+        "prompt-login",
+        "prompt",
+        "fixture-answer",
+      ),
+    );
+  } finally {
+    observer.disconnect();
+  }
+});
+
 it.each(["en", "zh-CN"] as const)(
   "keeps same-named provider login routes distinct in %s and starts only the selected route",
   async (locale) => {

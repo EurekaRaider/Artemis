@@ -7,6 +7,7 @@
 - Office 增加固定 SHA-256 的 Intel LibreOffice 引擎与 SDK、UNO bridge 原生构建，以及最终签名包和公开目录的全新安装、Word / Excel / PowerPoint 编辑、导出与重新打开验收。
 - 输入框预测在同轮补充消息后使用最新上下文；关闭预测后历史指令不会重新启用建议，输入与审批仍抑制建议，Tab 填入不会自动发送。
 - 修复模型快速完成时建议早于提交确认而丢失的问题；Intel 宿主发布增加从最终签名 ZIP 启动、全新配置发现并在线安装两个原生插件的验收。
+- 登录表单在提示显示前初始化输入，防止快速填入的授权响应被清空；Intel 插件验收同时实际加载已安装的预览模块。
 - 插件目录与独立运行时必须通过各自发布验收；这些源码说明不代表尚未执行的签名、公证或原生安装已经成功。
 
 ## English
@@ -16,4 +17,5 @@
 - Add SHA-256 pinned Intel LibreOffice engine and SDK inputs, native UNO bridge builds, fresh installation of the final signed archive and public catalog, and Word / Excel / PowerPoint editing, export and reopen acceptance.
 - Base composer predictions on updated context after supplements in the same turn. Historical instructions cannot re-enable disabled predictions; typing and approvals still suppress suggestions, and Tab insertion never sends a message.
 - Keep fast model completions until submission acceptance clears the draft. Intel host releases launch the final signed ZIP application and verify discovery and online installation of both native plugins in a fresh profile.
+- Initialize login inputs before displaying the prompt so fast authorization responses are retained. Intel capability acceptance also loads the installed preview module in the signed host.
 - Plugin catalogs and independent runtimes require their own release acceptance. These source notes do not claim unperformed signing, notarization or native installation passed.
