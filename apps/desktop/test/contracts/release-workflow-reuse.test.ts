@@ -12,15 +12,22 @@ it("publishes only after fresh exact-head CI and both platform verifications", (
   expect(workflow.jobs.ci.if).toBeUndefined();
   expect(workflow.jobs["sign-macos"].needs).toContain("ci");
   expect(workflow.jobs["package-windows"].needs).toContain("ci");
-  expect(workflow.jobs.publish.needs).toEqual([
+  expect(workflow.jobs["package-macos"].needs).toBe("sign-macos");
+  expect(workflow.jobs.collect.needs).toEqual([
     "package-macos",
     "package-windows",
   ]);
-  expect(workflow.jobs.publish.if).toBeUndefined();
+  expect(workflow.jobs.publish.needs).toBe("collect");
+  expect(workflow.jobs.publish.if).toBe("inputs.publish");
   expect(workflow.jobs.prepare.if).toBe("github.ref == 'refs/heads/main'");
   expect(Object.keys(workflow.on.workflow_dispatch.inputs)).toEqual([
     "release_tag",
+    "publish",
   ]);
+  expect(workflow.on.workflow_dispatch.inputs.publish).toMatchObject({
+    type: "boolean",
+    default: true,
+  });
 });
 it("passes intermediate artifacts through Actions instead of source releases", () => {
   expect(
