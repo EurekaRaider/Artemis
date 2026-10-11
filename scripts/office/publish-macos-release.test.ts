@@ -114,10 +114,10 @@ function publish(
   const preload = join(root, "mock.mjs");
   writeFileSync(
     preload,
-    `import cp from 'node:child_process';import {syncBuiltinESMExports} from 'node:module';import {readFileSync,writeFileSync} from 'node:fs';import {createHash} from 'node:crypto';
+    `import cp from 'node:child_process';import {syncBuiltinESMExports} from 'node:module';import {readFileSync,writeFileSync} from 'node:fs';import {createHash} from 'node:crypto';import {basename} from 'node:path';
 const calls=[],assets=[];cp.execFileSync=(command,args)=>{if(command!=='gh')throw Error('unexpected command');calls.push(args);writeFileSync(${JSON.stringify(requests)},JSON.stringify(calls));
 if(args[0]==='api'){if(args[1].endsWith('releases/latest'))return JSON.stringify({tag_name:'v1.7.14'});if(args[1].includes('releases?'))return JSON.stringify(${options.existing ? "[{tag_name:'office-runtime-v1.0.2'}]" : "[]"});return JSON.stringify({assets});}
-if(args[1]==='upload'){const path=args[3];const bytes=readFileSync(path);assets.push({name:path.split('/').at(-1),state:'uploaded',size:bytes.length,digest:'sha256:'+(${options.badUpload ? "'wrong'" : "createHash('sha256').update(bytes).digest('hex')"})});}return '';};syncBuiltinESMExports();`,
+if(args[1]==='upload'){const path=args[3];const bytes=readFileSync(path);assets.push({name:basename(path),state:'uploaded',size:bytes.length,digest:'sha256:'+(${options.badUpload ? "'wrong'" : "createHash('sha256').update(bytes).digest('hex')"})});}return '';};syncBuiltinESMExports();`,
   );
   try {
     let error = "";

@@ -20327,11 +20327,12 @@ function createMainWindow(): BrowserWindow {
                     if (!document.querySelector('.conversation-empty-state')) throw new Error('New conversation did not reach the empty state: ' + create.outerHTML);
                     return;
                   }
-                  if (view === 'environment-unstarted' || view.startsWith('environment-non-git')) return;
+                  if (view === 'environment-unstarted') return;
                   await waitForEnvironment('loaded conversation', () =>
                     document.querySelector('.user-message .message-action') &&
                     document.querySelector('.environment-trigger'),
                   );
+                  if (view.startsWith('environment-non-git')) return;
                   if (view === 'environment-context-usage') {
                     document.querySelector('.context-usage-indicator')?.focus();
                     await wait(250);

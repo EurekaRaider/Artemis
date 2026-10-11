@@ -38,9 +38,11 @@ it.skipIf(process.platform !== "win32")(
       await writeFile(
         helper,
         `param([string]$StatePath)
+[Console]::WriteLine('Recovery PowerShell started')
 $state = Get-Content -LiteralPath $StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
-if (Test-Path Env:ELECTRON_RUN_AS_NODE) { exit 1 }
+if (Test-Path Env:ELECTRON_RUN_AS_NODE) { Write-Error 'ELECTRON_RUN_AS_NODE leaked into PowerShell'; exit 1 }
 [IO.File]::WriteAllText($state.ready, 'ready')
+[Console]::WriteLine('Recovery ready marker written')
 $deadline = [DateTime]::UtcNow.AddSeconds(15)
 while (Get-Process -Id $state.parentPid -ErrorAction SilentlyContinue) {
   if ([DateTime]::UtcNow -gt $deadline) { exit 1 }
@@ -63,7 +65,7 @@ const child = spawn(${JSON.stringify(host)}, ${JSON.stringify([launcher, helper,
 if (child.pid) fs.writeFileSync(${JSON.stringify(relayPid)}, String(child.pid));
 fs.closeSync(log);
 child.unref();
-child.once('error', () => process.exit(1));
+child.once('error', (error) => { console.error(error); process.exit(1); });
 const deadline = Date.now() + 10000;
 setInterval(() => {
   if (fs.existsSync(${JSON.stringify(ready)})) process.exit(0);
@@ -76,6 +78,13 @@ setInterval(() => {
         .poll(() => readFile(survived, "utf8"), { timeout: 10000 })
         .toBe("survived");
       await rename(application, `${application}.replaced`);
+    } catch (error) {
+      const log = await readFile(join(root, "helper.log"), "utf8").catch(
+        () => "No recovery helper log was created.",
+      );
+      throw new Error(`Windows recovery relay failed.\n${log.slice(-4096)}`, {
+        cause: error,
+      });
     } finally {
       await writeFile(release, "release");
       const pid = await readFile(relayPid, "utf8").catch((error) => {
