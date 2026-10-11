@@ -177,6 +177,8 @@ jobs:
           if-no-files-found: error
   macos-x64-desktop-tests:
     name: Desktop tests (macos-x64, shard ${{ matrix.shard }}/2)
+    # Start the longer shared checks before filling the five macOS runner slots.
+    needs: macos-x64-checks
     if: ${{ !inputs.hooks_only }}
     strategy:
       fail-fast: false
@@ -326,6 +328,8 @@ jobs:
           retention-days: 7
   macos-visual-shards:
     name: Visual workloads (macos-arm64, shard ${{ matrix.shard }}/3)
+    # Reserve initial macOS slots for shared checks and slower Intel visuals.
+    needs: verify
     if: ${{ !inputs.hooks_only }}
     strategy:
       fail-fast: false

@@ -73,6 +73,7 @@ test("macOS visual acceptance rejects failed, cancelled or skipped shards", () =
   assert.equal(shards.strategy["fail-fast"], false);
   assert.equal(shards["continue-on-error"], undefined);
   assert.equal(shards["runs-on"], "macos-15");
+  assert.equal(shards.needs, "verify");
   assert.equal(shards.if, "${{ !inputs.hooks_only }}");
   assert(shards.steps.some((step) => step.with?.ref === "${{ github.sha }}"));
   const execution = shards.steps.find((step) => step.run?.includes("--shard="));
@@ -126,6 +127,7 @@ test("Intel CI uses native runners and requires every isolated test shard", () =
     shared.steps.some((step) => step.run?.includes("process.arch !== 'x64'")),
   );
   const desktop = workflow.jobs["macos-x64-desktop-tests"];
+  assert.equal(desktop.needs, "macos-x64-checks");
   assert.deepEqual(desktop.strategy.matrix.shard, [1, 2]);
   assert.equal(desktop.strategy["fail-fast"], false);
   assert.equal(desktop["runs-on"], "macos-15-intel");
