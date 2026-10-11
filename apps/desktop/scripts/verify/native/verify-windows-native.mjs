@@ -231,6 +231,19 @@ try {
     extractedExecutablePath,
     "zip-extracted",
   );
+  run(
+    process.execPath,
+    [resolve("scripts/verify/native/verify-attachments-native.mjs")],
+    {
+      env: {
+        ...process.env,
+        ARTEMIS_ATTACHMENT_EXE: extractedExecutablePath,
+        ARTEMIS_ATTACHMENT_EVIDENCE: resolve(
+          "../../artifacts/verification/attachment-on-demand/windows-package",
+        ),
+      },
+    },
+  );
   assertAppContainerReadAcl(extractedRoot);
   assertAppContainerReadAcl(join(extractedRoot, "resources", "app.asar"));
 

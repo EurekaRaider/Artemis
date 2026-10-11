@@ -8,6 +8,9 @@ import { indexOffice, officeImage } from "./attachment-office-index.ts";
 
 import {
   createCanvas,
+  DOMMatrix,
+  Path2D,
+  ImageData,
   loadImage,
   type Canvas,
   type Image,
@@ -37,7 +40,48 @@ function progress() {
   else electronPort?.postMessage(message);
 }
 async function openPdf(path: string) {
+  // PDF.js excludes Electron utility processes from its Node detection.
+  // Supply native canvas primitives and its in-process worker explicitly;
+  // the surrounding utility process remains the isolation/cancellation boundary.
+  Object.assign(globalThis, { DOMMatrix, Path2D, ImageData });
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  pdfjs.GlobalWorkerOptions.workerSrc = import.meta
+    .resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
+  class CanvasFactory {
+    create(width: number, height: number) {
+      const canvas = createCanvas(width, height);
+      return { canvas, context: canvas.getContext("2d") };
+    }
+    reset(target: { canvas: Canvas }, width: number, height: number) {
+      target.canvas.width = width;
+      target.canvas.height = height;
+    }
+    destroy(target: { canvas: Canvas | null; context: unknown }) {
+      if (target.canvas) {
+        target.canvas.width = 0;
+        target.canvas.height = 0;
+      }
+      target.canvas = null;
+      target.context = null;
+    }
+  }
+  // Match PDF.js's Node filter behavior: no DOM/SVG filters in native canvas.
+  class FilterFactory {
+    addFilter() {
+      return "none";
+    }
+    addHCMFilter = this.addFilter;
+    addAlphaFilter = this.addFilter;
+    addLuminosityFilter = this.addFilter;
+    addKnockoutFilter = this.addFilter;
+    addHighlightHCMFilter = this.addFilter;
+    addSelectionHCMFilter = this.addFilter;
+    addSelectionFilter = this.addFilter;
+    createSelectionStyle() {
+      return null;
+    }
+    destroy() {}
+  }
   const file = await open(path, "r");
   const size = (await file.stat()).size;
   const initial = Buffer.alloc(Math.min(65536, size));
@@ -57,6 +101,12 @@ async function openPdf(path: string) {
     disableAutoFetch: true,
     disableStream: true,
     useSystemFonts: true,
+    disableFontFace: true,
+    isOffscreenCanvasSupported: false,
+    isImageDecoderSupported: false,
+    useWorkerFetch: false,
+    CanvasFactory: CanvasFactory as never,
+    FilterFactory: FilterFactory as never,
   });
   return {
     loading,
