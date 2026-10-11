@@ -24,6 +24,8 @@ For documentation-only changes, check local links, references, formatting and th
 
 Regular CI runs portable validation, native Slack CLI compatibility, visual convergence and native Hooks checks on both macOS arm64 and Windows x64. Manual `hooks_only=true` runs only Hooks acceptance. Repository, event and origin conditions also affect scheduling; consult the workflow for exact conditions.
 
+The 11 macOS visual workloads run on three independent runners. Each shard remains serial to avoid interference between native windows and focus probes. The screenshot-matrix shard retains the full cold/warm startup and bundle performance checks; the other shards retain their own acceptance checks and time budgets. The aggregate `Visual convergence (macos-arm64)` check passes only when all three shards succeed; failure, cancellation or skipping cannot pass. Each shard preserves complete evidence for the candidate SHA. The local entrypoint without `--shard` still runs the complete suite, and the Windows visual entrypoint is unchanged.
+
 Final release acceptance is separate from ordinary CI. Release consumes the [current bilingual release notes](release-notes.md) and verifies the version heading; do not remove this file as an obsolete audit. Office Runtime has an independent release process. The desktop release reuses an existing runtime; desktop CI does not prove that runtime publication is complete.
 
 ## Diagnosing failures and preserving evidence

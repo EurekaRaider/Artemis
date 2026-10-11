@@ -6,10 +6,15 @@ import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 import { verifyUiPerformance } from "../../../../../scripts/ui/verify-ui-performance.mjs";
+import { selectVisualConvergenceWorkloads } from "./visual-convergence-workloads.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "../../..");
 const repositoryRoot = resolve(appDirectory, "..", "..");
+const { workloads, shard } = selectVisualConvergenceWorkloads(
+  process.platform,
+  process.argv.slice(2).find((argument) => argument.startsWith("--shard")),
+);
 const requestedOutput =
   process.argv.slice(2).find((argument) => !argument.startsWith("--")) ??
   process.env.ARTEMIS_VISUAL_CONVERGENCE_OUTPUT;
@@ -67,6 +72,7 @@ const report = {
   expectedHead,
   platform: process.platform,
   architecture: process.arch,
+  shard,
   status: "running",
   evidenceBoundary: {
     proves:
@@ -78,68 +84,6 @@ const report = {
   },
   workloads: [],
 };
-
-const workloads = [
-  {
-    id: "screenshot-matrix",
-    budget: "screenshot-matrix",
-    script: "capture-screenshot-matrix.mjs",
-  },
-  {
-    id: "conversation-timeline",
-    budget: "conversation-timeline",
-    script: "verify-conversation-timeline.mjs",
-  },
-  {
-    id: "feedback-and-composer",
-    budget: "feedback-and-composer",
-    script: "verify-feedback-layout.mjs",
-  },
-  {
-    id: "large-diff-and-environment",
-    budget: "large-diff-and-environment",
-    script: "verify-environment-panel-responsive.mjs",
-  },
-  {
-    id: "terminal-and-browser",
-    budget: "terminal-and-browser",
-    script: "verify-workspace-dock.mjs",
-  },
-  {
-    id: "form-controls",
-    budget: "form-controls",
-    script: "verify-form-controls.mjs",
-  },
-  {
-    id: "navigation-controls",
-    budget: "navigation-controls",
-    script: "verify-navigation-controls.mjs",
-  },
-  {
-    id: "resource-center-mcp",
-    budget: "resource-center-mcp",
-    script: "verify-mcp-editor.mjs",
-  },
-  {
-    id: "secondary-pages",
-    budget: "secondary-pages",
-    script: "verify-secondary-pages.mjs",
-  },
-  {
-    id: "goal-parity",
-    budget: "goal-parity",
-    script: "verify-goal-parity-shards.mjs",
-  },
-  ...(process.platform === "darwin"
-    ? [
-        {
-          id: "desktop-skin-gallery-package",
-          budget: "desktop-skin-gallery-package",
-          script: "verify-desktop-skin.mjs",
-        },
-      ]
-    : []),
-];
 
 function verifyCandidateUnchanged(workloadId) {
   const actualHead = runGit(["rev-parse", "HEAD"]);
@@ -204,6 +148,7 @@ async function runWorkload(workload) {
     `${workload.id} took ${entry.durationMs}ms; maximum ${String(maximumMs)}ms.`,
   );
   verifyCandidateUnchanged(workload.id);
+  console.log(`${workload.id}: passed in ${entry.durationMs}ms`);
 }
 
 try {
@@ -238,10 +183,12 @@ try {
       .join("\n"),
   );
   for (const workload of workloads) await runWorkload(workload);
-  report.performance = await verifyUiPerformance(
-    repositoryRoot,
-    join(outputDirectory, "screenshot-matrix", "manifest.json"),
-  );
+  if (workloads.some((workload) => workload.id === "screenshot-matrix")) {
+    report.performance = await verifyUiPerformance(
+      repositoryRoot,
+      join(outputDirectory, "screenshot-matrix", "manifest.json"),
+    );
+  }
   verifyCandidateUnchanged("UI performance verification");
   report.completedAt = new Date().toISOString();
   report.status = "passed";

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { load } from "js-yaml";
+import { selectVisualConvergenceWorkloads } from "../../apps/desktop/scripts/verify/ui/visual-convergence-workloads.mjs";
 import {
   mainPushUpdate,
   isReadmeOnlyChange,
@@ -9,6 +11,102 @@ import {
 } from "./verify-pre-push.mjs";
 
 const head = "a".repeat(40);
+test("macOS visual shards cover every workload exactly once", () => {
+  const expected = [
+    "screenshot-matrix",
+    "conversation-timeline",
+    "feedback-and-composer",
+    "large-diff-and-environment",
+    "terminal-and-browser",
+    "form-controls",
+    "navigation-controls",
+    "resource-center-mcp",
+    "secondary-pages",
+    "goal-parity",
+    "desktop-skin-gallery-package",
+  ];
+  const complete = selectVisualConvergenceWorkloads("darwin");
+  assert.deepEqual(
+    complete.workloads.map(({ id }) => id),
+    expected,
+  );
+  assert.equal(complete.shard, undefined);
+  const selected = [1, 2, 3].flatMap((index) => {
+    const result = selectVisualConvergenceWorkloads(
+      "darwin",
+      `--shard=${index}/3`,
+    );
+    assert.deepEqual(result.shard, { index, count: 3, totalWorkloads: 11 });
+    return result.workloads;
+  });
+  assert.deepEqual(selected.map(({ id }) => id).sort(), [...expected].sort());
+  for (const workload of selected) {
+    assert.deepEqual(
+      workload,
+      complete.workloads.find(({ id }) => id === workload.id),
+    );
+  }
+  assert.deepEqual(
+    selectVisualConvergenceWorkloads("win32").workloads,
+    complete.workloads.slice(0, -1),
+  );
+  for (const argument of [
+    "--shard",
+    "--shard=0/3",
+    "--shard=4/3",
+    "--shard=1/2",
+  ]) {
+    assert.throws(() => selectVisualConvergenceWorkloads("darwin", argument));
+  }
+  assert.throws(() => selectVisualConvergenceWorkloads("win32", "--shard=1/3"));
+});
+test("macOS visual acceptance rejects failed, cancelled or skipped shards", () => {
+  const workflow = load(
+    readFileSync(
+      new URL("../../.github/workflows/ci.yml", import.meta.url),
+      "utf8",
+    ),
+  );
+  const shards = workflow.jobs["macos-visual-shards"];
+  assert.deepEqual(shards.strategy.matrix.shard, [1, 2, 3]);
+  assert.equal(shards.strategy["fail-fast"], false);
+  assert.equal(shards["continue-on-error"], undefined);
+  assert.equal(shards["runs-on"], "macos-15");
+  assert.equal(shards.if, "${{ !inputs.hooks_only }}");
+  assert(shards.steps.some((step) => step.with?.ref === "${{ github.sha }}"));
+  const execution = shards.steps.find((step) => step.run?.includes("--shard="));
+  assert.equal(
+    execution.run,
+    "npm run verify:visual-convergence -- --shard=${{ matrix.shard }}/3",
+  );
+  assert.equal(execution.env.ARTEMIS_EXPECTED_HEAD, "${{ github.sha }}");
+  assert.equal(execution["continue-on-error"], undefined);
+  const gate = workflow.jobs["macos-visual-acceptance"];
+  assert.equal(gate.name, "Visual convergence (macos-arm64)");
+  assert.equal(gate["runs-on"], "macos-15");
+  assert.deepEqual(gate.needs, ["macos-visual-shards"]);
+  assert.equal(gate.if, "${{ !inputs.hooks_only && always() }}");
+  const verdict = /^node -e "(.+)"$/u.exec(gate.steps[0].run)?.[1];
+  assert(verdict);
+  assert.equal(
+    gate.steps[0].env.ARTEMIS_VISUAL_SHARD_RESULT,
+    "${{ needs.macos-visual-shards.result }}",
+  );
+  for (const result of ["success", "failure", "cancelled", "skipped", ""]) {
+    assert.equal(
+      spawnSync(process.execPath, ["-e", verdict], {
+        env: { ...process.env, ARTEMIS_VISUAL_SHARD_RESULT: result },
+      }).status === 0,
+      result === "success",
+    );
+  }
+  assert.deepEqual(
+    workflow.jobs["visual-convergence-electron"].strategy.matrix.include.map(
+      ({ platform }) => platform,
+    ),
+    ["windows-x64"],
+  );
+});
 test("Windows CI keeps the full desktop suite across isolated shards", () => {
   const read = (path) =>
     readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
