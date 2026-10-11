@@ -2,7 +2,7 @@
 
 # 构建与发布
 
-主程序构建与验证覆盖 Windows x64、macOS arm64 与 macOS x64。CI 使用 GitHub 托管的 `windows-2025`、`macos-15` 与 `macos-15-intel`，覆盖 main push、外部 fork PR 和手动调用。PR 权限只读，不读取签名密钥，不使用 `pull_request_target` 执行贡献者代码。公开 Intel 下载需等待首个包含 x64 附件的正式 Release。
+主程序构建与验证覆盖 Windows x64、macOS arm64 与 macOS x64。CI 使用 GitHub 托管的 `windows-2025`、`macos-15` 与 `macos-15-intel`，覆盖 main push、外部 fork PR 和手动调用。PR 权限只读，不读取签名密钥，不使用 `pull_request_target` 执行贡献者代码。Intel 附件通过原生 x64 runner 的签名、公证和最终归档验收后，才可随正式 Release 公开发布。
 
 macOS CI 与打包任务按架构和锁文件缓存 npm 与 Electron 下载；每个任务仍执行 `npm ci` 和自身所需的构建，不缓存用户数据、签名凭据或验收结果。
 

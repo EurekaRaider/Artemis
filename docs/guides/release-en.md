@@ -2,7 +2,7 @@
 
 # Building and releasing
 
-Desktop builds and validation cover Windows x64, macOS arm64 and macOS x64. CI uses GitHub-hosted `windows-2025`, `macos-15` and `macos-15-intel` runners for main pushes, external fork PRs and manual invocations. PR permissions are read-only: they do not read signing keys or execute contributor code through `pull_request_target`. Public Intel downloads await the first official Release containing x64 assets.
+Desktop builds and validation cover Windows x64, macOS arm64 and macOS x64. CI uses GitHub-hosted `windows-2025`, `macos-15` and `macos-15-intel` runners for main pushes, external fork PRs and manual invocations. PR permissions are read-only: they do not read signing keys or execute contributor code through `pull_request_target`. Intel assets may be published in an official Release only after native x64 runner signing, notarization and final archive acceptance pass.
 
 macOS CI and packaging jobs cache npm and Electron downloads by architecture and lockfile. Each job still runs `npm ci` and its required builds; user data, signing credentials and acceptance results are not cached.
 

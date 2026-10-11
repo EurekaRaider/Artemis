@@ -2,7 +2,7 @@
 
 ## 中文
 
-- Computer Use 与 Office 支持 macOS Intel x64，宿主按平台、架构与 hostRange 发现签名插件；旧客户端继续使用原有 arm64 / Windows 清单。
+- Computer Use 1.2.3 与 Office Runtime 1.0.3 支持 macOS Intel x64，宿主按平台、架构与 hostRange 发现签名插件；旧客户端继续使用原有 arm64 / Windows 清单。
 - Computer Use 发布覆盖 macOS arm64、macOS x64 和 Windows x64 三个原生目标；macOS 保留 Mach-O 架构、Developer ID、Hardened Runtime、公证、stapling 和 Gatekeeper 校验。
 - Office 增加固定 SHA-256 的 Intel LibreOffice 引擎与 SDK、UNO bridge 原生构建，以及最终签名包和公开目录的全新安装、Word / Excel / PowerPoint 编辑、导出与重新打开验收。
 - 输入框预测在同轮补充消息后使用最新上下文；关闭预测后历史指令不会重新启用建议，输入与审批仍抑制建议，Tab 填入不会自动发送。
@@ -14,7 +14,7 @@
 
 ## English
 
-- Support macOS Intel x64 Computer Use and Office runtimes. The host discovers signed plugins by platform, architecture and hostRange while legacy clients retain the arm64 / Windows manifests.
+- Support macOS Intel x64 Computer Use 1.2.3 and Office Runtime 1.0.3. The host discovers signed plugins by platform, architecture and hostRange while legacy clients retain the arm64 / Windows manifests.
 - Release Computer Use for native macOS arm64, macOS x64 and Windows x64 targets. Preserve Mach-O architecture, Developer ID, Hardened Runtime, notarization, stapling and Gatekeeper checks on macOS.
 - Add SHA-256 pinned Intel LibreOffice engine and SDK inputs, native UNO bridge builds, fresh installation of the final signed archive and public catalog, and Word / Excel / PowerPoint editing, export and reopen acceptance.
 - Base composer predictions on updated context after supplements in the same turn. Historical instructions cannot re-enable disabled predictions; typing and approvals still suppress suggestions, and Tab insertion never sends a message.

@@ -278,7 +278,7 @@ release workflow. Intel packs require Artemis 1.7.14 or later and publication of
 卡片安装。Artemis 自动下载对应平台的原生运行时；更新由用户手动执行，成功切换且
 运行中任务释放版本后清除旧文件，无需额外工具链或 API key。
 所有原生包均使用 Ed25519 包签名；macOS helper 另行完成 Developer ID 签名、公证
-与 stapling。商店可用性取决于独立运行时发布工作流。Intel 包需要 Artemis 1.7.14 或更高版本，并等待对应运行时发布。详见[开发契约](docs/guides/plugin-development.md#computer-use-原生运行时)。
+与 stapling。商店可用性取决于独立运行时发布工作流。Intel 包需要 Artemis 1.7.14 或更高版本，对应运行时须独立公开发布。详见[开发契约](docs/guides/plugin-development.md#computer-use-原生运行时)。
 
 <p align="center">
   <a href="docs/assets/images/resources.png"><img src="docs/assets/images/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>
@@ -470,7 +470,7 @@ See the [developer guide](docs/guides/plugin-development.md) and
 | --- | --- |
 | Windows x64 | Current-user NSIS installer and manual ZIP |
 | macOS arm64 | Developer ID signed, notarized DMG and ZIP |
-| macOS x64 | CI and Release packaging; first public Intel release pending |
+| macOS x64 | DMG and ZIP; native Intel signing and notarization checks gate publication |
 | Windows ARM64, Linux | Not supported |
 
 <details>
