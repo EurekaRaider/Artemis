@@ -337,7 +337,10 @@ export class PluginRuntimeWorker {
         },
       );
     }
-    if (process.platform !== "darwin" || process.arch !== "arm64") {
+    if (
+      process.platform !== "darwin" ||
+      (process.arch !== "arm64" && process.arch !== "x64")
+    ) {
       throw new Error(
         `Design-plugin runtime requires the native OS sandbox; platform ${process.platform} has no wired sandbox implementation yet . Refusing to start unsandboxed.`,
       );

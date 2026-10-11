@@ -14,6 +14,22 @@ import {
 import type { AgentPayload, RunMode } from "@artemis/protocol";
 import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
 
+// Discover the real shell once for this policy matrix. Native discovery and
+// profile refresh have separate coverage; Shell execution below remains real.
+vi.mock("@artemis/platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@artemis/platform")>();
+  let shell: ReturnType<typeof actual.resolveShellRuntime> | undefined;
+  return {
+    ...actual,
+    resolveShellRuntime: (
+      options: Parameters<typeof actual.resolveShellRuntime>[0],
+    ) => {
+      shell ??= actual.resolveShellRuntime(options);
+      return structuredClone(shell);
+    },
+  };
+});
+
 const scenarios = [
   { mode: "plan", direct: false, scenario: "read" },
   { mode: "work", direct: false, scenario: "read" },

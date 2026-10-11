@@ -83,7 +83,7 @@ test("macOS visual acceptance rejects failed, cancelled or skipped shards", () =
   assert.equal(execution["continue-on-error"], undefined);
   const gate = workflow.jobs["macos-visual-acceptance"];
   assert.equal(gate.name, "Visual convergence (macos-arm64)");
-  assert.equal(gate["runs-on"], "macos-15");
+  assert.equal(gate["runs-on"], "windows-2025");
   assert.deepEqual(gate.needs, ["macos-visual-shards"]);
   assert.equal(gate.if, "${{ !inputs.hooks_only && always() }}");
   const verdict = /^node -e "(.+)"$/u.exec(gate.steps[0].run)?.[1];

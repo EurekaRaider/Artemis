@@ -185,7 +185,7 @@ jobs:
     name: Test, typecheck, build and format (macos-x64)
     needs: [macos-x64-checks, macos-x64-desktop-tests]
     if: ${{ !inputs.hooks_only && always() }}
-    runs-on: macos-15-intel
+    runs-on: windows-2025
     timeout-minutes: 3
     steps:
       - name: Require shared checks and every desktop shard
@@ -341,7 +341,7 @@ jobs:
     name: Visual convergence (macos-arm64)
     needs: [macos-visual-shards]
     if: ${{ !inputs.hooks_only && always() }}
-    runs-on: macos-15
+    runs-on: windows-2025
     timeout-minutes: 3
     steps:
       - name: Require every macOS visual shard
@@ -391,7 +391,7 @@ jobs:
     name: Visual convergence (macos-x64)
     needs: [macos-x64-visual-shards]
     if: ${{ !inputs.hooks_only && always() }}
-    runs-on: macos-15-intel
+    runs-on: windows-2025
     timeout-minutes: 3
     steps:
       - name: Require every macOS visual shard

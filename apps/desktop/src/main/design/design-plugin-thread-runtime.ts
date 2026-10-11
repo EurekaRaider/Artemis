@@ -353,8 +353,8 @@ export class ThreadRuntimeManager {
   }
 }
 
-// Exported for the platform-scope test: the publish list in
-// scripts/design-pack/build-design-pack.mjs must stay aligned with this gate.
+// Published pack targets must have a native sandbox; catalog manifests
+// independently restrict which architectures may install a particular pack.
 export function defaultProbe(windowsHelperPath?: string): SandboxProbe {
   if (process.platform === "win32" && process.arch === "x64") {
     try {
@@ -369,11 +369,14 @@ export function defaultProbe(windowsHelperPath?: string): SandboxProbe {
     }
   }
   // Supported targets always require their native isolation implementation.
-  if (process.platform === "darwin" && process.arch === "arm64")
+  if (
+    process.platform === "darwin" &&
+    (process.arch === "arm64" || process.arch === "x64")
+  )
     return probeMacOsSeatbelt();
   return {
     ok: false,
-    reason: `design plugins are not yet supported on ${process.platform}-${process.arch}; supported targets are darwin-arm64 and win32-x64`,
+    reason: `design plugins are not yet supported on ${process.platform}-${process.arch}; supported targets are darwin-arm64, darwin-x64 and win32-x64`,
   };
 }
 

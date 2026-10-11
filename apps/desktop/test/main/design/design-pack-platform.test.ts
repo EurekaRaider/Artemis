@@ -1,10 +1,6 @@
-// PR #245 review (P2): the design pack's publish platform list
-// (scripts/design-pack/build-design-pack.mjs) and the runtime's platform gate
-// (design-plugin-thread-runtime.ts defaultProbe) must agree. First-version
-// scope decision: darwin-arm64 only — the one platform with a signed pack
-// manifest and a verified Seatbelt path. Publishing a platform whose runtime
-// refuses to start (win32 before AppContainer lands; Intel macOS with no
-// signed manifest) advertises installs that can never run.
+// Published Design pack targets require a working native sandbox. Host sandbox
+// support can be broader than the independently signed pack catalog; catalog
+// manifests still decide which architectures may install the built-in pack.
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -95,9 +91,13 @@ describe("design-pack first-version platform scope (darwin-arm64 and win32-x64)"
     expect(probe).toEqual({ ok: true, implementation: "windows-appcontainer" });
   });
 
-  it("runtime refuses darwin-x64 — no signed Intel manifest exists", () => {
+  it("Intel host support requires Seatbelt independently of pack availability", () => {
     const probe = withPlatform("darwin", "x64", () => defaultProbe());
-    expect(probe.ok).toBe(false);
-    if (!probe.ok) expect(probe.reason).toContain("not yet supported");
+    if (process.platform === "darwin")
+      expect(probe).toEqual({ ok: true, implementation: "macos-seatbelt" });
+    else {
+      expect(probe.ok).toBe(false);
+      if (!probe.ok) expect(probe.reason).toContain("sandbox-exec");
+    }
   });
 });
