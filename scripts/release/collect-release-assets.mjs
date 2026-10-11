@@ -9,6 +9,10 @@ import {
 } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  collectMacUpdateMetadata,
+  writeMacUpdateMetadata,
+} from "../../apps/desktop/scripts/release/macos-update-metadata.mjs";
 
 export async function collectReleaseAssets(
   input,
@@ -18,8 +22,8 @@ export async function collectReleaseAssets(
 ) {
   const collected = [];
   const platforms = macosOnly
-    ? ["macos-arm64"]
-    : ["macos-arm64", "windows-x64"];
+    ? ["macos-arm64", "macos-x64"]
+    : ["macos-arm64", "macos-x64", "windows-x64"];
   for (const platform of platforms) {
     const directory = join(input, `release-${platform}`);
     const manifest = JSON.parse(
@@ -35,7 +39,7 @@ export async function collectReleaseAssets(
       throw new Error("Unexpected release distribution");
     const base = windows
       ? `Artemis-Windows-x64-${version}`
-      : `Artemis-macOS-arm64-${version}`;
+      : `Artemis-macOS-${platform.slice("macos-".length)}-${version}`;
     const required = windows
       ? [`${base}.exe`, `${base}.zip`, "windows-x64-update.json"]
       : [`${base}.dmg`, `${base}.zip`];
@@ -64,7 +68,7 @@ export async function collectReleaseAssets(
         createHash("sha256").update(bytes).digest("hex") !== artifact.sha256
       )
         throw new Error(`Release integrity failed: ${artifact.name}`);
-      collected.push({ ...artifact, directory });
+      collected.push({ ...artifact, directory, platform });
     }
     if (
       required.some((name) => !names.has(name)) ||
@@ -91,7 +95,9 @@ export async function collectReleaseAssets(
       metadata?.version !== version ||
       !Array.isArray(metadata.files) ||
       !metadata.files.some(
-        (file) => file.url === `Artemis-macOS-arm64-${version}.zip`,
+        (file) =>
+          file.url ===
+          `Artemis-macOS-${artifact.platform.slice("macos-".length)}-${version}.zip`,
       )
     )
       throw new Error("Invalid macOS update metadata");
@@ -110,21 +116,53 @@ export async function collectReleaseAssets(
         throw new Error("Update metadata checksum mismatch");
     }
   }
+  const macMetadata = new Map();
+  let channels;
+  for (const platform of platforms.filter((name) =>
+    name.startsWith("macos-"),
+  )) {
+    const directory = join(input, `release-${platform}`);
+    const names = collected
+      .filter(
+        (item) =>
+          item.directory === directory && item.name.endsWith("-mac.yml"),
+      )
+      .map((item) => item.name)
+      .sort();
+    if (channels && JSON.stringify(channels) !== JSON.stringify(names))
+      throw new Error("macOS architecture update channels differ");
+    channels = names;
+    await collectMacUpdateMetadata(directory, macMetadata, version);
+  }
   // Validate every selected set before copying anything; never overwrite manifests.
   await mkdir(output, { recursive: true });
   if ((await readdir(output)).length)
     throw new Error("Release output must be empty");
-  for (const artifact of collected)
+  const outputArtifacts = collected.filter(
+    (item) => !item.name.endsWith("-mac.yml"),
+  );
+  for (const artifact of outputArtifacts)
     await copyFile(
       join(artifact.directory, artifact.name),
       join(output, artifact.name),
     );
+  await writeMacUpdateMetadata(output, macMetadata);
+  for (const name of macMetadata.keys()) {
+    const bytes = await readFile(join(output, name));
+    outputArtifacts.push({
+      name,
+      size: bytes.length,
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+    });
+  }
   await writeFile(
     join(output, "release-manifest.json"),
     JSON.stringify(
       {
         version,
-        artifacts: collected.map(({ directory, ...artifact }) => artifact),
+        artifacts: outputArtifacts.map(
+          ({ directory, platform, ...artifact }) => artifact,
+        ),
       },
       null,
       2,

@@ -101,7 +101,7 @@ describe("desktop startup latency guardrails", () => {
     );
   });
 
-  it("pins dual-platform visual convergence to the source head on public hosted runners", () => {
+  it("pins three-platform visual convergence to the source head on public hosted runners", () => {
     const visualJob = ciWorkflowSource.slice(
       ciWorkflowSource.indexOf("visual-convergence-electron:"),
       ciWorkflowSource.indexOf("\n  hooks-native:"),
@@ -112,7 +112,10 @@ describe("desktop startup latency guardrails", () => {
     expect(visualJob).toContain(
       `ARTEMIS_EXPECTED_HEAD: \${{ ${exactSourceHead} }}`,
     );
-    expect(visualJob).toContain("runner: macos-15");
+    expect(visualJob).toContain("macos-visual-shards:");
+    expect(visualJob).toContain("runs-on: macos-15\n");
+    expect(visualJob).toContain("macos-x64-visual-shards:");
+    expect(visualJob).toContain("runs-on: macos-15-intel");
     expect(visualJob).not.toContain("github.event.repository.private");
     expect(ciWorkflowSource).toContain("workflow_call:");
     expect(visualJob).toContain("runner: windows-2025");

@@ -11,7 +11,7 @@ for (const name of await readdir(
     "utf8",
   );
   assert(
-    !/self-hosted|github\.event\.repository\.private|pull_request_target|head\.repo\.full_name|darwin-x64|macos-x64|win32-arm64|windows-arm64|--ia32|--universal/u.test(
+    !/self-hosted|github\.event\.repository\.private|pull_request_target|head\.repo\.full_name|win32-arm64|windows-arm64|--ia32|--universal/u.test(
       source,
     ),
     `${name}: private or unsafe workflow`,
@@ -21,12 +21,16 @@ for (const name of await readdir(
     if (job.uses) continue;
     for (const entry of job.strategy?.matrix?.include ?? []) {
       assert(
-        ["macos-arm64", "windows-x64"].includes(entry.platform),
+        ["macos-arm64", "macos-x64", "windows-x64"].includes(entry.platform),
         `${name}/${id}: unsupported target ${entry.platform}`,
       );
       assert(
         entry.runner ===
-          (entry.platform === "macos-arm64" ? "macos-15" : "windows-2025"),
+          (entry.platform === "macos-arm64"
+            ? "macos-15"
+            : entry.platform === "macos-x64"
+              ? "macos-15-intel"
+              : "windows-2025"),
         `${name}/${id}: runner does not match target`,
       );
     }
@@ -37,6 +41,7 @@ for (const name of await readdir(
       assert(
         typeof runner === "string" &&
           (runner === "macos-15" ||
+            runner === "macos-15-intel" ||
             runner === "windows-2025" ||
             runner ===
               "${{ inputs.platform == 'macos' && 'macos-15' || 'windows-2025' }}"),
@@ -46,5 +51,5 @@ for (const name of await readdir(
   }
 }
 console.log(
-  "Public workflows use only hosted Windows x64 and macOS arm64 runners.",
+  "Public workflows use only hosted Windows x64 and macOS arm64/x64 runners.",
 );

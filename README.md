@@ -98,7 +98,7 @@ without an issuer require a new sign-in after the security update.
 ## Quick start
 
 > Artemis is MIT-licensed and starts without activation or device registration.
-> Supported targets are Windows x64 and macOS arm64. Downloads are available at
+> Current public downloads target Windows x64 and macOS arm64. Downloads are available at
 > [Artemis](https://github.com/EurekaRaider/Artemis/releases).
 > See [installation](docs/install.md) and [contribution rules](CONTRIBUTING.md).
 
@@ -419,20 +419,26 @@ boundary and performance contracts. For native visual verification, run
 `npm run verify:screenshot-matrix`.
 
 CI runs on pushes to `main`, fork pull requests and manual dispatches, using
-GitHub-hosted `windows-2025` and `macos-15`. Release requires both targets from
+GitHub-hosted `windows-2025`, `macos-15` and `macos-15-intel`. Release requires all three targets from
 the same source commit. Pull request jobs have read-only permissions and no
 release secrets. Native checks and actual installation evidence remain separate.
+Both macOS architectures split visual acceptance across three independent runners.
+Intel desktop tests also use two isolated shards; Windows keeps four.
 
 ### Package the desktop
 
 | Target | Command | Artifacts |
 | --- | --- | --- |
 | Windows x64 | `npm run package:win` | Per-user NSIS EXE and manual ZIP |
-| macOS arm64 | `npm run package:mac` | DMG and ZIP |
+| macOS arm64 | `npm run package:mac:arm64` | DMG and ZIP |
+| macOS x64 | `npm run package:mac:x64` | Intel DMG and ZIP |
 
 The Release workflow signs and notarizes macOS packages, verifies Windows
 artifacts, checks the final attachment allowlist and publishes to Artemis.
 Intermediate signed macOS apps use short-lived Actions artifacts.
+Set the Release workflow's `publish` input to `false` to validate complete signed
+packages without publishing a release or advancing update channels. macOS update
+metadata includes both architectures after their individual integrity checks.
 See the [release guide](docs/guides/release.md) for credentials and acceptance.
 
 Installed Windows builds use an Ed25519-signed platform index, verified downloads
@@ -457,7 +463,8 @@ See the [developer guide](docs/guides/plugin-development.md) and
 | --- | --- |
 | Windows x64 | Current-user NSIS installer and manual ZIP |
 | macOS arm64 | Developer ID signed, notarized DMG and ZIP |
-| Windows ARM64, macOS Intel, Linux | Not supported |
+| macOS x64 | CI and Release packaging; first public Intel release pending |
+| Windows ARM64, Linux | Not supported |
 
 <details>
 <summary><strong>Installing packaged builds</strong></summary>

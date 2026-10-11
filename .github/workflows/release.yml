@@ -6,6 +6,10 @@ name: Release
         description: 发布版本标签，必须与 package.json 一致，例如 v1.6.1
         required: true
         type: string
+      publish:
+        description: Publish verified artifacts and advance the update channel
+        type: boolean
+        default: true
 permissions:
   contents: read
   actions: read
@@ -56,11 +60,25 @@ jobs:
     needs: prepare
     uses: ./.github/workflows/ci.yml
   sign-macos:
-    name: Build and sign macOS arm64
+    name: Build and sign macOS ${{ matrix.arch }}
     needs:
       - prepare
       - ci
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            arch: arm64
+            runner: macos-15
+            app_directory: mac-arm64
+            macho_arch: arm64
+          - platform: macos-x64
+            arch: x64
+            runner: macos-15-intel
+            app_directory: mac
+            macho_arch: x86_64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     permissions:
       contents: read
@@ -71,7 +89,7 @@ jobs:
           ref: ${{ github.sha }}
       - name: Verify native runner architecture
         shell: bash
-        run: test "$(uname -m)" = arm64
+        run: test "$(uname -m)" = "${{ matrix.macho_arch }}"
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
@@ -80,10 +98,10 @@ jobs:
         run: npm ci
       - name: Build UI library dependencies for bundled plugin verification
         run: npm run build:ui-libraries
-      - name: Package and sign macOS arm64 DMG and ZIP
+      - name: Package and sign macOS ${{ matrix.arch }} DMG and ZIP
         run: |
           node apps/desktop/scripts/release/validate-release-env.mjs mac
-          npm run sign:mac:arm64 -w @artemis/desktop
+          npm run sign:mac:${{ matrix.arch }} -w @artemis/desktop
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -95,19 +113,33 @@ jobs:
           ARTEMIS_UPDATE_REPO: Artemis
       - name: Archive signed app and native verification modules
         run: >-
-          tar -czf signed-macos-arm64.tar.gz apps/desktop/release/mac-arm64 packages/platform/dist
+          tar -czf signed-macos-${{ matrix.arch }}.tar.gz apps/desktop/release/${{ matrix.app_directory }} packages/platform/dist
           packages/protocol/dist packages/plugin-contract/dist
       - name: Preserve signed app for notarization
         uses: actions/upload-artifact@v6
         with:
-          name: signed-macos-arm64
-          path: signed-macos-arm64.tar.gz
+          name: signed-macos-${{ matrix.arch }}
+          path: signed-macos-${{ matrix.arch }}.tar.gz
           retention-days: 1
           if-no-files-found: error
   package-macos:
-    name: Notarize and verify macOS arm64
+    name: Notarize and verify macOS ${{ matrix.arch }}
     needs: sign-macos
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            arch: arm64
+            runner: macos-15
+            app_directory: mac-arm64
+            macho_arch: arm64
+          - platform: macos-x64
+            arch: x64
+            runner: macos-15-intel
+            app_directory: mac
+            macho_arch: x86_64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     permissions:
       contents: read
@@ -121,12 +153,12 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v6
         with:
-          name: signed-macos-arm64
+          name: signed-macos-${{ matrix.arch }}
           path: signed-input
       - name: Restore signed app without rebuilding or signing
-        run: tar -xzf signed-input/signed-macos-arm64.tar.gz
+        run: tar -xzf signed-input/signed-macos-${{ matrix.arch }}.tar.gz
       - name: Notarize signed app and rebuild stapled archives
-        run: npm run notarize:mac:arm64 -w @artemis/desktop
+        run: npm run notarize:mac:${{ matrix.arch }} -w @artemis/desktop
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -144,8 +176,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           version="$(node -p "require('./package.json').version")"
-          dmg="$PWD/apps/desktop/release/Artemis-macOS-arm64-$version.dmg"
-          zip="$PWD/apps/desktop/release/Artemis-macOS-arm64-$version.zip"
+          dmg="$PWD/apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-$version.dmg"
+          zip="$PWD/apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-$version.zip"
           verification_root="$(mktemp -d "$RUNNER_TEMP/artemis-release-verify.XXXXXX")"
           mount_path="$verification_root/dmg"
           cleanup() {
@@ -160,7 +192,7 @@ jobs:
             /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F "TeamIdentifier=$APPLE_TEAM_ID"
             /usr/sbin/spctl --assess --type execute --verbose=4 "$app"
             /usr/bin/xcrun stapler validate "$app"
-            test "$(/usr/bin/lipo -archs "$app/Contents/MacOS/Artemis")" = arm64
+            test "$(/usr/bin/lipo -archs "$app/Contents/MacOS/Artemis")" = "${{ matrix.macho_arch }}"
           }
           /usr/bin/hdiutil verify "$dmg"
           /usr/bin/unzip -t "$zip"
@@ -171,9 +203,9 @@ jobs:
           verify_app "$mount_path/Artemis.app"
       - uses: actions/upload-artifact@v6
         with:
-          name: release-macos-arm64
+          name: release-macos-${{ matrix.arch }}
           path: |-
-            apps/desktop/release/Artemis-macOS-arm64-*
+            apps/desktop/release/Artemis-macOS-${{ matrix.arch }}-*
             apps/desktop/release/latest-mac.yml
             apps/desktop/release/release-manifest.json
           retention-days: 7
@@ -236,11 +268,35 @@ jobs:
             apps/desktop/release/release-manifest.json
           retention-days: 7
           if-no-files-found: error
+  collect:
+    name: Verify and collect all three platform release sets
+    needs: [package-macos, package-windows]
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: release-*
+          path: release-inputs
+      - name: Verify artifacts and merge architecture update metadata
+        run: node scripts/release/collect-release-assets.mjs release-inputs release-assets
+      - uses: actions/upload-artifact@v6
+        with:
+          name: verified-release-assets
+          path: release-assets
+          retention-days: 7
+          if-no-files-found: error
   publish:
     name: Publish client artifacts to Artemis
-    needs:
-      - package-macos
-      - package-windows
+    needs: collect
+    if: inputs.publish
     permissions:
       contents: write
       actions: read
@@ -253,20 +309,14 @@ jobs:
           ref: ${{ github.sha }}
       - uses: actions/download-artifact@v6
         with:
-          pattern: release-*
-          path: release-inputs
+          name: verified-release-assets
+          path: release-assets
       - name: Set up Node.js 26
         uses: actions/setup-node@v7
         with:
           node-version: 26
       - name: Install release verification dependencies
         run: npm ci --ignore-scripts
-      - name: Verify and collect selected platform release sets
-        shell: bash
-        env: {}
-        run: |
-          args=(release-inputs release-assets)
-          node scripts/release/collect-release-assets.mjs "${args[@]}"
       - name: Publish verified client packages
         env:
           GH_TOKEN: ${{ github.token }}

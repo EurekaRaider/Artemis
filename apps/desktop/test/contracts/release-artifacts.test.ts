@@ -16,6 +16,9 @@ it("excludes manually compressed DMGs from the official release manifest", async
     for (const name of [
       "Artemis-macOS-arm64-1.6.0.zip",
       "Artemis-macOS-arm64-1.6.0.dmg.zip",
+      "Artemis-macOS-x64-1.6.0.dmg",
+      "Artemis-macOS-x64-1.6.0.zip",
+      "Artemis-macOS-x64-1.6.0.dmg.zip",
       "latest-mac.yml",
     ]) {
       await writeFile(join(directory, "release", name), "fixture");
@@ -40,7 +43,12 @@ it("excludes manually compressed DMGs from the official release manifest", async
     );
     expect(
       manifest.artifacts.map((artifact: { name: string }) => artifact.name),
-    ).toEqual(["Artemis-macOS-arm64-1.6.0.zip", "latest-mac.yml"]);
+    ).toEqual([
+      "Artemis-macOS-arm64-1.6.0.zip",
+      "Artemis-macOS-x64-1.6.0.dmg",
+      "Artemis-macOS-x64-1.6.0.zip",
+      "latest-mac.yml",
+    ]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

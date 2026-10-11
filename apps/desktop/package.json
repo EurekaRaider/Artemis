@@ -43,7 +43,11 @@
     "sign:mac:arm64": "node scripts/packaging/package-mac-lite.mjs arm64 --sign-only",
     "notarize:mac": "node scripts/packaging/package-mac-lite.mjs all --notarize-only",
     "notarize:mac:arm64": "node scripts/packaging/package-mac-lite.mjs arm64 --notarize-only",
-    "release:mac:arm64": "node scripts/packaging/package-mac-lite.mjs arm64 --release"
+    "release:mac:arm64": "node scripts/packaging/package-mac-lite.mjs arm64 --release",
+    "package:mac:x64": "node scripts/packaging/package-mac-lite.mjs x64",
+    "sign:mac:x64": "node scripts/packaging/package-mac-lite.mjs x64 --sign-only",
+    "notarize:mac:x64": "node scripts/packaging/package-mac-lite.mjs x64 --notarize-only",
+    "release:mac:x64": "node scripts/packaging/package-mac-lite.mjs x64 --release"
   },
   "dependencies": {
     "@artemis/agent-host": "1.7.13",
@@ -154,13 +158,15 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],

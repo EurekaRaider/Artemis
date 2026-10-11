@@ -2991,16 +2991,20 @@ describe("renderer layout contract", () => {
     expect(rootPackage.scripts["package:mac:arm64"]).toBe(
       "npm run package:mac:arm64 -w @artemis/desktop",
     );
-    expect(rootPackage.scripts["package:mac:x64"]).toBeUndefined();
+    expect(rootPackage.scripts["package:mac:x64"]).toBe(
+      "npm run package:mac:x64 -w @artemis/desktop",
+    );
     expect(desktopPackage.scripts["package:mac"]).toBe(
       "node scripts/packaging/package-mac-lite.mjs all",
     );
     expect(desktopPackage.scripts["package:mac:arm64"]).toBe(
       "node scripts/packaging/package-mac-lite.mjs arm64",
     );
-    expect(desktopPackage.scripts["package:mac:x64"]).toBeUndefined();
+    expect(desktopPackage.scripts["package:mac:x64"]).toBe(
+      "node scripts/packaging/package-mac-lite.mjs x64",
+    );
     for (const target of desktopPackage.build.mac.target) {
-      expect(target.arch).toEqual(["arm64"]);
+      expect(target.arch).toEqual(["arm64", "x64"]);
     }
     expect(desktopPackage.scripts["release:mac"]).toBe(
       "node scripts/packaging/package-mac-lite.mjs all --release",
@@ -3027,7 +3031,7 @@ describe("renderer layout contract", () => {
     );
     expect(invalidArchitecture.status).not.toBe(0);
     expect(invalidArchitecture.stderr).toContain(
-      "Unsupported macOS package architecture: universal. Expected arm64 (all is an alias for arm64).",
+      "Unsupported macOS package architecture: universal. Expected arm64, x64 or all.",
     );
     expect(macPackageScriptSource).toContain(
       'const packageName = "@napi-rs/canvas-darwin-x64"',

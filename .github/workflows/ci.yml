@@ -122,6 +122,77 @@ jobs:
           path: artifacts/benchmarks
           retention-days: 14
           if-no-files-found: error
+  macos-x64-checks:
+    name: Shared checks (macos-x64)
+    if: ${{ !inputs.hooks_only }}
+    runs-on: macos-15-intel
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Verify native Intel runner
+        run: node -e "if (process.platform !== 'darwin' || process.arch !== 'x64') process.exit(1)"
+      - run: npm ci
+      - name: Exercise background browser input and native form controls
+        run: |
+          npm run build:core
+          node apps/desktop/scripts/verify/native/verify-computer-browser-input.mjs
+      - name: Run shared macOS x64 CI checks
+        run: npm run verify:ci -- --shared-tests
+        env:
+          ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Verify official native CLI and bundled hooks
+        run: node scripts/slack/test-slack-cli-native.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: node scripts/benchmarks/benchmark-history.mjs
+      - run: node --expose-gc scripts/benchmarks/benchmark-streaming.mjs
+      - uses: actions/upload-artifact@v6
+        with:
+          name: performance-macos-x64
+          path: artifacts/benchmarks
+          retention-days: 14
+          if-no-files-found: error
+  macos-x64-desktop-tests:
+    name: Desktop tests (macos-x64, shard ${{ matrix.shard }}/2)
+    if: ${{ !inputs.hooks_only }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Verify native Intel runner
+        run: node -e "if (process.platform !== 'darwin' || process.arch !== 'x64') process.exit(1)"
+      - run: npm ci
+      - run: npm run build
+      - name: Run isolated desktop test shard
+        run: npm run test -w @artemis/desktop -- --shard=${{ matrix.shard }}/2
+  macos-x64-acceptance:
+    name: Test, typecheck, build and format (macos-x64)
+    needs: [macos-x64-checks, macos-x64-desktop-tests]
+    if: ${{ !inputs.hooks_only && always() }}
+    runs-on: macos-15-intel
+    timeout-minutes: 3
+    steps:
+      - name: Require shared checks and every desktop shard
+        run: node -e "if (process.env.SHARED_RESULT !== 'success' || process.env.DESKTOP_RESULT !== 'success') process.exit(1)"
+        env:
+          SHARED_RESULT: ${{ needs.macos-x64-checks.result }}
+          DESKTOP_RESULT: ${{ needs.macos-x64-desktop-tests.result }}
   windows-desktop-tests:
     name: Desktop tests (windows-x64, shard ${{ matrix.shard }}/4)
     if: ${{ !inputs.hooks_only }}
@@ -277,6 +348,56 @@ jobs:
         run: node -e "if (process.env.ARTEMIS_VISUAL_SHARD_RESULT !== 'success') process.exit(1)"
         env:
           ARTEMIS_VISUAL_SHARD_RESULT: ${{ needs.macos-visual-shards.result }}
+  macos-x64-visual-shards:
+    name: Visual workloads (macos-x64, shard ${{ matrix.shard }}/3)
+    if: ${{ !inputs.hooks_only }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Verify native Intel runner
+        run: node -e "if (process.platform !== 'darwin' || process.arch !== 'x64') process.exit(1)"
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify exact-head visual workload shard
+        run: npm run verify:visual-convergence -- --shard=${{ matrix.shard }}/3
+        env:
+          ARTEMIS_EXPECTED_HEAD: ${{ github.sha }}
+          ARTEMIS_VISUAL_CONVERGENCE_OUTPUT: ${{ runner.temp }}/artemis-visual-convergence
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Preserve visual convergence evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: visual-convergence-macos-x64-shard-${{ matrix.shard }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/artemis-visual-convergence/**/*.json
+            ${{ runner.temp }}/artemis-visual-convergence/**/*.png
+            ${{ runner.temp }}/artemis-visual-convergence/**/*.log
+          if-no-files-found: error
+          retention-days: 7
+  macos-x64-visual-acceptance:
+    name: Visual convergence (macos-x64)
+    needs: [macos-x64-visual-shards]
+    if: ${{ !inputs.hooks_only && always() }}
+    runs-on: macos-15-intel
+    timeout-minutes: 3
+    steps:
+      - name: Require every macOS visual shard
+        run: node -e "if (process.env.ARTEMIS_VISUAL_SHARD_RESULT !== 'success') process.exit(1)"
+        env:
+          ARTEMIS_VISUAL_SHARD_RESULT: ${{ needs.macos-x64-visual-shards.result }}
   hooks-native:
     name: Hooks native acceptance (${{ matrix.platform }})
     env:
@@ -288,6 +409,8 @@ jobs:
         include:
           - platform: macos-arm64
             runner: macos-15
+          - platform: macos-x64
+            runner: macos-15-intel
           - platform: windows-x64
             runner: windows-2025
     runs-on: ${{ matrix.runner }}
@@ -317,8 +440,8 @@ jobs:
         if: matrix.platform == 'windows-x64'
         run: npm run verify:win-native -w @artemis/desktop
       - name: Package macOS engineering artifacts
-        if: matrix.platform == 'macos-arm64'
-        run: npm run package:mac
+        if: startsWith(matrix.platform, 'macos-')
+        run: npm run package:mac:${{ matrix.platform == 'macos-x64' && 'x64' || 'arm64' }}
       - name: Upload native acceptance evidence
         if: always()
         continue-on-error: true

@@ -107,6 +107,116 @@ test("macOS visual acceptance rejects failed, cancelled or skipped shards", () =
     ["windows-x64"],
   );
 });
+test("Intel CI uses native runners and requires every isolated test shard", () => {
+  const workflow = load(
+    readFileSync(
+      new URL("../../.github/workflows/ci.yml", import.meta.url),
+      "utf8",
+    ),
+  );
+  const shared = workflow.jobs["macos-x64-checks"];
+  assert.equal(shared["runs-on"], "macos-15-intel");
+  assert(
+    shared.steps.some(
+      (step) => step.run === "npm run verify:ci -- --shared-tests",
+    ),
+  );
+  assert(
+    shared.steps.some((step) => step.run?.includes("process.arch !== 'x64'")),
+  );
+  const desktop = workflow.jobs["macos-x64-desktop-tests"];
+  assert.deepEqual(desktop.strategy.matrix.shard, [1, 2]);
+  assert.equal(desktop.strategy["fail-fast"], false);
+  assert.equal(desktop["runs-on"], "macos-15-intel");
+  assert(desktop.steps.some((step) => step.with?.ref === "${{ github.sha }}"));
+  assert(desktop.steps.some((step) => step.run === "npm run build"));
+  assert(
+    desktop.steps.some(
+      (step) =>
+        step.run ===
+        "npm run test -w @artemis/desktop -- --shard=${{ matrix.shard }}/2",
+    ),
+  );
+  const visual = workflow.jobs["macos-x64-visual-shards"];
+  assert.deepEqual(visual.strategy.matrix.shard, [1, 2, 3]);
+  assert.equal(visual.strategy["fail-fast"], false);
+  assert.equal(visual["runs-on"], "macos-15-intel");
+  assert(visual.steps.some((step) => step.with?.ref === "${{ github.sha }}"));
+  assert(
+    visual.steps.some(
+      (step) => step.env?.ARTEMIS_EXPECTED_HEAD === "${{ github.sha }}",
+    ),
+  );
+  assert.equal(
+    workflow.jobs["macos-x64-visual-acceptance"].name,
+    "Visual convergence (macos-x64)",
+  );
+  assert.deepEqual(workflow.jobs["macos-x64-visual-acceptance"].needs, [
+    "macos-x64-visual-shards",
+  ]);
+  const gate = workflow.jobs["macos-x64-acceptance"];
+  assert.deepEqual(gate.needs, ["macos-x64-checks", "macos-x64-desktop-tests"]);
+  assert.equal(gate.if, "${{ !inputs.hooks_only && always() }}");
+  assert.equal(gate.name, "Test, typecheck, build and format (macos-x64)");
+  const verdict = /^node -e "(.+)"$/u.exec(gate.steps[0].run)?.[1];
+  assert(verdict);
+  for (const sharedResult of ["success", "failure", "skipped", "cancelled"])
+    for (const desktopResult of ["success", "failure", "skipped", "cancelled"])
+      assert.equal(
+        spawnSync(process.execPath, ["-e", verdict], {
+          env: {
+            ...process.env,
+            SHARED_RESULT: sharedResult,
+            DESKTOP_RESULT: desktopResult,
+          },
+        }).status === 0,
+        sharedResult === "success" && desktopResult === "success",
+      );
+});
+test("Release verifies both native macOS architectures and supports packaging without publication", () => {
+  const workflow = load(
+    readFileSync(
+      new URL("../../.github/workflows/release.yml", import.meta.url),
+      "utf8",
+    ),
+  );
+  assert.equal(workflow.on.workflow_dispatch.inputs.publish.type, "boolean");
+  assert.equal(workflow.on.workflow_dispatch.inputs.publish.default, true);
+  for (const jobName of ["sign-macos", "package-macos"]) {
+    const job = workflow.jobs[jobName];
+    assert.deepEqual(
+      job.strategy.matrix.include.map(({ arch, runner, macho_arch }) => [
+        arch,
+        runner,
+        macho_arch,
+      ]),
+      [
+        ["arm64", "macos-15", "arm64"],
+        ["x64", "macos-15-intel", "x86_64"],
+      ],
+    );
+    assert.equal(job.strategy["fail-fast"], false);
+    assert(job.steps.some((step) => step.with?.ref === "${{ github.sha }}"));
+  }
+  assert(
+    workflow.jobs["package-macos"].steps.some(
+      (step) => step.run === "npm run verify:mac-native -w @artemis/desktop",
+    ),
+  );
+  assert.deepEqual(workflow.jobs.collect.needs, [
+    "package-macos",
+    "package-windows",
+  ]);
+  assert(
+    workflow.jobs.collect.steps.some((step) =>
+      step.run?.includes("collect-release-assets.mjs"),
+    ),
+  );
+  assert.equal(workflow.jobs.publish.needs, "collect");
+  assert.equal(workflow.jobs.publish.if, "inputs.publish");
+  for (const [name, job] of Object.entries(workflow.jobs))
+    if (name !== "publish") assert.notEqual(job.permissions?.contents, "write");
+});
 test("Windows CI keeps the full desktop suite across isolated shards", () => {
   const read = (path) =>
     readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");

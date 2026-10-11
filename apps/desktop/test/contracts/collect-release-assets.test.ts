@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
+import { load } from "js-yaml";
 // @ts-expect-error Build scripts are exercised directly.
 import { collectReleaseAssets } from "../../../../scripts/release/collect-release-assets.mjs";
 const directories: string[] = [];
@@ -23,10 +24,11 @@ afterEach(async () => {
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "artemis-release-"));
   directories.push(root);
-  for (const platform of ["macos-arm64", "windows-x64"]) {
+  for (const platform of ["macos-arm64", "macos-x64", "windows-x64"]) {
     const dir = join(root, `release-${platform}`);
     await mkdir(dir);
     const windows = platform === "windows-x64";
+    const arch = platform === "macos-x64" ? "x64" : "arm64";
     const names = windows
       ? [
           "Artemis-Windows-x64-1.6.0.exe",
@@ -34,13 +36,13 @@ async function fixture() {
           "windows-x64-update.json",
         ]
       : [
-          "Artemis-macOS-arm64-1.6.0.dmg",
-          "Artemis-macOS-arm64-1.6.0.zip",
+          `Artemis-macOS-${arch}-1.6.0.dmg`,
+          `Artemis-macOS-${arch}-1.6.0.zip`,
           "latest-mac.yml",
         ];
     const artifacts = [];
     for (const name of names) {
-      const zipName = "Artemis-macOS-arm64-1.6.0.zip";
+      const zipName = `Artemis-macOS-${arch}-1.6.0.zip`;
       const bytes = Buffer.from(
         name === "latest-mac.yml"
           ? `version: 1.6.0\nfiles:\n  - url: ${zipName}\n    sha512: ${createHash("sha512").update(zipName).digest("base64")}\n`
@@ -68,12 +70,28 @@ it("combines independently verified manifests without overwriting either platfor
   const root = await fixture();
   const output = join(root, "output");
   await collectReleaseAssets(root, output, "1.6.0");
-  expect((await readdir(output)).length).toBe(7);
+  expect((await readdir(output)).length).toBe(9);
   const manifest = JSON.parse(
     await readFile(join(output, "release-manifest.json"), "utf8"),
   );
-  expect(manifest.artifacts).toHaveLength(6);
+  expect(manifest.artifacts).toHaveLength(8);
   expect(JSON.stringify(manifest)).not.toContain(root);
+  const metadataBytes = await readFile(join(output, "latest-mac.yml"));
+  const metadata = load(metadataBytes.toString()) as {
+    files: { url: string }[];
+  };
+  expect(metadata.files.map((file) => file.url)).toEqual([
+    "Artemis-macOS-arm64-1.6.0.zip",
+    "Artemis-macOS-x64-1.6.0.zip",
+  ]);
+  expect(
+    manifest.artifacts.find(
+      (artifact: { name: string }) => artifact.name === "latest-mac.yml",
+    ),
+  ).toMatchObject({
+    size: metadataBytes.length,
+    sha256: createHash("sha256").update(metadataBytes).digest("hex"),
+  });
 });
 it("publishes a complete macOS release without Windows artifacts when explicitly selected", async () => {
   const root = await fixture();
@@ -83,13 +101,59 @@ it("publishes a complete macOS release without Windows artifacts when explicitly
   expect((await readdir(output)).sort()).toEqual([
     "Artemis-macOS-arm64-1.6.0.dmg",
     "Artemis-macOS-arm64-1.6.0.zip",
+    "Artemis-macOS-x64-1.6.0.dmg",
+    "Artemis-macOS-x64-1.6.0.zip",
     "latest-mac.yml",
     "release-manifest.json",
   ]);
   const manifest = JSON.parse(
     await readFile(join(output, "release-manifest.json"), "utf8"),
   );
-  expect(manifest.artifacts).toHaveLength(3);
+  expect(manifest.artifacts).toHaveLength(5);
+});
+it("requires the independently verified Intel release set", async () => {
+  const root = await fixture();
+  await rm(join(root, "release-macos-x64"), { recursive: true });
+  const output = join(root, "output");
+  await expect(collectReleaseAssets(root, output, "1.6.0")).rejects.toThrow();
+  await expect(readdir(output)).rejects.toThrow();
+});
+it("rejects tampered Intel artifacts before creating output", async () => {
+  const root = await fixture();
+  await writeFile(
+    join(root, "release-macos-x64", "Artemis-macOS-x64-1.6.0.zip"),
+    "tampered",
+  );
+  const output = join(root, "output");
+  await expect(collectReleaseAssets(root, output, "1.6.0")).rejects.toThrow(
+    "integrity",
+  );
+  await expect(readdir(output)).rejects.toThrow();
+});
+it("rejects Intel metadata pointing at another architecture", async () => {
+  const root = await fixture();
+  const directory = join(root, "release-macos-x64");
+  const metadata = await readFile(
+    join(root, "release-macos-arm64", "latest-mac.yml"),
+  );
+  await writeFile(join(directory, "latest-mac.yml"), metadata);
+  const manifestPath = join(directory, "release-manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  Object.assign(
+    manifest.artifacts.find(
+      (item: { name: string }) => item.name === "latest-mac.yml",
+    ),
+    {
+      size: metadata.length,
+      sha256: createHash("sha256").update(metadata).digest("hex"),
+    },
+  );
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const output = join(root, "output");
+  await expect(collectReleaseAssets(root, output, "1.6.0")).rejects.toThrow(
+    "Invalid macOS update metadata",
+  );
+  await expect(readdir(output)).rejects.toThrow();
 });
 it.each(["tampered", "missing"])(
   "blocks macOS-only publication for a %s macOS ZIP",

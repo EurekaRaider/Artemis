@@ -2,13 +2,15 @@
 
 # 构建与发布
 
-仅支持 Windows x64 和 macOS arm64。CI 使用 GitHub 托管的 `windows-2025` 与 `macos-15`，覆盖 main push、外部 fork PR 和手动调用。PR 权限只读，不读取签名密钥，不使用 `pull_request_target` 执行贡献者代码。
+主程序构建与验证覆盖 Windows x64、macOS arm64 与 macOS x64。CI 使用 GitHub 托管的 `windows-2025`、`macos-15` 与 `macos-15-intel`，覆盖 main push、外部 fork PR 和手动调用。PR 权限只读，不读取签名密钥，不使用 `pull_request_target` 执行贡献者代码。公开 Intel 下载需等待首个包含 x64 附件的正式 Release。
 
 ## 主程序
 
-Release 工作流只允许从 main 手动启动，`release_tag` 必须等于 package.json 的 `v<version>`，发布说明首行必须匹配。每次从同一提交重新执行双平台 CI；不复用其他提交的验收记录。
+Release 工作流只允许从 main 手动启动，`release_tag` 必须等于 package.json 的 `v<version>`，发布说明首行必须匹配。每次从同一提交重新执行三种目标的 CI；不复用其他提交的验收记录。`publish=false` 运行完整签名、公证、打包与产物汇总验证，但不创建 Release 或更新通道；只有 `publish=true` 才执行发布。
 
 macOS 先签名，再通过短期 Actions artifact 交给公证任务；公证、staple、最终 DMG/ZIP 检查通过后上传明确列出的附件。签名密钥由构建工具临时钥匙串管理，不上传私人钥匙串或中间签名材料到 Release。
+
+arm64 和 x64 在各自原生 runner 上分别构建和验收，包括 PTY、Seatbelt、签名、公证、staple 与回滚。`npm run package:mac:arm64` 和 `npm run package:mac:x64` 选择单一架构；`npm run package:mac` 构建两种架构。汇总器要求两份独立的 macOS 清单，通过摘要验证后合并相同更新通道的附件列表，并重新计算合并元数据的摘要，避免架构间覆盖。
 
 Windows 生成当前用户级 NSIS 安装包和手动 ZIP。NSIS 不请求提权。发布必须配置 `ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`，公钥在 `apps/desktop/resources/update-public-keys.json`。签名索引绑定平台、架构、版本、递增序号和 EXE/ZIP 哈希。`ARTEMIS_UPDATE_SEQUENCE` 来自 Release 工作流 run number；重建工作流或迁移仓库前确认序号不会倒退。
 

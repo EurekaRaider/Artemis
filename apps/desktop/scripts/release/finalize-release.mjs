@@ -65,7 +65,7 @@ if (windowsRelease) {
   artifactNames = names.filter(
     (name) =>
       updateMetadata.includes(name) ||
-      ["arm64"].some((arch) =>
+      ["arm64", "x64"].some((arch) =>
         ["dmg", "zip", "dmg.blockmap", "zip.blockmap"].some(
           (extension) =>
             name ===
