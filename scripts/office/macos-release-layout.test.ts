@@ -74,44 +74,28 @@ it.skipIf(process.platform !== "darwin")(
       const javaHeader = Buffer.from("cafebabe00000034", "hex");
       await writeFile(java, javaHeader);
       expect(macOfficeIsMachO(java, javaHeader.subarray(0, 4))).toBe(false);
-      // Use real system code without making a format regression wait for clang.
-      const arches = execFileSync(
-        "/usr/bin/lipo",
-        ["/usr/bin/true", "-archs"],
-        {
-          encoding: "utf8",
-        },
-      )
-        .trim()
-        .split(/\s+/u)
-        .filter((arch) => arch === "x86_64" || /^arm64e?$/u.test(arch));
-      expect(arches).toHaveLength(2);
-      for (const arch of arches) {
-        const executable = join(root, arch);
-        execFileSync("/usr/bin/lipo", [
-          "/usr/bin/true",
-          "-thin",
-          arch,
-          "-output",
-          executable,
-        ]);
-        expect(
-          macOfficeIsMachO(
-            executable,
-            (await readFile(executable)).subarray(0, 4),
-          ),
-        ).toBe(true);
+      // Extract real Apple slices without starting lipo for each fixture.
+      const system = await readFile("/usr/bin/true");
+      expect(system.readUInt32BE(0)).toBe(0xcafebabe);
+      const slices = new Map<number, Buffer>();
+      for (let index = 0; index < system.readUInt32BE(4); index++) {
+        const record = 8 + index * 20;
+        const cpu = system.readUInt32BE(record);
+        if (![0x01000007, 0x0100000c].includes(cpu) || slices.has(cpu))
+          continue;
+        const offset = system.readUInt32BE(record + 8);
+        const size = system.readUInt32BE(record + 12);
+        slices.set(cpu, system.subarray(offset, offset + size));
+      }
+      expect([...slices.keys()].sort()).toEqual([0x01000007, 0x0100000c]);
+      for (const [cpu, bytes] of slices) {
+        const executable = join(root, String(cpu));
+        await writeFile(executable, bytes);
+        expect(macOfficeIsMachO(executable, bytes.subarray(0, 4))).toBe(true);
       }
       const universal = join(root, "universal");
-      execFileSync("/usr/bin/lipo", [
-        "-create",
-        ...arches.map((arch) => join(root, arch)),
-        "-output",
-        universal,
-      ]);
-      expect(
-        macOfficeIsMachO(universal, (await readFile(universal)).subarray(0, 4)),
-      ).toBe(true);
+      await writeFile(universal, system);
+      expect(macOfficeIsMachO(universal, system.subarray(0, 4))).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
