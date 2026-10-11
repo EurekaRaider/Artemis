@@ -162,14 +162,38 @@ describe("prediction at the Pi boundary", () => {
       );
     },
   );
-  it("suppresses follow-up queue/steering messages", () => {
+  it("replaces an earlier prediction after follow-up queue/steering messages", () => {
     const adapter = new PiAdapter("turn", token);
-    for (const content of ["Initial", "Queued message"])
+    adapter.adapt({
+      type: "message_start",
+      message: { role: "user", content: "Initial" },
+    });
+    end(adapter, full);
+    for (const content of ["Queued message", "Latest correction"])
       adapter.adapt({
         type: "message_start",
         message: { role: "user", content },
       });
+    end(
+      adapter,
+      `Updated answer.${marker}{"suggestion":"请解释步骤。"}</artemis-prediction>`,
+    );
+    expect(adapter.adapt({ type: "agent_settled" })[0]).toMatchObject({
+      composerPrediction: "请解释步骤。",
+    });
+  });
+  it("does not reuse an earlier prediction when the latest reply omits it", () => {
+    const adapter = new PiAdapter("turn", token);
+    adapter.adapt({
+      type: "message_start",
+      message: { role: "user", content: "Initial" },
+    });
     end(adapter, full);
+    adapter.adapt({
+      type: "message_start",
+      message: { role: "user", content: "Latest correction" },
+    });
+    end(adapter, "Updated answer without a suggestion.");
     expect(adapter.adapt({ type: "agent_settled" })[0]).not.toHaveProperty(
       "composerPrediction",
     );

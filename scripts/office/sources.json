@@ -26,6 +26,16 @@
         "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/win/x86_64/LibreOffice_26.8.0_Win_x86-64_sdk.msi",
         "sha256": "50ac942ae672cefc90397cfa5d15332fbe926d8cba824de53244306124d57df1"
       }
+    },
+    "darwin-x64": {
+      "office": {
+        "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/mac/x86_64/LibreOffice_26.8.0_MacOS_x86-64.dmg",
+        "sha256": "2dcbce4894e01bc1ecd594658e2cbda70ff7bfcd0b310f35d38887797172d09e"
+      },
+      "sdk": {
+        "url": "https://download.documentfoundation.org/libreoffice/stable/26.8.0/mac/x86_64/LibreOffice_26.8.0_MacOS_x86-64_sdk.dmg",
+        "sha256": "36a80bcfcb4d33f43c85237560edbda7855d030e9788c86f293ee5881594336e"
+      }
     }
   }
 }

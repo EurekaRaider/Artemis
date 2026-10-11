@@ -132,9 +132,11 @@ async function fixture() {
     },
   };
 }
-it("restricts the first release to macOS 14 arm64 and Windows 11 x64", () => {
+it("supports both macOS 14 architectures and Windows 11 x64", () => {
   expect(computerUsePlatformSupported("darwin", "arm64", "23.0.0")).toBe(true);
-  expect(computerUsePlatformSupported("darwin", "x64", "23.0.0")).toBe(false);
+  expect(computerUsePlatformSupported("darwin", "x64", "23.0.0")).toBe(true);
+  expect(computerUsePlatformSupported("darwin", "x64", "22.0.0")).toBe(false);
+  expect(computerUsePlatformSupported("darwin", "ia32", "23.0.0")).toBe(false);
   expect(computerUsePlatformSupported("darwin", "arm64", "22.0.0")).toBe(false);
   expect(computerUsePlatformSupported("win32", "x64", "10.0.22000")).toBe(true);
   expect(computerUsePlatformSupported("win32", "x64", "10.0.19045")).toBe(

@@ -65,6 +65,7 @@ it("requires the exact macOS helper identity, team, hardened runtime and staple"
   });
   await verifyComputerUseNative("/synthetic/native", manifest("darwin"));
   expect(run.mock.calls.map((args) => args[0])).toEqual([
+    "/usr/bin/lipo",
     "/usr/bin/codesign",
     "/usr/bin/codesign",
     "/usr/bin/xcrun",
@@ -78,6 +79,45 @@ it("requires the exact macOS helper identity, team, hardened runtime and staple"
   await expect(
     verifyComputerUseNative("/synthetic/native", manifest("darwin")),
   ).rejects.toThrow("identity");
+});
+it("checks the Intel helper and preview CPU before accepting native signatures", async () => {
+  platform("darwin");
+  run.mockResolvedValue({
+    stdout: "",
+    stderr:
+      "Identifier=com.artemis.computer-use\nTeamIdentifier=TEAM\nCodeDirectory flags=0x10000(runtime)\n",
+  });
+  const pack = {
+    ...manifest("darwin"),
+    arch: "x64",
+  } as ComputerUsePackManifest;
+  pack.preview = {
+    protocol: 1,
+    module:
+      "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node",
+  };
+  pack.files.push({
+    path: pack.preview.module,
+    sha256: "c".repeat(64),
+    bytes: 1,
+    executable: true,
+  });
+  pack.archive.unpackedBytes++;
+  await verifyComputerUseNative("/pack", pack);
+  expect(
+    run.mock.calls
+      .filter(([command]) => command === "/usr/bin/lipo")
+      .map(([, args]) => args),
+  ).toEqual([
+    ["-verify_arch", "x86_64", join("/pack", pack.entrypoint)],
+    ["-verify_arch", "x86_64", join("/pack", pack.preview.module)],
+  ]);
+  run.mockClear();
+  run.mockRejectedValueOnce(new Error("CPU mismatch"));
+  await expect(verifyComputerUseNative("/pack", pack)).rejects.toThrow(
+    "CPU mismatch",
+  );
+  expect(run).toHaveBeenCalledOnce();
 });
 it("passes paths and Windows signer through an isolated environment to a fixed verifier", async () => {
   platform("win32");

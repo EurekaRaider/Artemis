@@ -67,13 +67,17 @@ describe("published Office runtime discovery", () => {
       }
     },
   );
-  it("does not offer another platform's runtime to Intel macOS", () => {
+  it("offers only the published Intel macOS manifest on Intel hosts", () => {
     expect(
       new OfficeCapabilityUpdates(catalog, {
         hostVersion,
         platform: "darwin",
         arch: "x64",
       }).available(),
-    ).toBeUndefined();
+    ).toEqual(
+      [...catalog.manifests, ...(catalog.additionalManifests ?? [])].find(
+        (manifest) => manifest.platform === "darwin" && manifest.arch === "x64",
+      ),
+    );
   });
 });

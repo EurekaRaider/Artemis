@@ -1,5 +1,6 @@
 import { proposeCatalog } from "../ui/catalog-pull-request.mjs";
 import { readFile } from "node:fs/promises";
+import { gt } from "semver";
 const repo = "EurekaRaider/Artemis";
 const endpoint = `https://api.github.com/repos/${repo}/contents/apps/desktop/resources/office-runtime/catalog.json`;
 if (!process.env.GH_TOKEN)
@@ -34,10 +35,18 @@ const previous = JSON.parse(
 );
 if (JSON.stringify(next.publicKeys) !== JSON.stringify(previous.publicKeys))
   throw Error("Catalog changed trust roots");
-for (const manifest of previous.manifests) {
-  if (manifest.platform === "win32" && manifest.arch === "x64") continue;
+const incoming = [...next.manifests, ...(next.additionalManifests ?? [])];
+for (const manifest of [
+  ...previous.manifests,
+  ...(previous.additionalManifests ?? []),
+]) {
+  const replacement = incoming.find(
+    (m) => m.platform === manifest.platform && m.arch === manifest.arch,
+  );
   if (
-    !next.manifests.some((m) => JSON.stringify(m) === JSON.stringify(manifest))
+    !replacement ||
+    (JSON.stringify(replacement) !== JSON.stringify(manifest) &&
+      !gt(replacement.version, manifest.version))
   )
     throw Error("Catalog removed or changed an existing platform");
 }
@@ -48,6 +57,6 @@ if (JSON.stringify(previous) === JSON.stringify(next)) {
     repository: repo,
     path: "apps/desktop/resources/office-runtime/catalog.json",
     content,
-    title: "Update verified Windows Office runtime catalog",
+    title: "Update verified Office runtime catalog",
   });
 }

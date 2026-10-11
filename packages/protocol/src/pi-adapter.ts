@@ -368,7 +368,7 @@ export class PiAdapter {
           const text = messageText(event.message);
           if (isLegacyInternalAgentMessage(text)) return [];
           this.userMessageCount += 1;
-          if (this.userMessageCount > 1) this.predictionSuppressed = true;
+          if (this.userMessageCount > 1) this.composerPrediction = undefined;
           if (this.userMessageCount === 1) {
             return [];
           }

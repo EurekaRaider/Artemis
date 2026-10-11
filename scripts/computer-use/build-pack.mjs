@@ -3,7 +3,6 @@ import {
   createHash,
   createPrivateKey,
   createPublicKey,
-  randomBytes,
   sign,
 } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -17,6 +16,7 @@ import {
 import { inventoryTree, zipEntries } from "../design-pack/pack.mjs";
 import { buildComputerUse } from "../../apps/desktop/scripts/build/build-computer-use.mjs";
 import { buildComputerPreview } from "../../apps/desktop/scripts/build/build-computer-preview.mjs";
+import { withMacSigningKeychain } from "../release/macos-capability-signing.mjs";
 import { notarizeExistingMacApp } from "../../apps/desktop/scripts/release/notarize-macos-app.mjs";
 
 const repo = fileURLToPath(new URL("../..", import.meta.url));
@@ -24,10 +24,10 @@ const version = process.env.COMPUTER_USE_VERSION ?? process.argv[2];
 if (!/^\d+\.\d+\.\d+$/u.test(version ?? ""))
   throw new Error("COMPUTER_USE_VERSION must be x.y.z");
 if (!(
-  (process.platform === "darwin" && process.arch === "arm64") ||
+  (process.platform === "darwin" && ["arm64", "x64"].includes(process.arch)) ||
   (process.platform === "win32" && process.arch === "x64")
 ))
-  throw new Error("Build on macOS arm64 or Windows x64");
+  throw new Error("Build on macOS arm64/x64 or Windows x64");
 const output = resolve(
   process.env.COMPUTER_USE_OUTPUT ??
     join(repo, "artifacts", "computer-use", version),
@@ -81,18 +81,25 @@ try {
       !process.env.CSC_KEY_PASSWORD
     )
       throw new Error("macOS signing credentials are required");
-    buildComputerUse("arm64");
+    buildComputerUse(process.arch);
     const app = join(payload, "ArtemisComputerUse.app");
     await mkdir(join(app, "Contents", "MacOS"), { recursive: true });
     await cp(
-      join(repo, "apps/desktop/build/computer-use/arm64/artemis-computer-use"),
+      join(
+        repo,
+        "apps/desktop/build/computer-use",
+        process.arch,
+        "artemis-computer-use",
+      ),
       join(app, "Contents/MacOS/artemis-computer-use"),
     );
     await mkdir(join(app, "Contents/Frameworks"), { recursive: true });
     await cp(
       join(
         repo,
-        "apps/desktop/build/computer-use/arm64/artemis-computer-preview.node",
+        "apps/desktop/build/computer-use",
+        process.arch,
+        "artemis-computer-preview.node",
       ),
       join(app, "Contents/Frameworks/artemis-computer-preview.node"),
     );
@@ -104,99 +111,35 @@ try {
         version +
         "</string><key>NSScreenCaptureUsageDescription</key><string>Capture the application window you authorize for Computer Use.</string></dict></plist>",
     );
-    const certificate = join(scratch, "certificate.p12"),
-      keychain = join(scratch, "signing.keychain-db");
-    const password = randomBytes(32).toString("hex");
-    const previousKeychains = [
-      ...run("/usr/bin/security", ["list-keychains", "-d", "user"]).matchAll(
-        /"([^"]+)"/gu,
-      ),
-    ].map((match) => match[1]);
-    await writeFile(certificate, Buffer.from(process.env.CSC_LINK, "base64"), {
-      mode: 0o600,
-    });
-    run("/usr/bin/security", ["create-keychain", "-p", password, keychain]);
-    try {
-      run("/usr/bin/security", ["unlock-keychain", "-p", password, keychain]);
-      run("/usr/bin/security", ["set-keychain-settings", keychain]);
-      run("/usr/bin/security", [
-        "list-keychains",
-        "-d",
-        "user",
-        "-s",
-        keychain,
-        ...previousKeychains,
-      ]);
-      run("/usr/bin/security", [
-        "import",
-        certificate,
-        "-k",
-        keychain,
-        "-P",
-        process.env.CSC_KEY_PASSWORD,
-        "-T",
-        "/usr/bin/codesign",
-      ]);
-      run("/usr/bin/security", [
-        "set-key-partition-list",
-        "-S",
-        "apple-tool:,apple:",
-        "-s",
-        "-k",
-        password,
-        keychain,
-      ]);
-      const identities = run("/usr/bin/security", [
-        "find-identity",
-        "-v",
-        "-p",
-        "codesigning",
-        keychain,
-      ]);
-      const identity = [...identities.matchAll(/"([^"]+)"/gu)]
-        .map((match) => match[1])
-        .find(
-          (name) =>
-            name.startsWith("Developer ID Application:") &&
-            name.endsWith("(" + process.env.APPLE_TEAM_ID + ")"),
-        );
-      if (!identity)
-        throw new Error(
-          "Developer ID Application identity does not match APPLE_TEAM_ID",
-        );
-      run("/usr/bin/codesign", [
-        "--force",
-        "--timestamp",
-        "--options",
-        "runtime",
-        "--keychain",
-        keychain,
-        "--sign",
-        identity,
-        join(app, "Contents/Frameworks/artemis-computer-preview.node"),
-      ]);
-      run("/usr/bin/codesign", [
-        "--force",
-        "--timestamp",
-        "--options",
-        "runtime",
-        "--keychain",
-        keychain,
-        "--sign",
-        identity,
-        app,
-      ]);
-      await notarizeExistingMacApp(app, version, process.env);
-    } finally {
-      run("/usr/bin/security", [
-        "list-keychains",
-        "-d",
-        "user",
-        "-s",
-        ...previousKeychains,
-      ]);
-      run("/usr/bin/security", ["delete-keychain", keychain]);
-    }
+    await withMacSigningKeychain(
+      scratch,
+      process.env,
+      async ({ identity, keychain }) => {
+        run("/usr/bin/codesign", [
+          "--force",
+          "--timestamp",
+          "--options",
+          "runtime",
+          "--keychain",
+          keychain,
+          "--sign",
+          identity,
+          join(app, "Contents/Frameworks/artemis-computer-preview.node"),
+        ]);
+        run("/usr/bin/codesign", [
+          "--force",
+          "--timestamp",
+          "--options",
+          "runtime",
+          "--keychain",
+          keychain,
+          "--sign",
+          identity,
+          app,
+        ]);
+        await notarizeExistingMacApp(app, version, process.env);
+      },
+    );
     signer = process.env.APPLE_TEAM_ID;
     notarization = "accepted-stapled";
     entrypoint = "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use";
@@ -270,7 +213,10 @@ try {
     schemaVersion: 1,
     id: "computer-use",
     version,
-    hostRange: ">=1.7.8 <2",
+    hostRange:
+      process.platform === "darwin" && process.arch === "x64"
+        ? ">=1.7.14 <2"
+        : ">=1.7.8 <2",
     platform: process.platform,
     arch: process.arch,
     minimumOS: process.platform === "darwin" ? "14" : "11",

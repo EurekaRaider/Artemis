@@ -15,6 +15,12 @@ export async function verifyComputerUseNative(
   if (pack.platform !== process.platform)
     throw new Error("Computer Use native platform mismatch");
   if (process.platform === "darwin") {
+    const nativeArch = pack.arch === "x64" ? "x86_64" : "arm64";
+    await run(
+      "/usr/bin/lipo",
+      ["-verify_arch", nativeArch, join(root, pack.entrypoint)],
+      { timeout: 10000 },
+    );
     const app = join(root, "ArtemisComputerUse.app");
     await run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app], {
       timeout: 60000,
@@ -44,6 +50,9 @@ export async function verifyComputerUseNative(
     });
     if (pack.preview) {
       const module = join(root, pack.preview.module);
+      await run("/usr/bin/lipo", ["-verify_arch", nativeArch, module], {
+        timeout: 10000,
+      });
       await run("/usr/bin/codesign", ["--verify", "--strict", module], {
         timeout: 10000,
       });

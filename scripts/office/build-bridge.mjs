@@ -25,8 +25,11 @@ const sdk = resolve(args.sdk),
 const generated = join(out, "generated"),
   include = join(out, "include"),
   mac = process.platform === "darwin";
-if (!mac && process.platform !== "win32")
-  throw new Error("Only macOS arm64 and Windows x64 are supported");
+if (!(
+  (mac && ["arm64", "x64"].includes(process.arch)) ||
+  (process.platform === "win32" && process.arch === "x64")
+))
+  throw new Error("Only macOS arm64/x64 and Windows x64 are supported");
 await mkdir(generated, { recursive: true });
 await mkdir(join(include, "nlohmann"), { recursive: true });
 await copyFile(resolve(args.json), join(include, "nlohmann", "json.hpp"));
@@ -80,6 +83,9 @@ if (mac) {
   run("clang++", [
     "-std=c++17",
     "-O2",
+    "-arch",
+    process.arch === "x64" ? "x86_64" : "arm64",
+    "-mmacosx-version-min=14.0",
     "-fPIC",
     "-fno-common",
     "-fvisibility=hidden",

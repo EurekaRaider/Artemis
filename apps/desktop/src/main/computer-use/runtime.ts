@@ -24,7 +24,7 @@ export function computerUsePlatformSupported(
   release = osRelease(),
 ): boolean {
   return platform === "darwin"
-    ? arch === "arm64" && Number(release.split(".")[0]) >= 23
+    ? ["arm64", "x64"].includes(arch) && Number(release.split(".")[0]) >= 23
     : platform === "win32" &&
         arch === "x64" &&
         Number(release.split(".")[2]) >= 22000;
@@ -156,7 +156,7 @@ export class ComputerUseRuntime {
   async install(): Promise<void> {
     if (!this.supported)
       throw new Error(
-        "Computer Use supports macOS 14+ arm64 and Windows 11 x64.",
+        "Computer Use supports macOS 14+ arm64/x64 and Windows 11 x64.",
       );
     if (this.installing) return this.installing;
     if (this.pendingVersion) return this.finishUpdate();

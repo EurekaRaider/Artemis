@@ -7,7 +7,7 @@ const END = "</artemis-prediction>";
 const MAX_TAIL = 1024;
 
 export function composerPredictionInstruction(token: string): string {
-  return `\n\n[Artemis composer prediction ${token}]\nOnly for your final ordinary text answer, optionally append ${composerPredictionMarker(token)}{"suggestion":"a likely next user message"}${END}. Use the user's language and voice, at most 120 characters. Omit it if no natural follow-up exists, if awaiting a decision/approval/plan confirmation, or if it would invent consent or personal facts. Do not use tools to generate it. The suffix is UI metadata, not part of the answer. Never append it to intermediate messages, code blocks, tool calls or structured output. Use only this turn's marker.\n[End Artemis composer prediction]\n`;
+  return `\n\n[Artemis composer prediction ${token}]\nOnly for your final ordinary text answer, optionally append ${composerPredictionMarker(token)}{"suggestion":"a likely next user message"}${END}. Base the suggestion on the latest user request, including corrections and follow-ups, and the current outcome. Use the user's language and voice, at most 120 characters. Omit it if no natural follow-up exists, if awaiting a decision/approval/plan confirmation, or if it would invent consent or personal facts. Do not use tools to generate it. The suffix is UI metadata, not part of the answer. Never append it to intermediate messages, code blocks, tool calls or structured output. Use only this turn's marker.\n[End Artemis composer prediction]\n`;
 }
 
 /** Keeps at most MAX_TAIL plus one delimiter; ordinary text streams immediately. */

@@ -43,6 +43,21 @@ export function computerManifest(platform: "darwin" | "win32" = "win32") {
 }
 
 describe("Computer Use native packs", () => {
+  it("accepts Intel macOS only with the signed and notarized native inventory", () => {
+    const manifest = { ...computerManifest("darwin"), arch: "x64" };
+    expect(capabilityPackManifestSchema.safeParse(manifest).success).toBe(true);
+    for (const native of [
+      { ...manifest.native, signer: null },
+      { ...manifest.native, notarization: "not-applicable" },
+    ])
+      expect(
+        capabilityPackManifestSchema.safeParse({ ...manifest, native }).success,
+      ).toBe(false);
+    expect(
+      capabilityPackManifestSchema.safeParse({ ...manifest, arch: "ia32" })
+        .success,
+    ).toBe(false);
+  });
   it.each(["darwin", "win32"] as const)(
     "requires the %s preview module in the signed executable inventory",
     (platform) => {

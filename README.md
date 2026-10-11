@@ -54,9 +54,13 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.13** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.14** · [Release notes](docs/records/release-notes.md).
 
-This revision adds optional next-message suggestions to the empty composer after
+This revision adds Intel macOS Computer Use and Office runtime discovery with signed
+architecture-specific catalogs. Runtime publication requires native signing,
+notarization and installation acceptance on each target.
+
+Optional next-message suggestions appear in the empty composer after
 an ordinary desktop reply. Press **Tab** to insert a suggestion or **Escape** to
 dismiss it; accepting a suggestion does not send it. Typing, attachments and
 pending decisions suppress suggestions. Disable them in Settings. Suggestions
@@ -262,18 +266,18 @@ shows the included capabilities; newly installed MCP servers and Connectors are
 enabled immediately. Missing configuration or account authorization is shown as
 a setup state. Existing user-disabled services stay disabled during updates.
 
-Install **Computer Use** from its single Bundled plugins card on macOS 14+ arm64
+Install **Computer Use** from its single Bundled plugins card on macOS 14+ arm64/x64
 or Windows 11 x64. Artemis downloads the matching native runtime. Updates are
 manual; old files are removed after a successful switch and the last task releases
-them. No separate toolchain or API key is needed. Both platform packs use Ed25519
+them. No separate toolchain or API key is needed. All native packs use Ed25519
 signatures; the macOS helper is Developer ID signed, notarized and stapled. Store availability follows the independent runtime
-release workflow. See the [development contract](docs/guides/plugin-development-en.md#computer-use-native-runtime).
+release workflow. Intel packs require Artemis 1.7.14 or later and publication of the matching runtime. See the [development contract](docs/guides/plugin-development-en.md#computer-use-native-runtime).
 
-在 macOS 14+ arm64 或 Windows 11 x64 中，从内置插件商店唯一的 **Computer Use**
+在 macOS 14+ arm64/x64 或 Windows 11 x64 中，从内置插件商店唯一的 **Computer Use**
 卡片安装。Artemis 自动下载对应平台的原生运行时；更新由用户手动执行，成功切换且
 运行中任务释放版本后清除旧文件，无需额外工具链或 API key。
-两个平台均使用 Ed25519 包签名；macOS helper 另行完成 Developer ID 签名、公证
-与 stapling。商店可用性取决于独立运行时发布工作流。详见[开发契约](docs/guides/plugin-development.md#computer-use-原生运行时)。
+所有原生包均使用 Ed25519 包签名；macOS helper 另行完成 Developer ID 签名、公证
+与 stapling。商店可用性取决于独立运行时发布工作流。Intel 包需要 Artemis 1.7.14 或更高版本，并等待对应运行时发布。详见[开发契约](docs/guides/plugin-development.md#computer-use-原生运行时)。
 
 <p align="center">
   <a href="docs/assets/images/resources.png"><img src="docs/assets/images/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>

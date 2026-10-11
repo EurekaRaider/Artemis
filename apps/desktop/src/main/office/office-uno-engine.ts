@@ -29,6 +29,13 @@ export async function verifyOfficeNative(
   const office = manifest as OfficeCorePackManifest;
   if (process.platform === "darwin") {
     const app = join(directory, "ArtemisOfficeRuntime.app");
+    const nativeArch = office.arch === "x64" ? "x86_64" : "arm64";
+    for (const executable of [office.entrypoint, office.officeExecutable])
+      await runFile(
+        "/usr/bin/lipo",
+        ["-verify_arch", nativeArch, join(directory, executable)],
+        { timeout: 10_000 },
+      );
     await runFile(
       "/usr/bin/codesign",
       ["--verify", "--deep", "--strict", app],
@@ -48,6 +55,9 @@ export async function verifyOfficeNative(
       throw new Error(
         "Office runtime signing identity or Hardened Runtime mismatch",
       );
+    await runFile("/usr/bin/xcrun", ["stapler", "validate", app], {
+      timeout: 60_000,
+    });
     await runFile("/usr/sbin/spctl", ["--assess", "--type", "execute", app], {
       timeout: 60_000,
     });

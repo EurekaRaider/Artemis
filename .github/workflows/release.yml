@@ -216,9 +216,21 @@ jobs:
           /usr/bin/unzip -t "$zip"
           /usr/bin/unzip -q "$zip" -d "$verification_root/zip"
           verify_app "$verification_root/zip/Artemis.app"
+          if [ "${{ matrix.arch }}" = "x64" ]; then
+            ARTEMIS_CAPABILITY_EXECUTABLE="$verification_root/zip/Artemis.app/Contents/MacOS/Artemis" \
+              node apps/desktop/scripts/verify/native/verify-installed-intel-capabilities.mjs
+          fi
           mkdir "$mount_path"
           /usr/bin/hdiutil attach -readonly -nobrowse -mountpoint "$mount_path" "$dmg"
           verify_app "$mount_path/Artemis.app"
+      - name: Preserve packaged Intel capability installation acceptance
+        if: always() && matrix.arch == 'x64'
+        uses: actions/upload-artifact@v6
+        with:
+          name: installed-intel-capabilities
+          path: artifacts/verification/installed-intel-capabilities
+          if-no-files-found: warn
+          retention-days: 7
       - uses: actions/upload-artifact@v6
         with:
           name: release-macos-${{ matrix.arch }}

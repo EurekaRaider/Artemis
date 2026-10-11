@@ -1426,6 +1426,7 @@ export class ArtemisAgentHost {
   private readonly registeredProviderIds = new Set<string>();
   private readonly providerAdmissionBlockedUntil = new Map<string, number>();
   private readonly promptCache = new PromptCacheController();
+  private readonly composerPredictionTokens = new Map<string, string>();
   private readonly agentDir: string;
   private readonly onSessionFile:
     ((threadId: string, path: string) => void) | undefined;
@@ -1653,11 +1654,15 @@ export class ArtemisAgentHost {
     }).then((runtime) => {
       registerArtemisBuiltinModels(runtime);
       return withConnectionRecovery(
-        withPromptCacheController(
-          withComposerPredictionContext(
+        withComposerPredictionContext(
+          withPromptCacheController(
             withToolHistory(withAttachmentContextBudget(runtime)),
+            this.promptCache,
           ),
-          this.promptCache,
+          (sessionId) =>
+            sessionId
+              ? this.composerPredictionTokens.get(sessionId)
+              : undefined,
         ),
         (sessionId, update) => this.handleConnectionRecovery(sessionId, update),
         { idleTimeoutMs: this.modelStreamIdleTimeoutMs },
@@ -7157,6 +7162,14 @@ export class ArtemisAgentHost {
     }
 
     try {
+      if (predictionToken) {
+        this.composerPredictionTokens.set(
+          hosted.session.sessionId,
+          predictionToken,
+        );
+      } else {
+        this.composerPredictionTokens.delete(hosted.session.sessionId);
+      }
       if (hosted.configurationPending) {
         await this.refreshThreadConfiguration(hosted);
         if (this.cancelledTurns.has(`${threadId}\0${turnId}`)) return;
@@ -7299,6 +7312,7 @@ export class ArtemisAgentHost {
         threadId,
       );
     } finally {
+      this.composerPredictionTokens.delete(hosted.session.sessionId);
       const cancellationKey = `${threadId}\0${turnId}`;
       const cancelledByUser = this.cancelledTurns.has(cancellationKey);
       this.bashExecutions.cancelTurn(threadId, turnId);

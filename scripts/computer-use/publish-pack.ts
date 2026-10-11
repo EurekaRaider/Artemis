@@ -2,6 +2,8 @@ import { minVersion } from "semver";
 import {
   validateNativeAcceptance,
   rejectCatalogRegression,
+  COMPUTER_USE_TARGETS,
+  catalogForExistingHosts,
 } from "./release-policy.js";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -116,12 +118,12 @@ async function publicCatalog() {
   );
   const manifests = (catalog.manifests as unknown[]).map(verified);
   if (
-    manifests.length !== 2 ||
+    manifests.length !== COMPUTER_USE_TARGETS.length ||
     new Set(
       manifests.map((manifest) => manifest.platform + "-" + manifest.arch),
-    ).size !== 2
+    ).size !== COMPUTER_USE_TARGETS.length
   )
-    throw new Error("Both platform packs are required");
+    throw new Error("All three native targets are required");
   for (const manifest of manifests)
     await validateArchive(
       manifest,
@@ -165,7 +167,7 @@ if (process.argv[2] === "verify") {
   );
 } else if (process.argv[2] === "publish") {
   const manifests = await Promise.all(
-    ["darwin-arm64", "win32-x64"].map(async (target) =>
+    COMPUTER_USE_TARGETS.map(async (target) =>
       verified(
         JSON.parse(
           await readFile(join(output, "manifest-" + target + ".json"), "utf8"),
@@ -183,7 +185,7 @@ if (process.argv[2] === "verify") {
   const evidence = Object.fromEntries(
     await Promise.all(
       manifests.map(async (manifest) => [
-        manifest.platform,
+        manifest.platform + "-" + manifest.arch,
         JSON.parse(
           await readFile(
             join(
@@ -233,11 +235,13 @@ if (process.argv[2] === "verify") {
     "--title",
     "Computer Use " + version,
     "--notes",
-    "Verified native capability packs. Ed25519 signatures cover both platform archives. macOS is Developer ID signed, notarized and stapled; Windows installation ACLs are verified.",
+    "Verified native capability packs. Ed25519 signatures cover macOS arm64, macOS x64 and Windows x64 archives. macOS is Developer ID signed, notarized and stapled; Windows installation ACLs are verified.",
     ...[
       "computer-use-darwin-arm64.zip",
+      "computer-use-darwin-x64.zip",
       "computer-use-win32-x64.zip",
       "manifest-darwin-arm64.json",
+      "manifest-darwin-x64.json",
       "manifest-win32-x64.json",
       "catalog.json",
       "native-acceptance.json",
@@ -264,10 +268,16 @@ if (process.argv[2] === "verify") {
     if (
       previous.schemaVersion !== 1 ||
       !Array.isArray(previous.manifests) ||
-      previous.manifests.length > 32
+      (previous.additionalManifests !== undefined &&
+        !Array.isArray(previous.additionalManifests)) ||
+      previous.manifests.length + (previous.additionalManifests?.length ?? 0) >
+        32
     )
       throw new Error("Invalid previous Computer Use catalog");
-    const manifests = previous.manifests.map((input: unknown) => {
+    const manifests = [
+      ...previous.manifests,
+      ...(previous.additionalManifests ?? []),
+    ].map((input: unknown) => {
       const manifest = computerUsePackManifestSchema.parse(input);
       return verifyCapabilityManifest(manifest, {
         hostVersion: minVersion(manifest.hostRange)?.version ?? "",
@@ -310,7 +320,14 @@ if (process.argv[2] === "verify") {
       "Signed platform catalog.",
     ]);
   const path = join(output, "catalog.json");
-  await writeFile(path, JSON.stringify(catalog, null, 2) + "\n");
+  await writeFile(
+    path,
+    JSON.stringify(
+      { ...catalog, ...catalogForExistingHosts(catalog.manifests) },
+      null,
+      2,
+    ) + "\n",
+  );
   gh([
     "release",
     "upload",

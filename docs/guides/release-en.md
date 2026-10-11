@@ -32,11 +32,15 @@ Rotate keys across two releases: first sign a client containing the new public k
 
 Office uses fixed versions and SHA-256 digests from `scripts/office/sources.json` and can build from public upstream sources with an empty cache. After ordinary-user installation and preview checks, the candidate package passes to the publish job as an artifact of the same run. A Windows Office release requires a new immutable version number.
 
+`office-macos-release.yml` builds the Intel Office runtime on `macos-15-intel`: it fetches pinned engine and SDK inputs, compiles the UNO bridge, verifies and signs each Mach-O architecture, notarizes and staples the app, then installs the final signed ZIP and exercises editing, PDF export and reopening of the Word, Excel and PowerPoint corpus. After publication it verifies anonymous online installation before proposing a catalog PR. New Intel manifests require Artemis `>=1.7.14 <2`; update the host version before releasing them. Use a new immutable runtime version and preserve the existing arm64 and Windows manifests.
+
 Design packs are built only for darwin-arm64 and win32-x64. Release credentials exist only in trusted publishing jobs. Office and Design catalog changes create PRs; clients discover new capability packs after maintainer review and merge. Automation does not write directly to main.
 
 Office and Design catalog PRs still use `ARTEMIS_RELEASE_TOKEN`, which must have Contents and Pull requests write access to `EurekaRaider/Artemis`. The catalog paths are `apps/desktop/resources/office-runtime/catalog.json` and `apps/desktop/resources/design-plugins/catalog.json` on main.
 
 Existing signed Office manifests retain their original URL bytes to preserve signatures. After signature verification, the downloader maps the exact legacy release prefix to Artemis; archive sizes and SHA-256 checks remain mandatory. Copy the immutable runtime assets to the same tags in Artemis before shipping a client using the new source, and keep capability releases marked `--latest=false`. New manifests are signed with Artemis URLs. Older clients keep their embedded update source, so retain the old releases and provide a migration release there if automatic transition is required.
+
+Intel targets use the catalog's `additionalManifests` field. Updated hosts validate them under the same signature, architecture and version boundaries; older hosts continue reading `manifests` without rejecting the whole feed for an unknown x64 target. Computer Use version catalogs retain all three manifests while the stable catalog uses this compatible layout. Office catalog PRs preserve previous targets and trust roots.
 
 ## Acceptance evidence
 

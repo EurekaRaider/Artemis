@@ -162,7 +162,7 @@ it("shows download progress and lets the user cancel", async () => {
 it("disables installation when the host reports an unsupported platform", async () => {
   const f = await fixture({ supported: false }, false);
   expect(
-    await screen.findByText("需要 macOS 14+ arm64 或 Windows 11 x64"),
+    await screen.findByText("需要 macOS 14+ arm64/x64 或 Windows 11 x64"),
   ).toBeVisible();
   expect(
     f.card.getByRole("button", { name: "安装", exact: true }),

@@ -120,7 +120,7 @@ function signed(
     },
   } as CapabilityPackManifest;
 }
-async function fixture(archive = zip()) {
+async function fixture(archive = zip(), arch = "arm64") {
   const root = await mkdtemp(join(tmpdir(), "artemis-pack-"));
   roots.push(root);
   const path = join(root, "offline.zip");
@@ -130,6 +130,7 @@ async function fixture(archive = zip()) {
   const download = vi.fn(async () => new Response(archive));
   const service = new CapabilityPackService({
     ...target,
+    arch,
     root: join(root, "packs"),
     verifyNative: native,
     dependents: async () => users,
@@ -884,4 +885,38 @@ it("drains parallel file checks before releasing maintenance after a validation 
   expect(await activation).toBeInstanceOf(Error);
   expect(settled).toBe(true);
   await f.service.deactivate();
+});
+
+it("accepts signed Intel Office manifests without allowing cross-architecture installation", () => {
+  const manifest = signed(zip(), { arch: "x64", hostRange: ">=1.7.14 <2" });
+  const intel = { ...target, arch: "x64", hostVersion: "1.7.14" };
+  expect(verifyCapabilityManifest(manifest, intel)).toEqual(manifest);
+  expect(() =>
+    verifyCapabilityManifest(manifest, { ...intel, arch: "arm64" }),
+  ).toThrow();
+  expect(() =>
+    verifyCapabilityManifest(manifest, { ...intel, hostVersion: "1.7.13" }),
+  ).toThrow();
+  expect(() =>
+    verifyCapabilityManifest(
+      {
+        ...manifest,
+        native: { signer: "TEST", notarization: "not-applicable" },
+      },
+      intel,
+    ),
+  ).toThrow();
+});
+
+it("installs the signed Intel Office archive through the shared verified installer", async () => {
+  const f = await fixture(zip(), "x64");
+  const manifest = signed(zip(), { arch: "x64" });
+  await f.service.install(manifest, f.path);
+  const lease = await f.service.acquire();
+  expect(lease.manifest.arch).toBe("x64");
+  expect(f.native).toHaveBeenCalled();
+  expect(await readFile(join(lease.root, manifest.entrypoint), "utf8")).toBe(
+    "native test fixture",
+  );
+  lease.release();
 });

@@ -1,5 +1,8 @@
 import { generateKeyPairSync, sign } from "node:crypto";
-import { canonicalCapabilityJson } from "@artemis/protocol";
+import {
+  canonicalCapabilityJson,
+  capabilityPackManifestSchema,
+} from "@artemis/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { OfficeCapabilityUpdates } from "../../../src/main/office/office-capability-updates.js";
 
@@ -241,3 +244,52 @@ it.each(["office-core", "artemis-design"])(
     }
   },
 );
+
+it("discovers Intel entries without placing them in the legacy client's manifest list", async () => {
+  const intel = capabilityPackManifestSchema.parse(
+    manifest("1.0.2", { arch: "x64", hostRange: ">=1.7.14 <2" }),
+  );
+  const catalog = {
+    schemaVersion: 1 as const,
+    publicKeys,
+    manifests: [],
+    additionalManifests: [intel],
+    updateUrl,
+  };
+  const fetcher = vi.fn(async () => Response.json(catalog));
+  const options = {
+    hostVersion: "1.7.14",
+    platform: "darwin",
+    arch: "x64",
+    fetch: fetcher,
+  };
+  const updates = new OfficeCapabilityUpdates(catalog, options);
+  expect(updates.available()?.version).toBe("1.0.2");
+  const remote = new OfficeCapabilityUpdates(
+    { ...catalog, additionalManifests: [] },
+    options,
+  );
+  await remote.check();
+  expect(remote.available()?.arch).toBe("x64");
+  expect(remote.status().updateCheck).toBe("checked");
+  for (const additionalManifests of [
+    "invalid",
+    [
+      {
+        ...intel,
+        signature: {
+          ...intel.signature,
+          value: Buffer.alloc(64).toString("base64"),
+        },
+      },
+    ],
+    Array.from({ length: 33 }, () => intel),
+  ]) {
+    fetcher.mockResolvedValueOnce(
+      Response.json({ ...catalog, additionalManifests }),
+    );
+    await remote.check();
+    expect(remote.status().updateCheck).toBe("error");
+    expect(remote.available()?.version).toBe("1.0.2");
+  }
+});

@@ -137,7 +137,7 @@ const officeCapabilityPackManifestSchema = z
         });
     if (
       (value.platform === "darwin" &&
-        (value.arch !== "arm64" ||
+        (!["arm64", "x64"].includes(value.arch) ||
           value.native.notarization !== "accepted-stapled")) ||
       (value.platform === "win32" &&
         (value.arch !== "x64" ||
@@ -305,7 +305,7 @@ export const computerUsePackManifestSchema = z
       ctx.addIssue({ code: "custom", message: "Release version mismatch" });
     if (
       value.platform === "darwin"
-        ? value.arch !== "arm64" ||
+        ? !["arm64", "x64"].includes(value.arch) ||
           value.minimumOS !== "14" ||
           !value.native.signer ||
           value.native.notarization !== "accepted-stapled" ||

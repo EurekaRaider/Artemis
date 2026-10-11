@@ -18,6 +18,13 @@ const output =
   );
 await mkdir(output, { recursive: true });
 const requests = [];
+const correction = "不是直接跑，我是想知道要怎么做";
+let holdNext = false;
+let releaseHeld;
+let held;
+const heldRequest = new Promise((resolve) => {
+  held = resolve;
+});
 const server = createServer(async (request, response) => {
   let raw = "";
   for await (const chunk of request) raw += chunk;
@@ -28,12 +35,21 @@ const server = createServer(async (request, response) => {
   const token = JSON.stringify(last?.content).match(
     /\[Artemis composer prediction ([a-zA-Z0-9-]+)\]/u,
   )?.[1];
+  const updated = JSON.stringify(last?.content).includes(correction);
+  const suggestion = updated ? "请详细解释第一步。" : "请补充测试结果。";
   const text = isTurn
     ? "The synthetic task is complete." +
       (token
-        ? `\n<artemis-prediction:${token}>{"suggestion":"请补充测试结果。"}</artemis-prediction>`
+        ? `\n<artemis-prediction:${token}>${JSON.stringify({ suggestion })}</artemis-prediction>`
         : "")
     : "Synthetic task";
+  if (isTurn && holdNext) {
+    holdNext = false;
+    await new Promise((resolve) => {
+      releaseHeld = resolve;
+      held();
+    });
+  }
   response.writeHead(200, { "Content-Type": "text/event-stream" });
   const emit = (delta, finish_reason = null) =>
     response.write(
@@ -184,14 +200,22 @@ try {
   report.checks.push(
     "opt-out survives reload; history does not restore prediction",
   );
-  await page.evaluate(() => {
-    window.__predictionTestCompleted = false;
-    window.artemis.onAgentEvents((events) => {
-      if (events.some((event) => event.payload.type === "turn.completed")) {
-        window.__predictionTestCompleted = true;
-      }
+  const watchEvents = () =>
+    page.evaluate(() => {
+      window.__predictionTestCompleted = false;
+      window.artemis.onAgentEvents((events) => {
+        for (const event of events) {
+          if (event.payload.type === "turn.started")
+            window.__predictionTestThread = event.threadId;
+          if (event.payload.type === "queue.updated")
+            window.__predictionTestQueue = event.payload.followUp;
+        }
+        if (events.some((event) => event.payload.type === "turn.completed")) {
+          window.__predictionTestCompleted = true;
+        }
+      });
     });
-  });
+  await watchEvents();
   await input.fill("关闭预测后回复完成。");
   await input.press("Enter");
   await page.waitForFunction(() => window.__predictionTestCompleted === true);
@@ -205,11 +229,77 @@ try {
   report.checks.push(
     "disabled turn has no prediction instruction and adds only one model request",
   );
+  await page.evaluate(() => window.artemis.setComposerPredictions(true));
+  await page.reload();
+  await input.waitFor();
+  await watchEvents();
+  holdNext = true;
+  await input.fill("请先回复测试任务已完成，无需工具。");
+  await input.press("Enter");
+  await heldRequest;
+  await page.waitForFunction(
+    () =>
+      window.__predictionTestThread &&
+      document.querySelector(".composer-input textarea")?.value === "",
+  );
+  await input.fill(correction);
+  await input.press("Enter");
+  await page.waitForFunction(
+    (text) => window.__predictionTestQueue?.includes(text),
+    correction,
+  );
+  await page.evaluate(
+    (text) =>
+      window.artemis.steerQueuedTurn({
+        threadId: window.__predictionTestThread,
+        followUpIndex: 0,
+        expectedFollowUp: [text],
+      }),
+    correction,
+  );
+  releaseHeld();
+  await page.locator(".composer-prediction").waitFor({ timeout: 30000 });
+  assert.equal(
+    await page.locator(".composer-prediction span").innerText(),
+    "请详细解释第一步。",
+  );
+  assert.equal(await input.inputValue(), "");
+  assert.equal(requests.length, 6);
+  const latest = requests.at(-1).messages.findLast((m) => m.role === "user");
+  assert(JSON.stringify(latest.content).includes(correction));
+  const firstToken = JSON.stringify(requests[4].messages).match(
+    /\[Artemis composer prediction ([a-zA-Z0-9-]+)\]/u,
+  )?.[1];
+  assert(firstToken);
+  assert(
+    JSON.stringify(latest.content).includes(
+      `[Artemis composer prediction ${firstToken}]`,
+    ),
+  );
+  const history = requests
+    .at(-1)
+    .messages.slice(0, requests.at(-1).messages.indexOf(latest));
+  assert(!JSON.stringify(history).includes("Artemis composer prediction"));
+  assert(
+    !JSON.stringify(history.filter((m) => m.role === "assistant")).includes(
+      "artemis-prediction",
+    ),
+  );
+  await page
+    .locator(".composer")
+    .screenshot({ path: join(output, "prediction-after-supplement.png") });
+  await input.press("Tab");
+  assert.equal(await input.inputValue(), "请详细解释第一步。");
+  assert.equal(requests.length, 6);
+  report.checks.push(
+    "mid-turn edited message steered from queue: refreshed instruction on latest context, updated prediction displayed and accepted, no extra prediction request",
+  );
   assert.deepEqual(report.errors, []);
 } catch (error) {
   report.failure = String(error.stack ?? error);
   process.exitCode = 1;
 } finally {
+  releaseHeld?.();
   await writeFile(join(output, "report.json"), JSON.stringify(report, null, 2));
   if (app) await app.close();
   await new Promise((resolve) => server.close(resolve));

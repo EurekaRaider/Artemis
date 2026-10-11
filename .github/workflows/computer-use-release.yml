@@ -27,6 +27,9 @@ jobs:
           - runner: macos-15
             platform: macos-arm64
             target: darwin-arm64
+          - runner: macos-15-intel
+            platform: macos-x64
+            target: darwin-x64
           - runner: windows-2025
             platform: windows-x64
             target: win32-x64
@@ -42,7 +45,7 @@ jobs:
       - run: npm ci
       - run: npm run build:core
       - name: Protocol, authorization and transaction regressions
-        run: npx vitest run scripts/computer-use/release-policy.test.ts packages/protocol/test/computer-use-pack.test.ts apps/desktop/test/main/computer-use apps/desktop/test/integration/computer-use
+        run: npx vitest run scripts/release/macos-capability-signing.test.ts scripts/computer-use/release-policy.test.ts packages/protocol/test/computer-use-pack.test.ts apps/desktop/test/main/computer-use apps/desktop/test/integration/computer-use
       - name: Build signed native pack
         run: node scripts/computer-use/build-pack.mjs
         env:

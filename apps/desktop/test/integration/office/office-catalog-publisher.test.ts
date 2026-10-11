@@ -127,6 +127,25 @@ describe("Office catalog publisher", () => {
     }
   });
 
+  it("adds Intel in the extension list while retaining existing clients' platforms", () => {
+    const intel = { platform: "darwin", arch: "x64", version: "1.0.2" };
+    const extended = { ...next, additionalManifests: [intel] };
+    expect(publish(next, extended).error).toBe("");
+    expect(publish(extended, next).error).toContain("existing platform");
+    expect(
+      publish(extended, {
+        ...extended,
+        additionalManifests: [{ ...intel, version: "1.0.3" }],
+      }).error,
+    ).toBe("");
+    expect(
+      publish(extended, {
+        ...extended,
+        additionalManifests: [{ ...intel, version: "1.0.1" }],
+      }).error,
+    ).toContain("existing platform");
+  });
+
   it("rejects a mismatched published readback", () => {
     expect(publish(previous, next, true).error).toContain("readback mismatch");
   });

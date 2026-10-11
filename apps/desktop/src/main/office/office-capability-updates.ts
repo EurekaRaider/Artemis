@@ -10,6 +10,8 @@ export interface OfficeRuntimeCatalog {
   schemaVersion: 1;
   publicKeys: Record<string, string>;
   manifests: CapabilityPackManifest[];
+  /** Native targets unknown to legacy readers, verified by upgraded hosts. */
+  additionalManifests?: CapabilityPackManifest[];
   /** Trusted host configuration; remote catalogs cannot change this URL or keys. */
   updateUrl?: string;
 }
@@ -46,7 +48,10 @@ export class OfficeCapabilityUpdates {
       if (url.protocol !== "https:" || url.username || url.password || url.hash)
         throw new Error(`${this.label} update source must be an HTTPS URL`);
     }
-    this.manifests = this.verified(catalog.manifests);
+    this.manifests = this.verified([
+      ...catalog.manifests,
+      ...(catalog.additionalManifests ?? []),
+    ]);
   }
 
   private verified(values: unknown[]): CapabilityPackManifest[] {
@@ -152,11 +157,18 @@ export class OfficeCapabilityUpdates {
       !data ||
       data.schemaVersion !== 1 ||
       !Array.isArray(data.manifests) ||
-      data.manifests.length > 32
+      (data.additionalManifests !== undefined &&
+        !Array.isArray(data.additionalManifests)) ||
+      data.manifests.length +
+        ((data.additionalManifests as unknown[] | undefined)?.length ?? 0) >
+        32
     )
       throw new Error(`Invalid ${this.label} update catalog`);
     // Verify all candidates before changing the last known good catalog.
-    const next = this.verified(data.manifests);
+    const next = this.verified([
+      ...data.manifests,
+      ...((data.additionalManifests as unknown[] | undefined) ?? []),
+    ]);
     const versions = new Map(
       this.manifests.map((manifest) => [manifest.version, manifest]),
     );

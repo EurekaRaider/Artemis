@@ -121,6 +121,71 @@ describe("live composer predictions", () => {
     );
     expect(view.result.current.text).toBe("请补充测试。");
   });
+  it("accepts the latest prediction after an edited draft is consumed as a mid-turn message", () => {
+    const view = renderHook(
+      ({ draft }) => useComposerPrediction("thread", true, false, draft),
+      { initialProps: { draft: "" } },
+    );
+    act(() =>
+      view.result.current.receive(
+        event({ type: "turn.started", mode: "work" }),
+      ),
+    );
+    view.rerender({ draft: "不是直接跑，我是想知道要怎么做" });
+    act(() =>
+      view.result.current.receive(
+        event({
+          type: "user.message",
+          messageId: "supplement",
+          text: "不是直接跑，我是想知道要怎么做",
+        }),
+      ),
+    );
+    view.rerender({ draft: "" });
+    act(() =>
+      view.result.current.receive(
+        event({
+          type: "turn.completed",
+          reason: "completed",
+          composerPrediction: "请详细解释第一步。",
+        }),
+      ),
+    );
+    expect(view.result.current.text).toBe("请详细解释第一步。");
+  });
+  it.each([false, true])(
+    "keeps a fast completion behind the submitted draft and context block %s",
+    (blocked) => {
+      const view = renderHook(
+        ({ draft }) => useComposerPrediction("thread", true, blocked, draft),
+        { initialProps: { draft: "Submitted" } },
+      );
+      act(() => {
+        view.result.current.receive(
+          event({ type: "turn.started", mode: "work" }),
+        );
+        view.result.current.receive(
+          event({
+            type: "turn.completed",
+            reason: "completed",
+            composerPrediction: "Next",
+          }),
+        );
+      });
+      expect(view.result.current.text).toBeUndefined();
+      view.rerender({ draft: "" });
+      expect(view.result.current.text).toBe(blocked ? undefined : "Next");
+    },
+  );
+  it("does not re-arm a settled turn from a late user message", () => {
+    render(<Harness />);
+    start();
+    complete();
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    send({ type: "user.message", messageId: "late", text: "Late message" });
+    complete();
+    expect(screen.queryByRole("status")).toBeNull();
+  });
   it("only accepts with Tab and never sends or pre-populates a draft", () => {
     const submit = vi.fn();
     render(<Harness submit={submit} />);

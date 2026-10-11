@@ -1,6 +1,22 @@
 import { gt } from "semver";
 import type { ComputerUsePackManifest } from "@artemis/protocol";
 
+export const COMPUTER_USE_TARGETS = [
+  "darwin-arm64",
+  "darwin-x64",
+  "win32-x64",
+] as const;
+
+/** Older hosts reject unknown native targets before filtering for their CPU. */
+export function catalogForExistingHosts(manifests: ComputerUsePackManifest[]) {
+  const intelMac = (manifest: ComputerUsePackManifest) =>
+    manifest.platform === "darwin" && manifest.arch === "x64";
+  return {
+    manifests: manifests.filter((manifest) => !intelMac(manifest)),
+    additionalManifests: manifests.filter(intelMac),
+  };
+}
+
 type Release = Pick<
   ComputerUsePackManifest,
   "platform" | "arch" | "version" | "archive" | "sourceDigest"
@@ -22,7 +38,8 @@ export function validateNativeAcceptance(
   hostVersion: string,
 ): void {
   for (const manifest of manifests) {
-    const result = record(record(evidence)[manifest.platform]);
+    const target = manifest.platform + "-" + manifest.arch;
+    const result = record(record(evidence)[target]);
     const checks = record(result.checks);
     if (
       result.archiveSha256 !== manifest.archive.sha256 ||
@@ -32,15 +49,15 @@ export function validateNativeAcceptance(
       result.arch !== manifest.arch ||
       !COMPUTER_USE_ACCEPTANCE_CHECKS.every((check) => checks[check] === true)
     )
-      throw new Error(
-        "Native package verification is missing for " + manifest.platform,
-      );
+      throw new Error("Native package verification is missing for " + target);
     if (manifest.platform === "win32" && result.effectiveAclVerified !== true)
       throw new Error(
         "Windows effective installation ACL verification is required",
       );
     if (manifest.platform === "darwin" && result.notarizationVerified !== true)
-      throw new Error("Signed macOS arm64 desktop acceptance is missing");
+      throw new Error(
+        "Signed macOS " + manifest.arch + " desktop acceptance is missing",
+      );
   }
 }
 export function rejectCatalogRegression(

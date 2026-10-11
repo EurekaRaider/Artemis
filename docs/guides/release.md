@@ -32,11 +32,15 @@ Windows 生成当前用户级 NSIS 安装包和手动 ZIP。NSIS 不请求提权
 
 Office 使用 `scripts/office/sources.json` 中的固定版本与 SHA-256；空缓存也能从公开上游构建。候选包通过普通用户安装和预览检查后，作为同次运行的 artifact 传给发布任务。Windows Office 发布要求输入新的不可变版本号。
 
+`office-macos-release.yml` 在 `macos-15-intel` 上构建 Intel Office runtime：下载并核对固定引擎与 SDK，编译 UNO bridge，逐个验证 Mach-O 架构并签名，完成公证和 stapling，再安装最终签名 ZIP，执行 Word、Excel、PowerPoint 样本的编辑、导出与重新打开检查。公开附件后再次验证匿名在线安装，最后提出目录 PR。新增 Intel 清单要求 Artemis `>=1.7.14 <2`；发布前必须先更新宿主版本。使用新的不可变 runtime 版本号，保留现有 arm64 与 Windows 清单。
+
 Design 包仅生成 darwin-arm64 和 win32-x64。发布凭据只出现在受信任发布作业。Office 和 Design 目录变更生成 PR，维护者审查合并后客户端才能从目录发现新增能力包；自动化不直接写 main。
 
 Office 和 Design 目录 PR 仍使用 `ARTEMIS_RELEASE_TOKEN`，该令牌需拥有 `EurekaRaider/Artemis` 的 Contents 和 Pull requests 写权限。目录路径为 main 分支上的 `apps/desktop/resources/office-runtime/catalog.json` 和 `apps/desktop/resources/design-plugins/catalog.json`。
 
 已有 Office 签名清单保留原始 URL 字节以维持签名有效；下载器在验签后将精确匹配的旧 Release 前缀映射到 Artemis，仍强制校验附件大小与 SHA-256。在发布使用新源的客户端前，应将不可变 runtime 附件复制到 Artemis 的同名 tag，并保持能力包 Release 的 `--latest=false`。新清单直接使用 Artemis URL 签名。旧客户端仍使用内置的旧更新源，因此应保留旧 Releases；如需自动过渡，还需在旧源发布迁移版本。
+
+Intel 目标放入目录的 `additionalManifests`，新版宿主按相同签名、架构和版本边界验证；旧宿主继续读取原有 `manifests`，避免因不认识 x64 清单而使整个更新检查失败。Computer Use 的版本目录保留三份清单，stable 目录按此兼容格式发布；Office 目录 PR 也保留旧目标和信任根。
 
 ## 验收证据
 

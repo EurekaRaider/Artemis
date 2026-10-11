@@ -20,20 +20,33 @@ export function useComposerPrediction(
   }>();
   const composing = useRef(false);
   const unavailable = blocked || (!!draft && !composing.current);
-  const current = useRef({ threadId, enabled, blocked: unavailable });
+  const current = useRef({
+    threadId,
+    enabled,
+    blocked: unavailable,
+    contextBlocked: blocked,
+  });
+  const activeTurn = useRef<string | undefined>(undefined);
   const liveTurn = useRef<string | undefined>(undefined);
   const lastSequence = useRef(-1);
   if (current.current.threadId !== threadId) {
     composing.current = false;
     lastSequence.current = -1;
   }
+  if (current.current.threadId !== threadId || !enabled)
+    activeTurn.current = undefined;
   if (
     current.current.threadId !== threadId ||
     !enabled ||
     (unavailable && !current.current.blocked)
   )
     liveTurn.current = undefined;
-  current.current = { threadId, enabled, blocked: unavailable };
+  current.current = {
+    threadId,
+    enabled,
+    blocked: unavailable,
+    contextBlocked: blocked,
+  };
   useEffect(() => {
     setCandidate(undefined);
   }, [threadId, enabled]);
@@ -66,6 +79,15 @@ export function useComposerPrediction(
       lastSequence.current = event.seq;
       if (!state.enabled) return;
       if (event.payload.type === "turn.started") {
+        activeTurn.current = event.turnId;
+        liveTurn.current = event.turnId;
+        setCandidate(undefined);
+      } else if (
+        event.payload.type === "user.message" &&
+        event.turnId !== undefined &&
+        activeTurn.current === event.turnId
+      ) {
+        // A consumed supplement permits a fresh prediction for the updated context.
         liveTurn.current = event.turnId;
         setCandidate(undefined);
       } else if (
@@ -73,15 +95,22 @@ export function useComposerPrediction(
         event.payload.type === "user-input.requested" ||
         event.payload.type === "approval.requested"
       ) {
+        if (event.payload.type === "turn.failed")
+          activeTurn.current = undefined;
         dismiss();
       } else if (
         event.payload.type === "turn.completed" &&
         event.turnId !== undefined &&
-        liveTurn.current === event.turnId
+        activeTurn.current === event.turnId
       ) {
+        const accepting = liveTurn.current === event.turnId;
+        activeTurn.current = undefined;
         liveTurn.current = undefined;
         setCandidate(
-          !state.blocked &&
+          accepting &&
+            // Submission IPC may settle after a fast model response. Keep the
+            // candidate hidden until its accepted draft clears; edits dismiss it.
+            !state.contextBlocked &&
             event.payload.reason === "completed" &&
             event.payload.composerPrediction
             ? {

@@ -1,0 +1,99 @@
+name: Release Intel macOS Office runtime
+"on":
+  workflow_dispatch:
+    inputs:
+      version:
+        description: New immutable Office runtime version (x.y.z)
+        type: string
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: office-macos-release
+  cancel-in-progress: false
+env:
+  OFFICE_RUNTIME_VERSION: ${{ inputs.version }}
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15-intel
+    permissions:
+      contents: write
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Require native Intel execution
+        run: node -e "if (process.platform !== 'darwin' || process.arch !== 'x64') process.exit(1)"
+      - run: npm ci
+      - run: npm run build:core
+      - name: Manifest, architecture and Office policy regressions
+        run: npx vitest run scripts/release/macos-capability-signing.test.ts scripts/office/publish-macos-release.test.ts scripts/office/public-macos-catalog.test.ts apps/desktop/test/main/capabilities/capability-pack-service.test.ts apps/desktop/test/main/office apps/desktop/test/integration/office/office-catalog-publisher.test.ts
+      - uses: actions/cache@v6.1.0
+        with:
+          path: artifacts/office/sources
+          key: office-inputs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('scripts/office/sources.json') }}
+      - name: Fetch and verify pinned Intel engine, SDK and corpus
+        run: |
+          node scripts/office/fetch-sources.mjs
+          node scripts/office/fetch-corpus.mjs
+      - name: Mount official Intel build inputs read only
+        run: |
+          mkdir -p artifacts/office/mount-office artifacts/office/mount-sdk
+          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/artifacts/office/mount-office" artifacts/office/sources/LibreOffice_26.8.0_MacOS_x86-64.dmg
+          hdiutil attach -readonly -nobrowse -mountpoint "$PWD/artifacts/office/mount-sdk" artifacts/office/sources/LibreOffice_26.8.0_MacOS_x86-64_sdk.dmg
+      - name: Compile the Intel UNO bridge
+        run: >-
+          node scripts/office/build-bridge.mjs
+          --sdk artifacts/office/mount-sdk/LibreOffice26.8_SDK
+          --office artifacts/office/mount-office/LibreOffice.app/Contents/MacOS/soffice
+          --json artifacts/office/sources/json.hpp --out artifacts/office/build
+      - name: Build, sign, notarize and staple the immutable runtime
+        run: >-
+          node scripts/office/build-macos-release.mjs
+          artifacts/office/mount-office/LibreOffice.app artifacts/office/build/office-bridge
+        env:
+          OFFICE_RUNTIME_ED25519_PRIVATE_KEY: ${{ secrets.OFFICE_RUNTIME_ED25519_PRIVATE_KEY }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      - name: Verify the final archive through production installation and native corpus
+        run: node scripts/office/run-macos-verifier.mjs artifacts/office/macos-release/catalog.json
+      - name: Publish verified immutable assets without changing app Latest
+        run: node scripts/office/publish-macos-release.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Verify anonymous public installation on Intel macOS
+        run: >-
+          node scripts/office/run-macos-verifier.mjs
+          artifacts/office/macos-release/catalog.json --online
+      - name: Propose the accepted installer catalog
+        run: node scripts/office/publish-office-catalog.mjs artifacts/office/macos-release/catalog.json
+        env:
+          GH_TOKEN: ${{ secrets.ARTEMIS_RELEASE_TOKEN }}
+      - name: Publish public installation acceptance evidence
+        run: gh release upload "office-runtime-v$OFFICE_RUNTIME_VERSION" artifacts/office/macos-release/public-installed-native-acceptance.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Preserve final artifacts and acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: office-release-darwin-x64
+          path: |
+            artifacts/office/macos-release
+            artifacts/office/macos-native-probe
+            artifacts/office/macos-online-native-probe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Detach build input volumes
+        if: always()
+        run: |
+          hdiutil detach "$PWD/artifacts/office/mount-office" || true
+          hdiutil detach "$PWD/artifacts/office/mount-sdk" || true
