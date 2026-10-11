@@ -251,7 +251,11 @@ it("imports 1000 originals without eager parsing and searches across chunk bound
       "首".repeat(16383) + "跨块搜索" + ',"多行\n单元格"\n' + "尾";
     await writeFile(path, content);
     const store = new AttachmentStore(join(root, "store"));
-    const result = await store.importPaths(Array(1000).fill(path));
+    const paths = Array.from({ length: 1000 }, (_, i) =>
+      join(root, `input-${i}.csv`),
+    );
+    await Promise.all(paths.map((input) => writeFile(input, content)));
+    const result = await store.importPaths(paths);
     expect(result.errors).toEqual([]);
     expect(result.attachments).toHaveLength(1000);
     expect(
