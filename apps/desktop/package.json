@@ -49,6 +49,7 @@
     "@artemis/agent-host": "1.7.12",
     "@artemis/gateway": "1.7.12",
     "@artemis/platform": "1.7.12",
+    "@artemis/plugin-contract": "1.7.12",
     "@artemis/protocol": "1.7.12",
     "@artemis/theme-artemis": "1.7.12",
     "@artemis/theme-contract": "1.7.12",
@@ -80,12 +81,13 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-i18next": "^17.0.11",
+    "saxes": "6.0.0",
     "semver": "7.7.4",
     "seti-file-icons": "0.0.8",
     "smol-toml": "^1.7.1",
     "tar": "7.5.22",
-    "zod": "^4.1.12",
-    "@artemis/plugin-contract": "1.7.12"
+    "unzipper": "0.12.5",
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",

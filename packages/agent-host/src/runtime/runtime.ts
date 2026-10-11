@@ -918,6 +918,7 @@ export interface OpenThreadRequest {
 }
 
 interface HostedThread {
+  currentAttachmentIds?: string[];
   threadId: string;
   workspacePath: string;
   target: WorkspaceTarget;
@@ -3785,6 +3786,9 @@ export class ArtemisAgentHost {
         mode: hosted.currentMode!,
         operation: {
           ...operation,
+          ...(operation.currentMessage
+            ? { ids: hosted.currentAttachmentIds ?? [] }
+            : {}),
           maxTokens: Math.min(
             operation.maxTokens ?? 4000,
             4000,
@@ -7149,11 +7153,9 @@ export class ArtemisAgentHost {
         await this.refreshThreadConfiguration(hosted);
         if (this.cancelledTurns.has(`${threadId}\0${turnId}`)) return;
       }
-      const preparedAttachments = await this.prepareAttachments(
-        hosted,
-        attachments,
-        text,
-      );
+      hosted.currentAttachmentIds =
+        attachments?.filter(isAttachmentReference).map((item) => item.id) ?? [];
+      const preparedAttachments = attachments;
       const basePrompt = buildTurnPrompt(
         mode,
         recovery ? processRecoveryPrompt(text, recovery) : text,
@@ -7375,102 +7377,6 @@ export class ArtemisAgentHost {
       hosted.compacting = false;
       hosted.currentMode = undefined;
     }
-  }
-
-  private async prepareAttachments(
-    hosted: HostedThread,
-    attachments: PromptAttachment[] | undefined,
-    text: string,
-  ): Promise<PromptAttachment[] | undefined> {
-    if (!attachments?.some(isAttachmentReference)) return attachments;
-    const model = hosted.session.model;
-    if (!model) return attachments;
-    const requestContext = {
-      systemPrompt: hosted.session.systemPrompt,
-      messages: hosted.session.messages,
-      tools: hosted.session.agent.state.tools,
-    };
-    let remaining =
-      inputTokenLimit(model) -
-      estimateRequestTokens(model, requestContext) -
-      estimateTextTokens(text) -
-      2048;
-    if (remaining < 1024 && hosted.session.messages.length) {
-      await hosted.session.compact();
-      remaining =
-        inputTokenLimit(model) -
-        estimateRequestTokens(model, {
-          ...requestContext,
-          messages: hosted.session.messages,
-        }) -
-        estimateTextTokens(text) -
-        2048;
-    }
-    let documentBudget = Math.max(
-      0,
-      Math.min(8000, Math.floor(model.contextWindow * 0.05), remaining),
-    );
-    const result: PromptAttachment[] = [];
-    for (const item of attachments) {
-      result.push(item);
-      if (!isAttachmentReference(item) || item.status === "error") continue;
-      if (
-        item.kind === "image" &&
-        (!model.input.includes("image") ||
-          remaining < attachmentImageTokens(model))
-      )
-        continue;
-      if (
-        item.kind === "file" &&
-        (item.characters === undefined || item.characters > documentBudget * 4)
-      )
-        continue;
-      const response = await this.broker.request({
-        kind: "attachment.read",
-        approvalId: randomUUID(),
-        threadId: hosted.threadId,
-        turnId: hosted.currentTurnId!,
-        mode: hosted.currentMode!,
-        operation: {
-          action: "read",
-          id: item.id,
-          maxTokens:
-            item.kind === "image" ? 4000 : Math.min(4000, documentBudget),
-        },
-      });
-      if (!response.approved) continue;
-      const value = response.data as {
-        data?: string;
-        mimeType?: string;
-        text?: string;
-        nextOffset?: number;
-        totalCharacters?: number;
-      };
-      if (value.data && value.mimeType) {
-        result.push({
-          attachmentId: item.id,
-          name: item.name,
-          mimeType: value.mimeType as PromptImage["mimeType"],
-          data: value.data,
-        });
-        remaining -= attachmentImageTokens(model);
-      } else if (
-        value.text &&
-        value.nextOffset === undefined &&
-        estimateTextTokens(value.text) <= documentBudget
-      ) {
-        result.push({
-          type: "file",
-          name: item.name,
-          mimeType: item.mimeType,
-          content: value.text,
-        });
-        const cost = estimateTextTokens(value.text);
-        documentBudget -= cost;
-        remaining -= cost;
-      }
-    }
-    return result;
   }
 
   async steer(

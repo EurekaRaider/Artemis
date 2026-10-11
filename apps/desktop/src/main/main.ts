@@ -975,9 +975,12 @@ const recoverableTurnQueues = new RecoverableTurnQueues();
 let agentHostRestart: Promise<void> | undefined;
 
 let attachmentStoreInstance: AttachmentStore | undefined;
+const attachmentReads = new Map<string, Set<AbortController>>();
 function attachmentStore(): AttachmentStore {
   return (attachmentStoreInstance ??= new AttachmentStore(
     join(app.getPath("userData"), "attachments"),
+    (progress) =>
+      mainWindow?.webContents.send(IPC.attachmentImportProgress, progress),
   ));
 }
 function attachmentScope(threadId: string): string {
@@ -4761,6 +4764,11 @@ async function handleBrokerRequest(
       return;
     }
     case "attachment.read": {
+      const controller = new AbortController();
+      const reads =
+        attachmentReads.get(request.threadId) ?? new Set<AbortController>();
+      reads.add(controller);
+      attachmentReads.set(request.threadId, reads);
       try {
         if (
           activeTurns.get(request.threadId) !== request.turnId ||
@@ -4771,6 +4779,7 @@ async function handleBrokerRequest(
         const result = await attachmentStore().operate(
           attachmentScope(request.threadId),
           request.operation,
+          controller.signal,
         );
         agentProcess.post({
           type: "broker.resolve",
@@ -4790,6 +4799,9 @@ async function handleBrokerRequest(
           request,
           error instanceof Error ? error.message : String(error),
         );
+      } finally {
+        reads.delete(controller);
+        if (!reads.size) attachmentReads.delete(request.threadId);
       }
       return;
     }
@@ -7891,6 +7903,8 @@ async function cancelLocalTaskTurn(threadId: string): Promise<void> {
     (pending) => pending.request.threadId === thread.id,
   );
   cancellingTurns.add(thread.id);
+  for (const controller of attachmentReads.get(thread.id) ?? [])
+    controller.abort();
   hooksService?.cancelThread(thread.id);
   // Persist the user's Stop before awaiting the worker, including during restart.
   store.clearTurnCheckpoint(thread.id, turnId);
@@ -12312,12 +12326,13 @@ function registerIpc(): void {
       ) {
         throw new Error("Dropped attachment paths are invalid.");
       }
-      if (paths.length > 30)
-        throw new Error("Attach no more than 30 files at a time");
-      return Promise.all(
-        paths.map((path) => attachmentStore().importPath(path)),
-      );
+      const result = await attachmentStore().importPaths(paths);
+      if (result.errors.length) throw new Error(result.errors.join("\n"));
+      return result.attachments;
     },
+  );
+  ipcMain.handle(IPC.promptAttachmentRetry, (_event, id: string) =>
+    attachmentStore().retryImport(id),
   );
   ipcMain.handle(IPC.promptAttachmentImport, async (_event, item: unknown) => {
     const [attachment] = promptAttachmentsSchema.parse([item]);

@@ -217,7 +217,7 @@ describe("conversation composer drafts", () => {
   });
 });
 
-it("accepts twenty images plus ten documents, then enforces aggregate bytes across additions", () => {
+it("retains inline limits while allowing independent local original references", () => {
   const image = {
     name: "image.png",
     mimeType: "image/png" as const,
@@ -253,6 +253,6 @@ it("accepts twenty images plus ten documents, then enforces aggregate bytes acro
   const extra = appendPromptAttachments(full.attachments, [
     { ...ref, size: 1 },
   ]);
-  expect(extra.limited).toBe(true);
-  expect(extra.attachments).toHaveLength(2);
+  expect(extra.limited).toBe(false);
+  expect(extra.attachments).toHaveLength(3);
 });

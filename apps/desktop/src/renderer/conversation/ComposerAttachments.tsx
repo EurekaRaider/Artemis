@@ -30,6 +30,11 @@ export function ComposerAttachments({
   locale: AppLocale;
   onRemove: (index: number) => void;
 }) {
+  const [page, setPage] = useState(0);
+  const start = Math.min(
+    page * 50,
+    Math.max(0, Math.floor((attachments.length - 1) / 50) * 50),
+  );
   const [preview, setPreview] = useState<PromptImage>();
   const [previewError, setPreviewError] = useState<string>();
   const previewRequest = useRef(0);
@@ -57,8 +62,30 @@ export function ComposerAttachments({
 
   return (
     <>
+      {attachments.length > 50 && (
+        <div>
+          <button
+            type="button"
+            disabled={start === 0}
+            onClick={() => setPage(Math.max(0, page - 1))}
+          >
+            ←
+          </button>
+          <span>
+            {start + 1}–{Math.min(start + 50, attachments.length)} /{" "}
+            {attachments.length}
+          </span>
+          <button
+            type="button"
+            disabled={start + 50 >= attachments.length}
+            onClick={() => setPage(page + 1)}
+          >
+            →
+          </button>
+        </div>
+      )}
       <div className="attachment-image-strip composer-image-strip">
-        {attachments.map((attachment, index) =>
+        {attachments.slice(start, start + 50).map((attachment, index) =>
           readOfficeAnnotations(attachment) ? null : (
             <div
               className="attachment-image-tile composer-resource-chip"
@@ -97,11 +124,24 @@ export function ComposerAttachments({
                   }
                 />
               )}
+              {isAttachmentReference(attachment) && (
+                <span>
+                  {attachment.status === "pending"
+                    ? locale.startsWith("zh")
+                      ? "已保存·按需读取"
+                      : "Saved · read on demand"
+                    : attachment.status === "error"
+                      ? attachment.error
+                      : locale.startsWith("zh")
+                        ? "解析完成"
+                        : "Parsed"}
+                </span>
+              )}
               <button
                 type="button"
                 className="composer-resource-remove"
                 aria-label={`${attachmentIsImage(attachment) ? uiText(locale, "ComposerAttachments.inline4") : uiText(locale, "ComposerAttachments.inline3")}: ${attachment.name}`}
-                onClick={() => onRemove(index)}
+                onClick={() => onRemove(start + index)}
               >
                 <ArtemisIcon name="close" width={14} height={14} />
               </button>

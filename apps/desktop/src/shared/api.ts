@@ -862,6 +862,14 @@ export interface ProjectGitPushResult {
   gitInfo: ProjectGitInfo;
 }
 
+export interface AttachmentImportProgress {
+  id: string;
+  name: string;
+  status: "queued" | "saving" | "saved" | "error";
+  copied: number;
+  total: number;
+  error?: string;
+}
 export interface AttachmentImportResult {
   attachments: PromptAttachment[];
   errors: string[];
@@ -869,6 +877,11 @@ export interface AttachmentImportResult {
 export type AttachmentImportResponse =
   PromptAttachment[] | AttachmentImportResult;
 export interface ArtemisApi {
+  onAttachmentImportProgress(
+    listener: (progress: AttachmentImportProgress) => void,
+  ): () => void;
+  retryPromptAttachment(id: string): Promise<PromptAttachment>;
+
   browserPreview(
     threadId: string,
     contentsId: number,
@@ -1554,6 +1567,8 @@ export const IPC = {
   promptAttachmentCancel: "artemis:prompt-attachment-cancel",
   promptAttachmentImport: "artemis:prompt-attachment-import",
   promptAttachmentPrepare: "artemis:prompt-attachment-prepare",
+  attachmentImportProgress: "artemis:attachment-import-progress",
+  promptAttachmentRetry: "artemis:prompt-attachment-retry",
   promptAttachmentsRead: "artemis:prompt-attachments-read",
   taskSourceImageRead: "artemis:task-source-image-read",
   threadCreate: "artemis:thread-create",

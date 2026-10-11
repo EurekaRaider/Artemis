@@ -1,10 +1,7 @@
 import {
-  MAX_PROMPT_ATTACHMENTS,
   MAX_PROMPT_FILE_BYTES,
   MAX_PROMPT_IMAGE_BYTES,
   MAX_PROMPT_TOTAL_BYTES,
-  attachmentIsImage,
-  MAX_PROMPT_IMAGES,
   promptAttachmentsSchema,
   type PromptAttachment,
   type PromptImage,
@@ -49,12 +46,6 @@ export async function readPromptAttachmentsFromFiles(
   loadPaths: LoadPaths,
   importInline?: (item: PromptAttachment) => Promise<PromptAttachment>,
 ): Promise<PromptAttachment[]> {
-  if (files.length === 0 || files.length > MAX_PROMPT_ATTACHMENTS) {
-    throw new Error(
-      `Attach no more than ${MAX_PROMPT_ATTACHMENTS} files at a time.`,
-    );
-  }
-
   const attachments: Array<PromptAttachment | undefined> = Array.from({
     length: files.length,
   });
@@ -62,6 +53,12 @@ export async function readPromptAttachmentsFromFiles(
   let totalBytes = 0;
 
   for (const [index, file] of files.entries()) {
+    const path = resolveFilePath(file);
+    if (path) {
+      localFiles.push({ index, path });
+      continue;
+    }
+
     if (
       file.size >
       (isSupportedImageMimeType(file.type)
@@ -75,11 +72,6 @@ export async function readPromptAttachmentsFromFiles(
       throw new Error("Attachments exceed the 200 MiB total limit.");
     }
 
-    const path = resolveFilePath(file);
-    if (path) {
-      localFiles.push({ index, path });
-      continue;
-    }
     if (!isSupportedImageMimeType(file.type)) {
       throw new Error(
         `Pasted file does not have a local path: ${file.name || "unnamed file"}`,
@@ -110,9 +102,6 @@ export async function readPromptAttachmentsFromFiles(
   );
   if (complete.length !== attachments.length) {
     throw new Error("Some pasted attachments could not be read.");
-  }
-  if (complete.filter(attachmentIsImage).length > MAX_PROMPT_IMAGES) {
-    throw new Error(`Attach no more than ${MAX_PROMPT_IMAGES} images.`);
   }
   return promptAttachmentsSchema.parse(complete);
 }

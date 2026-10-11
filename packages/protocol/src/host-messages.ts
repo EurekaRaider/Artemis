@@ -345,6 +345,10 @@ export type AgentHostCommand =
     };
 
 export interface AttachmentOperation {
+  part?: string;
+  currentMessage?: boolean;
+  ids?: string[];
+  attachmentOffset?: number;
   action: "list" | "read" | "search";
   id?: string;
   page?: number;

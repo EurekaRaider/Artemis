@@ -1,4 +1,5 @@
 import {
+  isAttachmentReference,
   MAX_PROMPT_ATTACHMENTS,
   MAX_PROMPT_IMAGES,
   MAX_PROMPT_FILES,
@@ -91,27 +92,32 @@ export function appendPromptAttachments(
   selected: readonly PromptAttachment[],
 ): { attachments: PromptAttachment[]; limited: boolean } {
   const attachments = [...current];
-  let imageCount = attachments.filter(isPromptImage).length;
+  let imageCount = attachments.filter(
+    (item) => !isAttachmentReference(item) && isPromptImage(item),
+  ).length;
   const usedNames = new Set(
     attachments.map((attachment) => attachment.name.toLocaleLowerCase()),
   );
   let limited = false;
   for (const attachment of selected) {
+    const inline = attachments.filter((item) => !isAttachmentReference(item));
     if (
-      attachments.length >= MAX_PROMPT_ATTACHMENTS ||
-      (isPromptImage(attachment) && imageCount >= MAX_PROMPT_IMAGES) ||
-      (!isPromptImage(attachment) &&
-        attachments.length - imageCount >= MAX_PROMPT_FILES) ||
-      attachments.reduce((sum, item) => sum + attachmentBytes(item), 0) +
-        attachmentBytes(attachment) >
-        MAX_PROMPT_TOTAL_BYTES
+      !isAttachmentReference(attachment) &&
+      (inline.length >= MAX_PROMPT_ATTACHMENTS ||
+        (isPromptImage(attachment) && imageCount >= MAX_PROMPT_IMAGES) ||
+        (!isPromptImage(attachment) &&
+          inline.length - imageCount >= MAX_PROMPT_FILES) ||
+        inline.reduce((sum, item) => sum + attachmentBytes(item), 0) +
+          attachmentBytes(attachment) >
+          MAX_PROMPT_TOTAL_BYTES)
     ) {
       limited = true;
       continue;
     }
     const normalized = uniqueAttachment(attachment, usedNames, imageCount + 1);
     attachments.push(normalized);
-    if (isPromptImage(normalized)) imageCount += 1;
+    if (!isAttachmentReference(normalized) && isPromptImage(normalized))
+      imageCount += 1;
   }
   return { attachments, limited };
 }

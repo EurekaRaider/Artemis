@@ -40,7 +40,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { truncate } from "node:fs/promises";
 
 describe("large documents and image normalization", () => {
-  it("accepts 100 MiB originals and rejects larger files before reading", async () => {
+  it("accepts originals above the old 100 MiB quota without parsing", async () => {
     const root = await mkdtemp(join(tmpdir(), "artemis-attachment-size-"));
     try {
       const path = join(root, "large.txt");
@@ -51,7 +51,7 @@ describe("large documents and image normalization", () => {
       expect(ref.size).toBe(100 * 1024 * 1024);
       expect(JSON.stringify(ref).length).toBeLessThan(1000);
       await truncate(path, 100 * 1024 * 1024 + 1);
-      await expect(store.importPath(path)).rejects.toThrow(/100 MiB/);
+      expect((await store.importPath(path)).size).toBe(100 * 1024 * 1024 + 1);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -242,3 +242,50 @@ it("previews persisted files in bounded pages, including empty files, with task 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it("imports 1000 originals without eager parsing and searches across chunk boundaries", async () => {
+  const root = await mkdtemp(join(tmpdir(), "artemis-attachment-batch-"));
+  try {
+    const path = join(root, "source.csv");
+    const content =
+      "首".repeat(16383) + "跨块搜索" + ',"多行\n单元格"\n' + "尾";
+    await writeFile(path, content);
+    const store = new AttachmentStore(join(root, "store"));
+    const result = await store.importPaths(Array(1000).fill(path));
+    expect(result.errors).toEqual([]);
+    expect(result.attachments).toHaveLength(1000);
+    expect(
+      result.attachments.every(
+        (ref) => ref.status === "pending" && ref.characters === undefined,
+      ),
+    ).toBe(true);
+    const { readdir } = await import("node:fs/promises");
+    expect(
+      await readdir(join(root, "store", result.attachments[0]!.id)),
+    ).toEqual(["original", "record.json"]);
+    await store.bind("task", result.attachments);
+    const ref = result.attachments[0]!;
+    expect(
+      JSON.stringify(
+        await store.operate("task", {
+          action: "search",
+          id: ref.id,
+          query: "跨块搜索",
+        }),
+      ),
+    ).toContain("跨块搜索");
+    const read = (await store.operate("task", {
+      action: "read",
+      id: ref.id,
+      offset: 16383,
+    })) as { text: string };
+    expect(read.text).toBe(content.slice(16383));
+    const listed = (await store.operate("task", {
+      action: "list",
+      ids: [ref.id],
+    })) as { attachments: unknown[] };
+    expect(listed.attachments).toHaveLength(1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}, 30000);

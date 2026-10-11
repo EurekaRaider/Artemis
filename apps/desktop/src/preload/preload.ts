@@ -147,6 +147,17 @@ const api: ArtemisApi = {
     ),
   pushProjectBranch: (projectId, threadId) =>
     ipcRenderer.invoke(IPC.projectGitPush, projectId, threadId),
+  onAttachmentImportProgress(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      value: Parameters<typeof listener>[0],
+    ) => listener(value);
+    ipcRenderer.on(IPC.attachmentImportProgress, handler);
+    return () =>
+      ipcRenderer.removeListener(IPC.attachmentImportProgress, handler);
+  },
+  retryPromptAttachment: (id) =>
+    ipcRenderer.invoke(IPC.promptAttachmentRetry, id),
   preparePromptAttachment: (id) =>
     ipcRenderer.invoke(IPC.promptAttachmentPrepare, id),
   selectPromptAttachments: () =>
@@ -163,7 +174,11 @@ const api: ArtemisApi = {
     let bytes = 0,
       images = 0,
       documents = 0;
-    for (const file of files.slice(0, 30)) {
+    for (const file of files) {
+      if (webUtils.getPathForFile(file)) {
+        accepted.push(file);
+        continue;
+      }
       const image = file.type.startsWith("image/");
       if (
         bytes + file.size > 200 * 1024 * 1024 ||
@@ -194,9 +209,6 @@ const api: ArtemisApi = {
       ),
       errors: [
         ...errors,
-        ...(files.length > 30
-          ? ["Only the first 30 attachments were imported."]
-          : []),
         ...results.flatMap((result) =>
           result.status === "rejected" ? [String(result.reason)] : [],
         ),

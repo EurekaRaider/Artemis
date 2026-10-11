@@ -1,11 +1,11 @@
-import { estimateTextTokens, textWithinTokenBudget } from "@artemis/protocol";
-
 import { imageHeaderDimensions as attachmentImageDimensions } from "@artemis/platform";
 export { attachmentImageDimensions };
 
 import { parentPort } from "node:worker_threads";
-import { readFile, writeFile } from "node:fs/promises";
-import { parseOffice, type OfficeContentNode } from "officeparser";
+import { readFile, rename, open } from "node:fs/promises";
+import { AttachmentIndex, indexText, readIndex } from "./attachment-index.ts";
+import { indexOffice, officeImage } from "./attachment-office-index.ts";
+
 import {
   createCanvas,
   loadImage,
@@ -13,14 +13,10 @@ import {
   type Image,
 } from "@napi-rs/canvas";
 
-export interface AttachmentSegment {
-  text: string;
-  page?: number | undefined;
-  label?: string;
-}
 export interface AttachmentWork {
   action: "parse" | "image" | "read" | "search";
   id?: string;
+  part?: string | undefined;
   name?: string;
   offset?: number | undefined;
   query?: string | undefined;
@@ -31,142 +27,122 @@ export interface AttachmentWork {
   page?: number | undefined;
   crop?: { x: number; y: number; width: number; height: number } | undefined;
 }
-function text(node: OfficeContentNode): string {
-  return typeof node.text === "string"
-    ? node.text
-    : (node.children ?? []).map(text).join("\n");
+let lastProgress = 0;
+function progress() {
+  if (Date.now() - lastProgress < 250) return;
+  lastProgress = Date.now();
+  const message = { progress: true };
+  if (parentPort) parentPort.postMessage(message);
+  else if (process.send) process.send(message);
+  else electronPort?.postMessage(message);
+}
+async function openPdf(path: string) {
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const file = await open(path, "r");
+  const size = (await file.stat()).size;
+  const initial = Buffer.alloc(Math.min(65536, size));
+  await file.read(initial, 0, initial.length, 0);
+  class Range extends pdfjs.PDFDataRangeTransport {
+    override requestDataRange(begin: number, end: number) {
+      const bytes = Buffer.alloc(end - begin);
+      void file
+        .read(bytes, 0, bytes.length, begin)
+        .then(({ bytesRead }) =>
+          this.onDataRange(begin, new Uint8Array(bytes.subarray(0, bytesRead))),
+        );
+    }
+  }
+  const loading = pdfjs.getDocument({
+    range: new Range(size, new Uint8Array(initial)),
+    disableAutoFetch: true,
+    disableStream: true,
+    useSystemFonts: true,
+  });
+  return {
+    loading,
+    close: async () => {
+      await loading.destroy();
+      await file.close();
+    },
+  };
 }
 export async function processAttachment(
   work: AttachmentWork,
 ): Promise<unknown> {
-  if (work.action === "read" || work.action === "search") {
-    const segments = JSON.parse(
-      await readFile(work.path, "utf8"),
-    ) as AttachmentSegment[];
-    const budget = Math.min(4000, work.maxTokens ?? 4000);
-    if (
-      work.page !== undefined &&
-      (!Number.isInteger(work.page) ||
-        work.page < 1 ||
-        !segments.some((s) => s.page === work.page))
-    )
-      throw new Error("Page is outside the document");
-    if (work.action === "search") {
-      if (!work.query?.trim()) throw new Error("Search query is required");
-      const matches = [];
-      let remaining = budget,
-        globalOffset = 0;
-      for (const s of segments) {
-        let from = 0;
-        while (remaining > 0) {
-          const index = s.text
-            .toLocaleLowerCase()
-            .indexOf(work.query.toLocaleLowerCase(), from);
-          if (index < 0) break;
-          const excerpt = textWithinTokenBudget(
-            s.text.slice(Math.max(0, index - 100), index + 300),
-            remaining,
-          );
-          matches.push({
-            page: s.page,
-            label: s.label,
-            offset: s.page ? index : globalOffset + index,
-            text: excerpt,
-          });
-          remaining -= estimateTextTokens(excerpt) + 80;
-          from = index + work.query.length;
-          if (matches.length >= 20) break;
-        }
-        globalOffset += s.text.length + 1;
-        if (remaining <= 0 || matches.length >= 20) break;
-      }
-      return {
-        id: work.id,
-        matches,
-        limited: matches.length >= 20 || remaining <= 0,
-      };
-    }
-    const selected = segments.filter(
-      (s) => work.page === undefined || s.page === work.page,
-    );
-    const text = selected.map((s) => s.text).join("\n"),
-      offset = work.offset ?? 0;
-    if (!Number.isInteger(offset) || offset < 0 || offset > text.length)
-      throw new Error("Invalid attachment offset");
-    const content = textWithinTokenBudget(text.slice(offset), budget);
-    if (!content && offset < text.length) {
-      throw new Error(
-        "Attachment token budget is too small for the next character",
-      );
-    }
-    let position = 0;
-    const locations = selected
-      .flatMap((s) => {
-        const start = position;
-        position += s.text.length + 1;
-        return position > offset && start < offset + content.length
-          ? [{ offset: start, page: s.page, label: s.label }]
-          : [];
-      })
-      .slice(0, 20);
-    return {
-      id: work.id,
-      name: work.name,
-      page: work.page,
-      offset,
-      text: content,
-      locations,
-      nextOffset:
-        offset + content.length < text.length
-          ? offset + content.length
-          : undefined,
-      totalCharacters: text.length,
-      empty: !text.length,
-    };
-  }
+  if (work.action === "read" || work.action === "search")
+    return readIndex(work, progress);
   if (work.action === "parse") {
-    let segments: AttachmentSegment[];
-    if (/pdf|officedocument/.test(work.mimeType)) {
-      const parsed = await parseOffice(await readFile(work.path), {
-        decompressionLimits: {
-          maxUncompressedBytes: 128 * 1024 * 1024,
-          maxZipEntries: 5000,
-          maxTableCells: 1000000,
-        },
-        extractAttachments: false,
-        ignoreComments: true,
-        ignoreHeadersAndFooters: true,
-        ignoreNotes: true,
-        ignoreSlideMasters: true,
-        includeRawContent: false,
-        ocr: false,
-      });
-      segments = parsed.content.map((node, i) => ({
-        text: text(node),
-        ...(node.type === "page" ? { page: i + 1 } : {}),
-        label: `${node.type} ${i + 1}`,
-      }));
-    } else {
-      const bytes = await readFile(work.path);
-      const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(content))
-        throw new Error("Unsupported binary attachment");
-      segments = [{ text: content }];
+    if (!work.output) throw new Error("Index output is required");
+    const partial = `${work.output}.partial`;
+    const index = new AttachmentIndex(partial, true);
+    let result;
+    try {
+      let pages: number | undefined;
+      if (work.mimeType === "application/pdf") {
+        const pdf = await openPdf(work.path);
+        try {
+          const doc = await pdf.loading.promise;
+          pages = doc.numPages;
+          for (let n = 1; n <= pages; n++) {
+            if (
+              index.db
+                .prepare("SELECT name FROM parts WHERE name=?")
+                .get(`page:${n}`)
+            )
+              continue;
+            index.db.exec("BEGIN");
+            const page = await doc.getPage(n);
+            let hasText = false;
+            const reader = page.streamTextContent().getReader();
+            try {
+              for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                for (const item of value.items)
+                  if ("str" in item) {
+                    hasText ||= !!item.str.trim();
+                    index.add(
+                      item.str + (item.hasEOL ? "\n" : " "),
+                      n,
+                      `page ${n}`,
+                    );
+                  }
+                progress();
+              }
+            } finally {
+              reader.releaseLock();
+            }
+            const annotations = await page.getAnnotations();
+            for (const note of annotations)
+              if (note.contentsObj?.str)
+                index.add(
+                  `\nAnnotation: ${note.contentsObj.str}\n`,
+                  n,
+                  `page ${n} annotation`,
+                );
+            if (hasText) index.add("\n", n, `page ${n}`);
+            index.db.prepare("INSERT INTO parts VALUES (?)").run(`page:${n}`);
+            index.db.exec("COMMIT");
+            page.cleanup();
+            progress();
+          }
+        } finally {
+          await pdf.close();
+        }
+      } else if (/officedocument/.test(work.mimeType))
+        await indexOffice(work.path, index, progress);
+      else await indexText(work.path, index, progress);
+      result = index.finish(pages);
+    } finally {
+      index.close();
     }
-    if (work.output)
-      await writeFile(work.output, JSON.stringify(segments), { mode: 0o600 });
-    return {
-      characters: segments.reduce((n, s) => n + s.text.length, 0),
-      pages: segments.filter((s) => s.page).length || undefined,
-    };
+    await rename(partial, work.output);
+    return result;
   }
   let source: Image | Canvas;
   if (work.mimeType === "application/pdf") {
-    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const loading = pdfjs.getDocument({
-      data: new Uint8Array(await readFile(work.path)),
-      useSystemFonts: true,
-    });
+    const pdf = await openPdf(work.path);
+    const loading = pdf.loading;
     const doc = await loading.promise;
     try {
       const page = await doc.getPage(work.page ?? 1);
@@ -185,9 +161,24 @@ export async function processAttachment(
       }).promise;
       source = canvas;
     } finally {
-      await loading.destroy();
+      await pdf.close();
     }
+  } else if (work.part) {
+    const bytes = await officeImage(work.path, work.part);
+    attachmentImageDimensions(bytes);
+    source = await loadImage(bytes);
   } else {
+    const input = await open(work.path, "r");
+    const info = await input.stat();
+    try {
+      if (info.size > 256 * 1024 * 1024)
+        throw new Error("Image decoding exceeds the 256 MiB resource limit");
+      const header = Buffer.alloc(Math.min(info.size, 65536));
+      await input.read(header, 0, header.length, 0);
+      attachmentImageDimensions(header);
+    } finally {
+      await input.close();
+    }
     const bytes = await readFile(work.path);
     attachmentImageDimensions(bytes);
     source = await loadImage(bytes);

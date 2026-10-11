@@ -1,3 +1,4 @@
+import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
 import {
   applyStreamBatch,
   mergeThreadEvents,
@@ -162,7 +163,6 @@ import {
   ReviewWorkspace,
 } from "@artemis/ui/workflow";
 import {
-  MAX_PROMPT_ATTACHMENTS,
   reduceAgentEventBatch,
   reduceAgentEvents,
   type AgentEvent,
@@ -5075,63 +5075,6 @@ export function App() {
       );
       draftAttachments.current.set(activeComposerDraftKey, next);
       setAttachments(next);
-      for (const item of selected) {
-        if (!isAttachmentReference(item)) continue;
-        if (
-          !next.some(
-            (candidate) =>
-              isAttachmentReference(candidate) && candidate.id === item.id,
-          )
-        ) {
-          void window.artemis.cancelPromptAttachment(item.id);
-          continue;
-        }
-        if (item.status !== "pending") continue;
-        void pendingAttachmentReads.current.track(
-          activeComposerDraftKey,
-          window.artemis
-            .preparePromptAttachment(item.id)
-            .then((ready) => {
-              setComposerDrafts((drafts) =>
-                updateComposerDraft(
-                  drafts,
-                  activeComposerDraftKey,
-                  (draft) => ({
-                    ...draft,
-                    attachments: draft.attachments.map((candidate) =>
-                      isAttachmentReference(candidate) &&
-                      candidate.id === item.id
-                        ? { ...ready, name: candidate.name }
-                        : candidate,
-                    ),
-                  }),
-                ),
-              );
-              const current =
-                draftAttachments.current.get(activeComposerDraftKey) ?? [];
-              draftAttachments.current.set(
-                activeComposerDraftKey,
-                current.map((candidate) =>
-                  isAttachmentReference(candidate) && candidate.id === item.id
-                    ? { ...ready, name: candidate.name }
-                    : candidate,
-                ),
-              );
-            })
-            .catch((error) => {
-              if (
-                (
-                  draftAttachments.current.get(activeComposerDraftKey) ?? []
-                ).some(
-                  (candidate) =>
-                    isAttachmentReference(candidate) &&
-                    candidate.id === item.id,
-                )
-              )
-                setToast(String(error));
-            }),
-        );
-      }
       if (limited) {
         setToast(t.attachmentLimit);
       }
@@ -5140,15 +5083,13 @@ export function App() {
   );
 
   const selectPromptAttachments = useCallback(async () => {
-    if (attachments.length >= MAX_PROMPT_ATTACHMENTS) {
-      setToast(t.attachmentLimit);
-      return;
-    }
     try {
-      const selected = await window.artemis.selectPromptAttachments();
-      if (selected) {
-        addPromptAttachments(selected);
-      }
+      await pendingAttachmentReads.current.track(
+        activeComposerDraftKey,
+        window.artemis.selectPromptAttachments().then((selected) => {
+          if (selected) addPromptAttachments(selected);
+        }),
+      );
     } catch (error) {
       setToast(
         `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
@@ -5205,14 +5146,19 @@ export function App() {
       const files = Array.from(event.dataTransfer.files);
       if (files.length === 0) return;
       try {
-        addPromptAttachments(await window.artemis.readPromptAttachments(files));
+        await pendingAttachmentReads.current.track(
+          activeComposerDraftKey,
+          window.artemis
+            .readPromptAttachments(files)
+            .then(addPromptAttachments),
+        );
       } catch (error) {
         setToast(
           `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     },
-    [addPromptAttachments, t.taskError],
+    [activeComposerDraftKey, addPromptAttachments, t.taskError],
   );
 
   const handleAttachmentPaste = useCallback(
@@ -8165,6 +8111,10 @@ export function App() {
                                   }
                                 />
                               ))}
+                            <AttachmentImportProgress
+                              locale={locale}
+                              onImported={addPromptAttachments}
+                            />
                             {hasRegularAttachments && (
                               <ComposerAttachments
                                 key={activeComposerDraftKey}

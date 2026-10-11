@@ -247,8 +247,10 @@ export const promptAttachmentReferenceSchema = z.object({
   kind: z.enum(["image", "file"]),
   name: z.string().trim().min(1).max(255),
   mimeType: z.string().min(1).max(120),
-  size: z.number().int().nonnegative().max(MAX_PROMPT_FILE_BYTES),
+  size: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   status: z.enum(["pending", "ready", "error"]),
+  parseStatus: z.enum(["processing", "complete", "error"]).optional(),
+  indexVersion: z.number().int().positive().optional(),
   error: z.string().max(1000).optional(),
   pages: z.number().int().nonnegative().optional(),
   characters: z.number().int().nonnegative().optional(),
@@ -288,8 +290,9 @@ export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
 export const MAX_PROMPT_ATTACHMENTS = 30;
 export const promptAttachmentsSchema = z
   .array(promptAttachmentSchema)
-  .max(MAX_PROMPT_ATTACHMENTS)
-  .superRefine((attachments, context) => {
+  .superRefine((items, context) => {
+    // Local references carry metadata; inline payloads retain transport limits.
+    const attachments = items.filter((item) => !isAttachmentReference(item));
     const imageCount = attachments.filter((attachment) =>
       attachmentIsImage(attachment),
     ).length;
