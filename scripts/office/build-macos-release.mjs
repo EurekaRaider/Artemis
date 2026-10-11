@@ -134,7 +134,7 @@ try {
     async ({ identity, keychain }) => {
       const nativeArch = process.arch === "x64" ? "x86_64" : "arm64";
       for (const path of macho) {
-        run("/usr/bin/lipo", ["-verify_arch", nativeArch, path]);
+        run("/usr/bin/lipo", [path, "-verify_arch", nativeArch]);
         run("/usr/bin/codesign", [
           "--force",
           "--timestamp",

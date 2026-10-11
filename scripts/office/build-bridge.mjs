@@ -1,6 +1,6 @@
 // Build tooling only. Node and the SDK are never copied into the capability.
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm, symlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,7 +40,12 @@ const libraries = ["sal", "cppu", "cppuhelpergcc3"];
 let maker = join(sdk, "bin", mac ? "cppumaker" : "cppumaker.exe");
 if (mac) {
   // Relocate only a private SDK build-tool copy, never the installed runtime.
-  const relocated = join(out, "cppumaker");
+  const tools = join(out, "sdk-tools");
+  await rm(tools, { recursive: true, force: true });
+  await mkdir(tools);
+  for (const name of await readdir(framework))
+    await symlink(join(framework, name), join(tools, name));
+  const relocated = join(tools, "cppumaker");
   await copyFile(maker, relocated);
   maker = relocated;
   const changes = ["unoidllo", "uno_salhelpergcc3", "uno_sal"].flatMap(
@@ -49,7 +54,7 @@ if (mac) {
       return [
         "-change",
         `@__VIA_LIBRARY_PATH__/${library}`,
-        join(framework, library),
+        `@loader_path/${library}`,
       ];
     },
   );

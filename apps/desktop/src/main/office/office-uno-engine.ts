@@ -33,7 +33,7 @@ export async function verifyOfficeNative(
     for (const executable of [office.entrypoint, office.officeExecutable])
       await runFile(
         "/usr/bin/lipo",
-        ["-verify_arch", nativeArch, join(directory, executable)],
+        [join(directory, executable), "-verify_arch", nativeArch],
         { timeout: 10_000 },
       );
     await runFile(

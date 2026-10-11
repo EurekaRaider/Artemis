@@ -109,8 +109,8 @@ it("checks the Intel helper and preview CPU before accepting native signatures",
       .filter(([command]) => command === "/usr/bin/lipo")
       .map(([, args]) => args),
   ).toEqual([
-    ["-verify_arch", "x86_64", join("/pack", pack.entrypoint)],
-    ["-verify_arch", "x86_64", join("/pack", pack.preview.module)],
+    [join("/pack", pack.entrypoint), "-verify_arch", "x86_64"],
+    [join("/pack", pack.preview.module), "-verify_arch", "x86_64"],
   ]);
   run.mockClear();
   run.mockRejectedValueOnce(new Error("CPU mismatch"));

@@ -41,17 +41,17 @@ it.each(["arm64", "x64"])(
       [
         "/usr/bin/lipo",
         [
+          join(appPath, "Contents/MacOS/office-bridge"),
           "-verify_arch",
           arch === "x64" ? "x86_64" : "arm64",
-          join(appPath, "Contents/MacOS/office-bridge"),
         ],
       ],
       [
         "/usr/bin/lipo",
         [
+          join(appPath, "Contents/MacOS/soffice"),
           "-verify_arch",
           arch === "x64" ? "x86_64" : "arm64",
-          join(appPath, "Contents/MacOS/soffice"),
         ],
       ],
       ["/usr/bin/codesign", ["--verify", "--deep", "--strict", appPath]],

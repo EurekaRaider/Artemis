@@ -18,7 +18,7 @@ export async function verifyComputerUseNative(
     const nativeArch = pack.arch === "x64" ? "x86_64" : "arm64";
     await run(
       "/usr/bin/lipo",
-      ["-verify_arch", nativeArch, join(root, pack.entrypoint)],
+      [join(root, pack.entrypoint), "-verify_arch", nativeArch],
       { timeout: 10000 },
     );
     const app = join(root, "ArtemisComputerUse.app");
@@ -50,7 +50,7 @@ export async function verifyComputerUseNative(
     });
     if (pack.preview) {
       const module = join(root, pack.preview.module);
-      await run("/usr/bin/lipo", ["-verify_arch", nativeArch, module], {
+      await run("/usr/bin/lipo", [module, "-verify_arch", nativeArch], {
         timeout: 10000,
       });
       await run("/usr/bin/codesign", ["--verify", "--strict", module], {

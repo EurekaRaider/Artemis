@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
+import { join } from "node:path";
 const run = vi.hoisted(() => vi.fn());
 const write = vi.hoisted(() => vi.fn());
 vi.mock("node:child_process", () => ({ execFileSync: run }));
@@ -25,13 +26,13 @@ it("restores the user's keychains and deletes the private keychain after a faile
     }),
   ).rejects.toThrow("signing failed");
   expect(write).toHaveBeenCalledWith(
-    "/private/tmp/fixture/certificate.p12",
+    join("/private/tmp/fixture", "certificate.p12"),
     Buffer.from("certificate"),
     { mode: 0o600 },
   );
   expect(run.mock.calls.slice(-2).map(([, args]) => args)).toEqual([
     ["list-keychains", "-d", "user", "-s", "original.keychain-db"],
-    ["delete-keychain", "/private/tmp/fixture/signing.keychain-db"],
+    ["delete-keychain", join("/private/tmp/fixture", "signing.keychain-db")],
   ]);
 });
 it("redacts credential-bearing security errors and still cleans up the temporary keychain", async () => {
@@ -47,7 +48,7 @@ it("redacts credential-bearing security errors and still cleans up the temporary
   expect(callback).not.toHaveBeenCalled();
   expect(run.mock.calls.at(-1)?.[1]).toEqual([
     "delete-keychain",
-    "/private/tmp/fixture/signing.keychain-db",
+    join("/private/tmp/fixture", "signing.keychain-db"),
   ]);
 });
 it("refuses an identity from another team before signing any payload", async () => {
