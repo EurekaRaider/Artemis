@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Input del puntatore dell'utente nell'applicazione di destinazione",
   "DesignHost.activeTaskMissing": "L'attività attiva non è stata trovata.",
   "DesignHost.taskChanged": "L'attività è cambiata. Riapri la pagina di design prima di riprovare.",
-  "DesignHost.panelNotVisible": "Apri il pannello di design prima di acquisire uno screenshot."
+  "DesignHost.panelNotVisible": "Apri il pannello di design prima di acquisire uno screenshot.",
+  "SettingsPanel.composerPredictions": "Mostra previsioni di input",
+  "SettingsPanel.composerPredictionsHint": "Genera un suggerimento facoltativo per il prossimo messaggio insieme alla risposta. Può usare alcuni token aggiuntivi, senza una richiesta separata al modello.",
+  "ComposerPrediction.accept": "Tab per accettare"
 }

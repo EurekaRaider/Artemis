@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "대상 앱에서 사용자가 포인터를 조작했습니다",
   "DesignHost.activeTaskMissing": "현재 작업을 찾을 수 없습니다.",
   "DesignHost.taskChanged": "작업이 변경되었습니다. 디자인 페이지를 다시 열고 재시도하세요.",
-  "DesignHost.panelNotVisible": "스크린샷을 찍기 전에 디자인 패널을 여세요."
+  "DesignHost.panelNotVisible": "스크린샷을 찍기 전에 디자인 패널을 여세요.",
+  "SettingsPanel.composerPredictions": "입력 예측 표시",
+  "SettingsPanel.composerPredictionsHint": "응답과 함께 다음 메시지 제안을 생성합니다. 소량의 토큰이 추가될 수 있으며 별도 모델 요청은 없습니다.",
+  "ComposerPrediction.accept": "Tab으로 수락"
 }

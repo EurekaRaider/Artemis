@@ -55,6 +55,7 @@ interface PersistedSettings {
   theme?: AppTheme;
   skinSelection?: SkinSelection | null;
   preventSleep?: boolean;
+  composerPredictions?: boolean;
   approvalPolicy?: ApprovalPolicy;
   localFullAccess?: boolean;
   shell?: ShellRuntimeConfiguration;
@@ -316,6 +317,18 @@ export class EncryptedSettingsStore {
   async setLanguagePreference(language: AppLanguage): Promise<void> {
     const settings = await this.load();
     settings.language = appLanguageSchema.parse(language);
+    await this.save(settings);
+  }
+
+  async composerPredictionsPreference(): Promise<boolean> {
+    return (await this.load()).composerPredictions ?? true;
+  }
+
+  async setComposerPredictionsPreference(enabled: boolean): Promise<void> {
+    if (typeof enabled !== "boolean")
+      throw new Error("Invalid composer predictions preference.");
+    const settings = await this.load();
+    settings.composerPredictions = enabled;
     await this.save(settings);
   }
 
@@ -845,6 +858,8 @@ export class EncryptedSettingsStore {
         typeof parsed.credentials !== "object" ||
         (parsed.language !== undefined &&
           !appLanguageSchema.safeParse(parsed.language).success) ||
+        (parsed.composerPredictions !== undefined &&
+          typeof parsed.composerPredictions !== "boolean") ||
         (parsed.preventSleep !== undefined &&
           typeof parsed.preventSleep !== "boolean") ||
         (parsed.theme !== undefined &&

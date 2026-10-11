@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Действие указателем в целевом приложении",
   "DesignHost.activeTaskMissing": "Активная задача не найдена.",
   "DesignHost.taskChanged": "Задача изменилась. Откройте страницу дизайна заново перед повтором.",
-  "DesignHost.panelNotVisible": "Откройте панель дизайна перед снимком экрана."
+  "DesignHost.panelNotVisible": "Откройте панель дизайна перед снимком экрана.",
+  "SettingsPanel.composerPredictions": "Показывать варианты ввода",
+  "SettingsPanel.composerPredictionsHint": "Предлагает следующий ответ пользователя вместе с ответом модели. Может использовать немного дополнительных токенов, без отдельного запроса к модели.",
+  "ComposerPrediction.accept": "Tab — принять"
 }

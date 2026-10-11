@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Zeigereingabe des Benutzers in der Zielanwendung",
   "DesignHost.activeTaskMissing": "Die aktive Aufgabe wurde nicht gefunden.",
   "DesignHost.taskChanged": "Die Aufgabe hat sich geändert. Designseite vor erneutem Versuch wieder öffnen.",
-  "DesignHost.panelNotVisible": "Vor dem Screenshot das Designpanel öffnen."
+  "DesignHost.panelNotVisible": "Vor dem Screenshot das Designpanel öffnen.",
+  "SettingsPanel.composerPredictions": "Eingabevorhersagen anzeigen",
+  "SettingsPanel.composerPredictionsHint": "Erzeugt mit der Antwort einen optionalen Vorschlag für die nächste Nachricht. Kann einige zusätzliche Tokens nutzen; keine separate Modellanfrage.",
+  "ComposerPrediction.accept": "Mit Tab übernehmen"
 }

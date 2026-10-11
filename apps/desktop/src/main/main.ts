@@ -2363,6 +2363,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     language,
     theme,
     preventSleep: await settingsStore.preventSleepPreference(),
+    composerPredictions: await settingsStore.composerPredictionsPreference(),
     resolvedLocale: currentLocale(),
     approvalPolicy,
     localFullAccess,
@@ -7113,6 +7114,14 @@ async function startTaskTurnUnchecked(
     };
   });
   const checkpoint: TurnCheckpoint = {
+    composerPredictions:
+      options.origin === "desktop" &&
+      source === "user" &&
+      !options.afterCompaction &&
+      !options.delegationContinuationId &&
+      !imService?.profile(thread.id) &&
+      !collaborationContext &&
+      ((await settingsStore?.composerPredictionsPreference()) ?? true),
     threadId: thread.id,
     turnId,
     text: requestText,
@@ -8460,6 +8469,14 @@ function registerIpc(): void {
         app.getPreferredSystemLanguages(),
       );
       designPanelHost?.setLocale(currentLocale());
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsComposerPredictionsSet,
+    async (_event, enabled: boolean): Promise<SettingsSnapshot> => {
+      if (!settingsStore) throw new Error("Agent settings are not ready.");
+      await settingsStore.setComposerPredictionsPreference(enabled);
       return getSettingsSnapshot();
     },
   );

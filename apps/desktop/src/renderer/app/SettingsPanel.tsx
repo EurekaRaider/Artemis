@@ -1565,6 +1565,33 @@ ${model.providerId} · ${model.modelId}`,
                   </SettingsRow>
                   <AppearanceSettingsSection locale={locale} />
                   <SettingsRow
+                    label={uiText(locale, "SettingsPanel.composerPredictions")}
+                    description={uiText(
+                      locale,
+                      "SettingsPanel.composerPredictionsHint",
+                    )}
+                  >
+                    <Switch
+                      checked={settings.composerPredictions ?? true}
+                      disabled={busy}
+                      label={uiText(
+                        locale,
+                        "SettingsPanel.composerPredictions",
+                      )}
+                      labelVisibility="hidden"
+                      onCheckedChange={(checked) =>
+                        void run(async () => {
+                          const updated =
+                            await window.artemis.setComposerPredictions(
+                              checked,
+                            );
+                          setSettings(updated);
+                          onSettingsChange(updated);
+                        })
+                      }
+                    />
+                  </SettingsRow>
+                  <SettingsRow
                     label={uiText(locale, "SettingsPanel.preventSleep")}
                     description={uiText(
                       locale,

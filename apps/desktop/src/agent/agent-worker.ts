@@ -220,6 +220,7 @@ async function handle(command: AgentHostCommand): Promise<void> {
           command.customAgentInvocation,
           command.customAgentProjectId,
           command.customAgentTasks,
+          command.composerPredictions,
         );
         break;
       }

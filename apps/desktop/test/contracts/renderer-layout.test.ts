@@ -1089,7 +1089,9 @@ describe("renderer layout contract", () => {
   });
 
   it("accepts pasted files and images through the attachment bridge", () => {
-    expect(appSource).toContain("onPaste={handleAttachmentPaste}");
+    expect(appSource).toMatch(
+      /onPaste=\{\(event\) => \{\s*composerPrediction\.dismiss\(\);\s*handleAttachmentPaste\(event\);\s*\}\}/u,
+    );
     expect(appSource).toContain("event.clipboardData.files");
     expect(preloadSource).toContain("readPromptAttachmentsFromFiles");
   });

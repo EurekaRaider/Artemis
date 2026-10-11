@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Input penunjuk pengguna di aplikasi target",
   "DesignHost.activeTaskMissing": "Tugas aktif tidak ditemukan.",
   "DesignHost.taskChanged": "Tugas berubah. Buka kembali halaman desain sebelum mencoba lagi.",
-  "DesignHost.panelNotVisible": "Buka panel desain sebelum mengambil tangkapan layar."
+  "DesignHost.panelNotVisible": "Buka panel desain sebelum mengambil tangkapan layar.",
+  "SettingsPanel.composerPredictions": "Tampilkan prediksi masukan",
+  "SettingsPanel.composerPredictionsHint": "Buat saran opsional untuk pesan berikutnya bersama balasan. Dapat memakai sedikit token tambahan, tanpa permintaan model terpisah.",
+  "ComposerPrediction.accept": "Tab untuk menerima"
 }

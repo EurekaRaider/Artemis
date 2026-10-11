@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { load } from "js-yaml";
 import {
   mainPushUpdate,
   isReadmeOnlyChange,
@@ -7,6 +9,37 @@ import {
 } from "./verify-pre-push.mjs";
 
 const head = "a".repeat(40);
+test("Windows CI keeps the full desktop suite across isolated shards", () => {
+  const read = (path) =>
+    readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
+  const workflow = load(read(".github/workflows/ci.yml"));
+  const shards = workflow.jobs["windows-desktop-tests"];
+  assert.deepEqual(
+    shards.strategy.matrix.include.map((entry) => entry.shard),
+    [1, 2, 3, 4],
+  );
+  assert.equal(shards.strategy["fail-fast"], false);
+  assert.equal(shards["continue-on-error"], undefined);
+  assert(shards.steps.some((step) => step.with?.ref === "${{ github.sha }}"));
+  assert(shards.steps.some((step) => step.run === "npm run build"));
+  assert(
+    shards.steps.some(
+      (step) =>
+        step.run ===
+        "npm run test -w @artemis/desktop -- --shard=${{ matrix.shard }}/4",
+    ),
+  );
+  const scripts = JSON.parse(read("package.json")).scripts;
+  assert.equal(
+    scripts.test,
+    "npm run test:shared && npm run test -w @artemis/desktop",
+  );
+  assert(
+    JSON.parse(read("apps/desktop/package.json")).scripts.test.endsWith(
+      "vitest run --no-file-parallelism",
+    ),
+  );
+});
 test("only non-deletion main updates trigger the expensive check", () => {
   assert.deepEqual(
     mainPushUpdate(`refs/heads/main ${head} refs/heads/main ${"b".repeat(40)}`),

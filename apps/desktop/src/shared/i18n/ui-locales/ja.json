@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "対象アプリでユーザーがポインターを操作しました",
   "DesignHost.activeTaskMissing": "現在のタスクが見つかりません。",
   "DesignHost.taskChanged": "タスクが変更されました。デザインページを開き直して再試行してください。",
-  "DesignHost.panelNotVisible": "スクリーンショットを撮る前にデザインパネルを開いてください。"
+  "DesignHost.panelNotVisible": "スクリーンショットを撮る前にデザインパネルを開いてください。",
+  "SettingsPanel.composerPredictions": "入力予測を表示",
+  "SettingsPanel.composerPredictionsHint": "返信と一緒に次のメッセージ候補を生成します。少量のトークンを追加で使用する場合があります。別のモデルリクエストは行いません。",
+  "ComposerPrediction.accept": "Tab で採用"
 }

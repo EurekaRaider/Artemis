@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "User pointer input in the target application",
   "DesignHost.activeTaskMissing": "The active task was not found.",
   "DesignHost.taskChanged": "The task changed. Reopen the design page before retrying.",
-  "DesignHost.panelNotVisible": "Open the design panel before taking a screenshot."
+  "DesignHost.panelNotVisible": "Open the design panel before taking a screenshot.",
+  "SettingsPanel.composerPredictions": "Show input predictions",
+  "SettingsPanel.composerPredictionsHint": "Generate an optional next-message suggestion with each reply. May use a few extra tokens; no separate model request.",
+  "ComposerPrediction.accept": "Tab to accept"
 }

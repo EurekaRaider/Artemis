@@ -411,6 +411,7 @@ export interface SettingsSnapshot {
   language: AppLanguage;
   theme: AppTheme;
   preventSleep?: boolean;
+  composerPredictions?: boolean;
   resolvedLocale: AppSnapshot["locale"];
   approvalPolicy: ApprovalPolicy;
   localFullAccess: boolean;
@@ -1326,6 +1327,7 @@ export interface ArtemisApi {
   getSettings(): Promise<SettingsSnapshot>;
   setLanguage(language: AppLanguage): Promise<SettingsSnapshot>;
   setTheme(theme: AppTheme): Promise<SettingsSnapshot>;
+  setComposerPredictions(enabled: boolean): Promise<SettingsSnapshot>;
   setPreventSleep(enabled: boolean): Promise<SettingsSnapshot>;
   setApprovalPolicy(policy: ApprovalPolicy): Promise<SettingsSnapshot>;
   setLocalFullAccess(enabled: boolean): Promise<SettingsSnapshot>;
@@ -1684,6 +1686,7 @@ export const IPC = {
   settingsGet: "artemis:settings-get",
   settingsLanguageSet: "artemis:settings-language-set",
   settingsThemeSet: "artemis:settings-theme-set",
+  settingsComposerPredictionsSet: "artemis:settings-composer-predictions-set",
   settingsPreventSleepSet: "artemis:settings-prevent-sleep-set",
   settingsApprovalPolicySet: "artemis:settings-approval-policy-set",
   settingsLocalFullAccessSet: "artemis:settings-local-full-access-set",

@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "إدخال من المؤشر في التطبيق المستهدف",
   "DesignHost.activeTaskMissing": "لم يتم العثور على المهمة النشطة.",
   "DesignHost.taskChanged": "تغيرت المهمة. أعد فتح صفحة التصميم قبل إعادة المحاولة.",
-  "DesignHost.panelNotVisible": "افتح لوحة التصميم قبل التقاط لقطة شاشة."
+  "DesignHost.panelNotVisible": "افتح لوحة التصميم قبل التقاط لقطة شاشة.",
+  "SettingsPanel.composerPredictions": "إظهار اقتراحات الإدخال",
+  "SettingsPanel.composerPredictionsHint": "ينشئ اقتراحًا اختياريًا للرسالة التالية مع الرد. قد يستخدم رموزًا إضافية قليلة دون طلب منفصل للنموذج.",
+  "ComposerPrediction.accept": "Tab للقبول"
 }

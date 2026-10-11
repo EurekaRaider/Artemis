@@ -1,3 +1,5 @@
+import { composerPredictionInstruction } from "@artemis/protocol";
+import { withComposerPredictionContext } from "../context/composer-prediction.js";
 import { isDeepStrictEqual } from "node:util";
 import { projectMcpTools } from "../policy/project-mcp-overrides.js";
 import { registerVirtualModels } from "../models/virtual-models.js";
@@ -1652,7 +1654,9 @@ export class ArtemisAgentHost {
       registerArtemisBuiltinModels(runtime);
       return withConnectionRecovery(
         withPromptCacheController(
-          withToolHistory(withAttachmentContextBudget(runtime)),
+          withComposerPredictionContext(
+            withToolHistory(withAttachmentContextBudget(runtime)),
+          ),
           this.promptCache,
         ),
         (sessionId, update) => this.handleConnectionRecovery(sessionId, update),
@@ -7053,6 +7057,7 @@ export class ArtemisAgentHost {
     },
     customAgentProjectId?: string | null,
     customAgentTasks?: CustomAgentTaskInvocation[],
+    composerPredictions = false,
   ): Promise<void> {
     const hosted = this.threads.get(threadId);
     if (!hosted) {
@@ -7079,8 +7084,11 @@ export class ArtemisAgentHost {
       : undefined;
     hosted.team = undefined;
     hosted.deferredTurnCompletion = undefined;
+    const predictionToken =
+      composerPredictions && !recovery ? randomUUID() : undefined;
     hosted.adapter = new PiAdapter(
       recovery ? `${turnId}:recovery:${recovery.attemptId}` : turnId,
+      predictionToken,
     );
     this.cancelledTurns.delete(`${threadId}\0${turnId}`);
     hosted.session.setActiveToolsByName([
@@ -7165,7 +7173,14 @@ export class ArtemisAgentHost {
         collaborationContext,
       );
       const prompt = appendPromptFiles(
-        [basePrompt, autoCatalogNote, explicitDispatchNote]
+        [
+          basePrompt,
+          autoCatalogNote,
+          explicitDispatchNote,
+          predictionToken
+            ? composerPredictionInstruction(predictionToken)
+            : undefined,
+        ]
           .filter((note): note is string => note !== undefined)
           .join("\n\n"),
         preparedAttachments,

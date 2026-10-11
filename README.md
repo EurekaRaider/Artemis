@@ -54,10 +54,20 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.12** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.13** · [Release notes](docs/records/release-notes.md).
 
-This revision upgrades Pi to **1.1.0** and enables native classifier and image
-model calls in Codemode for main and child agents. Classification supports image
+This revision adds optional next-message suggestions to the empty composer after
+an ordinary desktop reply. Press **Tab** to insert a suggestion or **Escape** to
+dismiss it; accepting a suggestion does not send it. Typing, attachments and
+pending decisions suppress suggestions. Disable them in Settings. Suggestions
+share the existing model response and do not make an extra model request.
+
+Attachment imports show progress and cancellation. Local files are stored on
+demand and indexed in batches; PDF reading initializes the worker runtime before
+extracting text. Native attachment checks cover 1,000 distinct source paths.
+
+Pi **1.1.0** enables native classifier and image model calls in Codemode for main
+and child agents. Classification supports image
 input when the selected model supports it. Custom agents inherit the current task
 mode and host permissions; legacy tool allowlists migrate to this policy. Plan
 restrictions, MCP approval and sandbox checks remain in effect.

@@ -239,6 +239,7 @@ export type AgentHostCommand =
     }
   | {
       type: "turn.prompt";
+      composerPredictions?: boolean;
       requestId: string;
       threadId: string;
       turnId: string;

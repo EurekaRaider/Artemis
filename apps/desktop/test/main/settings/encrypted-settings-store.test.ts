@@ -41,6 +41,21 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("defaults composer predictions on and persists opting out", async () => {
+    const { filePath, store } = await createStore();
+    expect(await store.composerPredictionsPreference()).toBe(true);
+    await store.setComposerPredictionsPreference(false);
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    expect(await reopened.composerPredictionsPreference()).toBe(false);
+    await expect(
+      store.setComposerPredictionsPreference("true" as unknown as boolean),
+    ).rejects.toThrow();
+    await reopened.setComposerPredictionsPreference(true);
+    expect(await reopened.composerPredictionsPreference()).toBe(true);
+  });
   it("persists skin selection independently and repairs corrupt selection without losing preferences", async () => {
     const { filePath, store } = await createStore();
     await store.setThemePreference("dark");

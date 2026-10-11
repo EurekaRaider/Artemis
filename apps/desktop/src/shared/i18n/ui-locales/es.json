@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Entrada del puntero del usuario en la aplicación de destino",
   "DesignHost.activeTaskMissing": "No se encontró la tarea activa.",
   "DesignHost.taskChanged": "La tarea cambió. Vuelve a abrir la página de diseño antes de reintentarlo.",
-  "DesignHost.panelNotVisible": "Abre el panel de diseño antes de hacer una captura."
+  "DesignHost.panelNotVisible": "Abre el panel de diseño antes de hacer una captura.",
+  "SettingsPanel.composerPredictions": "Mostrar predicciones de entrada",
+  "SettingsPanel.composerPredictionsHint": "Genera una sugerencia opcional del siguiente mensaje con la respuesta. Puede usar algunos tokens adicionales, sin otra solicitud al modelo.",
+  "ComposerPrediction.accept": "Tab para aceptar"
 }

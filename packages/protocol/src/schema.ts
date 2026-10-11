@@ -1104,6 +1104,11 @@ export const queueRecoveredPayloadSchema = z.object({
 export type QueueRecoveredPayload = z.infer<typeof queueRecoveredPayloadSchema>;
 
 export const turnCompletedPayloadSchema = z.object({
+  composerPrediction: z
+    .string()
+    .min(1)
+    .refine((value) => Array.from(value).length <= 120)
+    .optional(),
   type: z.literal("turn.completed"),
   reason: z.enum(["completed", "cancelled"]),
   finalPartId: z.string().min(1).optional(),

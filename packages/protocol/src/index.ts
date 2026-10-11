@@ -21,3 +21,5 @@ export * from "./plans.js";
 export * from "./mcp-exposure.js";
 
 export * from "./browser-preview.js";
+
+export * from "./composer-prediction.js";

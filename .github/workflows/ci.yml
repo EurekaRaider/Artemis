@@ -64,7 +64,14 @@ jobs:
           npm run build:core
           node apps/desktop/scripts/verify/native/verify-computer-browser-input.mjs
       - name: Run portable CI checks
+        if: matrix.platform == 'macos-arm64'
         run: npm run verify:ci
+        env:
+          ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
+          GITHUB_TOKEN: ${{ github.token }}
+      - name: Run shared Windows CI checks
+        if: matrix.platform == 'windows-x64'
+        run: npm run verify:ci -- --shared-tests
         env:
           ARTEMIS_SKIP_PRODUCTION_AUDIT: ${{ vars.ARTEMIS_SKIP_PRODUCTION_AUDIT }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -115,6 +122,44 @@ jobs:
           path: artifacts/benchmarks
           retention-days: 14
           if-no-files-found: error
+  windows-desktop-tests:
+    name: Desktop tests (windows-x64, shard ${{ matrix.shard }}/4)
+    if: ${{ !inputs.hooks_only }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-2025
+            shard: 1
+          - platform: windows-x64
+            runner: windows-2025
+            shard: 2
+          - platform: windows-x64
+            runner: windows-2025
+            shard: 3
+          - platform: windows-x64
+            runner: windows-2025
+            shard: 4
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Normalize Windows checkout to LF
+        run: node scripts/ci/normalize-windows-checkout.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Build production bundles
+        run: npm run build
+      - name: Run isolated desktop test shard
+        run: npm run test -w @artemis/desktop -- --shard=${{ matrix.shard }}/4
   visual-convergence-electron:
     name: Visual convergence (${{ matrix.platform }})
     if: ${{ !inputs.hooks_only }}

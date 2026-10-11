@@ -6,7 +6,7 @@ const commands = [
   "verify:public-workflows",
   "verify:slack-cli",
   "format:check",
-  "test",
+  process.argv.includes("--shared-tests") ? "test:shared" : "test",
   "typecheck",
 ];
 if (process.env.ARTEMIS_SKIP_PRODUCTION_AUDIT !== "true") {

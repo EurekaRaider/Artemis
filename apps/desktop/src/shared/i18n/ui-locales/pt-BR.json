@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Entrada do ponteiro do usuário no aplicativo de destino",
   "DesignHost.activeTaskMissing": "A tarefa ativa não foi encontrada.",
   "DesignHost.taskChanged": "A tarefa mudou. Reabra a página de design antes de tentar novamente.",
-  "DesignHost.panelNotVisible": "Abra o painel de design antes de capturar a tela."
+  "DesignHost.panelNotVisible": "Abra o painel de design antes de capturar a tela.",
+  "SettingsPanel.composerPredictions": "Mostrar previsões de entrada",
+  "SettingsPanel.composerPredictionsHint": "Gera uma sugestão opcional para a próxima mensagem junto com a resposta. Pode usar alguns tokens extras, sem outra solicitação ao modelo.",
+  "ComposerPrediction.accept": "Tab para aceitar"
 }

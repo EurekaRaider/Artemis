@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "用户在目标应用中使用了鼠标或触控板",
   "DesignHost.activeTaskMissing": "未找到当前任务。",
   "DesignHost.taskChanged": "任务已变化，请重新打开设计页面后重试。",
-  "DesignHost.panelNotVisible": "请打开设计面板后再截图。"
+  "DesignHost.panelNotVisible": "请打开设计面板后再截图。",
+  "SettingsPanel.composerPredictions": "显示输入预测",
+  "SettingsPanel.composerPredictionsHint": "随回复生成可选的下一条消息建议，可能增加少量 token，不额外请求模型。",
+  "ComposerPrediction.accept": "按 Tab 接受"
 }

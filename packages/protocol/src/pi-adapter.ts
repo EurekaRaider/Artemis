@@ -1,3 +1,7 @@
+import {
+  ComposerPredictionParser,
+  composerPredictionMarker,
+} from "./composer-prediction.js";
 import type { AgentPayload } from "./schema.js";
 import { isLegacyInternalAgentMessage } from "./internal-messages.js";
 
@@ -322,9 +326,32 @@ export class PiAdapter {
   private readonly toolNames = new Map<string, string>();
   private userMessageCount = 0;
 
-  constructor(private readonly turnId: string) {}
+  private predictionParser: ComposerPredictionParser | undefined;
+  private composerPrediction: string | undefined;
+  private predictionSuppressed = false;
+  private hasVisibleMessageText = false;
+
+  constructor(
+    private readonly turnId: string,
+    private readonly predictionToken?: string,
+  ) {}
+
+  private visibleDelta(delta: string): string {
+    const visible = this.predictionParser
+      ? this.predictionParser.push(delta)
+      : delta;
+    this.hasVisibleMessageText ||= visible.trim().length > 0;
+    return visible;
+  }
 
   private beginAssistantMessage(messageId?: string): void {
+    this.composerPrediction = undefined;
+    this.hasVisibleMessageText = false;
+    this.predictionParser = this.predictionToken
+      ? new ComposerPredictionParser(
+          composerPredictionMarker(this.predictionToken),
+        )
+      : undefined;
     this.assistantMessageCount += 1;
     this.activeMessageId =
       messageId ??
@@ -341,6 +368,7 @@ export class PiAdapter {
           const text = messageText(event.message);
           if (isLegacyInternalAgentMessage(text)) return [];
           this.userMessageCount += 1;
+          if (this.userMessageCount > 1) this.predictionSuppressed = true;
           if (this.userMessageCount === 1) {
             return [];
           }
@@ -386,14 +414,17 @@ export class PiAdapter {
           this.emittedThinkingActivity = true;
           return [{ type: "turn.activity", phase: "thinking" }];
         }
-        return [
-          {
-            type: "message.part.delta",
-            partId: `${messageId}:${partType}`,
-            partType,
-            delta,
-          },
-        ];
+        const visible = this.visibleDelta(delta);
+        return visible
+          ? [
+              {
+                type: "message.part.delta",
+                partId: `${messageId}:${partType}`,
+                partType,
+                delta: visible,
+              },
+            ]
+          : [];
       }
       case "message_end": {
         if (
@@ -423,14 +454,29 @@ export class PiAdapter {
           if (!text.startsWith(emitted)) continue;
           const delta = text.slice(emitted.length);
           this.activeMessageContent[partType] = text;
-          if (delta) {
+          const visible = this.visibleDelta(delta);
+          if (visible) {
             payloads.push({
               type: "message.part.delta",
               partId: `${messageId}:${partType}`,
               partType,
-              delta,
+              delta: visible,
             });
           }
+        }
+        if (event.message?.role === "assistant" && this.predictionParser) {
+          const remaining = this.predictionParser.finish();
+          if (remaining)
+            payloads.push({
+              type: "message.part.delta",
+              partId: `${messageId}:text`,
+              partType: "text",
+              delta: remaining,
+            });
+          this.composerPrediction =
+            event.message.stopReason === "stop" && this.hasVisibleMessageText
+              ? this.predictionParser.suggestion
+              : undefined;
         }
         const usage = assistantUsage(event.message);
         if (usage && !this.emittedUsageMessageIds.has(messageId)) {
@@ -472,6 +518,11 @@ export class PiAdapter {
         return payloads;
       }
       case "tool_execution_start": {
+        this.composerPrediction = undefined;
+        if (
+          ["submit_plan", "request_user_input"].includes(event.toolName ?? "")
+        )
+          this.predictionSuppressed = true;
         const toolCallId = event.toolCallId ?? `${this.turnId}:tool`;
         const toolName = event.toolName ?? "tool";
         this.toolNames.set(toolCallId, toolName);
@@ -610,6 +661,12 @@ export class PiAdapter {
           {
             type: "turn.completed",
             reason: "completed",
+            ...(this.composerPrediction &&
+            this.finalPartId &&
+            !this.predictionSuppressed &&
+            !this.stoppedAfterTools
+              ? { composerPrediction: this.composerPrediction }
+              : {}),
             ...(this.finalPartId ? { finalPartId: this.finalPartId } : {}),
           },
         ];

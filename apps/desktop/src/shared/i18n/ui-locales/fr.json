@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "Action du pointeur de l'utilisateur dans l'application cible",
   "DesignHost.activeTaskMissing": "La tâche active est introuvable.",
   "DesignHost.taskChanged": "La tâche a changé. Rouvrez la page de conception avant de réessayer.",
-  "DesignHost.panelNotVisible": "Ouvrez le panneau de conception avant de faire une capture."
+  "DesignHost.panelNotVisible": "Ouvrez le panneau de conception avant de faire une capture.",
+  "SettingsPanel.composerPredictions": "Afficher les prédictions de saisie",
+  "SettingsPanel.composerPredictionsHint": "Génère une suggestion facultative du prochain message avec la réponse. Peut utiliser quelques tokens supplémentaires, sans requête distincte au modèle.",
+  "ComposerPrediction.accept": "Tab pour accepter"
 }

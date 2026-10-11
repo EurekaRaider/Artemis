@@ -1,3 +1,4 @@
+import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
 import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
 import {
   applyStreamBatch,
@@ -1529,6 +1530,14 @@ export function App() {
     selectedSkillNames: selectedComposerSkillNames,
     customAgentTasks = [],
   } = activeComposerDraft;
+  const composerPrediction = useComposerPrediction(
+    activeThreadId,
+    runtimeSettings?.composerPredictions ?? true,
+    attachments.length > 0 ||
+      selectedComposerSkillNames.length > 0 ||
+      customAgentTasks.length > 0,
+    prompt,
+  );
   const hasOfficeAnnotations = attachments.some((item) =>
     readOfficeAnnotations(item),
   );
@@ -3221,6 +3230,7 @@ export function App() {
     const receiveAgentEvents = (events: AgentEvent[]) => {
       const finishedThreadIds = new Set<string>();
       for (const event of events) {
+        composerPrediction.receive(event);
         if (
           event.payload.type === "artifact.event" &&
           event.payload.event.kind === "opened"
@@ -4030,6 +4040,14 @@ export function App() {
     threadState?.status === "waiting-approval" ||
     threadState?.status === "waiting-user-input";
   const turnActive = contextCompacting || turnRunning;
+  const visibleComposerPrediction =
+    !turnActive &&
+    !busy &&
+    !pendingComposerDecision &&
+    !customAgentMention.open &&
+    !skillCommandMenuOpen
+      ? composerPrediction.text
+      : undefined;
   const projectBranchActionsDisabled =
     turnActive ||
     (snapshot?.threads ?? []).some(
@@ -8200,6 +8218,14 @@ export function App() {
                           locale={locale}
                         />
                         <div className="composer-input">
+                          {visibleComposerPrediction && (
+                            <div className="composer-prediction" role="status">
+                              <span>{visibleComposerPrediction}</span>
+                              <small>
+                                {uiText(locale, "ComposerPrediction.accept")}
+                              </small>
+                            </div>
+                          )}
                           {customAgentTasks.length > 0 && (
                             <div className="composer-agent-main-label">
                               {uiText(locale, "App.inline11")}
@@ -8228,6 +8254,7 @@ export function App() {
                             aria-label={t.prompt}
                             onChange={(event) => {
                               const value = event.target.value;
+                              composerPrediction.changed(value);
                               groupMentions.changed(
                                 event.target.selectionStart,
                               );
@@ -8324,6 +8351,11 @@ export function App() {
                                 return;
                               }
                               if (
+                                visibleComposerPrediction &&
+                                composerPrediction.keyDown(event, setPrompt)
+                              )
+                                return;
+                              if (
                                 !skillCommandMenuOpen &&
                                 !event.nativeEvent.isComposing &&
                                 (event.key === "ArrowUp" ||
@@ -8358,20 +8390,33 @@ export function App() {
                                 void sendPrompt();
                               }
                             }}
-                            onPaste={handleAttachmentPaste}
+                            onCompositionStart={
+                              composerPrediction.compositionStart
+                            }
+                            onCompositionEnd={(event) =>
+                              composerPrediction.compositionEnd(
+                                event.currentTarget.value,
+                              )
+                            }
+                            onPaste={(event) => {
+                              composerPrediction.dismiss();
+                              handleAttachmentPaste(event);
+                            }}
                             placeholder={
-                              activeThread &&
-                              imThreadStatus[activeThread.id]?.group
-                                ? uiText(locale, "App.inline12")
-                                : hasOfficeAnnotations
-                                  ? officeAnnotationCopy(locale).placeholder
-                                  : designDocBinding
-                                    ? uiText(
-                                        locale,
-                                        "AppDesign.askArtemisToEditName",
-                                        { name: designDocBinding.name },
-                                      )
-                                    : t.prompt
+                              visibleComposerPrediction
+                                ? ""
+                                : activeThread &&
+                                    imThreadStatus[activeThread.id]?.group
+                                  ? uiText(locale, "App.inline12")
+                                  : hasOfficeAnnotations
+                                    ? officeAnnotationCopy(locale).placeholder
+                                    : designDocBinding
+                                      ? uiText(
+                                          locale,
+                                          "AppDesign.askArtemisToEditName",
+                                          { name: designDocBinding.name },
+                                        )
+                                      : t.prompt
                             }
                             ref={promptInput}
                             rows={1}

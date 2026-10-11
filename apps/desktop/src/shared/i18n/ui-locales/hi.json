@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "लक्ष्य ऐप में उपयोगकर्ता ने पॉइंटर इनपुट दिया",
   "DesignHost.activeTaskMissing": "सक्रिय कार्य नहीं मिला।",
   "DesignHost.taskChanged": "कार्य बदल गया है। फिर से प्रयास करने से पहले डिज़ाइन पृष्ठ फिर खोलें।",
-  "DesignHost.panelNotVisible": "स्क्रीनशॉट लेने से पहले डिज़ाइन पैनल खोलें।"
+  "DesignHost.panelNotVisible": "स्क्रीनशॉट लेने से पहले डिज़ाइन पैनल खोलें।",
+  "SettingsPanel.composerPredictions": "इनपुट पूर्वानुमान दिखाएँ",
+  "SettingsPanel.composerPredictionsHint": "उत्तर के साथ अगले संदेश का वैकल्पिक सुझाव बनाएँ। कुछ अतिरिक्त टोकन लग सकते हैं; मॉडल को अलग अनुरोध नहीं भेजा जाता।",
+  "ComposerPrediction.accept": "स्वीकार करने के लिए Tab"
 }

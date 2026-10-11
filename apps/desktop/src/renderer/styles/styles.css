@@ -14461,3 +14461,25 @@ kbd {
   overflow-wrap: normal;
   hyphens: none;
 }
+
+.composer-input:has(.composer-prediction) {
+  display: grid;
+}
+.composer-input:has(.composer-prediction) > textarea,
+.composer-prediction {
+  grid-area: 1 / 1;
+}
+.composer-prediction {
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.composer-prediction small {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.75;
+}

@@ -1990,5 +1990,8 @@
   "ComputerUse.reasonPointerInput": "使用者在目標應用程式中使用了滑鼠或觸控板",
   "DesignHost.activeTaskMissing": "找不到目前任務。",
   "DesignHost.taskChanged": "任務已變更，請重新開啟設計頁面後重試。",
-  "DesignHost.panelNotVisible": "請開啟設計面板後再擷取畫面。"
+  "DesignHost.panelNotVisible": "請開啟設計面板後再擷取畫面。",
+  "SettingsPanel.composerPredictions": "顯示輸入預測",
+  "SettingsPanel.composerPredictionsHint": "隨回覆產生可選的下一則訊息建議，可能增加少量 token，不額外請求模型。",
+  "ComposerPrediction.accept": "按 Tab 接受"
 }

@@ -81,6 +81,22 @@ async function main() {
       { target: "browser", url: `http://127.0.0.1:${address.port}/` },
       context,
     );
+    const settle = async () => {
+      // Native select menus update the AX tree after the input event returns.
+      // Observe that transition before the next action; keep the stale guard.
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const previous = observation.revision;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        observation = (await service.call(
+          "computer_observe",
+          { targetId: observation.target.id },
+          context,
+        )) as ComputerObservation;
+        if (observation.revision === previous) return;
+      }
+      assert.fail("Browser accessibility tree did not settle before input");
+    };
+    await settle();
     const element = (label: string, role: string) => {
       const found = observation.elements.find(
         (e) => e.label.trim() === label && e.role === role,
@@ -98,6 +114,7 @@ async function main() {
         context,
       );
       observation = result;
+      await settle();
       return result;
     };
     const emptyFrame = observation.visualRevision;
