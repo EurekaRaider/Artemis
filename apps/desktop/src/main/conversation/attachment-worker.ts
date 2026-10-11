@@ -4,17 +4,7 @@ export { attachmentImageDimensions };
 import { parentPort } from "node:worker_threads";
 import { readFile, rename, open } from "node:fs/promises";
 import { AttachmentIndex, indexText, readIndex } from "./attachment-index.ts";
-import { indexOffice, officeImage } from "./attachment-office-index.ts";
-
-import {
-  createCanvas,
-  DOMMatrix,
-  Path2D,
-  ImageData,
-  loadImage,
-  type Canvas,
-  type Image,
-} from "@napi-rs/canvas";
+import type { Canvas, Image } from "@napi-rs/canvas";
 
 export interface AttachmentWork {
   action: "parse" | "image" | "read" | "search";
@@ -40,6 +30,8 @@ function progress() {
   else electronPort?.postMessage(message);
 }
 async function openPdf(path: string) {
+  const { createCanvas, DOMMatrix, Path2D, ImageData } =
+    await import("@napi-rs/canvas");
   // PDF.js excludes Electron utility processes from its Node detection.
   // Supply native canvas primitives and its in-process worker explicitly;
   // the surrounding utility process remains the isolation/cancellation boundary.
@@ -190,9 +182,10 @@ export async function processAttachment(
         } finally {
           await pdf.close();
         }
-      } else if (/officedocument/.test(work.mimeType))
+      } else if (/officedocument/.test(work.mimeType)) {
+        const { indexOffice } = await import("./attachment-office-index.ts");
         await indexOffice(work.path, index, progress);
-      else await indexText(work.path, index, progress);
+      } else await indexText(work.path, index, progress);
       result = index.finish(pages);
     } finally {
       index.close();
@@ -200,6 +193,7 @@ export async function processAttachment(
     await rename(partial, work.output);
     return result;
   }
+  const { createCanvas, loadImage } = await import("@napi-rs/canvas");
   let source: Image | Canvas;
   if (work.mimeType === "application/pdf") {
     const pdf = await openPdf(work.path);
@@ -225,6 +219,7 @@ export async function processAttachment(
       await pdf.close();
     }
   } else if (work.part) {
+    const { officeImage } = await import("./attachment-office-index.ts");
     const bytes = await officeImage(work.path, work.part);
     attachmentImageDimensions(bytes);
     source = await loadImage(bytes);

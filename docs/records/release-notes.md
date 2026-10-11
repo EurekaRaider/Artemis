@@ -9,6 +9,7 @@
 - 修复模型快速完成时建议早于提交确认而丢失的问题；Intel 宿主发布增加从最终签名 ZIP 启动、全新配置发现并在线安装两个原生插件的验收。
 - 登录表单在提示显示前初始化输入，防止快速填入的授权响应被清空；Intel 插件验收同时实际加载已安装的预览模块。
 - 下拉框关闭后的延迟回焦保留用户已移到其他输入框的焦点，避免抢回数字字段等控件的输入。
+- 纯文本附件分页与搜索不再启动图像和 Office 解码器，降低隔离解析进程的冷启动开销，保留原有资源限制与任务授权。
 - 插件目录与独立运行时必须通过各自发布验收；这些源码说明不代表尚未执行的签名、公证或原生安装已经成功。
 
 ## English
@@ -20,4 +21,5 @@
 - Keep fast model completions until submission acceptance clears the draft. Intel host releases launch the final signed ZIP application and verify discovery and online installation of both native plugins in a fresh profile.
 - Initialize login inputs before displaying the prompt so fast authorization responses are retained. Intel capability acceptance also loads the installed preview module in the signed host.
 - Preserve newer input focus when a select closes instead of allowing its delayed focus return to steal focus from another control.
+- Load image and Office decoders only for the requested attachment format, reducing isolated text-worker startup cost while retaining resource limits and task authorization.
 - Plugin catalogs and independent runtimes require their own release acceptance. These source notes do not claim unperformed signing, notarization or native installation passed.
