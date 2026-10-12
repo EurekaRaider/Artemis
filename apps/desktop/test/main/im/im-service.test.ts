@@ -23,6 +23,21 @@ import {
   type ImOutboundCandidate,
 } from "@artemis/protocol";
 
+it("keeps IM status readable after quiescing until the database closes", async () => {
+  const f = await fixture();
+  const deviceId = f.service.status().settings.deviceId;
+  const requests = vi.spyOn(globalThis, "fetch");
+  await f.service.quiesce();
+  await f.service.quiesce();
+  const requestCount = requests.mock.calls.length;
+  await f.service.poll();
+  expect(requests).toHaveBeenCalledTimes(requestCount);
+  expect(f.service.status().settings.deviceId).toBe(deviceId);
+  await f.service.close();
+  await f.service.close();
+  expect(() => f.service.status()).toThrow();
+});
+
 // Routing tests simulate only sandbox preflight; im-sandbox.test.ts exercises
 // the real platform policy and native execution boundaries.
 function mockSandboxPreflight() {

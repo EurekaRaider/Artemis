@@ -24531,6 +24531,7 @@ app.on("before-quit", (event) => {
         hooksService?.dispose();
         await Promise.allSettled([
           mcpClientManager?.dispose(),
+          imService?.quiesce(),
           ...[...openedThreads].map((id) => endHookSession(id)),
           officeWorkbench?.then(async (workbench) => {
             workbench.packs.cancel();
@@ -24550,7 +24551,6 @@ app.on("before-quit", (event) => {
   releaseUpdateManager?.stopAutomaticChecks();
   shuttingDown = true;
   sleepPrevention.dispose();
-  imService?.stop();
   for (const pending of pendingUserInputs.cancelWhere(() => true)) {
     if (pending.value.timeout !== undefined) {
       clearTimeout(pending.value.timeout);

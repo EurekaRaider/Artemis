@@ -104,13 +104,15 @@ describe("task notification shutdown", () => {
   it("keeps the database open until will-quit, after windows finish closing", () => {
     const handlers = new Map<string, () => void>();
     const close = vi.fn();
+    const stopIm = vi.fn();
     new Function(
       "app",
       "store",
+      "imService",
       `
       let shuttingDown = false;
       const hookSessionsEnded = true, hooksService = undefined;
-      const imService = undefined, automationScheduler = undefined, terminalService = undefined;
+      const automationScheduler = undefined, terminalService = undefined;
       const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
       const mcpClientManager = undefined, agentProcess = undefined, computerUseHost = undefined;
       const computerPreviewHost = undefined, computerPreviewWindow = undefined, browserSessionHost = undefined;
@@ -130,10 +132,13 @@ describe("task notification shutdown", () => {
           handlers.set(event, callback),
       },
       { close },
+      { stop: stopIm },
     );
     handlers.get("before-quit")!();
     expect(close).not.toHaveBeenCalled();
+    expect(stopIm).not.toHaveBeenCalled();
     handlers.get("will-quit")!();
     expect(close).toHaveBeenCalledOnce();
+    expect(stopIm).toHaveBeenCalledOnce();
   });
 });

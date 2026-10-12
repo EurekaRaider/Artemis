@@ -661,6 +661,7 @@ export class ImService {
   private readonly localGateway: LocalImGateway;
   private slackSetup: SlackSetupService | undefined;
   private localSetup: Promise<unknown> | undefined;
+  private quiescing: Promise<void> | undefined;
   private closing: Promise<void> | undefined;
   private readonly db: DatabaseSync;
   private config: ImSettings;
@@ -1502,8 +1503,12 @@ export class ImService {
         this.error = errorMessage(error);
       });
   }
+  quiesce(): Promise<void> {
+    this.quiescing ??= this.shutdown();
+    return this.quiescing;
+  }
   close(): Promise<void> {
-    this.closing ??= this.shutdown();
+    this.closing ??= this.quiesce().then(() => this.db.close());
     return this.closing;
   }
   private async shutdown(): Promise<void> {
@@ -1526,7 +1531,6 @@ export class ImService {
         { url: this.config.gatewayUrl, token: this.token },
       ).catch(() => undefined);
     await this.localGateway.close();
-    this.db.close();
   }
   private usesLocalGateway(): boolean {
     return (
