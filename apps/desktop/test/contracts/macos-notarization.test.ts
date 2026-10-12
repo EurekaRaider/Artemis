@@ -5,6 +5,7 @@ import { expect, it, vi } from "vitest";
 import {
   notarizeExistingMacApp,
   retryNotarizationOperation,
+  validateStapledMacApp,
   // @ts-expect-error Build scripts are exercised directly.
 } from "../../scripts/release/notarize-macos-app.mjs";
 it("records the submission before waiting and resumes the same signed app without resubmitting", async () => {
@@ -13,6 +14,7 @@ it("records the submission before waiting and resumes the same signed app withou
     await mkdir(join(root, "mac-arm64"));
     const app = join(root, "mac-arm64", "Artemis.app");
     let waitFails = true;
+    let validationFails = true;
     const execute = vi.fn(async (command: string, args: string[]) => {
       if (command.endsWith("codesign"))
         return {
@@ -31,6 +33,13 @@ it("records the submission before waiting and resumes the same signed app withou
       if (args[1] === "wait") {
         if (waitFails) throw new Error("secret-password");
         return { stdout: JSON.stringify({ status: "Accepted" }) };
+      }
+      if (args[1] === "validate" && validationFails) {
+        validationFails = false;
+        throw Object.assign(new Error("stapler failed"), {
+          stdout:
+            "NSURLErrorDomain Code=-1005: The network connection was lost.",
+        });
       }
       return { stdout: "", stderr: "" };
     });
@@ -67,6 +76,9 @@ it("records the submission before waiting and resumes the same signed app withou
         await readFile(join(root, "notarization-mac-arm64.json"), "utf8"),
       ).status,
     ).toBe("Accepted");
+    expect(
+      execute.mock.calls.filter(([, args]) => args[1] === "validate"),
+    ).toHaveLength(2);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -139,4 +151,48 @@ it("does not retry or resubmit an explicit Apple rejection", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+it("retries a dropped CloudKit connection while validating the same stapled app", async () => {
+  const execute = vi
+    .fn()
+    .mockRejectedValueOnce(
+      Object.assign(new Error("stapler failed"), {
+        stdout: "NSURLErrorDomain Code=-1005: The network connection was lost.",
+      }),
+    )
+    .mockResolvedValue({ stdout: "The validate action worked!" });
+  const wait = vi.fn().mockResolvedValue(undefined);
+  await validateStapledMacApp("/fixture/Artemis.app", execute, wait);
+  expect(execute.mock.calls).toEqual([
+    ["/usr/bin/xcrun", ["stapler", "validate", "/fixture/Artemis.app"]],
+    ["/usr/bin/xcrun", ["stapler", "validate", "/fixture/Artemis.app"]],
+  ]);
+  expect(wait.mock.calls).toEqual([[15000]]);
+});
+
+it("fails immediately for an invalid ticket instead of treating it as a transport error", async () => {
+  const error = Object.assign(new Error("stapler failed"), {
+    stdout: "The staple and validate action failed! Error 73.",
+  });
+  const execute = vi.fn().mockRejectedValue(error);
+  const wait = vi.fn();
+  await expect(
+    validateStapledMacApp("/fixture/Artemis.app", execute, wait),
+  ).rejects.toBe(error);
+  expect(execute).toHaveBeenCalledOnce();
+  expect(wait).not.toHaveBeenCalled();
+});
+
+it("fails closed after three dropped ticket-validation connections", async () => {
+  const error = Object.assign(new Error("stapler failed"), {
+    stderr: "NSURLErrorDomain Code=-1005: The network connection was lost.",
+  });
+  const execute = vi.fn().mockRejectedValue(error);
+  const wait = vi.fn().mockResolvedValue(undefined);
+  await expect(
+    validateStapledMacApp("/fixture/Artemis.app", execute, wait),
+  ).rejects.toBe(error);
+  expect(execute).toHaveBeenCalledTimes(3);
+  expect(wait.mock.calls).toEqual([[15000], [30000]]);
 });

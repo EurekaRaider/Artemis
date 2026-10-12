@@ -24,6 +24,32 @@ export async function retryNotarizationOperation(operation, wait = delay) {
   }
 }
 
+export async function validateStapledMacApp(
+  appPath,
+  executeCommand = execute,
+  wait = delay,
+) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const result = await executeCommand("/usr/bin/xcrun", [
+        "stapler",
+        "validate",
+        appPath,
+      ]);
+      if (result.stdout) process.stdout.write(result.stdout);
+      return result;
+    } catch (error) {
+      const diagnostic = [error.message, error.stdout, error.stderr].join("\n");
+      if (attempt === 3 || !diagnostic.includes("NSURLErrorDomain Code=-1005"))
+        throw error;
+      console.log(
+        `Apple ticket validation connection dropped; retry ${attempt}/2 in ${attempt * 15} seconds.`,
+      );
+      await wait(attempt * 15000);
+    }
+  }
+}
+
 export function notarizationArguments(environment) {
   if (environment.APPLE_ID || environment.APPLE_APP_SPECIFIC_PASSWORD) {
     if (
@@ -210,7 +236,7 @@ export async function notarizeExistingMacApp(
       () => execute("/usr/bin/xcrun", ["stapler", "staple", appPath]),
       wait,
     );
-    await execute("/usr/bin/xcrun", ["stapler", "validate", appPath]);
+    await validateStapledMacApp(appPath, execute, wait);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 import { verifySlackCliRelease } from "../../../../scripts/slack/slack-cli-release.mjs";
 import { verifyPackagedSlackCli } from "../../../../scripts/slack/slack-cli-package.mjs";
 import { loadMacSigningEnvironment } from "../release/macos-signing-config.mjs";
-import { notarizeExistingMacApp } from "../release/notarize-macos-app.mjs";
+import {
+  notarizeExistingMacApp,
+  validateStapledMacApp,
+} from "../release/notarize-macos-app.mjs";
 import {
   collectMacUpdateMetadata,
   writeMacUpdateMetadata,
@@ -335,7 +338,7 @@ if (signedMode) {
     );
     await run("/usr/bin/codesign", ["--verify", "--deep", "--strict", appPath]);
     if (!signOnly) {
-      await run("/usr/bin/xcrun", ["stapler", "validate", appPath]);
+      await validateStapledMacApp(appPath);
       await run("/usr/sbin/spctl", ["--assess", "--type", "execute", appPath]);
     }
   }

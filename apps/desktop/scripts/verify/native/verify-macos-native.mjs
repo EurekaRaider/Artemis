@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { verifyPackagedSlackCli } from "../../../../../scripts/slack/slack-cli-package.mjs";
 import { verifyPackagedSlackCliCompatibility } from "../../../../../scripts/slack/slack-cli-native-compatibility.mjs";
 import { ensureNodePtySpawnHelpersExecutable } from "../../build/node-pty-permissions.mjs";
+import { validateStapledMacApp } from "../../release/notarize-macos-app.mjs";
 
 import { spawn as spawnPty } from "node-pty";
 import { buildSeatbeltLaunch } from "../../../../../packages/platform/dist/index.js";
@@ -62,7 +63,7 @@ run("/usr/sbin/spctl", [
   "--verbose=4",
   appPath,
 ]);
-run("/usr/bin/xcrun", ["stapler", "validate", appPath]);
+await validateStapledMacApp(appPath);
 const architectures = run("/usr/bin/lipo", ["-archs", executablePath]);
 const machoArchitecture = process.arch === "x64" ? "x86_64" : process.arch;
 if (!architectures.split(/\s+/u).includes(machoArchitecture)) {

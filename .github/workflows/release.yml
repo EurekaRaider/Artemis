@@ -209,7 +209,7 @@ jobs:
             /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F 'Authority=Developer ID Application:'
             /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | grep -F "TeamIdentifier=$APPLE_TEAM_ID"
             /usr/sbin/spctl --assess --type execute --verbose=4 "$app"
-            /usr/bin/xcrun stapler validate "$app"
+            node apps/desktop/scripts/release/validate-stapled-macos-app.mjs "$app"
             test "$(/usr/bin/lipo -archs "$app/Contents/MacOS/Artemis")" = "${{ matrix.macho_arch }}"
           }
           /usr/bin/hdiutil verify "$dmg"
