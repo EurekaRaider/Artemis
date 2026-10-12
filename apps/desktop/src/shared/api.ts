@@ -952,7 +952,11 @@ export interface ArtemisApi {
     scripts: Array<{ path: string; content: string }>;
   }>;
 
-  reportTaskView(input: { threadId?: string; seenSeq?: number }): void;
+  reportTaskView(input: {
+    threadId?: string;
+    seenSeq?: number;
+    dockOpen?: boolean;
+  }): void;
   onThreadTitleUpdated(
     listener: (thread: Pick<Thread, "id" | "title">) => void,
   ): () => void;

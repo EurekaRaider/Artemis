@@ -21,6 +21,36 @@ afterEach(() => {
 });
 
 describe("notification reading and sidebar", () => {
+  it("reports dock visibility changes without acknowledging an unfocused task", () => {
+    let focused = true;
+    vi.spyOn(document, "hasFocus").mockImplementation(() => focused);
+    const reportTaskView = vi.fn();
+    Object.defineProperty(window, "artemis", {
+      configurable: true,
+      value: { reportTaskView },
+    });
+    const { rerender } = renderHook(
+      ({ open }) => useTaskNotificationRead("one", 4, open),
+      { initialProps: { open: false } },
+    );
+    expect(reportTaskView).toHaveBeenLastCalledWith({
+      threadId: "one",
+      seenSeq: 4,
+      dockOpen: false,
+    });
+    rerender({ open: true });
+    expect(reportTaskView).toHaveBeenLastCalledWith({
+      threadId: "one",
+      seenSeq: 4,
+      dockOpen: true,
+    });
+    focused = false;
+    act(() => window.dispatchEvent(new Event("blur")));
+    expect(reportTaskView).toHaveBeenLastCalledWith({ dockOpen: true });
+    rerender({ open: false });
+    expect(reportTaskView).toHaveBeenLastCalledWith({ dockOpen: false });
+  });
+
   it("only acknowledges loaded visible tasks and rechecks focus and navigation", () => {
     let focused = true;
     vi.spyOn(document, "hasFocus").mockImplementation(() => focused);

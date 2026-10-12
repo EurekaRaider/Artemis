@@ -27,6 +27,7 @@ export class ComputerPreviewWindow {
   private token: string | undefined;
   private states: ComputerPreviewState[] = [];
   private threadId: string | undefined;
+  private dockOpen = false;
   constructor(
     private readonly options: {
       main(): BrowserWindow | undefined;
@@ -107,8 +108,9 @@ export class ComputerPreviewWindow {
     this.states = states;
     this.sync();
   }
-  setThread(threadId: string | undefined) {
+  setThread(threadId: string | undefined, dockOpen = false) {
     this.threadId = threadId;
+    this.dockOpen = dockOpen;
     this.sync();
   }
   private detach() {
@@ -138,7 +140,13 @@ export class ComputerPreviewWindow {
         value.state !== "hidden" &&
         value.state !== "ended",
     );
-    if (!main || main.isDestroyed() || main.isFocused() || !state) {
+    if (
+      !main ||
+      main.isDestroyed() ||
+      main.isFocused() ||
+      this.dockOpen ||
+      !state
+    ) {
       this.detach();
       this.window?.hide();
       return;

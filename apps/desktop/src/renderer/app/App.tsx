@@ -3762,6 +3762,7 @@ export function App() {
       ) >= activeThread.notification.seq
       ? activeThread.notification.seq
       : undefined,
+    workspaceDockOpen,
   );
   const latestHtmlChange = useMemo(() => {
     for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
@@ -7630,6 +7631,7 @@ export function App() {
                       <ComputerPreview
                         locale={locale}
                         threadId={activeThreadId}
+                        dockOpen={workspaceDockOpen}
                       />
                     </Suspense>
                     <Suspense fallback={null}>

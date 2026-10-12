@@ -37,12 +37,16 @@ const props: ComponentProps<typeof EnvironmentPanel> = {
 };
 
 let workspaceWidth: number;
+let conversationWidth: number | undefined;
+let dockWidth: number | undefined;
 let timelineWidth: number;
 let composerWidth: number;
 let captionReserve: number;
 const resizeCallbacks = new Set<() => void>();
 beforeEach(() => {
   workspaceWidth = 1800;
+  conversationWidth = undefined;
+  dockWidth = undefined;
   timelineWidth = 960;
   composerWidth = 960;
   captionReserve = 0;
@@ -63,8 +67,17 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
     function () {
       const workspaceLeft = 260;
+      if (this.matches('[data-artemis-component="workspace-dock"]'))
+        return new DOMRect(workspaceLeft, 0, dockWidth ?? 0, 780);
       if (this.matches(".workspace, .conversation, .timeline-scroll"))
-        return new DOMRect(workspaceLeft, 0, workspaceWidth, 780);
+        return new DOMRect(
+          workspaceLeft,
+          0,
+          this.matches(".conversation, .timeline-scroll")
+            ? (conversationWidth ?? workspaceWidth)
+            : workspaceWidth,
+          780,
+        );
       if (
         this.matches(
           '[data-artemis-component="environment-control"][data-part="root"]',
@@ -133,6 +146,12 @@ function fixture(
         </div>
       </div>
       <EnvironmentPanel {...props} {...overrides} />
+      {dockWidth !== undefined && (
+        <aside
+          data-artemis-component="workspace-dock"
+          style={{ visibility: dockWidth === 0 ? "hidden" : "visible" }}
+        />
+      )}
     </div>
   );
 }
@@ -650,6 +669,110 @@ describe("environment panel automatic visibility", () => {
     rerender(fixture({ dockOpen: true }));
     expect(dialog()).toBeNull();
     resize(1900);
+    expect(dialog()).toBeNull();
+    rerender(fixture());
+    expect(dialog()).toBeVisible();
+  });
+
+  it("follows dock geometry immediately while preserving standalone panel toggle animation", async () => {
+    workspaceWidth = 1200;
+    conversationWidth = 600;
+    const { container, rerender, unmount } = await renderReady(
+      fixture({ dockOpen: true }),
+    );
+    const conversation = container.querySelector<HTMLElement>(".conversation")!;
+    const safeSpace = () =>
+      conversation.style.getPropertyValue(
+        "--environment-panel-content-safe-inline-size",
+      );
+    const duration = () =>
+      conversation.style.getPropertyValue(
+        "--environment-panel-reservation-duration",
+      );
+    rerender(fixture());
+    expect(dialog()).toBeVisible();
+    expect(safeSpace()).toBe("0px");
+    resize(1200);
+    expect(duration()).toBe("0s");
+
+    for (const [width, inset] of [
+      [1000, 154],
+      [1100, 254],
+      [1200, 354],
+    ]) {
+      conversationWidth = width;
+      resize(1200);
+      expect(safeSpace()).toBe(`${inset}px`);
+      expect(duration()).toBe("0s");
+    }
+
+    await userEvent.keyboard("{Escape}");
+    expect(safeSpace()).toBe("");
+    expect(duration()).toBe("");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    expect(safeSpace()).toBe("354px");
+    resize(1200);
+    expect(duration()).toBe("");
+    unmount();
+    expect(safeSpace()).toBe("");
+    expect(duration()).toBe("");
+  });
+
+  it("waits for the dock to finish closing before restoring the panel and its reservation", async () => {
+    workspaceWidth = 1200;
+    conversationWidth = 600;
+    dockWidth = 600;
+    const { container, rerender } = await renderReady(
+      fixture({ dockOpen: true }),
+    );
+    const conversation = container.querySelector<HTMLElement>(".conversation")!;
+    rerender(fixture());
+    expect(dialog()).toBeNull();
+    dockWidth = 300;
+    conversationWidth = 900;
+    resize(1200);
+    expect(dialog()).toBeNull();
+    expect(
+      conversation.style.getPropertyValue(
+        "--environment-panel-content-safe-inline-size",
+      ),
+    ).toBe("54px");
+
+    // A reversal must keep the environment hidden through the next collapse.
+    rerender(fixture({ dockOpen: true }));
+    dockWidth = 450;
+    conversationWidth = 750;
+    resize(1200);
+    rerender(fixture());
+    expect(dialog()).toBeNull();
+    // A remaining border and delayed visibility must not add another pause.
+    dockWidth = 1;
+    conversationWidth = 1200;
+    rerender(fixture());
+    const dock = container.querySelector<HTMLElement>(
+      '[data-artemis-component="workspace-dock"]',
+    )!;
+    dock.style.opacity = "0";
+    act(() => {
+      dock.dispatchEvent(new Event("transitionend"));
+    });
+    expect(dialog()).toBeVisible();
+    expect(
+      conversation.style.getPropertyValue(
+        "--environment-panel-content-safe-inline-size",
+      ),
+    ).toBe("354px");
+    expect(
+      conversation.style.getPropertyValue(
+        "--environment-panel-reservation-duration",
+      ),
+    ).toBe("0s");
+
+    // Without motion, zero-width geometry restores the panel immediately.
+    dockWidth = 0;
+    rerender(fixture({ dockOpen: true }));
     expect(dialog()).toBeNull();
     rerender(fixture());
     expect(dialog()).toBeVisible();

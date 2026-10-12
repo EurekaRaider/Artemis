@@ -9,9 +9,11 @@ import "./computer-preview.css";
 export function ComputerPreview({
   locale,
   threadId,
+  dockOpen = false,
 }: {
   locale: AppLocale;
   threadId?: string | undefined;
+  dockOpen?: boolean;
 }) {
   const copy = COMPUTER_PREVIEW_RESOURCES[locale];
   const [states, setStates] = useState<ComputerPreviewState[]>([]);
@@ -43,7 +45,7 @@ export function ComputerPreview({
     };
   }, []);
   const state = states.find((value) => value.threadId === threadId);
-  if (!state || state.state === "ended") return null;
+  if (dockOpen || !state || state.state === "ended") return null;
   const command = (action: "hide" | "show" | "expand") =>
     void window.artemis
       .computerPreview({ action, sessionId: state.sessionId })

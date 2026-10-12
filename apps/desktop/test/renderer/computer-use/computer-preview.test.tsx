@@ -12,6 +12,56 @@ vi.mock("../../../src/renderer/computer-use/PreviewCanvas.js", () => ({
 }));
 
 it.each(["desktop", "browser"] as const)(
+  "hides the %s preview beside the dock and restores its latest state without changing the session",
+  async (kind) => {
+    const state: ComputerPreviewState = {
+      version: 1,
+      sessionId: "preview-session",
+      threadId: "task",
+      target: { id: `${kind}:1`, kind, name: "Test app" },
+      state: "live",
+      timestamp: 0,
+      sequence: 0,
+      actualFps: 60,
+    };
+    let publish!: (values: ComputerPreviewState[]) => void;
+    const command = vi.fn(async () => {});
+    stubWindowArtemis({
+      getComputerPreviews: async () => [state],
+      onComputerPreviews: (callback: typeof publish) => {
+        publish = callback;
+        return () => {};
+      },
+      onComputerPreviewExpand: () => () => {},
+      computerPreview: command,
+    });
+    const view = (dockOpen: boolean) => (
+      <ComputerPreview locale="zh-CN" threadId="task" dockOpen={dockOpen} />
+    );
+    const { rerender } = render(view(false));
+    expect(await screen.findByLabelText("Preview pixels")).toBeVisible();
+    rerender(view(true));
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    act(() => publish([{ ...state, state: "paused" }]));
+    rerender(view(false));
+    expect(screen.getByLabelText("Preview pixels")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      COMPUTER_PREVIEW_RESOURCES["zh-CN"].paused,
+    );
+    act(() => publish([{ ...state, state: "hidden" }]));
+    const showLabel = COMPUTER_PREVIEW_RESOURCES["zh-CN"].show;
+    expect(screen.getByRole("button", { name: showLabel })).toBeVisible();
+    rerender(view(true));
+    expect(screen.queryByRole("button", { name: showLabel })).toBeNull();
+    act(() => publish([{ ...state, state: "ended" }]));
+    rerender(view(false));
+    expect(screen.queryByLabelText("Preview pixels")).toBeNull();
+    expect(screen.queryByRole("button", { name: showLabel })).toBeNull();
+    expect(command).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["desktop", "browser"] as const)(
   "opens the %s picture on click and closes only its preview",
   async (kind) => {
     const user = userEvent.setup();

@@ -1136,6 +1136,8 @@ body:has(.app-shell[data-platform="darwin"]),
   visibility: hidden;
 }
 .environment-popover {
+  animation: environment-panel-enter var(--artemis-motion-duration-fast)
+    var(--sidebar-toggle-ease) both;
   background: var(--sidebar-floating-glass);
   backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
   backdrop-filter: url(#panelGlass);
@@ -1143,6 +1145,14 @@ body:has(.app-shell[data-platform="darwin"]),
   border-radius: 14px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
   z-index: 60;
+}
+@keyframes environment-panel-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .nested-project > .project-row :is(.project-new-thread, .project-action) {
   opacity: 0;
@@ -1154,8 +1164,7 @@ body:has(.app-shell[data-platform="darwin"]),
   opacity: 1;
   pointer-events: auto;
 }
-/* Animate the shared reservation so history, status, composer and empty state
-   move together without delaying changes to the dock's own width. */
+/* Animate panel toggles; geometry updates follow the dock without another ease. */
 @property --environment-panel-content-safe-inline-size {
   syntax: "<length>";
   inherits: true;
@@ -1163,7 +1172,11 @@ body:has(.app-shell[data-platform="darwin"]),
 }
 .conversation {
   transition: --environment-panel-content-safe-inline-size
-    var(--sidebar-motion-duration) var(--sidebar-motion-ease);
+    var(
+      --environment-panel-reservation-duration,
+      var(--sidebar-motion-duration)
+    )
+    var(--sidebar-motion-ease);
 }
 [data-artemis-component="workspace-dock"]:not([data-state="resizing"]),
 [data-artemis-component="workspace-dock-resizer"] {
@@ -1184,6 +1197,9 @@ body:has(.app-shell[data-platform="darwin"]),
   [data-artemis-component="workspace-dock"]:not([data-state="resizing"]),
   [data-artemis-component="workspace-dock-resizer"] {
     transition: none;
+  }
+  .environment-popover {
+    animation: none;
   }
 }
 

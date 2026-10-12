@@ -46,11 +46,16 @@ describe("task notification shutdown", () => {
     handler!({ ...event, sender: {} }, { threadId: "one" });
     handler!({ ...event, senderFrame: {} }, { threadId: "one" });
     handler!(event, { threadId: "missing" });
+    handler!(event, { threadId: "one", dockOpen: "true" });
     expect(setThread).not.toHaveBeenCalled();
     handler!(event, { threadId: "one" });
-    handler!(event, { threadId: "two" });
+    handler!(event, { threadId: "two", dockOpen: true });
     handler!(event, {});
-    expect(setThread.mock.calls).toEqual([["one"], ["two"], [undefined]]);
+    expect(setThread.mock.calls).toEqual([
+      ["one", false],
+      ["two", true],
+      [undefined, false],
+    ]);
   });
 
   it("ignores late task-view messages before touching a closing store", () => {

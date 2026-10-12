@@ -4,16 +4,18 @@ import { useLayoutEffect } from "react";
 export function useTaskNotificationRead(
   threadId: string | undefined,
   seenSeq: number | undefined,
+  dockOpen?: boolean,
 ): void {
   useLayoutEffect(() => {
     const report = () => {
       const visible =
         document.visibilityState === "visible" && document.hasFocus();
-      window.artemis.reportTaskView?.(
-        visible && threadId
+      window.artemis.reportTaskView?.({
+        ...(visible && threadId
           ? { threadId, ...(seenSeq === undefined ? {} : { seenSeq }) }
-          : {},
-      );
+          : {}),
+        ...(dockOpen === undefined ? {} : { dockOpen }),
+      });
     };
     report();
     window.addEventListener("focus", report);
@@ -25,5 +27,5 @@ export function useTaskNotificationRead(
       document.removeEventListener("visibilitychange", report);
       window.artemis.reportTaskView?.({});
     };
-  }, [threadId, seenSeq]);
+  }, [threadId, seenSeq, dockOpen]);
 }

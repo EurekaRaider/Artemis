@@ -8206,17 +8206,22 @@ function registerIpc(): void {
     )
       return;
     if (!input || typeof input !== "object") return;
-    const { threadId, seenSeq } = input as {
+    const { threadId, seenSeq, dockOpen } = input as {
       threadId?: unknown;
       seenSeq?: unknown;
+      dockOpen?: unknown;
     };
+    if (dockOpen !== undefined && typeof dockOpen !== "boolean") return;
     if (
       threadId !== undefined &&
       (typeof threadId !== "string" || !store.getThread(threadId))
     )
       return;
     taskNotifications.viewedThreadId = threadId as string | undefined;
-    computerPreviewWindow?.setThread(threadId as string | undefined);
+    computerPreviewWindow?.setThread(
+      threadId as string | undefined,
+      dockOpen === true,
+    );
     if (
       typeof threadId === "string" &&
       taskNotifications.isViewing(threadId) &&

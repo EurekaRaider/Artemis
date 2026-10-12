@@ -61,6 +61,57 @@ beforeEach(() => {
   native.handlers.clear();
 });
 
+it("suppresses the floating preview while the dock is open without hiding the session", () => {
+  const main = Object.assign(new EventEmitter(), {
+    isFocused: () => false,
+    isDestroyed: () => false,
+    getBounds: () => ({ x: 0, y: 0, width: 1000, height: 800 }),
+    webContents: { getZoomFactor: () => 1 },
+  });
+  const command = vi.fn();
+  const floating = new ComputerPreviewWindow({
+    main: () => main as unknown as BrowserWindow,
+    host: () => ({ command }) as unknown as ComputerPreviewHost,
+    locale: () => "zh-CN",
+  });
+  const state: ComputerPreviewState = {
+    version: 1,
+    sessionId: "session",
+    threadId: "task",
+    target: { id: "browser:1", kind: "browser", name: "Browser" },
+    state: "live",
+    timestamp: 0,
+    sequence: 0,
+    actualFps: 60,
+  };
+  floating.setThread("task", true);
+  floating.update([state]);
+  expect(native.windows).toHaveLength(0);
+  floating.setThread("task", false);
+  const window = native.windows[0]!;
+  native.handlers.get(IPC.computerPreviewFloating)!(
+    { sender: window.webContents, senderFrame: window.webContents.mainFrame },
+    { action: "ready" },
+  );
+  expect(window.isVisible()).toBe(true);
+  floating.setThread("task", true);
+  expect(window.isVisible()).toBe(false);
+  expect(command).toHaveBeenLastCalledWith(
+    expect.objectContaining({ action: "unsubscribe" }),
+    window.webContents,
+  );
+  floating.update([{ ...state, state: "paused" }]);
+  main.emit("blur");
+  expect(window.isVisible()).toBe(false);
+  floating.setThread("task", false);
+  expect(window.isVisible()).toBe(true);
+  expect(
+    command.mock.calls.every(([input]) =>
+      ["subscribe", "unsubscribe"].includes(input.action),
+    ),
+  ).toBe(true);
+});
+
 it("shows the floating preview only while the main window is unfocused without stealing focus", () => {
   let focused = true;
   const main = Object.assign(new EventEmitter(), {

@@ -765,6 +765,8 @@ export function EnvironmentPanel({
     hasSourcePanelDetails ||
     Boolean(imGroup);
   const panelVisible = open && (hasPanelContent || manuallyOpened.current);
+  const reservationActive =
+    panelVisible || ((wantsOpen.current ?? defaultOpen) && hasPanelContent);
 
   const hidePanel = useCallback(() => {
     manuallyOpened.current = false;
@@ -903,16 +905,25 @@ export function EnvironmentPanel({
   useLayoutEffect(() => {
     const workspace = control.current?.closest(".workspace");
     if (!(workspace instanceof HTMLElement)) return;
+    const dock = workspace.querySelector<HTMLElement>(
+      '[data-artemis-component="workspace-dock"]',
+    );
     const syncVisibility = () => {
       const space = measureContentSpace();
       if (!space) return;
+      // Content can finish collapsing before the delayed visibility transition.
+      const dockStyle = dock && window.getComputedStyle(dock);
+      const dockClosed =
+        !dock ||
+        dockStyle?.visibility === "hidden" ||
+        (dock.clientWidth === 0 && dockStyle?.opacity === "0");
       // Preserve explicit opening and menu focus until the reading area
       // becomes too narrow. Dock transitions restore automatic visibility.
       const nextOpen =
         (hasPanelContent || manuallyOpened.current) &&
         (wantsOpen.current ?? defaultOpen) &&
         space.enoughSpace &&
-        (manuallyOpened.current || !dockOpen);
+        (manuallyOpened.current || (!dockOpen && dockClosed));
       if (nextOpen === openRef.current) return;
       openRef.current = nextOpen;
       setOpen(nextOpen);
@@ -925,32 +936,44 @@ export function EnvironmentPanel({
       workspace,
       control.current,
       workspace.querySelector(".conversation"),
+      dock,
     ]) {
       if (element) observer?.observe(element);
     }
     syncVisibility();
     window.addEventListener("resize", syncVisibility);
+    dock?.addEventListener("transitionend", syncVisibility);
+    dock?.addEventListener("transitioncancel", syncVisibility);
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", syncVisibility);
+      dock?.removeEventListener("transitionend", syncVisibility);
+      dock?.removeEventListener("transitioncancel", syncVisibility);
     };
   }, [defaultOpen, dockOpen, hasPanelContent, measureContentSpace]);
 
   useLayoutEffect(() => {
-    if (!panelVisible) return;
+    if (!reservationActive) return;
     const workspace = control.current?.closest(".workspace");
     const conversation = workspace?.querySelector<HTMLElement>(".conversation");
     if (!workspace || !conversation) return;
     const property = "--environment-panel-content-safe-inline-size";
-    const reserveSpace = () => {
+    const durationProperty = "--environment-panel-reservation-duration";
+    const reserveSpace = (animate: boolean) => {
       const next = measureContentSpace();
       if (!next) return;
       if (!next.enoughSpace) {
-        hidePanel();
+        if (panelVisible) hidePanel();
+        next.conversation.style.removeProperty(property);
+        next.conversation.style.removeProperty(durationProperty);
         return;
       }
       const value = `${next.inset}px`;
       if (next.conversation.style.getPropertyValue(property) !== value) {
+        // Geometry already moves with the dock; a second transition trails it.
+        if (!animate) {
+          next.conversation.style.setProperty(durationProperty, "0s");
+        }
         next.conversation.style.setProperty(property, value);
       }
       const panelBounds = panel.current?.getBoundingClientRect();
@@ -966,10 +989,12 @@ export function EnvironmentPanel({
         );
       }
     };
-    reserveSpace();
+    // Prepare the reading area during dock motion, before the panel fades in.
+    reserveSpace(panelVisible && manuallyOpened.current);
+    const syncGeometry = () => reserveSpace(false);
     const observer =
       typeof window.ResizeObserver === "function"
-        ? new window.ResizeObserver(reserveSpace)
+        ? new window.ResizeObserver(syncGeometry)
         : undefined;
     for (const element of [
       workspace,
@@ -979,15 +1004,16 @@ export function EnvironmentPanel({
     ]) {
       if (element) observer?.observe(element);
     }
-    window.addEventListener("resize", reserveSpace);
+    window.addEventListener("resize", syncGeometry);
     return () => {
       observer?.disconnect();
-      window.removeEventListener("resize", reserveSpace);
+      window.removeEventListener("resize", syncGeometry);
       conversation.style.removeProperty(property);
+      conversation.style.removeProperty(durationProperty);
       conversation.style.removeProperty("--computer-preview-top");
       conversation.style.removeProperty("--computer-preview-inline-end");
     };
-  }, [hidePanel, measureContentSpace, panelVisible]);
+  }, [hidePanel, measureContentSpace, panelVisible, reservationActive]);
 
   const loadGit = useCallback(async () => {
     const id = ++gitRequest.current;
