@@ -21,6 +21,8 @@ import {
   CapabilityPackService,
   verifyCapabilityManifest,
 } from "../../../src/main/capabilities/capability-pack-service.js";
+// @ts-expect-error Build scripts are exercised directly.
+import { installedComputerUsePreviewPath } from "../../../scripts/verify/native/installed-computer-use-state.mjs";
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -731,6 +733,72 @@ describe.each(["office-core", "artemis-design"])(
 );
 
 describe("software capability packs (multi-pack namespaces)", () => {
+  it("resolves the release preview module inside the production installer's leased payload", async () => {
+    const previewModule =
+      "ArtemisComputerUse.app/Contents/Frameworks/artemis-computer-preview.node";
+    const bytes = Buffer.from("preview fixture");
+    const entrypoint =
+      "ArtemisComputerUse.app/Contents/MacOS/artemis-computer-use";
+    const files = [
+      { name: previewModule, bytes },
+      { name: entrypoint, bytes: Buffer.from("helper fixture") },
+      {
+        name: "plugin/artemis.plugin.json",
+        bytes: Buffer.from('{"name":"computer-use"}'),
+      },
+    ];
+    const archive = zipEntries(files);
+    const f = await fixture();
+    const userData = join(f.root, "profile");
+    const runtime = new CapabilityPackService({
+      ...target,
+      root: join(userData, "capability-packs"),
+      packId: "computer-use",
+      arch: "x64",
+      hostVersion: "1.7.14",
+      verifyNative: vi.fn(async () => undefined),
+      dependents: async () => [],
+      fetch: vi.fn(async () => new Response(archive)),
+    });
+    await runtime.install(
+      signedSoftware(archive, files, {
+        id: "computer-use",
+        arch: "x64",
+        version: "1.2.3",
+        hostRange: ">=1.7.14 <2",
+        minimumOS: "14",
+        helperProtocol: 1,
+        entrypoint,
+        pluginRoot: "plugin",
+        preview: { protocol: 1, module: previewModule },
+        archive: {
+          url: `${RELEASE_HOST}computer-use-v1.2.3/computer-use-darwin-x64.zip`,
+          sha256: sha(archive),
+          downloadBytes: archive.length,
+          unpackedBytes: files.reduce(
+            (sum, file) => sum + file.bytes.length,
+            0,
+          ),
+        },
+        files: files.map((file) => ({
+          path: file.name,
+          sha256: sha(file.bytes),
+          bytes: file.bytes.length,
+          executable: file.name !== "plugin/artemis.plugin.json",
+        })),
+        native: { signer: "TEST", notarization: "accepted-stapled" },
+      }),
+    );
+    const lease = await runtime.acquire();
+    try {
+      const path = installedComputerUsePreviewPath(userData, "1.2.3");
+      expect(path).toBe(join(lease.root, previewModule));
+      expect(await readFile(path)).toEqual(bytes);
+    } finally {
+      lease.release();
+    }
+  });
+
   it("downloads and installs a design pack into its own namespace", async () => {
     const archive = zipEntries(DESIGN_FILES);
     const f = await fixture(zip());

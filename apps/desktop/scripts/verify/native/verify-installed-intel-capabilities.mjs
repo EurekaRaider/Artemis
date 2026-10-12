@@ -3,7 +3,10 @@ import { createRequire } from "node:module";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { assertInstalledComputerUse } from "./installed-computer-use-state.mjs";
+import {
+  assertInstalledComputerUse,
+  installedComputerUsePreviewPath,
+} from "./installed-computer-use-state.mjs";
 
 if (process.platform !== "darwin" || process.arch !== "x64")
   throw new Error("Intel capability acceptance requires native macOS x64");
@@ -90,25 +93,18 @@ try {
   report.checks.push(
     "Computer Use discovered, installed and probed by the signed packaged host in a fresh profile",
   );
-  report.preview = await app.evaluate(({ app }, version) => {
+  const previewPath = installedComputerUsePreviewPath(
+    await app.evaluate(({ app }) => app.getPath("userData")),
+    report.computerUse.after.activeVersion,
+  );
+  report.preview = await app.evaluate(({ app }, previewPath) => {
     const path = process.getBuiltinModule("path");
     const require = process
       .getBuiltinModule("module")
       .createRequire(path.join(app.getAppPath(), "package.json"));
-    const binding = require(
-      path.join(
-        app.getPath("userData"),
-        "capability-packs",
-        "computer-use",
-        version,
-        "ArtemisComputerUse.app",
-        "Contents",
-        "Frameworks",
-        "artemis-computer-preview.node",
-      ),
-    );
+    const binding = require(previewPath);
     return { loaded: true, exports: Object.getOwnPropertyNames(binding) };
-  }, report.computerUse.after.activeVersion);
+  }, previewPath);
   assert.equal(report.preview.loaded, true);
   report.checks.push(
     "Installed Intel preview module loads in the final signed Electron host",

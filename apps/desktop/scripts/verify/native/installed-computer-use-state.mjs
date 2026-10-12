@@ -1,4 +1,19 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
+
+export function installedComputerUsePreviewPath(userData, version) {
+  return join(
+    userData,
+    "capability-packs",
+    "computer-use",
+    version,
+    "payload",
+    "ArtemisComputerUse.app",
+    "Contents",
+    "Frameworks",
+    "artemis-computer-preview.node",
+  );
+}
 
 export function assertInstalledComputerUse({
   before,
