@@ -1,25 +1,13 @@
-# Artemis v1.7.14
+# Artemis v1.7.15
 
 ## 中文
 
-- Computer Use 1.2.3 与 Office Runtime 1.0.3 支持 macOS Intel x64，宿主按平台、架构与 hostRange 发现签名插件；旧客户端继续使用原有 arm64 / Windows 清单。
-- Computer Use 发布覆盖 macOS arm64、macOS x64 和 Windows x64 三个原生目标；macOS 保留 Mach-O 架构、Developer ID、Hardened Runtime、公证、stapling 和 Gatekeeper 校验。
-- Office 增加固定 SHA-256 的 Intel LibreOffice 引擎与 SDK、UNO bridge 原生构建，以及最终签名包和公开目录的全新安装、Word / Excel / PowerPoint 编辑、导出与重新打开验收。
-- 输入框预测在同轮补充消息后使用最新上下文；关闭预测后历史指令不会重新启用建议，输入与审批仍抑制建议，Tab 填入不会自动发送。
-- 修复模型快速完成时建议早于提交确认而丢失的问题；Intel 宿主发布增加从最终签名 ZIP 启动、全新配置发现并在线安装两个原生插件的验收。
-- 登录表单在提示显示前初始化输入，防止快速填入的授权响应被清空；Intel 插件验收同时实际加载已安装的预览模块。
-- 下拉框关闭后的延迟回焦保留用户已移到其他输入框的焦点，避免抢回数字字段等控件的输入。
-- 纯文本附件分页与搜索不再启动图像和 Office 解码器，降低隔离解析进程的冷启动开销，保留原有资源限制与任务授权。
-- 插件目录与独立运行时必须通过各自发布验收；这些源码说明不代表尚未执行的签名、公证或原生安装已经成功。
+- 展开右侧工作区面板时隐藏 Computer Use 浮动预览和控制条，避免遮挡或挤压面板；收起后恢复预览。
+- 环境面板等待工作区面板完成收起后再显示，并提前同步时间线、状态与输入区的预留空间，避免内容短暂伸到面板后再复位。
+- 环境面板的位置随窗口与工作区面板尺寸变化同步更新，保留窄窗口自动收起、手动打开与减少动态效果设置。
 
 ## English
 
-- Support macOS Intel x64 Computer Use 1.2.3 and Office Runtime 1.0.3. The host discovers signed plugins by platform, architecture and hostRange while legacy clients retain the arm64 / Windows manifests.
-- Release Computer Use for native macOS arm64, macOS x64 and Windows x64 targets. Preserve Mach-O architecture, Developer ID, Hardened Runtime, notarization, stapling and Gatekeeper checks on macOS.
-- Add SHA-256 pinned Intel LibreOffice engine and SDK inputs, native UNO bridge builds, fresh installation of the final signed archive and public catalog, and Word / Excel / PowerPoint editing, export and reopen acceptance.
-- Base composer predictions on updated context after supplements in the same turn. Historical instructions cannot re-enable disabled predictions; typing and approvals still suppress suggestions, and Tab insertion never sends a message.
-- Keep fast model completions until submission acceptance clears the draft. Intel host releases launch the final signed ZIP application and verify discovery and online installation of both native plugins in a fresh profile.
-- Initialize login inputs before displaying the prompt so fast authorization responses are retained. Intel capability acceptance also loads the installed preview module in the signed host.
-- Preserve newer input focus when a select closes instead of allowing its delayed focus return to steal focus from another control.
-- Load image and Office decoders only for the requested attachment format, reducing isolated text-worker startup cost while retaining resource limits and task authorization.
-- Plugin catalogs and independent runtimes require their own release acceptance. These source notes do not claim unperformed signing, notarization or native installation passed.
+- Hide the floating Computer Use preview and controls while the workspace dock is open, and restore the preview when it closes.
+- Wait for the dock to finish closing before showing the environment panel. Reserve space for the timeline, status and composer during the transition so content does not briefly extend behind the panel.
+- Keep environment panel geometry synchronized with window and dock resizing while preserving automatic collapse in narrow windows, manual opening and reduced motion settings.

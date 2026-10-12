@@ -54,11 +54,11 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.14** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.15** · [Release notes](docs/records/release-notes.md).
 
-This revision adds Intel macOS Computer Use and Office runtime discovery with signed
-architecture-specific catalogs. Runtime publication requires native signing,
-notarization and installation acceptance on each target.
+This revision keeps Computer Use previews clear of the workspace dock and
+synchronizes the environment panel with dock motion, so the timeline and composer
+keep their reserved reading space during transitions.
 
 Optional next-message suggestions appear in the empty composer after
 an ordinary desktop reply. Press **Tab** to insert a suggestion or **Escape** to
