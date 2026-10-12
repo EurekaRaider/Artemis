@@ -369,7 +369,7 @@ export class AttachmentStore {
           0o600,
         );
         try {
-          const buffer = Buffer.allocUnsafe(1024 * 1024);
+          const buffer = Buffer.allocUnsafe(Math.min(1024 * 1024, info.size));
           copied = 0;
           while (copied < info.size) {
             copySignal.throwIfAborted();

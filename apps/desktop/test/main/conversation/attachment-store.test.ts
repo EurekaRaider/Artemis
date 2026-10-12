@@ -2,7 +2,7 @@ import { estimateTextTokens } from "@artemis/protocol";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AttachmentStore } from "../../../src/main/conversation/attachment-store.js";
 
 describe("attachment storage authorization and persistence", () => {
@@ -297,3 +297,34 @@ it("imports 1000 originals without eager parsing and searches across chunk bound
     await rm(root, { recursive: true, force: true });
   }
 }, 30000);
+
+it("avoids large copy-buffer allocations for a batch of small originals", async () => {
+  const root = await mkdtemp(join(tmpdir(), "artemis-attachment-buffer-"));
+  const content = "original bytes\n".repeat(128);
+  const paths = [0, 1, 2].map((index) => join(root, `${index}.txt`));
+  await Promise.all(paths.map((path) => writeFile(path, content)));
+  const store = new AttachmentStore(join(root, "store"));
+  const allocate = vi.spyOn(Buffer, "allocUnsafe");
+  try {
+    const result = await store.importPaths(paths);
+    const maximumAllocation = Math.max(
+      0,
+      ...allocate.mock.calls.map(([size]) => size),
+    );
+    allocate.mockRestore();
+    expect(result.errors).toEqual([]);
+    expect(result.attachments).toHaveLength(paths.length);
+    expect(maximumAllocation).toBeLessThanOrEqual(64 * 1024);
+    const { readFile } = await import("node:fs/promises");
+    for (const ref of result.attachments) {
+      expect(ref.status).toBe("pending");
+      expect(ref.characters).toBeUndefined();
+      expect(
+        await readFile(join(root, "store", ref.id, "original"), "utf8"),
+      ).toBe(content);
+    }
+  } finally {
+    allocate.mockRestore();
+    await rm(root, { recursive: true, force: true });
+  }
+});
