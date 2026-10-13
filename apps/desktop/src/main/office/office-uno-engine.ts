@@ -8,6 +8,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
+import { validateMacTicket } from "../capabilities/macos-ticket.js";
 import type {
   ArtifactOperation,
   CapabilityPackManifest,
@@ -55,9 +56,7 @@ export async function verifyOfficeNative(
       throw new Error(
         "Office runtime signing identity or Hardened Runtime mismatch",
       );
-    await runFile("/usr/bin/xcrun", ["stapler", "validate", app], {
-      timeout: 60_000,
-    });
+    await validateMacTicket(app);
     await runFile("/usr/sbin/spctl", ["--assess", "--type", "execute", app], {
       timeout: 60_000,
     });

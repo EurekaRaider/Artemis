@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
+import { validateMacTicket } from "../capabilities/macos-ticket.js";
 import {
   computerUsePackManifestSchema,
   type CapabilityPackManifest,
@@ -42,9 +43,7 @@ export async function verifyComputerUseNative(
       throw new Error(
         "Computer Use signing identity or hardened runtime mismatch",
       );
-    await run("/usr/bin/xcrun", ["stapler", "validate", app], {
-      timeout: 60000,
-    });
+    await validateMacTicket(app);
     await run("/usr/sbin/spctl", ["--assess", "--type", "execute", app], {
       timeout: 60000,
     });

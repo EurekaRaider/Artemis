@@ -2,6 +2,8 @@
 
 ## 中文
 
+- macOS Office 和 Computer Use 安装在 Apple 票据验证连接中断时有限重试，并保留失败诊断；无效票据仍阻止安装。
+
 - 内置 Slack CLI 更新至 4.10.0，并重新验证三平台官方附件摘要与原生兼容性。
 
 - 优化历史对话的可见性检测：普通滚动复用观察器结果，跨越预加载区域的大幅跳转仍及时显示内容，减少同步布局测量。
@@ -9,6 +11,8 @@
 - 已完成轮次的差异保持缓存，不再因新的 Agent 输出或文件变更计数而反复刷新；用户执行审查操作后仍刷新当前差异。
 
 ## English
+
+- Retry dropped Apple ticket-validation connections during macOS Office and Computer Use installation, preserving failure diagnostics and continuing to reject invalid tickets.
 
 - Update the bundled Slack CLI to 4.10.0 and revalidate official archive digests and native compatibility on all three platforms.
 
