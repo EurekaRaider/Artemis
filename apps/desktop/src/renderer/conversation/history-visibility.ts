@@ -3,6 +3,7 @@ interface TimelineObservation {
   subscribe(element: Element, notify: (visible: boolean) => void): () => void;
 }
 const timelines = new WeakMap<Element, TimelineObservation>();
+const HISTORY_BUFFER = 1_600;
 
 export function observeHistoryTurn(
   element: Element,
@@ -15,39 +16,65 @@ export function observeHistoryTurn(
   }
   let timeline = timelines.get(scroller);
   if (!timeline) {
-    const listeners = new Map<Element, (visible: boolean) => void>();
+    const listeners = new Map<
+      Element,
+      { notify: (visible: boolean) => void; visible?: boolean }
+    >();
+    const pending = new Set<Element>();
+    const publish = (target: Element, visible: boolean) => {
+      const listener = listeners.get(target);
+      if (!listener || listener.visible === visible) return;
+      listener.visible = visible;
+      listener.notify(visible);
+    };
     let frame: number | undefined;
+    let previousScrollTop = scroller.scrollTop;
+    let jumped = false;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          listeners.get(entry.target)?.(
+          pending.delete(entry.target);
+          publish(
+            entry.target,
             entry.isIntersecting ||
               Boolean(entry.target.querySelector("details[open]")) ||
               entry.target.contains(document.activeElement),
           );
         }
       },
-      { root: scroller, rootMargin: "1600px 0px" },
+      { root: scroller, rootMargin: `${HISTORY_BUFFER}px 0px` },
     );
     const onScroll = () => {
+      jumped ||=
+        Math.abs(scroller.scrollTop - previousScrollTop) > HISTORY_BUFFER;
       if (frame !== undefined) return;
       frame = requestAnimationFrame(() => {
         frame = undefined;
+        // The observer mounts ahead of ordinary scrolling. Only a jump past
+        // that buffer or a not-yet-observed turn needs synchronous measurement.
+        const targets = jumped ? [...listeners.keys()] : [...pending];
+        previousScrollTop = scroller.scrollTop;
+        jumped = false;
+        if (targets.length === 0) return;
         const bounds = scroller.getBoundingClientRect();
-        for (const [target, listener] of listeners) {
+        const visible: Element[] = [];
+        for (const target of targets) {
           const rect = target.getBoundingClientRect();
           if (rect.bottom >= bounds.top && rect.top <= bounds.bottom)
-            listener(true);
+            visible.push(target);
         }
+        for (const target of visible) publish(target, true);
       });
     };
     scroller.addEventListener("scroll", onScroll, { passive: true });
     timeline = {
       subscribe(target, listener) {
-        listeners.set(target, listener);
+        listeners.set(target, { notify: listener });
+        pending.add(target);
         observer.observe(target);
         return () => {
           listeners.delete(target);
+          pending.delete(target);
           observer.unobserve(target);
           if (listeners.size === 0) {
             observer.disconnect();

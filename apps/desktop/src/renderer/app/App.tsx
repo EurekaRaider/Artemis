@@ -4428,14 +4428,20 @@ export function App() {
     setCommentBody("");
   }, [activeThreadId]);
 
+  // Completed turn diffs are immutable; live output must not reload them.
+  const reviewLiveSequence =
+    reviewScope === "turn" ? 0 : (threadState?.lastSeq ?? 0);
+  const reviewChangedFileCount =
+    reviewScope === "turn" ? 0 : (threadState?.changedFiles.length ?? 0);
   const reviewDiffCacheKey = useCallback(
     (threadId: string, scope: ReviewScope) => {
       const baseRef = scope === "branch" ? reviewBaseRef.trim() : "";
       const turnId = scope === "turn" ? (reviewTurnId ?? "") : "";
       const version = reviewDiffVersion.current.get(threadId) ?? 0;
-      return `${threadId}\u0000${scope}\u0000${turnId}\u0000${baseRef}\u0000${threadState?.lastSeq ?? 0}\u0000${version}`;
+      const sequence = scope === "turn" ? 0 : reviewLiveSequence;
+      return `${threadId}\u0000${scope}\u0000${turnId}\u0000${baseRef}\u0000${sequence}\u0000${version}`;
     },
-    [reviewBaseRef, reviewTurnId, threadState?.lastSeq],
+    [reviewBaseRef, reviewTurnId, reviewLiveSequence],
   );
 
   const loadCachedReviewDiff = useCallback(
@@ -4482,21 +4488,6 @@ export function App() {
       if (key.startsWith(prefix)) reviewDiffCache.current.delete(key);
     }
   }, []);
-
-  const prefetchReviewDiffs = useCallback(
-    async (force = false) => {
-      if (!activeThreadId) return;
-      const eagerScopes: ReviewScope[] = ["unstaged", "staged"];
-      await Promise.all(
-        eagerScopes.map((scope) =>
-          loadCachedReviewDiff(activeThreadId, scope, force).catch(
-            () => undefined,
-          ),
-        ),
-      );
-    },
-    [activeThreadId, loadCachedReviewDiff],
-  );
 
   const refreshDiff = useCallback(
     async (force = false) => {
@@ -4616,14 +4607,12 @@ export function App() {
 
   useEffect(() => {
     if (workspaceDockOpen && activeWorkspaceTab?.kind === "review") {
-      void prefetchReviewDiffs();
       void refreshDiff();
     }
   }, [
     activeWorkspaceTab?.kind,
-    prefetchReviewDiffs,
     refreshDiff,
-    threadState?.changedFiles.length,
+    reviewChangedFileCount,
     workspaceDockOpen,
   ]);
 
@@ -4656,7 +4645,7 @@ export function App() {
           setToast(`${t.recoverySaved}: ${result.recoveryPath}`);
         }
         invalidateReviewDiffCache(activeThreadId);
-        await Promise.all([refreshDiff(true), prefetchReviewDiffs(true)]);
+        await refreshDiff(true);
       } catch (error) {
         setToast(error instanceof Error ? error.message : String(error));
       } finally {
@@ -4666,7 +4655,6 @@ export function App() {
     [
       activeThreadId,
       invalidateReviewDiffCache,
-      prefetchReviewDiffs,
       refreshDiff,
       requestConfirmation,
       reviewBaseRef,

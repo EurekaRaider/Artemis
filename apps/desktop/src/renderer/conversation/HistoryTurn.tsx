@@ -85,8 +85,9 @@ export function HistoryTurn({
       typeof ResizeObserver === "undefined"
     )
       return;
-    const observer = new ResizeObserver(() => {
+    const observer = new ResizeObserver(([entry]) => {
       height.current =
+        entry?.borderBoxSize?.[0]?.blockSize ||
         element.getBoundingClientRect().height ||
         height.current ||
         PLACEHOLDER_DEFAULT_HEIGHT;
