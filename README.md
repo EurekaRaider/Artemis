@@ -54,11 +54,11 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.15** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.16** · [Release notes](docs/records/release-notes.md).
 
-This revision keeps Computer Use previews clear of the workspace dock and
-synchronizes the environment panel with dock motion, so the timeline and composer
-keep their reserved reading space during transitions.
+This revision reduces layout work while scrolling conversation history and loads
+only the selected review diff. Completed-turn diffs stay cached while new agent
+output arrives, avoiding unnecessary refreshes.
 
 Optional next-message suggestions appear in the empty composer after
 an ordinary desktop reply. Press **Tab** to insert a suggestion or **Escape** to

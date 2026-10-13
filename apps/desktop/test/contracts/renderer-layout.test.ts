@@ -1855,15 +1855,13 @@ describe("renderer layout contract", () => {
     expect(terminalSource).not.toContain('state !== "ready"');
   });
 
-  it("prefetches and caches Unstaged and Staged Review data for instant scope switching", () => {
+  it("caches Review data for scope switching without eager prefetching", () => {
     expect(appSource).toContain("useTransition");
     expect(appSource).toContain(
       "const reviewDiffCache = useRef(new Map<string, ReviewDiff>());",
     );
     expect(appSource).toContain("const reviewDiffInFlight = useRef(");
-    expect(appSource).toContain(
-      'const eagerScopes: ReviewScope[] = ["unstaged", "staged"];',
-    );
+    expect(appSource).not.toContain("prefetchReviewDiffs");
     expect(appSource).toMatch(
       /selectReviewScope\s*=\s*\([^)]*scope[^)]*\)\s*=>\s*\{[\s\S]*?setReviewScope\(scope\);[\s\S]*?reviewDiffCache\.current\.get\([\s\S]*?setReviewDiff\(cached\);[\s\S]*?\}/u,
     );
