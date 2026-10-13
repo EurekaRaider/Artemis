@@ -59,7 +59,9 @@ Current version: **v1.7.16** · [Release notes](docs/records/release-notes.md).
 This revision reduces layout work while scrolling conversation history and loads
 only the selected review diff. Completed-turn diffs stay cached while new agent
 output arrives, avoiding unnecessary refreshes. The bundled Slack CLI is updated
-to **4.10.0**.
+to **4.10.0**. macOS capability installation retries dropped Apple ticket
+connections and timed-out Office signature scans, while retaining strict
+signature checks and detailed failure diagnostics.
 
 Optional next-message suggestions appear in the empty composer after
 an ordinary desktop reply. Press **Tab** to insert a suggestion or **Escape** to

@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { validateMacTicket } from "../capabilities/macos-ticket.js";
+import { verifyOfficeMacSignature } from "./office-macos-signature.js";
 import type {
   ArtifactOperation,
   CapabilityPackManifest,
@@ -37,11 +38,7 @@ export async function verifyOfficeNative(
         [join(directory, executable), "-verify_arch", nativeArch],
         { timeout: 10_000 },
       );
-    await runFile(
-      "/usr/bin/codesign",
-      ["--verify", "--deep", "--strict", app],
-      { timeout: 60_000 },
-    );
+    await verifyOfficeMacSignature(app);
     const identity = await runFile(
       "/usr/bin/codesign",
       ["-dv", "--verbose=4", app],
