@@ -1928,10 +1928,8 @@ async function applyAgentRuntime(
     },
     AGENT_RUNTIME_CONFIGURATION_TIMEOUT_MS,
   );
-  activeRuntimeSelection = resolved.selection
-    ? structuredClone(resolved.selection)
-    : undefined;
-  void agentProcess
+  activeRuntimeSelection = undefined;
+  await agentProcess
     .request<AgentRuntimeCatalog>(
       {
         type: "runtime.catalog",
@@ -1941,6 +1939,9 @@ async function applyAgentRuntime(
     )
     .then((catalog) => {
       cachedAgentCatalog = catalog;
+      activeRuntimeSelection = catalog.selection
+        ? structuredClone(catalog.selection)
+        : undefined;
     })
     .catch((error) => {
       diagnosticBundleService?.record({
@@ -2244,6 +2245,7 @@ async function getModelSettingsSnapshot(): Promise<ModelSettingsSnapshot> {
     bundledModels,
     cachedAgentCatalog.models,
     providers.map((provider) => provider.id),
+    cachedAgentCatalog.authoritativeProviderIds,
   );
   const configuredProviderIds = new Set(
     credentials.map((credential) => credential.providerId),
@@ -2257,6 +2259,8 @@ async function getModelSettingsSnapshot(): Promise<ModelSettingsSnapshot> {
     });
   }
   for (const provider of providers) {
+    if (cachedAgentCatalog.authoritativeProviderIds?.includes(provider.id))
+      continue;
     for (const model of provider.models) {
       const thinkingLevels = customModelThinkingLevels(model);
       modelsByKey.set(`${provider.id}\0${model.id}`, {

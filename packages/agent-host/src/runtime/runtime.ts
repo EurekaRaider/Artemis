@@ -1,3 +1,5 @@
+import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
+import { personalizeArtemisOpenRouter } from "../models/openrouter-catalog.js";
 import { composerPredictionInstruction } from "@artemis/protocol";
 import { withComposerPredictionContext } from "../context/composer-prediction.js";
 import { isDeepStrictEqual } from "node:util";
@@ -1671,7 +1673,14 @@ export class ArtemisAgentHost {
     return this.modelRuntimePromise;
   }
 
+  private openRouterCatalogPersonalized = false;
+  private configurationRevision = 0;
+  private appliedConfigurationRevision = 0;
+
   async configure(configuration: AgentRuntimeConfiguration): Promise<void> {
+    const configurationSettled =
+      this.configurationRevision === this.appliedConfigurationRevision;
+    const revision = ++this.configurationRevision;
     const {
       officeEnabled: previousOffice,
       disabledSkillFiles: _previousSkills,
@@ -1682,11 +1691,16 @@ export class ArtemisAgentHost {
       disabledSkillFiles: _nextSkills,
       ...next
     } = configuration;
-    if (previousOffice !== nextOffice && isDeepStrictEqual(previous, next)) {
+    if (
+      configurationSettled &&
+      previousOffice !== nextOffice &&
+      isDeepStrictEqual(previous, next)
+    ) {
       // Office tool execution reads this configuration immediately. Resource
       // loaders refresh at the existing pre-prompt gate, not across every idle
       // session during a toggle. Other configuration changes keep the full path.
       this.configuration = structuredClone(configuration);
+      this.appliedConfigurationRevision = revision;
       for (const hosted of this.threads.values())
         hosted.configurationPending = true;
       return;
@@ -1696,15 +1710,20 @@ export class ArtemisAgentHost {
     const resolvedConfiguration = structuredClone(configuration);
     const providers = resolvedConfiguration.providers ?? [];
     if (
+      configurationSettled &&
       providers.length === 0 &&
       this.registeredProviderIds.size === 0 &&
       !resolvedConfiguration.selection &&
+      !resolvedConfiguration.credentials.openrouter &&
+      !this.openRouterCatalogPersonalized &&
       this.threads.size === 0
     ) {
       this.configuration = resolvedConfiguration;
+      this.appliedConfigurationRevision = revision;
       return;
     }
     const modelRuntime = await this.getModelRuntime();
+    if (revision !== this.configurationRevision) return;
     for (const model of this.registeredVirtualModels)
       modelRuntime.unregisterVirtualModel(model.provider, model.id);
     this.registeredVirtualModels = [];
@@ -1716,6 +1735,9 @@ export class ArtemisAgentHost {
         this.registeredProviderIds.delete(providerId);
       }
     }
+    // Start from a full catalog when credentials or explicit model lists change.
+    modelRuntime.registerNativeProvider(openrouterProvider());
+    this.openRouterCatalogPersonalized = false;
     for (const provider of providers) {
       modelRuntime.registerProvider(
         provider.id,
@@ -1726,10 +1748,44 @@ export class ArtemisAgentHost {
       );
       this.registeredProviderIds.add(provider.id);
     }
+    const openRouterCredential = resolvedConfiguration.credentials.openrouter;
+    const openRouter = modelRuntime.getProvider("openrouter");
+    if (openRouterCredential && openRouter) {
+      // Resolve through Pi so expired OAuth tokens are refreshed before listing.
+      const auth = await modelRuntime
+        .getAuth("openrouter", {
+          signal: AbortSignal.timeout(8_000),
+        })
+        .catch(() => undefined);
+      if (revision !== this.configurationRevision) return;
+      const personalized = auth?.auth.apiKey
+        ? await personalizeArtemisOpenRouter(
+            openRouter,
+            { type: "api_key", key: auth.auth.apiKey },
+            join(this.agentDir, "openrouter-catalog"),
+          )
+        : undefined;
+      if (revision !== this.configurationRevision) return;
+      if (personalized) {
+        modelRuntime.registerNativeProvider(personalized);
+        this.openRouterCatalogPersonalized = true;
+      }
+    }
     this.registeredVirtualModels = registerVirtualModels(
       modelRuntime,
       providers,
     );
+    if (
+      this.openRouterCatalogPersonalized &&
+      resolvedConfiguration.selection?.providerId === "openrouter" &&
+      !modelRuntime.getModel(
+        "openrouter",
+        resolvedConfiguration.selection.modelId,
+      )
+    ) {
+      // Keep the new account usable without silently choosing another model.
+      delete resolvedConfiguration.selection;
+    }
     const selection = resolvedConfiguration.selection;
     if (selection) {
       const catalogModel = modelRuntime.getModel(
@@ -1747,12 +1803,21 @@ export class ArtemisAgentHost {
       }
     }
     this.configuration = resolvedConfiguration;
+    this.appliedConfigurationRevision = revision;
     this.reconcileCustomAgentChildren(resolvedConfiguration.customAgents);
     for (const hosted of this.threads.values()) {
       hosted.configurationPending = true;
       // Preserve the current turn's model, prompt and resource snapshot.
       // Additive installs become visible when its next prompt starts.
-      if (!hosted.currentTurnId && !hosted.compacting) {
+      if (
+        !hosted.currentTurnId &&
+        !hosted.compacting &&
+        (!hosted.selection ||
+          modelRuntime.getModel(
+            hosted.selection.providerId,
+            hosted.selection.modelId,
+          ))
+      ) {
         await this.refreshThreadConfiguration(hosted);
       }
     }
@@ -3628,6 +3693,9 @@ export class ArtemisAgentHost {
   async catalog(): Promise<AgentRuntimeCatalog> {
     const modelRuntime = await this.getModelRuntime();
     return {
+      authoritativeProviderIds: this.openRouterCatalogPersonalized
+        ? ["openrouter"]
+        : [],
       models: modelRuntime.getModels().map((model) => {
         const thinkingLevels = getSupportedThinkingLevels(model);
         return {
@@ -5473,9 +5541,10 @@ export class ArtemisAgentHost {
         defineTool({
           name: tool.piName,
           label: `${tool.serverName}: ${tool.toolName}`,
-          ...(tool.outputSchema
-            ? { outputSchema: tool.outputSchema as TSchema }
-            : {}),
+          // Pi forwards structuredContent to Codemode only for declared outputs.
+          // MCP results without a schema can still contain any JSON value.
+          outputSchema:
+            (tool.outputSchema as TSchema | undefined) ?? Type.Unknown(),
           namespace: {
             name: tool.namespace ?? tool.serverId,
             description: tool.serverName,
@@ -5558,14 +5627,28 @@ export class ArtemisAgentHost {
               ? (hosted.childAgents.get(actorAgentId)?.session ??
                 hosted.session)
               : hosted.session;
+            const content = [...(data?.content ?? [])];
+            // Pi's model-facing history contains only content, not structuredContent.
+            // Supply a bounded text fallback when the MCP server omits one.
+            if (
+              data?.structuredContent !== undefined &&
+              !content.some(
+                (block) => block.type === "text" && block.text.trim(),
+              )
+            ) {
+              content.push({
+                type: "text",
+                text: JSON.stringify(data.structuredContent),
+              });
+            }
             const prepared = prepareMcpToolContent(
-              data?.content ?? [],
+              content,
               actorSession.model?.contextWindow,
               actorSession.getContextUsage()?.tokens,
             );
             return {
               content: prepared.content,
-              ...(data?.structuredContent
+              ...(data?.structuredContent !== undefined
                 ? {
                     structuredContent:
                       data.structuredContent as import("@earendil-works/pi-ai").JsonValue,

@@ -89,6 +89,7 @@ export function mergeBundledModelCatalog(
   bundledModels: AgentModelInfo[],
   runtimeModels: AgentModelInfo[],
   customProviderIds: Iterable<string> = [],
+  authoritativeProviderIds: Iterable<string> = [],
 ): AgentModelInfo[] {
   const customProviders = new Set(
     [...customProviderIds].map((providerId) => providerId.toLowerCase()),
@@ -99,9 +100,14 @@ export function mergeBundledModelCatalog(
       model,
     ]),
   );
+  const authoritative = new Set(authoritativeProviderIds);
   const bundledKeys = new Set<string>();
   const merged = bundledModels
-    .filter((model) => !customProviders.has(model.providerId.toLowerCase()))
+    .filter(
+      (model) =>
+        !customProviders.has(model.providerId.toLowerCase()) &&
+        !authoritative.has(model.providerId),
+    )
     .map((model) => {
       const key = `${model.providerId}\0${model.modelId}`;
       bundledKeys.add(key);

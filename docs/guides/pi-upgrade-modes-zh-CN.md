@@ -1,10 +1,10 @@
 [English / 简体中文](pi-upgrade-modes.md)
 
-# Pi 1.1.0 与 Artemis 任务模式
+# Pi 1.2.0 与 Artemis 任务模式
 
 Artemis 只使用 Pi 作为 Agent 循环。新任务默认进入 **Work**。
 
-桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.1.0。本次升级包含 Codemode 输出分隔、提供商重试与计费修复，以及更新后的模型目录。Artemis 已使用新版流类型要求的 `createAssistantMessageEventStream()`。事件适配器识别 `agent_settled.aborted`，同时保留宿主在工具执行完毕后主动结束任务的语义。提供商登录传入 `Artemis` 作为 Agent 名称。安装检查继续要求 `brace-expansion` 5.0.12。
+桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.2.0。本次升级包含更完整的 Codemode 工具声明、启动钩子与队列处理、压缩时排除思考文本，以及提供商兼容性修复。Artemis 保留 MCP 任意 JSON 结构化结果，包括 `null`、`false`、零和数组。安装检查继续要求 `brace-expansion` 5.0.12。
 
 | 模式     | 工具与完成方式                                                                                                  |
 | -------- | --------------------------------------------------------------------------------------------------------------- |
@@ -29,6 +29,10 @@ Pi 和独立 Responses 传输会重试空启动、中断流以及缺少服务商
 数据库迁移 14 在早期 `code/work` 迁移之后，将 `execute` 映射到 `work`，`review` 映射到 `plan`；旧 `code` 不会变成 Codemode。检查点、历史和自动化配置会规范化。只有原始指纹有效的自动化授权才会迁移，无效授权保持禁用。开发和测试无需使用真实用户数据库。远程 IM 权限配置目前明确拒绝 Codemode。
 
 ## 模型与 MCP 能力
+
+OpenRouter 目录使用 Pi 按密钥筛选模型、获取上下文／输出限制和价格，并支持配置的区域端点。缓存按凭据和端点隔离，支持离线使用；端点不可用时回退到配置目录。已选模型不可用时清除选择，不会静默选择其他模型。并发配置更新不会恢复旧账户的凭据或目录。
+
+MCP 工具即使未声明输出 Schema，结构化结果仍可供 Codemode 使用。服务器未提供文本时，Work 在现有上下文预算内接收 JSON 文本回退。PostToolUse 钩子附加上下文单独传递，不会替换结构化结果；错误反馈仍会拒绝结果。
 
 自定义模型高级 JSON 支持 `samplingParams`、`samplingParamsByThinkingLevel`、`thinkingLevelMap`、`inputLimits`、`promptCache`、`cacheWarming`、`compaction` 和 `virtualRoutes`。示例：
 

@@ -1,10 +1,10 @@
 [English / 简体中文](pi-upgrade-modes-zh-CN.md)
 
-# Pi 1.1.0 and Artemis task modes
+# Pi 1.2.0 and Artemis task modes
 
 Artemis uses Pi as its only agent loop. New tasks start in **Work**.
 
-The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.1.0. This upgrade includes Codemode output separation, provider retry and pricing fixes, and the updated model catalog. Artemis already uses `createAssistantMessageEventStream()`, as required by the new stream type contract. The event adapter recognizes `agent_settled.aborted` without treating intentional tool-boundary stops as user cancellation. Provider login supplies `Artemis` as the agent name. The install check continues to require `brace-expansion` 5.0.12.
+The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.2.0. This upgrade includes richer Codemode declarations, startup-hook and queue handling, compaction that omits thinking text, and provider compatibility fixes. Artemis preserves arbitrary JSON MCP results, including `null`, `false`, zero and arrays. The install check continues to require `brace-expansion` 5.0.12.
 
 | Mode     | Tools and completion                                                                                                                                              |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -29,6 +29,10 @@ Pi and the independent Responses transport retry empty starts, interrupted strea
 Database migration 14 maps `execute` to `work` and `review` to `plan`, after the older `code/work` migration. Old `code` never becomes Codemode. Checkpoints, history and automations are normalized. Automation grants migrate only when their original fingerprint is valid; invalid grants stay disabled. No live user database is needed to develop or test this migration. Remote IM profiles currently reject Codemode explicitly.
 
 ## Model and MCP capabilities
+
+OpenRouter catalogs use Pi's per-key model filtering, context/output limits and pricing, with the configured regional endpoint. Cached catalogs are isolated by credential and endpoint and support offline use; unavailable endpoints fall back to the configured catalog. An unavailable selected model is cleared without silently selecting a replacement. Concurrent configuration updates cannot restore an older account's credentials or catalog.
+
+MCP structured results remain available to Codemode even without a declared output schema. When a server supplies no text, Work receives a JSON text fallback within the existing context budget. Additive PostToolUse hook context is delivered separately so it does not replace structured output; error feedback still rejects the result.
 
 Custom model advanced JSON supports `samplingParams`, `samplingParamsByThinkingLevel`, `thinkingLevelMap`, `inputLimits`, `promptCache`, `cacheWarming`, `compaction`, and `virtualRoutes`. Example:
 

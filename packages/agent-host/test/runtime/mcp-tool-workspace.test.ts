@@ -331,90 +331,109 @@ describe("MCP task workspace propagation", () => {
     host.dispose();
   });
 
-  it("keeps brokered MCP images as Pi image content", async () => {
-    const workspacePath = await mkdtemp(
-      join(tmpdir(), "artemis-mcp-image-content-"),
-    );
-    cleanupPaths.push(workspacePath);
-    const imageData = Buffer.from("image-bytes").toString("base64");
-    const host = new ArtemisAgentHost(
-      {
-        async request() {
-          return {
-            approved: true,
-            data: {
-              content: [
-                { type: "text", text: "Rendered preview" },
-                { type: "image", data: imageData, mimeType: "image/png" },
-              ],
-              isError: false,
-              metrics: {
-                imageBytes: 11,
-                imageCount: 1,
-                omittedContentCount: 0,
-                textBytes: 16,
-              },
-            },
-          };
-        },
-      },
-      { emit() {} },
-    );
-    await host.configure({
-      credentials: {},
-      mcpTools: [
+  it.each(
+    [null, false, 0, "", [1, false, null], { ok: true }].flatMap((value) =>
+      [true, false].map((hasText) => ({ value, hasText })),
+    ),
+  )(
+    "keeps structured output and exposes text for Work ($hasText, $value)",
+    async ({ value: structuredContent, hasText }) => {
+      const workspacePath = await mkdtemp(
+        join(tmpdir(), "artemis-mcp-image-content-"),
+      );
+      cleanupPaths.push(workspacePath);
+      const imageData = Buffer.from("image-bytes").toString("base64");
+      const host = new ArtemisAgentHost(
         {
-          serverId: "renderer",
-          serverName: "Renderer",
-          transport: "stdio",
-          piName: "renderer_render",
-          toolName: "render",
-          description: "Render a preview",
-          inputSchema: { type: "object", properties: {} },
-          readOnly: true,
+          async request() {
+            return {
+              approved: true,
+              data: {
+                content: [
+                  ...(hasText
+                    ? [{ type: "text", text: "Rendered preview" }]
+                    : []),
+                  { type: "image", data: imageData, mimeType: "image/png" },
+                ],
+                structuredContent,
+                isError: false,
+                metrics: {
+                  imageBytes: 11,
+                  imageCount: 1,
+                  omittedContentCount: 0,
+                  textBytes: 16,
+                },
+              },
+            };
+          },
         },
-      ],
-    });
-    await host.openThread({
-      threadId: "mcp-image-thread",
-      workspacePath,
-      target: "local",
-    });
-    const thread = (
-      host as unknown as { threads: Map<string, InspectableThread> }
-    ).threads.get("mcp-image-thread");
-    if (thread) {
-      thread.currentTurnId = "turn-1";
-      thread.currentMode = "work";
-    }
-    const tool = await activateMcpTool(thread, "render", "renderer_render");
+        { emit() {} },
+      );
+      await host.configure({
+        credentials: {},
+        mcpTools: [
+          {
+            serverId: "renderer",
+            serverName: "Renderer",
+            transport: "stdio",
+            piName: "renderer_render",
+            toolName: "render",
+            description: "Render a preview",
+            inputSchema: { type: "object", properties: {} },
+            readOnly: true,
+          },
+        ],
+      });
+      await host.openThread({
+        threadId: "mcp-image-thread",
+        workspacePath,
+        target: "local",
+      });
+      const thread = (
+        host as unknown as { threads: Map<string, InspectableThread> }
+      ).threads.get("mcp-image-thread");
+      if (thread) {
+        thread.currentTurnId = "turn-1";
+        thread.currentMode = "work";
+      }
+      const tool = await activateMcpTool(thread, "render", "renderer_render");
+      expect(tool).toHaveProperty("outputSchema");
 
-    await expect(
-      tool?.execute("mcp-call", {
-        arguments: {},
-        model_approval: {
-          risk: "low",
-          explicit_user_request: false,
-          reason: "Read-only preview rendering.",
-        },
-      }),
-    ).resolves.toMatchObject({
-      content: [
-        { type: "text", text: "Rendered preview" },
-        { type: "image", data: imageData, mimeType: "image/png" },
-      ],
-    });
+      await expect(
+        tool?.execute("mcp-call", {
+          arguments: {},
+          model_approval: {
+            risk: "low",
+            explicit_user_request: false,
+            reason: "Read-only preview rendering.",
+          },
+        }),
+      ).resolves.toMatchObject({
+        structuredContent,
+        content: [
+          ...(hasText ? [{ type: "text", text: "Rendered preview" }] : []),
+          { type: "image", data: imageData, mimeType: "image/png" },
+          ...(!hasText
+            ? [{ type: "text", text: JSON.stringify(structuredContent) }]
+            : []),
+        ],
+      });
 
-    host.dispose();
-  });
+      host.dispose();
+    },
+  );
 
-  it.each([
-    ["x".repeat(600 * 1024), true],
-    ["中".repeat(600 * 1024), true],
-    ["x".repeat(150 * 1024), false],
-  ])(
-    "budgets MCP text in tokens rather than bytes (%#)",
-    async (body, truncated) => {
+  it.each(
+    [
+      { body: "x".repeat(600 * 1024), truncated: true },
+      { body: "中".repeat(600 * 1024), truncated: true },
+      { body: "x".repeat(150 * 1024), truncated: false },
+    ].flatMap((test) =>
+      [false, true].map((structuredOnly) => ({ ...test, structuredOnly })),
+    ),
+  )(
+    "budgets MCP text and structured fallbacks in tokens (%#)",
+    async ({ body, truncated, structuredOnly }) => {
       const workspacePath = await mkdtemp(
         join(tmpdir(), "artemis-mcp-text-budget-"),
       );
@@ -426,7 +445,10 @@ describe("MCP task workspace propagation", () => {
             return {
               approved: true,
               data: {
-                content: [{ type: "text", text: oversized }],
+                content: structuredOnly
+                  ? []
+                  : [{ type: "text", text: oversized }],
+                ...(structuredOnly ? { structuredContent: oversized } : {}),
                 isError: false,
                 metrics: {
                   imageBytes: 0,
@@ -509,7 +531,9 @@ describe("MCP task workspace propagation", () => {
         );
         expect(text).toContain("MCP output truncated by Artemis");
       } else {
-        expect(text === oversized).toBe(true);
+        expect(text).toBe(
+          structuredOnly ? JSON.stringify(oversized) : oversized,
+        );
       }
       expect(text).toContain("TAIL_SENTINEL");
 

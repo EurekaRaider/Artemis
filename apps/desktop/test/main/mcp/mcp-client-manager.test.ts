@@ -1282,6 +1282,59 @@ lines.on("line", (line) => {
     });
   });
 
+  it.each([null, false, 0, "", [1, false, null], { ok: true }])(
+    "preserves structured MCP output %j through the desktop broker",
+    async (structuredContent) => {
+      const client: McpConnection = {
+        listTools: async () => ({
+          tools: [{ name: "result", inputSchema: { type: "object" } }],
+        }),
+        callTool: async () => ({ content: [], structuredContent }),
+        close: async () => {},
+      };
+      const manager = new McpClientManager(
+        "darwin",
+        undefined,
+        async () => client,
+      );
+      try {
+        await manager.connect(config);
+        expect(await manager.call(config.id, "result", {})).toHaveProperty(
+          "structuredContent",
+          structuredContent,
+        );
+      } finally {
+        await manager.dispose();
+      }
+    },
+  );
+
+  it("counts structured output towards the MCP transfer limit", async () => {
+    const client: McpConnection = {
+      listTools: async () => ({
+        tools: [{ name: "large", inputSchema: { type: "object" } }],
+      }),
+      callTool: async () => ({
+        content: [],
+        structuredContent: "x".repeat(2 * 1024 * 1024),
+      }),
+      close: async () => {},
+    };
+    const manager = new McpClientManager(
+      "darwin",
+      undefined,
+      async () => client,
+    );
+    try {
+      await manager.connect(config);
+      await expect(manager.call(config.id, "large", {})).rejects.toThrow(
+        "exceeds 2 MiB",
+      );
+    } finally {
+      await manager.dispose();
+    }
+  });
+
   it("preserves MCP image blocks instead of serializing base64 as text", async () => {
     const imageData = Buffer.from("image-bytes").toString("base64");
     const client: McpConnection = {

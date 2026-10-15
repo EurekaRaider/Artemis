@@ -187,9 +187,12 @@ it("runs the same hook events for IM chats", async () => {
   expect(
     await f.runner.emitInput("hello", undefined, "interactive"),
   ).toMatchObject({ action: "continue" });
-  await f.runner.emitBeforeAgentStart("hello", undefined, {
-    selectedTools: [],
-  } as never);
+  await f.runner.emitBeforeAgentStart(
+    { messageType: "user", prompt: "hello" },
+    {
+      selectedTools: [],
+    },
+  );
   expect(
     f.calls.map(
       (call) => call.kind === "hook.run" && call.invocation.hook_event_name,
@@ -302,5 +305,32 @@ it.each(
     expect(stream).toHaveBeenCalledTimes(3);
     if (mode !== "plan") expect(f.calls.length).toBeGreaterThan(0);
     else expect(f.calls).toEqual([]);
+  },
+);
+
+it.each([null, false, { value: 42 }])(
+  "drops structured output %j when hook feedback replaces a result with an error",
+  async (structuredContent) => {
+    const f = await fixture({ feedback: "Result rejected" });
+    const result = await f.runner.emitToolResult({
+      type: "tool_result",
+      toolName: "mcp_test",
+      toolCallId: "call",
+      input: {},
+      content: [{ type: "text", text: "original" }],
+      structuredContent,
+      isError: false,
+    });
+    expect(result).toMatchObject({
+      content: [{ type: "text", text: "Result rejected" }],
+      isError: true,
+    });
+    expect(result?.structuredContent).toBeUndefined();
+    expect(f.calls.at(-1)).toMatchObject({
+      invocation: {
+        hook_event_name: "PostToolUse",
+        tool_response: { structuredContent },
+      },
+    });
   },
 );

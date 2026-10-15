@@ -111,6 +111,33 @@ describe("visible model catalog", () => {
     ]);
   });
 
+  it("uses authoritative account catalogs including an empty OpenRouter list", () => {
+    const bundled = [
+      model("openrouter", "allowed"),
+      model("openrouter", "blocked"),
+      model("openai", "other"),
+    ];
+    const personalized = {
+      ...model("openrouter", "allowed"),
+      contextWindow: 64000,
+      configured: true,
+    };
+    expect(
+      mergeBundledModelCatalog(bundled, [personalized], [], ["openrouter"]),
+    ).toEqual([bundled[2], personalized]);
+    expect(mergeBundledModelCatalog(bundled, [], [], ["openrouter"])).toEqual([
+      bundled[2],
+    ]);
+    expect(
+      mergeBundledModelCatalog(
+        bundled,
+        [personalized],
+        ["openrouter"],
+        ["openrouter"],
+      ),
+    ).toEqual([bundled[2], personalized]);
+  });
+
   it("does not expose bundled models shadowed by a custom provider", () => {
     const bundled = [
       model("zai", "glm-5.3"),

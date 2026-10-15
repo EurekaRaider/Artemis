@@ -34,6 +34,8 @@ import type {
   RunMode,
 } from "@artemis/protocol";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import {
   UnauthorizedError,
   type OAuthClientProvider,
@@ -58,9 +60,34 @@ interface McpTool {
 }
 
 interface McpCallResult {
-  structuredContent?: Record<string, unknown>;
+  structuredContent?: unknown;
   content?: unknown[];
   isError?: boolean;
+}
+
+// MCP permits any JSON value here. Keep the SDK's content/error validation and
+// declared output-schema checks while widening its older object-only envelope.
+const mcpCallResultSchema = CallToolResultSchema.extend({
+  structuredContent: z.json().optional(),
+});
+
+export async function callMcpClientTool(
+  client: Client,
+  input: Parameters<McpConnection["callTool"]>[0],
+  signal?: AbortSignal,
+): Promise<McpCallResult> {
+  const result = await client.callTool(
+    input,
+    mcpCallResultSchema as unknown as typeof CallToolResultSchema,
+    signal ? { signal } : undefined,
+  );
+  return {
+    content: result.content as unknown[],
+    ...(result.structuredContent === undefined
+      ? {}
+      : { structuredContent: result.structuredContent }),
+    isError: Boolean(result.isError),
+  };
 }
 
 export interface McpConnection {
@@ -952,7 +979,7 @@ function formatMcpResult(result: McpCallResult): McpToolCallResult {
     addText(`[Unsupported MCP content omitted: ${contentType(item)}]`);
   }
 
-  if (result.structuredContent)
+  if (result.structuredContent !== undefined)
     transferBytes += Buffer.byteLength(
       JSON.stringify(result.structuredContent),
       "utf8",
@@ -962,7 +989,7 @@ function formatMcpResult(result: McpCallResult): McpToolCallResult {
   }
   return {
     content,
-    ...(result.structuredContent
+    ...(result.structuredContent !== undefined
       ? { structuredContent: result.structuredContent }
       : {}),
     isError: Boolean(result.isError),
@@ -1021,7 +1048,7 @@ export class McpClientManager {
     ) => {
       let client = new Client({
         name: "Artemis",
-        version: "1.7.16",
+        version: "1.7.17",
       });
       let stdioTransport: StdioClientTransport | undefined;
       let waitForWindowsSandboxTeardown = false;
@@ -1303,7 +1330,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.7.16",
+            version: "1.7.17",
           });
           command = {
             ...command,
@@ -1361,7 +1388,7 @@ export class McpClientManager {
           }
           client = new Client({
             name: "Artemis",
-            version: "1.7.16",
+            version: "1.7.17",
           });
           transport = createTransport();
           await client.connect(transport as Parameters<Client["connect"]>[0]);
@@ -1394,15 +1421,7 @@ export class McpClientManager {
           };
         },
         async callTool(input, signal) {
-          const result = await client.callTool(
-            input,
-            undefined,
-            signal ? { signal } : undefined,
-          );
-          return {
-            content: result.content as unknown[],
-            isError: Boolean(result.isError),
-          };
+          return callMcpClientTool(client, input, signal);
         },
         close: () =>
           stdioTransport

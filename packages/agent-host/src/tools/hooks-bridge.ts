@@ -188,13 +188,32 @@ export function createHooksBridge(options: HookBridgeOptions) {
         tool_name: toolName,
         tool_use_id: toolCallId,
         tool_input: input,
-        tool_response: { content: event.content, isError: event.isError },
+        tool_response: {
+          content: event.content,
+          isError: event.isError,
+          ...(event.structuredContent === undefined
+            ? {}
+            : { structuredContent: event.structuredContent }),
+        },
       });
       if (result.feedback)
         return {
           content: [{ type: "text", text: result.feedback }],
           isError: true,
         };
+      if (result.context && event.structuredContent !== undefined) {
+        // Replacing content invalidates Pi's structured result. Deliver additive
+        // hook context separately so Codemode retains the exact JSON value.
+        pi.sendMessage(
+          {
+            customType: "artemis-hook-context",
+            content: result.context,
+            display: false,
+          },
+          { deliverAs: "nextTurn" },
+        );
+        return;
+      }
       if (result.context)
         return {
           content: [...event.content, { type: "text", text: result.context }],

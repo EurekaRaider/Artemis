@@ -76,7 +76,7 @@ export interface McpToolResultMetrics {
 }
 
 export interface McpToolCallResult {
-  structuredContent?: Record<string, unknown>;
+  structuredContent?: unknown;
   content: McpToolResultContent[];
   isError: boolean;
   metrics: McpToolResultMetrics;
@@ -136,6 +136,8 @@ export interface AgentModelInfo {
 }
 
 export interface AgentRuntimeCatalog {
+  /** Runtime catalogs that replace bundled and saved model metadata, including an empty list. */
+  authoritativeProviderIds?: string[];
   models: AgentModelInfo[];
   selection?: ModelSelection;
 }
