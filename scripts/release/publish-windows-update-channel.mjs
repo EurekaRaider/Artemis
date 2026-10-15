@@ -43,10 +43,14 @@ for (const asset of next.assets) {
 const directory = await mkdtemp(join(tmpdir(), "artemis-update-channel-"));
 try {
   // A 404 is distinct from permission/network errors: never reset a channel after a failed read.
-  const releases = JSON.parse(
-    gh("api", `repos/${repository}/releases?per_page=100`),
-  );
-  if (releases.some((item) => item.tag_name === tag)) {
+  const tags = gh(
+    "api",
+    `repos/${repository}/releases?per_page=100`,
+    "--paginate",
+    "--jq",
+    ".[].tag_name",
+  ).split("\n");
+  if (tags.includes(tag)) {
     gh(
       "release",
       "download",
