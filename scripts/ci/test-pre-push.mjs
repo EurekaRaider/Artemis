@@ -218,7 +218,12 @@ test("Release verifies both native macOS architectures and supports packaging wi
   assert.equal(workflow.jobs.publish.needs, "collect");
   assert.equal(workflow.jobs.publish.if, "inputs.publish");
   for (const [name, job] of Object.entries(workflow.jobs))
-    if (name !== "publish") assert.notEqual(job.permissions?.contents, "write");
+    if (!["publish", "resume"].includes(name))
+      assert.notEqual(job.permissions?.contents, "write");
+  assert.equal(
+    workflow.jobs.resume.if,
+    "github.ref == 'refs/heads/main' && inputs.resume_run_id && inputs.publish",
+  );
 });
 test("native macOS package verification accepts Intel Mach-O architecture names", () => {
   const source = readFileSync(

@@ -42,6 +42,7 @@ for (const asset of next.assets) {
 }
 const directory = await mkdtemp(join(tmpdir(), "artemis-update-channel-"));
 try {
+  let alreadyCurrent = false;
   // A 404 is distinct from permission/network errors: never reset a channel after a failed read.
   const tags = gh(
     "api",
@@ -62,13 +63,12 @@ try {
       "--dir",
       directory,
     );
-    const previous = verifyUpdateIndex(
-      await readFile(join(directory, filename)),
-      keys,
-    );
+    const previousBytes = await readFile(join(directory, filename));
+    const previous = verifyUpdateIndex(previousBytes, keys);
+    alreadyCurrent = bytes.equals(previousBytes);
     if (
       next.sequence < previous.sequence ||
-      (next.sequence === previous.sequence && next.version !== previous.version)
+      (next.sequence === previous.sequence && !alreadyCurrent)
     )
       throw new Error("Refusing update channel replay or sequence reuse");
   } else {
@@ -85,15 +85,16 @@ try {
       "--latest=false",
     );
   }
-  gh(
-    "release",
-    "upload",
-    tag,
-    join(input, filename),
-    "--repo",
-    repository,
-    "--clobber",
-  );
+  if (!alreadyCurrent)
+    gh(
+      "release",
+      "upload",
+      tag,
+      join(input, filename),
+      "--repo",
+      repository,
+      "--clobber",
+    );
   await rm(join(directory, filename), { force: true });
   gh(
     "release",

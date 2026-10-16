@@ -10,6 +10,10 @@ name: Release
         description: Publish verified artifacts and advance the update channel
         type: boolean
         default: true
+      resume_run_id:
+        description: Resume an already public release using verified artifacts from this original Release run ID
+        type: string
+        default: ""
 permissions:
   contents: read
   actions: read
@@ -56,7 +60,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ARTEMIS_UPDATE_OWNER: EurekaRaider
           ARTEMIS_UPDATE_REPO: Artemis
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && !inputs.resume_run_id
   ci:
     name: Release CI
     needs: prepare
@@ -347,7 +351,15 @@ jobs:
           node-version: 26
       - name: Install release verification dependencies
         run: npm ci --ignore-scripts
+      - name: Check for an identical public release
+        id: public-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: node scripts/release/verify-release-resume.mjs verify release-assets --allow-unpublished
       - name: Publish verified client packages
+        if: steps.public-release.outputs.published != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -457,6 +469,51 @@ jobs:
 
           retry gh release edit "$RELEASE_TAG" --repo "$target_repo" --notes-file
           "$RUNNER_TEMP/artemis-release-notes.md" --draft=false
+      - name: Advance signed Windows platform channel and verify readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release/publish-windows-update-channel.mjs release-assets
+  resume:
+    name: Resume verified public release
+    if: github.ref == 'refs/heads/main' && inputs.resume_run_id && inputs.publish
+    permissions:
+      contents: write
+      actions: read
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out recovery tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Node.js 26
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+      - name: Install release verification dependencies
+        run: npm ci --ignore-scripts
+      - name: Validate original release gates and artifact provenance
+        id: original
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ORIGINAL_RUN_ID: ${{ inputs.resume_run_id }}
+        run: node scripts/release/verify-release-resume.mjs prepare "$ORIGINAL_RUN_ID"
+      - name: Download the original verified release assets
+        uses: actions/download-artifact@v6
+        with:
+          artifact-ids: ${{ steps.original.outputs.artifact_id }}
+          run-id: ${{ inputs.resume_run_id }}
+          github-token: ${{ github.token }}
+          path: release-assets
+          merge-multiple: true
+      - name: Verify immutable public release against original source and assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_SHA: ${{ steps.original.outputs.sha }}
+        run: node scripts/release/verify-release-resume.mjs verify release-assets
       - name: Advance signed Windows platform channel and verify readback
         env:
           GH_TOKEN: ${{ github.token }}

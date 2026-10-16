@@ -76,3 +76,33 @@ it("still rejects an older signed update sequence before upload", async () => {
   await expect(import("./publish-windows-update-channel.mjs")).rejects.toThrow("Refusing update channel replay");
   expect(mocks.run.mock.calls.some(([, args]) => args[1] === "upload")).toBe(false);
 });
+
+it("does not upload an identical already published channel", async () => {
+  previousSequence = 123;
+  await import("./publish-windows-update-channel.mjs");
+  expect(
+    mocks.run.mock.calls.some(([, args]) =>
+      ["create", "upload"].includes(args[1]),
+    ),
+  ).toBe(false);
+  expect(
+    mocks.run.mock.calls.filter(([, args]) => args[1] === "download"),
+  ).toHaveLength(2);
+});
+
+it("rejects different bytes with the same sequence and version", async () => {
+  previousSequence = 123;
+  const read = mocks.read.getMockImplementation()!;
+  mocks.read.mockImplementation(async (path) => {
+    const bytes = await read(path);
+    return path === join("/channel-readback", "windows-x64-update.json")
+      ? Buffer.concat([bytes, Buffer.from("\n")])
+      : bytes;
+  });
+  await expect(import("./publish-windows-update-channel.mjs")).rejects.toThrow(
+    "Refusing update channel replay",
+  );
+  expect(mocks.run.mock.calls.some(([, args]) => args[1] === "upload")).toBe(
+    false,
+  );
+});

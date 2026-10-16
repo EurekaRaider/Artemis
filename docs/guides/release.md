@@ -8,7 +8,7 @@ macOS CI 与打包任务按架构和锁文件缓存 npm 与 Electron 下载；�
 
 ## 主程序
 
-Release 工作流只允许从 main 手动启动，`release_tag` 必须等于 package.json 的 `v<version>`，发布说明首行必须匹配。每次从同一提交重新执行三种目标的 CI；不复用其他提交的验收记录。`publish=false` 运行完整签名、公证、打包与产物汇总验证，但不创建 Release 或更新通道；只有 `publish=true` 才执行发布。
+Release 工作流只允许从 main 手动启动，`release_tag` 必须等于 package.json 的 `v<version>`，发布说明首行必须匹配。正常发布每次从同一提交重新执行三种目标的 CI；不复用其他提交的验收记录。`publish=false` 运行完整签名、公证、打包与产物汇总验证，但不创建 Release 或更新通道；只有 `publish=true` 才执行发布。
 
 macOS 先签名，再通过短期 Actions artifact 交给公证任务；公证、staple、最终 DMG/ZIP 检查通过后上传明确列出的附件。签名密钥由构建工具临时钥匙串管理，不上传私人钥匙串或中间签名材料到 Release。
 
@@ -17,6 +17,10 @@ arm64 和 x64 在各自原生 runner 上分别构建和验收，包括 PTY、Sea
 Windows 生成当前用户级 NSIS 安装包和手动 ZIP。NSIS 不请求提权。发布必须配置 `ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`，公钥在 `apps/desktop/resources/update-public-keys.json`。签名索引绑定平台、架构、版本、递增序号和 EXE/ZIP 哈希。`ARTEMIS_UPDATE_SEQUENCE` 来自 Release 工作流 run number；重建工作流或迁移仓库前确认序号不会倒退。
 
 最终附件发布到公共 `EurekaRaider/Artemis`。发布器先检查所有附件摘要并回读上传结果，再公开版本。之后更新独立 `windows-x64-stable` Release 中的签名索引，并下载比对字节。不要用 GitHub 最新 Release 是否含 Windows 附件来判断 Windows 更新。
+
+版本已公开但最后的通道步骤失败时，可直接重跑失败作业。发布前检查会核对 tag 实际指向的源码提交、原产物清单、每个文件的大小和 SHA-256；完全一致才跳过上传并继续通道步骤，不修改公开附件。相同通道字节无需再次上传，同一序号的不同内容或更旧的序号会被拒绝。
+
+如果修复了流水线代码，需要用 main 上的新工具恢复旧运行，可手动启动 Release，设置原版本的 `release_tag`、`publish=true` 和 `resume_run_id=<原 Release 运行编号>`。恢复作业检查原运行来自同仓库 main 的 Release 工作流且已结束、三平台签名和验收及汇总均成功，再下载该运行唯一且未过期的 `verified-release-assets`。版本从原提交读取，公开 tag 和所有附件必须与原提交、原产物完全匹配；不重新构建、签名或生成序号。原产物保留 7 天，过期、缺失、资产不一致或通道已推进到更新序号时停止，不覆盖公开版本或回退通道。此选项仅用于已公开版本；正常发布保持 `resume_run_id` 为空。
 
 必要 Secret：`CSC_LINK`、`CSC_KEY_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID`、`ARTEMIS_UPDATE_ED25519_PRIVATE_KEY`。附件发布使用本仓库 `GITHUB_TOKEN`，仅发布作业授予 `contents: write`。发布凭据不获得源码 main 规则绕过权限。
 

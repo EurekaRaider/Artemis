@@ -19,10 +19,13 @@ it("publishes only after fresh exact-head CI and both platform verifications", (
   ]);
   expect(workflow.jobs.publish.needs).toBe("collect");
   expect(workflow.jobs.publish.if).toBe("inputs.publish");
-  expect(workflow.jobs.prepare.if).toBe("github.ref == 'refs/heads/main'");
+  expect(workflow.jobs.prepare.if).toBe(
+    "github.ref == 'refs/heads/main' && !inputs.resume_run_id",
+  );
   expect(Object.keys(workflow.on.workflow_dispatch.inputs)).toEqual([
     "release_tag",
     "publish",
+    "resume_run_id",
   ]);
   expect(workflow.on.workflow_dispatch.inputs.publish).toMatchObject({
     type: "boolean",
@@ -78,4 +81,44 @@ it("archives the workspace dependency closure needed by macOS native verificatio
       ),
     );
   }
+});
+
+it("resumes only the original verified public release without rebuilding or overwriting assets", () => {
+  const resume = workflow.jobs.resume;
+  expect(resume.if).toBe(
+    "github.ref == 'refs/heads/main' && inputs.resume_run_id && inputs.publish",
+  );
+  expect(workflow.concurrency).toEqual({
+    group: "release-desktop",
+    "cancel-in-progress": false,
+  });
+  const steps = resume.steps;
+  const provenance = steps.findIndex((step: any) => step.id === "original");
+  const download = steps.findIndex((step: any) =>
+    step.uses?.startsWith("actions/download-artifact"),
+  );
+  const verify = steps.findIndex(
+    (step: any) =>
+      step.run ===
+      "node scripts/release/verify-release-resume.mjs verify release-assets",
+  );
+  const channel = steps.findIndex((step: any) =>
+    step.run?.includes("publish-windows-update-channel.mjs"),
+  );
+  expect(provenance).toBeGreaterThan(-1);
+  expect(download).toBeGreaterThan(provenance);
+  expect(verify).toBeGreaterThan(download);
+  expect(channel).toBeGreaterThan(verify);
+  expect(steps[download].with).toMatchObject({
+    "artifact-ids": "${{ steps.original.outputs.artifact_id }}",
+    "run-id": "${{ inputs.resume_run_id }}",
+    "merge-multiple": true,
+  });
+  expect(steps[verify].env.RELEASE_SHA).toBe(
+    "${{ steps.original.outputs.sha }}",
+  );
+  const publish = workflow.jobs.publish.steps.find(
+    (step: any) => step.name === "Publish verified client packages",
+  );
+  expect(publish.if).toBe("steps.public-release.outputs.published != 'true'");
 });
