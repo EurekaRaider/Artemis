@@ -11,7 +11,7 @@ describe("UI Gallery public package contract", () => {
     expect(galleryContract).toEqual(
       expect.objectContaining({
         uiContractVersion: 1,
-        themeVersion: "1.7.17",
+        themeVersion: "1.7.18",
         skinId: "com.artemis.default",
         stressSkinId: "com.artemis.synthetic-stress",
       }),

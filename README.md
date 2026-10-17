@@ -54,13 +54,20 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.17** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.18** · [Release notes](docs/records/release-notes.md).
 
-This revision upgrades Pi to **1.2.0**, preserves MCP structured results across
-Work, Codemode and hooks, and adds account-specific OpenRouter model catalogs
-with regional endpoints and offline cache support. Account changes keep the
-catalog and selected model consistent. Regression coverage includes Codemode,
-startup hooks, cancellation, queued messages and context compaction.
+This revision upgrades Pi to **1.3.0**, preserves Artemis's existing Codemode
+concurrency, and improves cancellation, Kimi Coding and custom Responses
+compatibility. Real-worker regression checks cover up to 64 concurrent workers,
+nested agent waits and replacement work after cancellation.
+
+Share a reviewed snapshot of the current conversation branch from a project's
+task menu or Recents. Select messages, optionally include tool details, thinking
+and images, then export an offline HTML file or upload to Radius or a secret
+GitHub Gist. Tool details, thinking and images are excluded by default; private
+workspace and model configuration are removed. Preview and sharing controls
+support light and dark themes. A secret Gist is unlisted: anyone with its link
+can read it.
 
 Optional next-message suggestions appear in the empty composer after
 an ordinary desktop reply. Press **Tab** to insert a suggestion or **Escape** to
@@ -72,7 +79,7 @@ Attachment imports show progress and cancellation. Local files are stored on
 demand and indexed in batches; PDF reading initializes the worker runtime before
 extracting text. Native attachment checks cover 1,000 distinct source paths.
 
-Pi **1.2.0** powers native classifier and image model calls in Codemode for main
+Pi **1.3.0** powers native classifier and image model calls in Codemode for main
 and child agents. Classification supports image
 input when the selected model supports it. Custom agents inherit the current task
 mode and host permissions; legacy tool allowlists migrate to this policy. Plan
