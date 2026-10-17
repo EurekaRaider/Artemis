@@ -1,4 +1,5 @@
 import { openrouterProvider } from "@earendil-works/pi-ai/providers/openrouter";
+import { CodemodeWorkerPool } from "./codemode-workers.js";
 import { personalizeArtemisOpenRouter } from "../models/openrouter-catalog.js";
 import { composerPredictionInstruction } from "@artemis/protocol";
 import { withComposerPredictionContext } from "../context/composer-prediction.js";
@@ -1419,6 +1420,7 @@ export class ArtemisAgentHost {
   private readonly threads = new Map<string, HostedThread>();
   private readonly credentials: RuntimeCredentialStore;
   private readonly concurrency: AgentConcurrencyLimiter;
+  private readonly codemodeWorkers: CodemodeWorkerPool;
   private readonly shellRuntime: ArtemisShellRuntime;
   private readonly bashExecutions: ObservedBashRegistry;
   private readonly cancelledTurns = new Set<string>();
@@ -1551,7 +1553,12 @@ export class ArtemisAgentHost {
     this.concurrency = new AgentConcurrencyLimiter(
       limit,
       parentConcurrencyLimit(limit),
+      () => this.codemodeWorkers?.refresh(),
     );
+    this.codemodeWorkers = new CodemodeWorkerPool(() => {
+      const { limit, waiting } = this.concurrency.snapshot;
+      return limit + waiting;
+    });
     this.modelStreamIdleTimeoutMs =
       options.modelStreamIdleTimeoutMs ??
       MODEL_STREAM_IDLE_TIMEOUT_MILLISECONDS;
@@ -1569,7 +1576,12 @@ export class ArtemisAgentHost {
         `Agent concurrency limit must be an integer from ${AGENT_CONCURRENCY_MINIMUM} to ${AGENT_CONCURRENCY_MAXIMUM}.`,
       );
     }
-    return this.concurrency.setLimits(limit, parentConcurrencyLimit(limit));
+    const snapshot = this.concurrency.setLimits(
+      limit,
+      parentConcurrencyLimit(limit),
+    );
+    this.codemodeWorkers.refresh();
+    return snapshot;
   }
 
   concurrencyStatus(): AgentConcurrencySnapshot {
@@ -6058,7 +6070,12 @@ export class ArtemisAgentHost {
                   extensionFactories: [
                     childHooksBridge.factory,
                     codemodePolicyExtension(() => input.mode),
-                    createCodemodeExtension({ mode: "only", models: true }),
+                    createCodemodeExtension({
+                      mode: "only",
+                      models: true,
+                      acquireWorker: (signal) =>
+                        this.codemodeWorkers.acquire(signal),
+                    }),
                   ],
                   ...childOverrides,
                   ...(request.remoteExecution
@@ -6577,7 +6594,11 @@ export class ArtemisAgentHost {
         codemodePolicyExtension(
           () => this.threads.get(request.threadId)?.currentMode,
         ),
-        createCodemodeExtension({ mode: "only", models: true }),
+        createCodemodeExtension({
+          mode: "only",
+          models: true,
+          acquireWorker: (signal) => this.codemodeWorkers.acquire(signal),
+        }),
       ],
       ...createResourceOverrides(() => {
         const opened = this.threads.get(request.threadId);
@@ -7619,6 +7640,7 @@ export class ArtemisAgentHost {
   }
 
   dispose(): void {
+    this.codemodeWorkers.dispose();
     for (const hosted of this.threads.values()) {
       hosted.unsubscribe();
       for (const child of hosted.childAgents.values()) {

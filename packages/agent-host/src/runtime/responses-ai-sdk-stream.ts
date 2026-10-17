@@ -2,6 +2,7 @@ import {
   createOpenAI,
   type OpenAILanguageModelResponsesOptions,
 } from "@ai-sdk/openai";
+import { parseToolCallArguments } from "@earendil-works/pi-ai/utils/json-parse";
 import {
   jsonSchema,
   streamText,
@@ -16,7 +17,6 @@ import {
   getCurrentSystemPrompt,
   getCurrentTools,
   normalizeContext,
-  type JsonObject,
   createAssistantMessageEventStream,
   type Api,
   type AssistantMessage,
@@ -101,7 +101,7 @@ function toModelMessages(context: Context): ModelMessage[] {
           : `[image result: ${content.mimeType}]`,
       )
       .join("\n");
-    return [
+    const results: ModelMessage[] = [
       {
         role: "tool",
         content: [
@@ -129,6 +129,25 @@ function toModelMessages(context: Context): ModelMessage[] {
         ],
       },
     ];
+    if (message.isError) {
+      const images = message.content.filter((part) => part.type === "image");
+      if (images.length)
+        results.push({
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Images returned by failed tool ${message.toolName}:`,
+            },
+            ...images.map((part) => ({
+              type: "image" as const,
+              image: part.data,
+              mediaType: part.mimeType,
+            })),
+          ],
+        });
+    }
+    return results;
   });
 }
 
@@ -249,6 +268,7 @@ export function streamOpenAIResponsesWithAiSdk(
 
   void (async () => {
     try {
+      options?.signal?.throwIfAborted();
       outputStream.push({ type: "start", partial: output });
       const headers = requestHeaders(options?.headers);
       const samplingParams = {
@@ -423,6 +443,7 @@ export function streamOpenAIResponsesWithAiSdk(
       };
 
       for await (const part of result.fullStream) {
+        options?.signal?.throwIfAborted();
         if (part.type === "text-start") {
           ensureTextBlock(part.id);
         } else if (part.type === "text-delta") {
@@ -487,15 +508,16 @@ export function streamOpenAIResponsesWithAiSdk(
           const state = ensureToolBlock(part.toolCallId, part.toolName);
           const block = output.content[state.contentIndex];
           if (block?.type !== "toolCall") continue;
-          const argumentsValue =
-            part.input &&
-            typeof part.input === "object" &&
-            !Array.isArray(part.input)
-              ? (part.input as JsonObject)
-              : { input: (part.input ?? null) as JsonObject[string] };
-          block.arguments = argumentsValue;
+          const raw =
+            state.json ||
+            (typeof part.input === "string"
+              ? part.input
+              : JSON.stringify(part.input ?? {}));
+          Object.assign(block, parseToolCallArguments(raw));
+          // Pi repairs the full input and validates it against the actual tool
+          // before execution, including inputs the AI SDK could not parse.
           if (!state.json) {
-            state.json = JSON.stringify(argumentsValue);
+            state.json = raw;
             outputStream.push({
               type: "toolcall_delta",
               contentIndex: state.contentIndex,
@@ -536,6 +558,13 @@ export function streamOpenAIResponsesWithAiSdk(
         throw new Error(
           "Network error: stream ended before a terminal response event.",
         );
+      }
+      options?.signal?.throwIfAborted();
+      for (const [id, state] of toolBlocks) {
+        if (!state.ended)
+          throw new Error(
+            `Responses stream completed with an unfinished tool call: ${id}`,
+          );
       }
       for (const state of textBlocks.values()) {
         const block = output.content[state.contentIndex];

@@ -82,6 +82,15 @@ export class ProviderLoginService {
       }),
     );
   }
+  async radiusArtifactToken(signal: AbortSignal): Promise<string | undefined> {
+    const runtime = await this.models();
+    return (
+      await runtime.getAuth("radius", {
+        signal,
+        minOAuthValidityMs: 5 * 60_000,
+      })
+    )?.auth.apiKey;
+  }
   async start(
     providerId: string,
     type: "api_key" | "oauth",

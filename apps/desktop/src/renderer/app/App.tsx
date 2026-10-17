@@ -1,5 +1,6 @@
 import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
 import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
+import { ConversationShareDialog } from "../conversation/ConversationShareDialog.js";
 import {
   applyStreamBatch,
   mergeThreadEvents,
@@ -1041,6 +1042,7 @@ export function App() {
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const [threadMenuId, setThreadMenuId] = useState<string>();
+  const [sharingThreadId, setSharingThreadId] = useState<string>();
   const threadMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const threadRenameInput = useRef<HTMLInputElement>(null);
   const [threadRename, setThreadRename] = useState<{
@@ -6783,6 +6785,20 @@ export function App() {
                                   </button>
                                   <button
                                     role="menuitem"
+                                    onClick={() => {
+                                      setThreadMenuId(undefined);
+                                      setSharingThreadId(thread.id);
+                                    }}
+                                  >
+                                    <ArtemisIcon
+                                      name="external"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{uiText(locale, "Share.title")}</span>
+                                  </button>
+                                  <button
+                                    role="menuitem"
                                     disabled={
                                       thread.status === "running" ||
                                       thread.status === "waiting-approval"
@@ -7038,6 +7054,16 @@ export function App() {
                         >
                           <ArtemisIcon name="edit" width={16} height={16} />
                           <span>{t.renameTask}</span>
+                        </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setThreadMenuId(undefined);
+                            setSharingThreadId(thread.id);
+                          }}
+                        >
+                          <ArtemisIcon name="external" width={16} height={16} />
+                          <span>{uiText(locale, "Share.title")}</span>
                         </button>
                         <button
                           role="menuitem"
@@ -10084,6 +10110,14 @@ ${model.providerId} · ${model.modelId}`}
             {uiText(locale, "WorkspaceSave.retainDraftAndClose")}
           </Button>
         </Dialog>
+      )}
+      {sharingThreadId && (
+        <ConversationShareDialog
+          key={sharingThreadId}
+          threadId={sharingThreadId}
+          locale={locale}
+          onClose={() => setSharingThreadId(undefined)}
+        />
       )}
       {threadRename && (
         <Dialog

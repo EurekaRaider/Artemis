@@ -105,10 +105,12 @@ describe("task notification shutdown", () => {
     const handlers = new Map<string, () => void>();
     const close = vi.fn();
     const stopIm = vi.fn();
+    const disposeShares = vi.fn();
     new Function(
       "app",
       "store",
       "imService",
+      "disposeShares",
       `
       let shuttingDown = false;
       const hookSessionsEnded = true, hooksService = undefined;
@@ -120,6 +122,7 @@ describe("task notification shutdown", () => {
       const appearanceService = undefined;
       const pluginDispatch = undefined, designPanelHost = undefined;
       const threadHistoryService = undefined, releaseUpdateManager = undefined;
+      const conversationShareService = { dispose: disposeShares };
       const sleepPrevention = { dispose: () => {} };
       const pendingUserInputs = { cancelWhere: () => [] };
       const pendingMultiUserInputs = { cancelWhere: () => [] };
@@ -133,8 +136,10 @@ describe("task notification shutdown", () => {
       },
       { close },
       { stop: stopIm },
+      disposeShares,
     );
     handlers.get("before-quit")!();
+    expect(disposeShares).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
     expect(stopIm).not.toHaveBeenCalled();
     handlers.get("will-quit")!();

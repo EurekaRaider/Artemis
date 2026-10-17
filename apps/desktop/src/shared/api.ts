@@ -1,5 +1,11 @@
 import type { McpExposureSettings } from "@artemis/protocol";
 import type {
+  ConversationShare,
+  ShareDestination,
+  ShareOptions,
+  SharePreview,
+} from "./conversation-share.js";
+import type {
   ProviderLoginOption,
   ProviderLoginState,
 } from "./provider-login.js";
@@ -975,6 +981,23 @@ export interface ArtemisApi {
     cursor?: ThreadHistoryCursor,
   ): Promise<ThreadHistoryPage>;
   getThreadEvents(threadId: string): Promise<AgentEvent[]>;
+  prepareConversationShare(
+    threadId: string,
+    options: ShareOptions,
+  ): Promise<SharePreview>;
+  updateConversationShare(
+    previewId: string,
+    options: ShareOptions,
+    excludedIds: string[],
+  ): Promise<SharePreview>;
+  uploadConversationShare(
+    previewId: string,
+    destination: ShareDestination,
+  ): Promise<ConversationShare>;
+  cancelConversationShare(previewId: string): Promise<void>;
+  exportConversationShare(previewId: string): Promise<boolean>;
+  listConversationShares(threadId: string): Promise<ConversationShare[]>;
+  deleteConversationShare(id: string): Promise<void>;
   getThreadTaskSummary(threadId: string): Promise<string | undefined>;
   getTokenUsageEvents(): Promise<AgentEvent[]>;
   getPromptHistory(): Promise<string[]>;
@@ -1523,6 +1546,7 @@ export interface ArtemisApi {
 }
 
 export const IPC = {
+  conversationShare: "artemis:conversation-share",
   computerRegisterBrowser: "artemis:computer-register-browser",
   computerState: "artemis:computer-state",
   browserSession: "artemis:browser-session",

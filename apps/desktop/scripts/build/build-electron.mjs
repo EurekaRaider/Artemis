@@ -77,6 +77,14 @@ await Promise.all([
   }),
   build({
     ...shared,
+    entryPoints: ["src/main/conversation/conversation-share-worker.ts"],
+    banner: esmRequireBridge,
+    external: [...shared.external, "@earendil-works/pi-coding-agent"],
+    format: "esm",
+    outfile: "dist-electron/conversation-share-worker.js",
+  }),
+  build({
+    ...shared,
     entryPoints: ["src/main/conversation/attachment-worker.ts"],
     banner: esmRequireBridge,
     external: [

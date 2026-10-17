@@ -10,6 +10,21 @@ const zeroCost = {
   cacheWrite: 0,
 };
 
+export function compatibleProviderBaseUrl(
+  provider: Pick<ProviderConnection, "id" | "baseUrl">,
+): string {
+  if (provider.id !== "kimi-coding") return provider.baseUrl;
+  const url = new URL(provider.baseUrl);
+  if (
+    url.origin === "https://api.kimi.com" &&
+    /^\/coding\/?$/.test(url.pathname) &&
+    !url.search &&
+    !url.hash
+  )
+    return "https://api.kimi.com/coding/v1";
+  return provider.baseUrl;
+}
+
 const customThinkingLevels: NonNullable<
   ProviderModel["highestThinkingLevel"]
 >[] = ["minimal", "low", "medium", "high", "xhigh", "max"];
@@ -31,7 +46,7 @@ export function toPiProviderConfig(
 ) {
   return {
     name: provider.name,
-    baseUrl: provider.baseUrl,
+    baseUrl: compatibleProviderBaseUrl(provider),
     api: provider.api ?? ("openai-completions" as const),
     ...(provider.api === "openai-responses"
       ? { streamSimple: streamOpenAIResponsesWithAiSdk }

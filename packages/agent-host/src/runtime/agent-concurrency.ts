@@ -105,6 +105,7 @@ export class AgentConcurrencyLimiter {
   constructor(
     private limit = 10,
     private parentLimit = Math.max(1, limit - 1),
+    private readonly changed: () => void = () => {},
   ) {
     this.validateLimits(limit, parentLimit);
   }
@@ -283,7 +284,7 @@ export class AgentConcurrencyLimiter {
   private drain(): void {
     while (this.active < this.limit) {
       const index = this.nextRunnableIndex();
-      if (index < 0) return;
+      if (index < 0) break;
       const queued = this.queue.splice(index, 1)[0]!;
       queued.removeAbortListener?.();
       this.active += 1;
@@ -291,5 +292,6 @@ export class AgentConcurrencyLimiter {
       this.lastSchedulingKey = queued.schedulingKey;
       queued.start();
     }
+    this.changed();
   }
 }

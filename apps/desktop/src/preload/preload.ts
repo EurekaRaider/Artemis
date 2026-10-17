@@ -107,6 +107,33 @@ const api: ArtemisApi = {
   getThreadHistory: (threadId, cursor) =>
     ipcRenderer.invoke(IPC.threadHistory, threadId, cursor),
   getThreadEvents: (threadId) => ipcRenderer.invoke(IPC.threadEvents, threadId),
+  prepareConversationShare: (threadId, options) =>
+    ipcRenderer.invoke(IPC.conversationShare, {
+      type: "prepare",
+      threadId,
+      options,
+    }),
+  updateConversationShare: (previewId, options, excludedIds) =>
+    ipcRenderer.invoke(IPC.conversationShare, {
+      type: "update",
+      previewId,
+      options,
+      excludedIds,
+    }),
+  uploadConversationShare: (previewId, destination) =>
+    ipcRenderer.invoke(IPC.conversationShare, {
+      type: "upload",
+      previewId,
+      destination,
+    }),
+  cancelConversationShare: (previewId) =>
+    ipcRenderer.invoke(IPC.conversationShare, { type: "cancel", previewId }),
+  exportConversationShare: (previewId) =>
+    ipcRenderer.invoke(IPC.conversationShare, { type: "export", previewId }),
+  listConversationShares: (threadId) =>
+    ipcRenderer.invoke(IPC.conversationShare, { type: "list", threadId }),
+  deleteConversationShare: (id) =>
+    ipcRenderer.invoke(IPC.conversationShare, { type: "delete", id }),
   getThreadTaskSummary: (threadId) =>
     ipcRenderer.invoke(IPC.threadTaskSummary, threadId),
   getTokenUsageEvents: () => ipcRenderer.invoke(IPC.tokenUsageEvents),

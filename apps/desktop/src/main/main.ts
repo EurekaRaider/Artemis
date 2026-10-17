@@ -4,6 +4,10 @@ import {
   computerPreviewCommandSchema,
 } from "@artemis/protocol";
 import { BrowserSessionHost } from "./workspace/browser-session-host.js";
+import {
+  ConversationShareService,
+  shareCommandSchema,
+} from "./conversation/conversation-share-service.js";
 import { ComputerPreviewHost } from "./computer-use/preview-host.js";
 import { ComputerPreviewWindow } from "./computer-use/preview-window.js";
 import { driveSmokeWorkspaceDockEvidence } from "./workspace/smoke-workspace-dock.js";
@@ -580,6 +584,7 @@ let terminalService: TerminalService | undefined;
 let packagedNodePtyRuntime: PreparedNodePtyRuntime | undefined;
 let packagedNodePtyRuntimeReady: Promise<void> | undefined;
 let providerLoginService: ProviderLoginService | undefined;
+let conversationShareService: ConversationShareService | undefined;
 let settingsStore: EncryptedSettingsStore | undefined;
 let globalInstructionsStore: GlobalInstructionsStore | undefined;
 let configurationImportService: ConfigurationImportService | undefined;
@@ -12535,6 +12540,57 @@ function registerIpc(): void {
     await openAgentThread(thread, context.workspacePath);
   });
 
+  ipcMain.handle(IPC.conversationShare, async (event, input: unknown) => {
+    if (
+      event.sender !== mainWindow?.webContents ||
+      !store ||
+      !settingsStore ||
+      !providerLoginService
+    )
+      throw new Error(
+        "Conversation sharing is only available to the desktop user.",
+      );
+    const command = shareCommandSchema.parse(input);
+    conversationShareService ??= new ConversationShareService({
+      directory: join(app.getPath("userData"), "conversation-shares"),
+      getThread: (id) => store?.getThread(id),
+      radiusConfigured: async () =>
+        Boolean(
+          (await settingsStore!.runtimeConfiguration()).credentials.radius,
+        ),
+      radiusAuth: (signal) => providerLoginService!.radiusArtifactToken(signal),
+    });
+    const shares = conversationShareService;
+    switch (command.type) {
+      case "prepare":
+        return shares.prepare(command.threadId, command.options);
+      case "update":
+        return shares.update(
+          command.previewId,
+          command.options,
+          command.excludedIds,
+        );
+      case "upload":
+        return shares.upload(command.previewId, command.destination);
+      case "cancel":
+        return shares.cancel(command.previewId);
+      case "list":
+        return shares.list(command.threadId);
+      case "delete":
+        return shares.delete(command.id);
+      case "export": {
+        const snapshot = shares.html(command.previewId);
+        const selected = await dialog.showSaveDialog({
+          defaultPath: `${snapshot.title.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_").slice(0, 100) || "conversation"}.html`,
+          filters: [{ name: "HTML", extensions: ["html"] }],
+        });
+        if (selected.canceled || !selected.filePath) return false;
+        await writeFile(selected.filePath, snapshot.html, { mode: 0o600 });
+        return true;
+      }
+    }
+  });
+
   ipcMain.handle(
     IPC.threadRename,
     (_event, threadId: string, title: string): Thread => {
@@ -18388,6 +18444,7 @@ function createMainWindow(): BrowserWindow {
       !event.isMainFrame &&
       event.url !== "about:blank" &&
       event.url !== "about:srcdoc" &&
+      !conversationShareService?.allowsNavigation(event.url) &&
       !workspaceHtmlPreview.allowsNavigation(event.url)
     ) {
       event.preventDefault();
@@ -23969,7 +24026,9 @@ app
     configureBrowserLocaleSession();
     electronSession.defaultSession.protocol.handle(
       WORKSPACE_HTML_SCHEME,
-      (request) => workspaceHtmlPreview.respond(request),
+      (request) =>
+        conversationShareService?.respond(request) ??
+        workspaceHtmlPreview.respond(request),
     );
     // The right-panel webview needs the same revocable, sandboxed HTML handler.
     electronSession
@@ -24511,6 +24570,7 @@ let endingHookSessions = false;
 let hookSessionsEnded = false;
 app.on("before-quit", (event) => {
   providerLoginService?.cancel();
+  conversationShareService?.dispose();
   computerUseHost?.dispose();
   computerPreviewHost?.dispose();
   computerPreviewWindow?.dispose();

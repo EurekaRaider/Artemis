@@ -1,4 +1,5 @@
 import { normalizeContext } from "@earendil-works/pi-ai";
+import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Type } from "@sinclair/typebox";
 import type { Api, Context, Model } from "@earendil-works/pi-ai";
@@ -75,6 +76,155 @@ beforeEach(() => {
 });
 
 describe("streamOpenAIResponsesWithAiSdk", () => {
+  it.each(['{"path":"safe","content":', '{"path":"safe"} trailing', "null"])(
+    "rejects complete malformed arguments instead of executing a parsed prefix: %s",
+    async (json) => {
+      sdk.streamText.mockReturnValue({
+        fullStream: fullStream([
+          { type: "tool-input-start", id: "bad", toolName: "write" },
+          { type: "tool-input-delta", id: "bad", delta: json },
+          {
+            type: "tool-call",
+            toolCallId: "bad",
+            toolName: "write",
+            input: { path: "safe" },
+            invalid: true,
+            error: new Error("Invalid JSON"),
+          },
+          { type: "finish", finishReason: "tool-calls", totalUsage: usage },
+        ]),
+      });
+      const result = await streamOpenAIResponsesWithAiSdk(model, {
+        messages: [],
+      }).result();
+      const call = result.content.find((part) => part.type === "toolCall")!;
+      expect(call.argumentsError).toContain(json);
+      expect(() =>
+        validateToolArguments(
+          {
+            name: "write",
+            description: "Write",
+            parameters: Type.Object({ path: Type.String() }),
+          },
+          call,
+        ),
+      ).toThrow(/Invalid arguments/);
+    },
+  );
+  it("uses Pi's complete-argument repair for LaTeX backslashes", async () => {
+    const json = String.raw`{"content":"\usepackage{amsmath}","path":"math.tex"}`;
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "tool-input-start", id: "latex", toolName: "write" },
+        { type: "tool-input-delta", id: "latex", delta: json },
+        {
+          type: "tool-call",
+          toolCallId: "latex",
+          toolName: "write",
+          input: { content: "partial" },
+          invalid: true,
+          error: new Error(
+            "JSON parsing failed before Pi repaired the complete input",
+          ),
+        },
+        { type: "finish", finishReason: "tool-calls", totalUsage: usage },
+      ]),
+    });
+    const result = await streamOpenAIResponsesWithAiSdk(model, {
+      messages: [],
+    }).result();
+    expect(result.content[0]).toMatchObject({
+      arguments: {
+        content: String.raw`\usepackage{amsmath}`,
+        path: "math.tex",
+      },
+    });
+    const call = result.content[0]!;
+    expect(call.type).toBe("toolCall");
+    if (call.type !== "toolCall") throw new Error("Expected tool call");
+    expect(call.argumentsError).toBeUndefined();
+    expect(
+      validateToolArguments(
+        {
+          name: "write",
+          description: "Write",
+          parameters: Type.Object({
+            path: Type.String(),
+            content: Type.String(),
+          }),
+        },
+        call,
+      ),
+    ).toEqual({ path: "math.tex", content: String.raw`\usepackage{amsmath}` });
+  });
+  it("refuses unfinished tool calls even when a terminal response arrives", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "tool-input-start", id: "unfinished", toolName: "write" },
+        {
+          type: "tool-input-delta",
+          id: "unfinished",
+          delta: '{"path":"safe"}',
+        },
+        { type: "finish", finishReason: "tool-calls", totalUsage: usage },
+      ]),
+    });
+    expect(
+      await streamOpenAIResponsesWithAiSdk(model, { messages: [] }).result(),
+    ).toMatchObject({
+      stopReason: "error",
+      errorMessage: expect.stringContaining("unfinished tool call"),
+    });
+  });
+
+  it("keeps Pi schema validation after repairing an SDK-invalid tool call", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "tool-input-start", id: "schema", toolName: "write" },
+        { type: "tool-input-delta", id: "schema", delta: '{"path":42}' },
+        {
+          type: "tool-call",
+          toolCallId: "schema",
+          toolName: "write",
+          input: { path: 42 },
+          invalid: true,
+          error: new Error("Invalid schema"),
+        },
+        { type: "finish", finishReason: "tool-calls", totalUsage: usage },
+      ]),
+    });
+    const result = await streamOpenAIResponsesWithAiSdk(model, {
+      messages: [],
+    }).result();
+    const call = result.content.find((part) => part.type === "toolCall")!;
+    expect(() =>
+      validateToolArguments(
+        {
+          name: "write",
+          description: "Write",
+          parameters: Type.Object({ path: Type.String() }),
+        },
+        call,
+      ),
+    ).toThrow();
+  });
+  it("does not commit a successful finish after cancellation", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "text-delta", id: "text", text: "Late response" },
+        { type: "finish", finishReason: "stop", totalUsage: usage },
+      ]),
+    });
+    expect(
+      await streamOpenAIResponsesWithAiSdk(
+        model,
+        { messages: [] },
+        { signal: controller.signal },
+      ).result(),
+    ).toMatchObject({ stopReason: "aborted" });
+  });
   it("preserves tool-result images in the Responses model context", async () => {
     sdk.streamText.mockReturnValue({
       fullStream: fullStream([
@@ -105,6 +255,43 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
       value: [
         { type: "text", text: "Generated" },
         { type: "image-data", data: "aW1hZ2U=", mediaType: "image/png" },
+      ],
+    });
+  });
+
+  it("retains the error status and adjacent image when a tool fails with image content", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "finish", finishReason: "stop", totalUsage: usage },
+      ]),
+    });
+    await Array.fromAsync(
+      streamOpenAIResponsesWithAiSdk(model, {
+        messages: [
+          {
+            role: "toolResult",
+            toolCallId: "failed-image",
+            toolName: "screenshot",
+            content: [
+              { type: "text", text: "Partial screenshot failure" },
+              { type: "image", data: "aW1hZ2U=", mimeType: "image/png" },
+            ],
+            isError: true,
+            timestamp: 1,
+          },
+        ],
+      }),
+    );
+    const messages = sdk.streamText.mock.calls[0]![0].messages;
+    expect(messages[0].content[0].output).toEqual({
+      type: "error-text",
+      value: "Partial screenshot failure\n[image result: image/png]",
+    });
+    expect(messages[1]).toMatchObject({
+      role: "user",
+      content: [
+        { type: "text", text: "Images returned by failed tool screenshot:" },
+        { type: "image", image: "aW1hZ2U=", mediaType: "image/png" },
       ],
     });
   });
