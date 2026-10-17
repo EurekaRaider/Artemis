@@ -15,6 +15,30 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
 });
 const defaults = { tools: false, thinking: false, attachments: false };
+it.each(["D:\\shared", "C:\\Users\\PRIVATE\\Workspace", "\\\\server\\private"])(
+  "keeps the shared header platform-neutral when Pi resolves cwd to %s",
+  async (resolvedCwd) => {
+    const f = await fixture({ radius: true });
+    const cwd = vi
+      .spyOn(SessionManager.prototype, "getCwd")
+      .mockReturnValue(resolvedCwd);
+    try {
+      const preview = await f.service.prepare("thread", defaults);
+      await f.service.upload(preview.id, "radius");
+      const jsonl = String(f.fetch.mock.calls[0]![1]!.body);
+      expect(JSON.parse(jsonl.split("\n")[0]!).cwd).toBe("/shared");
+      const encoded =
+        /<script id="session-data" type="application\/json">([^<]+)<\/script>/.exec(
+          f.service.html(preview.id).html,
+        )![1]!;
+      expect(
+        JSON.parse(Buffer.from(encoded, "base64").toString("utf8")).header.cwd,
+      ).toBe("/shared");
+    } finally {
+      cwd.mockRestore();
+    }
+  },
+);
 it("serves a revocable isolated preview without permitting remote resources or Node access", async () => {
   const f = await fixture();
   const preview = await f.service.prepare("thread", defaults);

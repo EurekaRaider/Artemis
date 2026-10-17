@@ -329,7 +329,11 @@ export class ConversationShareService {
       if (included) sm.appendMessage(message);
     }
     try {
-      const jsonl = serializeSessionBranch(sm);
+      // Pi resolves cwd using the host platform. Shared metadata must never
+      // inherit its drive letter or any local path representation.
+      const jsonl = serializeSessionBranch(sm).replace(/^[^\n]+/, (header) =>
+        JSON.stringify({ ...JSON.parse(header), cwd: "/shared" }),
+      );
       const html = await this.renderHtml(jsonl);
       if (Buffer.byteLength(html) + Buffer.byteLength(jsonl) > 16 * 1024 * 1024)
         throw new Error("The selected content is too large to share.");
