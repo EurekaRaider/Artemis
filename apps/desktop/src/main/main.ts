@@ -20378,7 +20378,14 @@ function createMainWindow(): BrowserWindow {
                       if (result) return result;
                       await wait(50);
                     }
-                    throw new Error(view + ': timed out waiting for ' + description);
+                    throw new Error(view + ': timed out waiting for ' + description + '; state=' + JSON.stringify({
+                      userMessage: Boolean(document.querySelector('.user-message')),
+                      messageAction: Boolean(document.querySelector('.user-message .message-action')),
+                      environmentTrigger: Boolean(document.querySelector('.environment-trigger')),
+                      historyFeedback: document.querySelector('.conversation-history-feedback')?.textContent ?? null,
+                      selectedRows: [...document.querySelectorAll('[data-tree-row-id][aria-selected="true"]')].map((row) => row.getAttribute('data-tree-row-id')),
+                      conversationText: document.querySelector('.workspace-content')?.textContent?.slice(0, 2000) ?? null,
+                    }));
                   };
                   const thread = await waitForEnvironment('thread selector', () =>
                     document.querySelector('.thread-select'),
