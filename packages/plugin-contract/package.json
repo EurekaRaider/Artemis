@@ -1,6 +1,6 @@
 {
   "name": "@artemis/plugin-contract",
-  "version": "1.7.18",
+  "version": "1.7.19",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -20,6 +20,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   }
 }

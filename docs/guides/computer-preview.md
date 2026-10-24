@@ -6,7 +6,7 @@
 
 ## 浏览器与桌面窗口
 
-Browser 的实例由主进程按聊天和标签页持有。沙箱化的 offscreen BrowserWindow 使用 Electron 43.2.0 的 sharedTexture；完整 Browser 和只读预览订阅同一实例，切换聊天、隐藏预览或 React 重挂载不会重建页面。关闭标签页、删除或归档聊天、关闭 Artemis 窗口会释放实例。页面没有 Node、preload 或宿主 IPC 权限。人工鼠标、键盘、文本及 IME 输入通过绑定到当前可见表面的受限命令传递；调试和 Computer Use 共用一个 debugger 连接。
+Browser 的实例由主进程按聊天和标签页持有。沙箱化的 offscreen BrowserWindow 使用 Electron 43.8.3 的 sharedTexture；完整 Browser 和只读预览订阅同一实例，切换聊天、隐藏预览或 React 重挂载不会重建页面。关闭标签页、删除或归档聊天、关闭 Artemis 窗口会释放实例。页面没有 Node、preload 或宿主 IPC 权限。人工鼠标、键盘、文本及 IME 输入通过绑定到当前可见表面的受限命令传递；调试和 Computer Use 共用一个 debugger 连接。
 
 macOS 14+ 的桌面预览使用 ScreenCaptureKit，并校验已观察窗口的 PID、进程创建时间、bundle ID 和唯一匹配的窗口 ID。Windows 11 使用 WGC，并校验 HWND、进程实例、所属应用路径和交互桌面。窗口关闭、权限变化或桌面不可用时停止采集；不会回退到整屏采集。macOS 输出 IOSurface，Windows 在 D3D11 中缩放并共享 GPU 纹理。桌面输入仍由既有 helper 管理，预览只读。
 

@@ -1,21 +1,19 @@
-# Artemis v1.7.18
+# Artemis v1.7.19
 
 ## 中文
 
-- Pi 升级至 1.3.0。Codemode 使用 Artemis 的统一并发调度，保留现有主、子 Agent 并发能力；真实 Worker 回归覆盖最高 64 路并发、单脚本并行工具和多层子任务等待。
-- 补齐 Codemode 排队取消、执行中止和超时后的资源回收，Worker 实际退出后才释放容量，确保取消后的替换任务可继续运行，避免父任务等待子任务时占满执行槽位。
-- 兼容 Kimi Coding 官方旧端点和新版工具声明；保留自定义代理地址。改进自定义 Responses 的工具参数 JSON 修复、Schema 校验、错误图片保留和流式取消，防止取消后返回成功或执行不完整工具调用。
-- 新增会话分享：从项目任务或最近会话菜单创建当前分支的固定快照，逐条选择消息；工具详情、思考内容和图片默认不分享，可按需开启。快照移除私有工作区及模型配置，跨平台导出统一使用脱敏路径。
-- 支持导出离线 HTML、上传至 Radius 或 Secret Gist，并提供分享历史、复制链接和管理入口。上传需要明确操作，支持取消并防止重复上传；Secret Gist 仅是不公开列出，持有链接的人均可阅读。
-- 重新设计分享对话框、内容选择与历史操作，修复预览黑屏；隔离的 HTML 预览跟随深浅色主题，深色背景下保留清晰的文字和边界，并适配窄窗口。
-- 补齐 Pi 1.3.0 并发与取消、Kimi、自定义 Responses、快照脱敏、分享交互及深浅色预览回归测试。
+- Pi 升级至 1.4.0，适配 Artemis 现有扩展和并发补丁。保留主、子 Agent 的统一调度、排队取消、执行超时和 Worker 实际退出后释放容量的行为。
+- 更新 Electron 至 43.8.3，并更新生产与开发依赖，修复本次审计发现的 25 项安全告警；发布前全量及生产依赖审计均为 0 告警。
+- 优化 Codemode Worker 启动：使用 Pi 自带的独立 Worker 包，通过 CJS 入口减少模块加载开销。每次执行仍使用新的线程和隔离 VM，保留内存上限、工具权限及中止机制。
+- 补齐 Pi 的重试错误分类、Responses 工具变更前缀、空白工具结果和压缩预算回归，避免确定性错误被重试，保留现有模型与会话功能。
+- 本机 macOS arm64 签名安装包完成 1–64 路同负载交替对比，所有档位耗时中位数均低于升级前版本；真实钥匙串中的现有凭据、SQLite、Canvas、PTY 和 Seatbelt 验收通过。
+- 随包 Slack CLI 更新至 4.11.0，并验证官方归档摘要、原生执行和本地兼容流程。
 
 ## English
 
-- Upgrade Pi to 1.3.0. Codemode uses Artemis's shared concurrency scheduler to preserve existing main and child agent capacity. Real-worker regression checks cover up to 64 concurrent workers, parallel tools within one script and nested child-task waits.
-- Complete queued cancellation, execution abort and timeout cleanup. Capacity is released after the worker actually exits, allowing replacement work to proceed without parent tasks exhausting runnable slots while waiting for children.
-- Support legacy official Kimi Coding endpoints and updated tool declarations while preserving custom proxy URLs. Improve custom Responses tool-argument JSON repair, schema validation, error-image retention and streaming cancellation; reject late success after cancellation and incomplete tool calls.
-- Add conversation sharing from project task and Recents menus. Review a fixed snapshot of the current branch and select individual messages. Tool details, thinking and images are excluded by default and can be enabled explicitly. Snapshots remove private workspace and model configuration and use a consistent redacted path across platforms.
-- Export offline HTML or upload to Radius or a secret GitHub Gist, with share history, link copying and management actions. Uploads require an explicit action, support cancellation and prevent duplicate submissions. Secret Gists are unlisted; anyone with the link can read them.
-- Redesign the sharing dialog, content selection and history actions, and fix blank previews. The isolated HTML preview follows light and dark themes with readable text, visible boundaries and a layout that adapts to narrow windows.
-- Expand regression coverage for Pi 1.3.0 concurrency and cancellation, Kimi, custom Responses, snapshot redaction, sharing interactions and light/dark previews.
+- Upgrade Pi to 1.4.0 and adapt Artemis's existing extension and concurrency patches. Preserve shared scheduling for main and child agents, queued cancellation, execution deadlines and capacity release after the worker actually exits.
+- Upgrade Electron to 43.8.3 and update production and development dependencies to resolve the 25 findings identified in this audit. Both full and production dependency audits report zero findings before release.
+- Reduce Codemode worker startup overhead by using Pi's shipped self-contained worker through a CommonJS entry. Every execution retains a fresh thread and isolated VM, memory limits, tool permissions and abort handling.
+- Expand regression coverage for retryable error classification, stable Responses prefixes across tool changes, whitespace-only tool results and compaction budgets. Preserve existing model and session behavior without retrying deterministic failures.
+- Complete alternating same-load comparisons at 1–64 concurrent scripts on the locally signed macOS arm64 package; median batch times improve at every load compared with the previous version. Existing Keychain credentials, SQLite, Canvas, PTY and Seatbelt checks pass.
+- Update the bundled Slack CLI to 4.11.0 and verify official archive digests, native execution and local compatibility flows.

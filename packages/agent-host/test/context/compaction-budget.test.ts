@@ -14,7 +14,10 @@ import {
   inputTokenLimit,
   withAttachmentContextBudget,
 } from "../../src/context/attachment-context.js";
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import {
+  generateSummaryWithUsage,
+  type ModelRuntime,
+} from "@earendil-works/pi-coding-agent";
 
 const model: Model<Api> = {
   id: "test",
@@ -78,6 +81,35 @@ function request(format = "xml") {
   });
 }
 describe("bounded Pi compaction", () => {
+  it("lets Pi summaries use the model output budget while preserving Artemis input budgeting", async () => {
+    const stream = vi.fn((_model, context, options) => {
+      expect(options.maxTokens).toBe(model.maxTokens);
+      expect(options.reasoning).toBe("high");
+      expect(estimateRequestTokens(_model, context)).toBeLessThanOrEqual(
+        inputTokenLimit(_model, options.maxTokens),
+      );
+      return response();
+    });
+    const runtime = withAttachmentContextBudget({
+      streamSimple: stream,
+    } as unknown as ModelRuntime);
+    const result = await generateSummaryWithUsage(
+      [{ role: "user", content: "Keep the completed changes.", timestamp: 1 }],
+      { ...model, reasoning: true },
+      100,
+      "synthetic-only",
+      undefined,
+      undefined,
+      "Preserve pending verification",
+      undefined,
+      "high",
+      withCompactionBudget(runtime.streamSimple),
+    );
+    expect(result.text).toBe("Short summary");
+    expect(JSON.stringify(stream.mock.calls.at(-1)?.[1])).toContain(
+      "Preserve pending verification",
+    );
+  });
   it("shrinks chunks when the provider reports more tokens than the local estimate", async () => {
     const provider = vi.fn((_model, context) =>
       JSON.stringify(context).length > 4000

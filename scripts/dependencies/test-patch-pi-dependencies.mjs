@@ -21,12 +21,12 @@ try {
     [fileURLToPath(new URL("./patch-pi-dependencies.mjs", import.meta.url))],
     { cwd: root, encoding: "utf8" },
   );
-  assert.match(cli, /Pi 1\.3\.0 dependency resolution verified/);
+  assert.match(cli, /Pi 1\.4\.0 dependency resolution verified/);
   await mkdir(shared, { recursive: true });
   await mkdir(pi, { recursive: true });
   await writeFile(
     join(pi, "package.json"),
-    JSON.stringify({ version: "1.3.0" }),
+    JSON.stringify({ version: "1.4.0" }),
   );
   await writeFile(join(shared, "package.json"), manifest("5.0.12"));
   const sources = new Map();
@@ -36,15 +36,35 @@ try {
     await mkdir(join(pi, path, ".."), { recursive: true });
     await writeFile(join(pi, path), source);
   }
+  const worker = join(pi, "dist/bundle/chunks/codemode-worker.js");
+  await mkdir(join(worker, ".."), { recursive: true });
+  const workerSource =
+    'import{parentPort,workerData}from"node:worker_threads";parentPort?.postMessage(workerData);';
+  await writeFile(worker, workerSource + "\nexport const unexpected = true;");
+  await assert.rejects(patchPiDependencies(root), SyntaxError);
+  assert.equal(
+    await readFile(join(pi, "dist/config.js"), "utf8"),
+    sources.get("dist/config.js"),
+  );
+  await writeFile(worker, "unexpected worker bundle");
+  await assert.rejects(
+    patchPiDependencies(root),
+    /Unexpected Pi 1.4.0 Codemode worker bundle/,
+  );
+  await writeFile(worker, workerSource);
   await patchPiDependencies(root);
   await patchPiDependencies(root);
+  assert.equal(
+    await readFile(join(pi, "dist/bundle/chunks/codemode-worker.cjs"), "utf8"),
+    'const{parentPort,workerData}=require("node:worker_threads");parentPort?.postMessage(workerData);',
+  );
   const execute = join(pi, "dist/extensions/codemode/execute.js");
   const patched = await readFile(execute, "utf8");
   assert.match(patched, /await options.acquireWorker/);
   await writeFile(execute, "unexpected published source");
   await assert.rejects(
     patchPiDependencies(root),
-    /Unexpected Pi 1.3.0 Codemode source/,
+    /Unexpected Pi 1.4.0 Codemode source/,
   );
   await writeFile(execute, patched);
   // Reject an unsafe nested resolution without mutating it.

@@ -54,12 +54,14 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.18** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.19** · [Release notes](docs/records/release-notes.md).
 
-This revision upgrades Pi to **1.3.0**, preserves Artemis's existing Codemode
-concurrency, and improves cancellation, Kimi Coding and custom Responses
-compatibility. Real-worker regression checks cover up to 64 concurrent workers,
-nested agent waits and replacement work after cancellation.
+This revision upgrades Pi to **1.4.0** and Electron to **43.8.3**, updates
+production and development dependencies to address the audited security findings,
+and reduces Codemode worker startup overhead. Each script retains its own thread
+and isolated VM, with existing memory limits, cancellation and concurrency
+controls. Regression checks cover up to 64 concurrent workers, nested agent waits
+and replacement work after cancellation.
 
 Share a reviewed snapshot of the current conversation branch from a project's
 task menu or Recents. Select messages, optionally include tool details, thinking
@@ -79,7 +81,7 @@ Attachment imports show progress and cancellation. Local files are stored on
 demand and indexed in batches; PDF reading initializes the worker runtime before
 extracting text. Native attachment checks cover 1,000 distinct source paths.
 
-Pi **1.3.0** powers native classifier and image model calls in Codemode for main
+Pi **1.4.0** powers native classifier and image model calls in Codemode for main
 and child agents. Classification supports image
 input when the selected model supports it. Custom agents inherit the current task
 mode and host permissions; legacy tool allowlists migrate to this policy. Plan
