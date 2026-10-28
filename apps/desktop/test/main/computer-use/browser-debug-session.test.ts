@@ -6,6 +6,54 @@ import {
   diagnosticText,
 } from "../../../src/main/computer-use/browser-debug-session.js";
 
+vi.mock("electron", () => ({
+  nativeImage: {
+    createFromBuffer: () => ({
+      resize: () => ({ toJPEG: () => Buffer.from("image") }),
+    }),
+  },
+}));
+
+it("serializes overlapping overlay and annotation screenshots before restoring emulation", async () => {
+  const f = fixture();
+  let complete!: (value: { data: string }) => void;
+  let captures = 0;
+  f.debug.sendCommand.mockImplementation(async (method: string) => {
+    if (method === "Page.getLayoutMetrics")
+      return {
+        cssLayoutViewport: {
+          pageX: 0,
+          pageY: 0,
+          clientWidth: 390,
+          clientHeight: 844,
+        },
+      };
+    if (method === "Page.captureScreenshot") {
+      captures++;
+      if (captures === 1)
+        return new Promise((resolve) => {
+          complete = resolve;
+        });
+      return { data: "aW1hZ2U=" };
+    }
+    return {};
+  });
+  const first = f.command({ action: "screenshot" });
+  await vi.waitFor(() => expect(captures).toBe(1));
+  const viewport = f.command({
+    action: "viewport",
+    viewport: { width: 390, height: 844, scale: 0.5 },
+  });
+  const second = f.command({ action: "screenshot" });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(captures).toBe(1);
+  expect(f.page.enableDeviceEmulation).not.toHaveBeenCalled();
+  complete({ data: "aW1hZ2U=" });
+  await Promise.all([first, viewport, second]);
+  expect(captures).toBe(2);
+  f.session.dispose();
+});
+
 function fixture() {
   let attached = false;
   const debug = Object.assign(new EventEmitter(), {

@@ -729,6 +729,9 @@ export class ComputerBrowserDriver implements ComputerDriver {
     else if ("x" in input)
       browser.contents.sendInputEvent({
         ...input,
+        ...(input.type === "mouseWheel"
+          ? { hasPreciseScrollingDeltas: true }
+          : {}),
         x: Math.round(input.x),
         y: Math.round(input.y),
         modifiers: [

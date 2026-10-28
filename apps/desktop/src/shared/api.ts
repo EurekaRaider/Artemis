@@ -1553,6 +1553,7 @@ export const IPC = {
   computerPreviews: "artemis:computer-previews",
   computerPreview: "artemis:computer-preview",
   computerPreviewReport: "artemis:computer-preview-report",
+  computerPreviewMedia: "artemis:computer-preview-media",
   computerPreviewExpand: "artemis:computer-preview-expand",
   computerPreviewFloating: "artemis:computer-preview-floating",
   browserPreview: "artemis:browser-preview",

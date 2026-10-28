@@ -38,6 +38,7 @@ export class BrowserDebugSession {
   private ready: Promise<void> | undefined;
   private disposed = false;
   private manual = false;
+  private layoutCommands: Promise<unknown> = Promise.resolve();
   private readonly requests = new Map<
     string,
     { url: string; method: string; time: number; status?: number }
@@ -333,11 +334,65 @@ export class BrowserDebugSession {
       entries: this.entries.map((entry) => ({ ...entry })),
     };
   }
+  private async captureScreenshot(
+    signal: AbortSignal,
+  ): Promise<BrowserPreviewSnapshot> {
+    const navigationId = this.navigationId;
+    const { cssLayoutViewport: layout } = await this.command<{
+      cssLayoutViewport: {
+        pageX: number;
+        pageY: number;
+        clientWidth: number;
+        clientHeight: number;
+      };
+    }>("Page.getLayoutMetrics", {}, signal);
+    const { data } = await this.command<{ data: string }>(
+      "Page.captureScreenshot",
+      {
+        format: "jpeg",
+        quality: 70,
+        captureBeyondViewport: true,
+        clip: {
+          x: layout.pageX,
+          y: layout.pageY,
+          width: layout.clientWidth,
+          height: layout.clientHeight,
+          scale: 1,
+        },
+      },
+      signal,
+    ).finally(() => this.restoreViewport());
+    if (navigationId !== this.navigationId)
+      throw new Error("Page changed during capture. Try again.");
+    const pixels = nativeImage
+      .createFromBuffer(Buffer.from(data, "base64"))
+      .resize({ width: layout.clientWidth, height: layout.clientHeight })
+      .toJPEG(70);
+    return {
+      ...this.snapshot(),
+      image: { data: pixels.toString("base64"), mimeType: "image/jpeg" },
+    };
+  }
   async execute(
     input: BrowserPreviewCommand,
     signal: AbortSignal,
   ): Promise<BrowserPreviewSnapshot> {
     const command = browserPreviewCommandSchema.parse(input);
+    if (command.action === "screenshot" || command.action === "viewport") {
+      // CDP screenshots temporarily override emulation. Queue viewport changes
+      // and other captures until the original viewport has been restored.
+      const operation = this.layoutCommands
+        .catch(() => {})
+        .then(() => this.executeCommand(command, signal));
+      this.layoutCommands = operation;
+      return operation;
+    }
+    return this.executeCommand(command, signal);
+  }
+  private async executeCommand(
+    command: BrowserPreviewCommand,
+    signal: AbortSignal,
+  ): Promise<BrowserPreviewSnapshot> {
     if (this.disposed || this.contents.isDestroyed())
       throw new Error("Browser closed or crashed. Reopen the tab.");
     if (command.action === "snapshot") {
@@ -367,41 +422,7 @@ export class BrowserDebugSession {
       this.entries = [];
       this.requests.clear();
     } else if (command.action === "screenshot") {
-      const navigationId = this.navigationId;
-      const { cssLayoutViewport: layout } = await this.command<{
-        cssLayoutViewport: {
-          pageX: number;
-          pageY: number;
-          clientWidth: number;
-          clientHeight: number;
-        };
-      }>("Page.getLayoutMetrics", {}, signal);
-      const { data } = await this.command<{ data: string }>(
-        "Page.captureScreenshot",
-        {
-          format: "jpeg",
-          quality: 70,
-          captureBeyondViewport: true,
-          clip: {
-            x: layout.pageX,
-            y: layout.pageY,
-            width: layout.clientWidth,
-            height: layout.clientHeight,
-            scale: 1,
-          },
-        },
-        signal,
-      ).finally(() => this.restoreViewport());
-      if (navigationId !== this.navigationId)
-        throw new Error("Page changed during capture. Try again.");
-      const pixels = nativeImage
-        .createFromBuffer(Buffer.from(data, "base64"))
-        .resize({ width: layout.clientWidth, height: layout.clientHeight })
-        .toJPEG(70);
-      return {
-        ...this.snapshot(),
-        image: { data: pixels.toString("base64"), mimeType: "image/jpeg" },
-      };
+      return this.captureScreenshot(signal);
     } else if (command.action === "inspect") {
       if (command.navigationId !== this.navigationId)
         throw new Error("Page changed. Select the element again.");

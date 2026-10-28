@@ -81,6 +81,16 @@ export const browserSessionCommandSchema = z.discriminatedUnion("action", [
       token: z.string().uuid(),
       width: z.number().int().min(1).max(2560),
       height: z.number().int().min(1).max(2560),
+      nativeBounds: z
+        .object({
+          x: z.number().int().min(0).max(8192),
+          y: z.number().int().min(0).max(8192),
+          width: z.number().int().min(1).max(2560),
+          height: z.number().int().min(1).max(2560),
+        })
+        .strict()
+        .nullable()
+        .optional(),
     })
     .strict(),
   z
@@ -115,4 +125,5 @@ export interface BrowserSessionSnapshot {
   width: number;
   height: number;
   error?: string;
+  nativeView?: boolean;
 }

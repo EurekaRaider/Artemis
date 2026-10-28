@@ -8076,6 +8076,18 @@ function registerIpc(): void {
     );
   });
   ipcMain.on(
+    IPC.computerPreviewMedia,
+    (event, token: unknown, message: unknown) => {
+      if (
+        event.senderFrame === event.sender.mainFrame &&
+        typeof token === "string" &&
+        typeof message === "string" &&
+        message.length <= 1000
+      )
+        browserSessionHost?.previewFailed(event.sender, token, message);
+    },
+  );
+  ipcMain.on(
     IPC.computerPreviewReport,
     (
       event,

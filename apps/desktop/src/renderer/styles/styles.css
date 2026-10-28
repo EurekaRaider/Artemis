@@ -11270,6 +11270,19 @@ kbd {
   padding: 12px 0;
 }
 
+/* HistoryTurn already releases offscreen DOM and preserves its measured height.
+   CSS size skipping would cache an estimated height instead, then change it
+   again as mounted content enters the viewport. Keep one owner for sizing. */
+[data-history-turn],
+[data-history-turn] [data-artemis-component="timeline-turn"] > *,
+[data-history-turn]
+  [data-artemis-component="turn-execution-disclosure"]
+  [data-part="content"]
+  > * {
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}
+
 /* 历史轮次懒挂载占位：以分层淡色呈现“内容待挂载”，避免被误读为空白断层。 */
 [data-history-turn][data-mounted="false"] {
   background: linear-gradient(
@@ -14157,6 +14170,11 @@ kbd {
 .browser-preview-stage .browser-frame {
   background: white;
   color-scheme: light;
+}
+/* Native browser views paint above HTML: reserve a row for the resize grip. */
+.browser-preview-stage:has(.browser-native-surface):has(.browser-preview-resize)
+  > [data-artemis-component="browser-viewport"] {
+  height: calc(100% - 24px);
 }
 .browser-preview-picker {
   position: absolute;

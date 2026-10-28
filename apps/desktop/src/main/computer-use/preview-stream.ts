@@ -4,6 +4,7 @@ import {
   type SharedTextureImportTextureInfo,
 } from "electron";
 import { PreviewFrameQueue } from "./preview-frame-queue.js";
+import { IPC } from "../../shared/api.js";
 
 export interface PreviewTexture {
   textureInfo: SharedTextureImportTextureInfo;
@@ -12,6 +13,7 @@ export interface PreviewTexture {
 }
 export class PreviewStream {
   private readonly consumers = new Map<string, WebContents>();
+  private readonly mediaConsumers = new Set<string>();
   private readonly queue: PreviewFrameQueue<PreviewTexture>;
   private sequence = 0;
   private closed = false;
@@ -20,6 +22,9 @@ export class PreviewStream {
     readonly id: string,
     private readonly changed: (visible: boolean) => void,
     private readonly failed: (error: unknown) => void,
+    private readonly mediaSource?:
+      | ((contents: WebContents) => { id: string; frameRate: number })
+      | undefined,
   ) {
     this.queue = new PreviewFrameQueue(
       async (frame) => {
@@ -91,7 +96,7 @@ export class PreviewStream {
       (error) => this.fail(error),
     );
   }
-  subscribe(token: string, contents: WebContents) {
+  subscribe(token: string, contents: WebContents, media = true) {
     if (this.closed)
       throw new Error("Preview stream stopped. Reopen the target.");
     if (this.consumers.has(token)) {
@@ -101,10 +106,35 @@ export class PreviewStream {
     }
     if (this.consumers.size >= 8) throw new Error("Too many preview consumers");
     this.consumers.set(token, contents);
-    this.changed(true);
+    try {
+      this.changed(true);
+      if (this.mediaSource && media) {
+        this.mediaConsumers.add(token);
+        contents.send(
+          IPC.computerPreviewMedia,
+          token,
+          this.mediaSource(contents),
+        );
+      }
+    } catch (error) {
+      this.unsubscribe(token);
+      throw error;
+    }
   }
   unsubscribe(token: string) {
+    const contents = this.consumers.get(token);
     if (!this.consumers.delete(token)) return;
+    if (
+      this.mediaConsumers.delete(token) &&
+      contents &&
+      !contents.isDestroyed()
+    ) {
+      try {
+        contents.send(IPC.computerPreviewMedia, token, null);
+      } catch {
+        // A renderer that exited already released its capture tracks.
+      }
+    }
     if (!this.consumers.size) this.changed(false);
   }
   removeContents(contents: WebContents) {
@@ -138,7 +168,8 @@ export class PreviewStream {
     if (this.closed) return;
     this.closed = true;
     this.queue.close();
-    this.consumers.clear();
-    this.changed(false);
+    const wasVisible = this.visible();
+    for (const token of this.consumers.keys()) this.unsubscribe(token);
+    if (!wasVisible) this.changed(false);
   }
 }

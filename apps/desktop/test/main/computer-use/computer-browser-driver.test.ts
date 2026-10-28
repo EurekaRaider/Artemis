@@ -17,6 +17,7 @@ async function fixture() {
     getTitle: vi.fn(() => "Form"),
     loadURL: vi.fn(async () => {}),
     invalidate: vi.fn(),
+    sendInputEvent: vi.fn(),
     getBackgroundThrottling: () => false,
     setBackgroundThrottling: vi.fn(),
     capturePage: vi.fn(async () => image),
@@ -61,6 +62,29 @@ async function fixture() {
   );
   return { driver, page, image, target, controller, takeover };
 }
+
+it("forwards human wheel input as precise pixels only for the owning task", async () => {
+  const f = await fixture();
+  const wheel = {
+    type: "mouseWheel" as const,
+    x: 100.2,
+    y: 200.8,
+    deltaX: -0.25,
+    deltaY: -3.5,
+  };
+  await expect(f.driver.humanInput("other", 1, wheel)).rejects.toThrow(/owned/);
+  expect(f.page.sendInputEvent).not.toHaveBeenCalled();
+  await f.driver.humanInput("task", 1, wheel);
+  expect(f.page.sendInputEvent).toHaveBeenCalledExactlyOnceWith({
+    ...wheel,
+    x: 100,
+    y: 201,
+    hasPreciseScrollingDeltas: true,
+    modifiers: [],
+  });
+  expect(f.takeover).toHaveBeenCalledWith("task", "browser:1");
+  f.driver.dispose();
+});
 
 it("keeps manual preview owned by its task and pauses AI before changing the viewport", async () => {
   const f = await fixture();

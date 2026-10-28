@@ -54,14 +54,13 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.19** · [Release notes](docs/records/release-notes.md).
+Current version: **v1.7.20** · [Release notes](docs/records/release-notes.md).
 
-This revision upgrades Pi to **1.4.0** and Electron to **43.8.3**, updates
-production and development dependencies to address the audited security findings,
-and reduces Codemode worker startup overhead. Each script retains its own thread
-and isolated VM, with existing memory limits, cancellation and concurrency
-controls. Regression checks cover up to 64 concurrent workers, nested agent waits
-and replacement work after cancellation.
+This revision improves scrolling through conversation history and browser pages.
+On macOS, browser panels use native views tied to the display refresh rate,
+removing the offscreen renderer's 60 Hz fallback during continuous scrolling.
+Browser annotations, screenshots, responsive layouts and picture-in-picture
+retain their existing controls and sandbox boundaries.
 
 Share a reviewed snapshot of the current conversation branch from a project's
 task menu or Recents. Select messages, optionally include tool details, thinking

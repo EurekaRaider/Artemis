@@ -1,6 +1,6 @@
 {
   "name": "@artemis/plugin-sdk",
-  "version": "1.7.19",
+  "version": "1.7.20",
   "private": true,
   "type": "module",
   "exports": {

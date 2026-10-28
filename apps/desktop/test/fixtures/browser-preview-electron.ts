@@ -8,6 +8,7 @@ import {
   ipcMain,
   nativeImage,
   webContents,
+  WebContentsView,
 } from "electron";
 import { ComputerBrowserDriver } from "../../src/main/computer-use/browser-driver.js";
 import { BrowserSessionHost } from "../../src/main/workspace/browser-session-host.js";
@@ -163,6 +164,70 @@ async function main() {
   await driver.preview("fixture", contentsId, { action: "reload" });
   await wait(`!!document.querySelector('.browser-preview-error-dot')`);
   await new Promise((resolve) => setTimeout(resolve, 600));
+  const nativeView = window.contentView.children.find(
+    (view): view is WebContentsView =>
+      view instanceof WebContentsView && view.webContents === guest,
+  );
+  if (process.platform === "darwin") {
+    assert(
+      nativeView?.getVisible(),
+      "native browser is attached to the visible window",
+    );
+    await js(
+      "{ const dialog = document.createElement('dialog'); dialog.id='native-overlay'; document.body.append(dialog); dialog.showModal(); }",
+    );
+    await wait("document.querySelector('.browser-frame canvas').width > 300");
+    assert(
+      !window.contentView.children.includes(nativeView),
+      "host modal is above the parked native browser",
+    );
+    assert(
+      (await driver.preview("fixture", contentsId, { action: "screenshot" }))
+        .image,
+      "covered native pages remain available for screenshots",
+    );
+    await writeFile(
+      join(output, "native-modal-still.png"),
+      (await window.webContents.capturePage()).toPNG(),
+    );
+    await js("document.querySelector('#native-overlay').remove()");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert(
+      window.contentView.children.includes(nativeView) &&
+        nativeView.getVisible(),
+      "closing the overlay restores the native page",
+    );
+    await guest.executeJavaScript(
+      "document.body.insertAdjacentHTML('beforeend', '<input id=typing aria-label=typing>')",
+    );
+    const point = await guest.executeJavaScript(
+      "(()=>{const r=document.querySelector('#typing').getBoundingClientRect();return {x:Math.round(r.x+10),y:Math.round(r.y+10)}})()",
+    );
+    const beforeInput = takeovers;
+    guest.sendInputEvent({
+      type: "mouseDown",
+      ...point,
+      button: "left",
+      clickCount: 1,
+    });
+    guest.sendInputEvent({
+      type: "mouseUp",
+      ...point,
+      button: "left",
+      clickCount: 1,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    guest.insertText("你好 Artemis");
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(
+      await guest.executeJavaScript("document.querySelector('#typing').value"),
+      "你好 Artemis",
+    );
+    assert(
+      takeovers > beforeInput,
+      "native user input takes over from the agent",
+    );
+  }
   const logs = await driver.preview("fixture", contentsId, {
     action: "snapshot",
   });
@@ -210,6 +275,16 @@ async function main() {
   await wait(`document.querySelector('.browser-preview-resize') !== null`);
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(await guest.executeJavaScript("innerWidth"), 1440);
+  if (nativeView) {
+    const gripTop = await js<number>(
+      "document.querySelector('.browser-preview-resize').getBoundingClientRect().top",
+    );
+    const bounds = nativeView.getBounds();
+    assert(
+      bounds.y + bounds.height <= gripTop + 1,
+      "native page does not cover the resize grip",
+    );
+  }
   let screenshot = await driver.preview("fixture", contentsId, {
     action: "screenshot",
   });
@@ -245,6 +320,13 @@ async function main() {
   assert.equal(await guest.executeJavaScript("innerWidth"), 390);
   const before = await guest.executeJavaScript("document.title");
   await click("批注");
+  if (nativeView) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert(
+      !window.contentView.children.includes(nativeView),
+      "native page yields to the annotation picker",
+    );
+  }
   const point = await guest.executeJavaScript(
     `(()=>{const r=document.querySelector('button').getBoundingClientRect();return {x:r.x+5,y:r.y+5}})()`,
   );
@@ -440,6 +522,11 @@ async function main() {
           "unscaled screenshot",
           "AI element click",
           "annotation blocks click",
+          ...(nativeView
+            ? [
+                "native view attachment, modal still image, Chinese input, takeover, and accessible resize grip",
+              ]
+            : []),
           "draft with image",
           "console exception and 404",
           "DevTools pause and reconnect",

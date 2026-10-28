@@ -50,4 +50,34 @@ describe("preview IPC boundaries", () => {
       }).success,
     ).toBe(true);
   });
+  it("bounds native browser geometry and keeps host window identity out of renderer commands", () => {
+    const command = {
+      action: "subscribe",
+      threadId: "task",
+      tabId: "tab",
+      token: "7b024335-93fc-46b2-a846-5c74ec0d68fd",
+      width: 800,
+      height: 600,
+    };
+    expect(
+      browserSessionCommandSchema.safeParse({ ...command, nativeBounds: null })
+        .success,
+    ).toBe(true);
+    const bounds = { x: 100, y: 80, width: 800, height: 600 };
+    expect(
+      browserSessionCommandSchema.safeParse({
+        ...command,
+        nativeBounds: bounds,
+      }).success,
+    ).toBe(true);
+    for (const nativeBounds of [
+      { ...bounds, x: -1 },
+      { ...bounds, width: 3000 },
+      { ...bounds, ownerId: 42 },
+    ])
+      expect(
+        browserSessionCommandSchema.safeParse({ ...command, nativeBounds })
+          .success,
+      ).toBe(false);
+  });
 });

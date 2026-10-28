@@ -1,19 +1,15 @@
-# Artemis v1.7.19
+# Artemis v1.7.20
 
 ## 中文
 
-- Pi 升级至 1.4.0，适配 Artemis 现有扩展和并发补丁。保留主、子 Agent 的统一调度、排队取消、执行超时和 Worker 实际退出后释放容量的行为。
-- 更新 Electron 至 43.8.3，并更新生产与开发依赖，修复本次审计发现的 25 项安全告警；发布前全量及生产依赖审计均为 0 告警。
-- 优化 Codemode Worker 启动：使用 Pi 自带的独立 Worker 包，通过 CJS 入口减少模块加载开销。每次执行仍使用新的线程和隔离 VM，保留内存上限、工具权限及中止机制。
-- 补齐 Pi 的重试错误分类、Responses 工具变更前缀、空白工具结果和压缩预算回归，避免确定性错误被重试，保留现有模型与会话功能。
-- 本机 macOS arm64 签名安装包完成 1–64 路同负载交替对比，所有档位耗时中位数均低于升级前版本；真实钥匙串中的现有凭据、SQLite、Canvas、PTY 和 Seatbelt 验收通过。
-- 随包 Slack CLI 更新至 4.11.0，并验证官方归档摘要、原生执行和本地兼容流程。
+- 修复浏览历史对话时的滚动顿挫：由历史轮次组件统一管理离屏内容高度，避免重复的尺寸估算引起页面跳动，即使没有任务运行也能稳定滚动。
+- 修复 macOS 浏览器连续滚动时回落到 60 帧的问题。浏览器改用与真实显示器刷新率同步的原生视图，本地 120 Hz 屏幕验证中，连续 2,500 次滚轮输入的合成帧率保持约 120 帧。
+- 保留浏览器弹层、响应式尺寸、中文输入、元素批注和截图操作。弹层遮挡页面时保留可截图的渲染状态，并串行处理截图与视口变更，避免标注截图超时或尺寸冲突。
+- 浏览器画中画按可见状态管理采集资源，隐藏后释放采集轨道；普通浏览器面板无需持续采集。其他平台保留共享纹理预览，并按所在显示器配置刷新率、保留精细滚轮增量。
 
 ## English
 
-- Upgrade Pi to 1.4.0 and adapt Artemis's existing extension and concurrency patches. Preserve shared scheduling for main and child agents, queued cancellation, execution deadlines and capacity release after the worker actually exits.
-- Upgrade Electron to 43.8.3 and update production and development dependencies to resolve the 25 findings identified in this audit. Both full and production dependency audits report zero findings before release.
-- Reduce Codemode worker startup overhead by using Pi's shipped self-contained worker through a CommonJS entry. Every execution retains a fresh thread and isolated VM, memory limits, tool permissions and abort handling.
-- Expand regression coverage for retryable error classification, stable Responses prefixes across tool changes, whitespace-only tool results and compaction budgets. Preserve existing model and session behavior without retrying deterministic failures.
-- Complete alternating same-load comparisons at 1–64 concurrent scripts on the locally signed macOS arm64 package; median batch times improve at every load compared with the previous version. Existing Keychain credentials, SQLite, Canvas, PTY and Seatbelt checks pass.
-- Update the bundled Slack CLI to 4.11.0 and verify official archive digests, native execution and local compatibility flows.
+- Fix uneven scrolling through conversation history by letting history turns own offscreen height measurements. Removing competing size estimates prevents page jumps even when no task is running.
+- Fix the macOS browser's fallback to 60 FPS during continuous scrolling. Native browser views follow the actual display refresh rate; a local 120 Hz display sustained approximately 120 compositor FPS across 2,500 consecutive wheel inputs.
+- Preserve browser overlays, responsive layouts, Chinese text input, element annotations and screenshots. Covered pages retain a capturable rendering surface, and screenshot and viewport commands run sequentially to prevent annotation timeouts and conflicting dimensions.
+- Manage browser picture-in-picture capture according to visibility and release capture tracks when hidden. Ordinary browser panels need no continuous capture. Other platforms retain shared-texture previews with display-aware frame rates and precise wheel deltas.

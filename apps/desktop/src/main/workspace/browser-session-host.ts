@@ -1,4 +1,4 @@
-import { BrowserWindow, type WebContents } from "electron";
+import { BrowserWindow, screen, type WebContents } from "electron";
 import { randomUUID } from "node:crypto";
 import type {
   BrowserSessionCommand,
@@ -8,11 +8,22 @@ import type {
 import { BROWSER_SESSION_PARTITION } from "../../shared/i18n/browser-locale.js";
 import { isPdfViewerStreamNavigationAllowed } from "./navigation-policy.js";
 import { PreviewStream } from "../computer-use/preview-stream.js";
+import { BrowserNativeWindow } from "./browser-native-window.js";
+
+function previewFrameRate(contents: WebContents) {
+  const owner = BrowserWindow.fromWebContents(contents);
+  const frequency = owner
+    ? screen.getDisplayMatching(owner.getBounds()).displayFrequency
+    : 0;
+  return Number.isFinite(frequency) && frequency >= 1
+    ? Math.round(frequency)
+    : 60;
+}
 
 interface BrowserTab {
   threadId: string;
   tabId: string;
-  window: BrowserWindow;
+  window: BrowserWindow | BrowserNativeWindow;
   stream: PreviewStream;
   documentKey?: string;
   leases: string[];
@@ -76,6 +87,9 @@ export class BrowserSessionHost {
       loading: contents.isLoading(),
       width: size[0]!,
       height: size[1]!,
+      ...(tab.window instanceof BrowserNativeWindow
+        ? { nativeView: true }
+        : {}),
       ...(tab.error ? { error: tab.error } : {}),
     };
   }
@@ -89,29 +103,39 @@ export class BrowserSessionHost {
       throw new Error("Browser navigation is not allowed");
     if (this.tabs.size >= 64)
       throw new Error("Close a browser tab before opening another");
-    const window = new BrowserWindow({
-      show: false,
-      width: 1280,
-      height: 720,
-      webPreferences: {
-        partition: BROWSER_SESSION_PARTITION,
-        sandbox: true,
-        contextIsolation: true,
-        nodeIntegration: false,
-        nodeIntegrationInSubFrames: false,
-        webSecurity: true,
-        allowRunningInsecureContent: false,
-        backgroundThrottling: false,
-        plugins: true,
-        offscreen: { useSharedTexture: true },
-      },
-    });
+    // macOS OSR has no display clock: Chromium's input boost selects its
+    // fallback 60 Hz even after setFrameRate(120). Present the native view
+    // directly; only passive PiP consumers need Chromium's GPU tab capture.
+    const nativeCapture = process.platform === "darwin";
+    const webPreferences = {
+      partition: BROWSER_SESSION_PARTITION,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      backgroundThrottling: false,
+      plugins: true,
+    };
+    const window = nativeCapture
+      ? new BrowserNativeWindow(webPreferences)
+      : new BrowserWindow({
+          show: false,
+          width: 1280,
+          height: 720,
+          webPreferences: {
+            ...webPreferences,
+            offscreen: { useSharedTexture: true },
+          },
+        });
     const contents = window.webContents;
     const stream = new PreviewStream(
       randomUUID(),
       (visible) => {
         if (contents.isDestroyed()) return;
-        if (visible) {
+        if (nativeCapture) contents.setBackgroundThrottling(!visible);
+        else if (visible) {
           contents.startPainting();
           contents.invalidate();
         } else contents.stopPainting();
@@ -121,6 +145,19 @@ export class BrowserSessionHost {
         if (!window.isDestroyed())
           this.options.changed({ ...this.snapshot(tab), error: tab.error });
       },
+      nativeCapture
+        ? (receiver) => {
+            const owner = BrowserWindow.fromWebContents(receiver);
+            if (owner) {
+              const { x, y } = owner.getBounds();
+              window.setPosition(x, y);
+            }
+            return {
+              id: contents.getMediaSourceId(receiver),
+              frameRate: previewFrameRate(receiver),
+            };
+          }
+        : undefined,
     );
     const tab: BrowserTab = {
       threadId,
@@ -132,15 +169,17 @@ export class BrowserSessionHost {
       inputCount: 0,
     };
     this.tabs.set(this.key(threadId, tabId), tab);
-    contents.setFrameRate(60);
-    contents.on("paint", (event) => {
-      if (event.texture)
-        stream.push({
-          textureInfo: event.texture.textureInfo,
-          capturedAt: Date.now(),
-          release: () => event.texture!.release(),
-        });
-    });
+    if (!nativeCapture) {
+      contents.setFrameRate(60);
+      contents.on("paint", (event) => {
+        if (event.texture)
+          stream.push({
+            textureInfo: event.texture.textureInfo,
+            capturedAt: Date.now(),
+            release: () => event.texture!.release(),
+          });
+      });
+    }
     contents.on("will-frame-navigate", (details) => {
       if (
         !this.options.navigationAllowed(details.url) &&
@@ -188,7 +227,10 @@ export class BrowserSessionHost {
     });
     this.options.register(contents, threadId);
     await contents.loadURL(url);
-    if (!stream.visible()) contents.stopPainting();
+    if (!stream.visible()) {
+      if (nativeCapture) contents.setBackgroundThrottling(true);
+      else contents.stopPainting();
+    }
     return tab;
   }
   async command(input: BrowserSessionCommand, sender: WebContents) {
@@ -250,13 +292,29 @@ export class BrowserSessionHost {
       case "close":
         tab.window.destroy();
         return;
-      case "subscribe":
-        tab.stream.subscribe(input.token, sender);
+      case "subscribe": {
+        const native =
+          tab.window instanceof BrowserNativeWindow &&
+          input.nativeBounds !== undefined
+            ? tab.window
+            : null;
+        const owner = native ? BrowserWindow.fromWebContents(sender) : null;
+        if (native && !owner)
+          throw new Error("Browser requires a native owner window");
+        tab.stream.subscribe(input.token, sender, !native);
         tab.window.setContentSize(input.width, input.height);
+        if (native && owner)
+          native.present(owner, input.token, input.nativeBounds!);
+        if (process.platform !== "darwin")
+          contents.setFrameRate(previewFrameRate(sender));
         break;
+      }
       case "unsubscribe":
-        if (tab.stream.owns(input.token, sender))
+        if (tab.stream.owns(input.token, sender)) {
+          if (tab.window instanceof BrowserNativeWindow)
+            tab.window.release(input.token, sender.id);
           tab.stream.unsubscribe(input.token);
+        }
         break;
       case "input":
         if (!tab.stream.owns(input.token, sender))
@@ -286,7 +344,15 @@ export class BrowserSessionHost {
     return this.snapshot(tab);
   }
   removeContents(contents: WebContents) {
-    for (const tab of this.tabs.values()) tab.stream.removeContents(contents);
+    for (const tab of this.tabs.values()) {
+      if (tab.window instanceof BrowserNativeWindow)
+        tab.window.removeContents(contents.id);
+      tab.stream.removeContents(contents);
+    }
+  }
+  previewFailed(contents: WebContents, token: string, message: string) {
+    for (const tab of this.tabs.values())
+      if (tab.stream.owns(token, contents)) tab.stream.fail(new Error(message));
   }
   clearThread(threadId: string) {
     for (const tab of [...this.tabs.values()])

@@ -123,7 +123,11 @@ export function BrowserPreviewTools({
       Math.min(
         1,
         (stage.current?.clientWidth ?? width) / width,
-        (stage.current?.clientHeight ?? height) / height,
+        (stage.current?.querySelector(
+          '[data-artemis-component="browser-viewport"]',
+        )?.clientHeight ??
+          stage.current?.clientHeight ??
+          height) / height,
       ),
     );
   const setViewport = useCallback(
@@ -210,6 +214,10 @@ export function BrowserPreviewTools({
         );
     });
     observer.observe(element);
+    const viewport = element.querySelector(
+      '[data-artemis-component="browser-viewport"]',
+    );
+    if (viewport) observer.observe(viewport);
     return () => observer.disconnect();
   }, [setViewport]);
   useEffect(() => {

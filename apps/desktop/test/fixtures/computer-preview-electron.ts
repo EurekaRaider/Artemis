@@ -75,6 +75,10 @@ async function main() {
       else reports.push(report);
     }
   });
+  ipcMain.on(IPC.computerPreviewMedia, (event, token, message) => {
+    failures.push(message);
+    browsers.previewFailed(event.sender, token, message);
+  });
   sink.webContents.on("console-message", (event) => {
     if (event.level === "error") failures.push(event.message);
   });
@@ -289,22 +293,23 @@ async function main() {
     "document.querySelector('#root').style.display='none'",
   );
   const hiddenAt = performance.now();
-  while (
-    tab.window.webContents.isPainting() &&
-    performance.now() - hiddenAt < 1000
-  )
-    await delay(10);
+  const capturing = () =>
+    process.platform === "darwin"
+      ? tab.stream.visible() &&
+        !tab.window.webContents.getBackgroundThrottling()
+      : tab.window.webContents.isPainting();
+  while (capturing() && performance.now() - hiddenAt < 1000) await delay(10);
   const hiddenStopMs = performance.now() - hiddenAt;
   assert.equal(
-    tab.window.webContents.isPainting(),
+    capturing(),
     false,
-    "hidden final consumer stops painting within one second",
+    "hidden final consumer stops capture within one second",
   );
   await sink.webContents.executeJavaScript(
     "document.querySelector('#root').style.display='block'",
   );
   await delay(1000);
-  assert.equal(tab.window.webContents.isPainting(), true);
+  assert.equal(capturing(), true);
   assert.equal(tab.window.webContents.listenerCount("paint"), listeners);
   assert.equal(
     await tab.window.webContents.executeJavaScript("window.originalInstance"),

@@ -22,7 +22,9 @@ function Fixture() {
   return (
     snapshot && (
       <PreviewCanvas
-        browser={snapshot}
+        // Exercise the canvas transport used by PiP; the interactive native
+        // browser surface is covered by browser-preview-electron.ts.
+        browser={{ ...snapshot, nativeView: false }}
         sessionId={snapshot.sessionId}
         label="Fixture browser"
       />

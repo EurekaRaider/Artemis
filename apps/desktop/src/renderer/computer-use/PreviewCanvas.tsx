@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import "./computer-preview.css";
+import { bindNativeBrowserSurface } from "./native-browser-surface.js";
 import type {
   BrowserHumanInput,
   BrowserSessionSnapshot,
@@ -27,9 +28,12 @@ export function PreviewCanvas({
   const moveFrame = useRef<number | undefined>(undefined);
   const moveBusy = useRef(false);
   const canvasId = `computer-preview-${token.current}`;
+  const interactive = Boolean(browser && !browser.nativeView);
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
+    if (browser?.nativeView)
+      return bindNativeBrowserSurface(element, browser, token.current);
     let active = true,
       subscribed = false,
       width = 0,
@@ -121,7 +125,7 @@ export function PreviewCanvas({
             })
       ).catch(() => {});
     };
-  }, [sessionId, canvasId, Boolean(browser), expanded]);
+  }, [sessionId, canvasId, Boolean(browser), browser?.nativeView, expanded]);
   const send = (event: BrowserHumanInput) => {
     const current = currentBrowser.current;
     if (current)
@@ -196,9 +200,26 @@ export function PreviewCanvas({
       ),
     };
   };
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || !interactive) return;
+    const wheel = (event: WheelEvent) => {
+      event.preventDefault();
+      send({
+        type: "mouseWheel",
+        ...point(event),
+        deltaX: Math.max(-10000, Math.min(10000, -event.deltaX)),
+        deltaY: Math.max(-10000, Math.min(10000, -event.deltaY)),
+        modifiers: modifiers(event),
+      });
+    };
+    // React's delegated wheel listener is passive and cannot cancel host scrolling.
+    element.addEventListener("wheel", wheel, { passive: false });
+    return () => element.removeEventListener("wheel", wheel);
+  }, [interactive]);
   return (
     <div
-      className={`computer-preview-surface${browser ? " browser-frame browser-input-surface" : ""}`}
+      className={`computer-preview-surface${browser ? " browser-frame browser-input-surface" : ""}${browser?.nativeView ? " browser-native-surface" : ""}`}
       data-browser-thread={browser?.threadId}
       data-browser-tab={browser?.tabId}
       data-browser-url={browser?.url}
@@ -209,7 +230,7 @@ export function PreviewCanvas({
         aria-label={label}
         role="img"
         onPointerDown={
-          browser
+          interactive
             ? (event) => {
                 canvas.current!.setPointerCapture(event.pointerId);
                 input.current?.focus({ preventScroll: true });
@@ -234,7 +255,7 @@ export function PreviewCanvas({
             : undefined
         }
         onPointerUp={
-          browser
+          interactive
             ? (event) => {
                 if (canvas.current!.hasPointerCapture(event.pointerId))
                   canvas.current!.releasePointerCapture(event.pointerId);
@@ -254,7 +275,7 @@ export function PreviewCanvas({
             : undefined
         }
         onPointerMove={
-          browser
+          interactive
             ? (event) =>
                 move({
                   type: "mouseMove",
@@ -266,25 +287,11 @@ export function PreviewCanvas({
                 })
             : undefined
         }
-        onWheel={
-          browser
-            ? (event) => {
-                event.preventDefault();
-                send({
-                  type: "mouseWheel",
-                  ...point(event),
-                  deltaX: Math.max(-10000, Math.min(10000, -event.deltaX)),
-                  deltaY: Math.max(-10000, Math.min(10000, -event.deltaY)),
-                  modifiers: modifiers(event),
-                });
-              }
-            : undefined
-        }
         onContextMenu={(event) => {
           if (browser) event.preventDefault();
         }}
       />
-      {browser && (
+      {interactive && (
         <textarea
           className="browser-ime-input"
           ref={input}
