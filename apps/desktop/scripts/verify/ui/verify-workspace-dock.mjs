@@ -350,7 +350,6 @@ try {
       "browser-session-security",
       interaction.browserSecurity?.allowRunningInsecureContent === false &&
         interaction.browserSecurity?.contextIsolation === true &&
-        interaction.browserSecurity?.offscreen === true &&
         interaction.browserSecurity?.navigationAllowed === true &&
         interaction.browserSecurity?.nodeIntegration === false &&
         interaction.browserSecurity?.nodeIntegrationInSubFrames === false &&
@@ -360,6 +359,17 @@ try {
         interaction.browserSecurity?.webSecurity === true,
       interaction.browserSecurity ?? null,
       "isolated main-owned Artemis Browser session",
+    );
+    assert(
+      "browser-session-rendering",
+      interaction.browserSecurity?.offscreen ===
+        (process.platform !== "darwin") &&
+        interaction.browserSecurity?.nativeAttached ===
+          (process.platform === "darwin"),
+      interaction.browserSecurity ?? null,
+      process.platform === "darwin"
+        ? "native browser attached to its owner window"
+        : "offscreen browser with shared-texture presentation",
     );
     assert(
       "interaction-present",

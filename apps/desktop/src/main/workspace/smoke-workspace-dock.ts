@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, session, WebContentsView } from "electron";
 import { createServer } from "node:http";
 import type { BrowserSessionHost } from "./browser-session-host.js";
 import { BROWSER_SESSION_PARTITION } from "../../shared/i18n/browser-locale.js";
@@ -628,6 +628,11 @@ export async function driveSmokeWorkspaceDockEvidence(
       allowRunningInsecureContent: preferences.allowRunningInsecureContent,
       contextIsolation: preferences.contextIsolation,
       offscreen: browserContents.isOffscreen(),
+      nativeAttached: window.contentView.children.some(
+        (child) =>
+          child instanceof WebContentsView &&
+          child.webContents === browserContents,
+      ),
       navigationAllowed: /^https?:/u.test(browserContents.getURL()),
       nodeIntegration: preferences.nodeIntegration,
       nodeIntegrationInSubFrames: preferences.nodeIntegrationInSubFrames,
