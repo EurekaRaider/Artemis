@@ -24247,6 +24247,8 @@ app
       navigationAllowed: isEmbeddedBrowserNavigationAllowed,
       register: (contents, threadId) =>
         computerUseHost?.registerOwnedBrowser(contents, threadId),
+      present: (contentsId, presentation) =>
+        computerUseHost?.presentBrowser(contentsId, presentation),
       input: async (threadId, contentsId, input) => {
         if (computerUseHost)
           await computerUseHost.humanInput(threadId, contentsId, input);

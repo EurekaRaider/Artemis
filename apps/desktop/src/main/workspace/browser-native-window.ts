@@ -16,6 +16,8 @@ export class BrowserNativeWindow {
     enableLargerThanScreen: true,
   });
   private readonly view: WebContentsView;
+  private size = [1280, 720];
+  private scale = 1;
   readonly webContents;
   private owner: BaseWindow;
   private surface: { token: string; senderId: number } | undefined;
@@ -40,9 +42,13 @@ export class BrowserNativeWindow {
     return this.window.isDestroyed();
   }
   getContentSize() {
-    return this.window.getContentSize();
+    return [...this.size];
   }
-  setContentSize(width: number, height: number) {
+  setContentSize(width: number, height: number, scale = this.scale) {
+    this.size = [width, height];
+    this.scale = scale;
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
     this.window.setContentSize(width, height);
     if (this.owner === this.window)
       this.view.setBounds({ x: 0, y: 0, width, height });
@@ -51,6 +57,13 @@ export class BrowserNativeWindow {
     this.window.setPosition(x, y);
   }
   present(owner: BrowserWindow, token: string, bounds: Rectangle | null) {
+    if (bounds)
+      bounds = {
+        x: Math.round(bounds.x * this.scale),
+        y: Math.round(bounds.y * this.scale),
+        width: Math.round(bounds.width * this.scale),
+        height: Math.round(bounds.height * this.scale),
+      };
     const [width, height] = owner.getContentSize();
     const clipped = bounds && {
       ...bounds,
@@ -92,7 +105,7 @@ export class BrowserNativeWindow {
     this.owner = this.window;
     if (this.window.isDestroyed()) return;
     this.window.contentView.addChildView(this.view);
-    const [width, height] = this.getContentSize();
+    const [width, height] = this.window.getContentSize();
     this.view.setBounds({ x: 0, y: 0, width: width!, height: height! });
     this.view.setVisible(true);
   }

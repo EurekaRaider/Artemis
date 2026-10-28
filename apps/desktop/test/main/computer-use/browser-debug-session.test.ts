@@ -44,13 +44,49 @@ it("serializes overlapping overlay and annotation screenshots before restoring e
     action: "viewport",
     viewport: { width: 390, height: 844, scale: 0.5 },
   });
+  const presentation = f.session.setPresentation({
+    width: 500,
+    height: 400,
+    scale: 2,
+  });
   const second = f.command({ action: "screenshot" });
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(captures).toBe(1);
   expect(f.page.enableDeviceEmulation).not.toHaveBeenCalled();
   complete({ data: "aW1hZ2U=" });
-  await Promise.all([first, viewport, second]);
+  await Promise.all([first, viewport, presentation, second]);
   expect(captures).toBe(2);
+  f.session.dispose();
+});
+
+it("scales native presentation without changing responsive layout or saved preview zoom", async () => {
+  const f = fixture();
+  await f.session.setPresentation({ width: 600, height: 400, scale: 2 });
+  expect(f.page.enableDeviceEmulation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      viewSize: { width: 600, height: 400 },
+      scale: 2,
+    }),
+  );
+  expect(f.session.snapshot().viewport).toBeNull();
+  const viewport = { width: 390, height: 844, scale: 0.5 };
+  await f.command({ action: "viewport", viewport });
+  expect(f.page.enableDeviceEmulation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      viewSize: { width: 390, height: 844 },
+      scale: 1,
+    }),
+  );
+  expect(f.session.snapshot().viewport).toEqual(viewport);
+  await f.session.setPresentation({ width: 600, height: 400, scale: 1 });
+  expect(f.page.enableDeviceEmulation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      viewSize: { width: 390, height: 844 },
+      scale: 0.5,
+    }),
+  );
+  await f.command({ action: "viewport", viewport: null });
+  expect(f.page.disableDeviceEmulation).toHaveBeenCalled();
   f.session.dispose();
 });
 

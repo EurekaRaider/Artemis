@@ -361,6 +361,12 @@ export class ComputerUseHost {
     this.browser.register(contents, threadId);
     this.waitingBrowsers.get(threadId)?.(contents);
   }
+  presentBrowser(
+    contentsId: number,
+    presentation: import("@artemis/protocol").BrowserViewport,
+  ) {
+    return this.browser.present(contentsId, presentation);
+  }
   humanInput(
     threadId: string,
     contentsId: number,

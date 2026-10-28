@@ -68,12 +68,15 @@ export function bindNativeBrowserSurface(
     // Native views sit above host HTML. Retain one still image while host
     // menus, annotations or dialogs cover the page; never start screen capture.
     const covered =
-      !!document.querySelector("dialog[open]") ||
+      [...document.querySelectorAll("dialog[open]")].some(
+        (dialog) => !dialog.contains(canvas),
+      ) ||
       [
         ...document.querySelectorAll(
           '[role="menu"], [role="listbox"], [role="tooltip"], [data-artemis-component="popover"], .browser-preview-picker, .browser-preview-highlight, .computer-preview-card',
         ),
       ].some((element) => {
+        if (element.contains(canvas)) return false;
         const other = element.getBoundingClientRect();
         return (
           other.width > 0 &&

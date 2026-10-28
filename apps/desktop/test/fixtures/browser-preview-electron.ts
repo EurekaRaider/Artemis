@@ -65,6 +65,8 @@ async function main() {
   const browsers = new BrowserSessionHost({
     navigationAllowed: (value) => /^(https?:|about:blank)/u.test(value),
     register: (contents, threadId) => driver.register(contents, threadId),
+    present: (contentsId, presentation) =>
+      driver.present(contentsId, presentation),
     input: (threadId, contentsId, input) =>
       driver.humanInput(threadId, contentsId, input),
     changed: (snapshot) =>
@@ -173,6 +175,36 @@ async function main() {
       nativeView?.getVisible(),
       "native browser is attached to the visible window",
     );
+    for (const zoom of [2, 1]) {
+      window.webContents.setZoomFactor(zoom);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const expected = await js(
+        `(()=>{const r=document.querySelector('.browser-frame canvas').getBoundingClientRect();return {x:Math.round(Math.round(r.x)*${zoom}),y:Math.round(Math.round(r.y)*${zoom}),width:Math.round(Math.round(r.width)*${zoom}),height:Math.round(Math.round(r.height)*${zoom})}})()`,
+      );
+      assert.deepEqual(
+        nativeView.getBounds(),
+        expected,
+        `native browser follows its HTML slot at ${zoom * 100}% zoom`,
+      );
+      assert.equal(
+        await guest.executeJavaScript("innerWidth"),
+        expected.width / zoom,
+        "host zoom preserves the page's logical viewport",
+      );
+      await driver.preview("fixture", contentsId, {
+        action: "viewport",
+        viewport: { width: 390, height: 844, scale: 0.5 },
+      });
+      assert.equal(
+        await guest.executeJavaScript("innerWidth"),
+        390,
+        "responsive layout remains independent from host zoom",
+      );
+      await driver.preview("fixture", contentsId, {
+        action: "viewport",
+        viewport: null,
+      });
+    }
     await js(
       "{ const dialog = document.createElement('dialog'); dialog.id='native-overlay'; document.body.append(dialog); dialog.showModal(); }",
     );

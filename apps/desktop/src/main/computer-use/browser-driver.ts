@@ -703,6 +703,14 @@ export class ComputerBrowserDriver implements ComputerDriver {
   ) {
     return this.browser(target).debug.execute(command, signal);
   }
+  present(
+    contentsId: number,
+    presentation: import("@artemis/protocol").BrowserViewport,
+  ) {
+    return this.browsers
+      .get(`browser:${contentsId}`)
+      ?.debug.setPresentation(presentation);
+  }
   async humanInput(
     threadId: string,
     contentsId: number,

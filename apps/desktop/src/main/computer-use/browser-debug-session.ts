@@ -32,6 +32,7 @@ export function diagnosticText(value: string): string {
 export class BrowserDebugSession {
   private readonly debug: WebContents["debugger"];
   private viewport: BrowserViewport | null = null;
+  private presentation: BrowserViewport | null = null;
   private entries: BrowserDiagnostic[] = [];
   private sequence = 0;
   private navigationId = 0;
@@ -76,7 +77,7 @@ export class BrowserDebugSession {
       !this.disposed &&
       !this.manual &&
       !this.contents.isDevToolsOpened() &&
-      this.viewport
+      (this.viewport || this.presentation)
     )
       this.applyViewport();
   };
@@ -133,7 +134,7 @@ export class BrowserDebugSession {
     )
       .then(() => debug.sendCommand("CSS.enable"))
       .then(() => {
-        if (this.viewport) this.applyViewport();
+        if (this.viewport || this.presentation) this.applyViewport();
       })
       .catch((error) => {
         this.ready = undefined;
@@ -220,19 +221,39 @@ export class BrowserDebugSession {
     return result as T;
   }
   private applyViewport() {
-    if (this.viewport) {
-      const { width, height, scale } = this.viewport;
+    const viewport =
+      this.viewport ??
+      (this.presentation?.scale !== 1 ? this.presentation : null);
+    if (viewport) {
+      const { width, height } = viewport;
       this.contents.enableDeviceEmulation({
         screenPosition: "desktop",
         screenSize: { width, height },
         viewPosition: { x: 0, y: 0 },
         deviceScaleFactor: 1,
         viewSize: { width, height },
-        scale,
+        scale: (this.viewport?.scale ?? 1) * (this.presentation?.scale ?? 1),
       });
     } else {
       this.contents.disableDeviceEmulation();
     }
+  }
+  setPresentation(presentation: BrowserViewport) {
+    const operation = this.layoutCommands
+      .catch(() => {})
+      .then(() => {
+        if (this.disposed || this.contents.isDestroyed()) return;
+        if (
+          this.presentation?.width === presentation.width &&
+          this.presentation.height === presentation.height &&
+          this.presentation.scale === presentation.scale
+        )
+          return;
+        this.presentation = presentation;
+        this.restoreViewport();
+      });
+    this.layoutCommands = operation;
+    return operation;
   }
   private add(entry: Omit<BrowserDiagnostic, "id" | "time">) {
     this.entries.push({

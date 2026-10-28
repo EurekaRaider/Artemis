@@ -123,6 +123,50 @@ it("hides a native browser for host overlays, preserves its dimensions, and rest
   unmount();
 });
 
+it.each(["dialog", "popover"])(
+  "keeps a native browser visible inside its host %s while respecting external dialogs",
+  async (host) => {
+    const command = fixture();
+    const container = document.createElement(
+      host === "dialog" ? "dialog" : "div",
+    );
+    if (host === "dialog") container.setAttribute("open", "");
+    else container.setAttribute("data-artemis-component", "popover");
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 800,
+      height: 600,
+    } as DOMRect);
+    document.body.append(container);
+    const { unmount } = render(
+      <PreviewCanvas
+        sessionId="session"
+        browser={{ ...browser, nativeView: true }}
+        label="Browser"
+      />,
+      { container },
+    );
+    const visible = expect.objectContaining({
+      nativeBounds: { x: 10, y: 20, width: 400, height: 300 },
+    });
+    await waitFor(() => expect(command).toHaveBeenLastCalledWith(visible));
+    expect(window.artemis.browserPreview).not.toHaveBeenCalled();
+    const externalDialog = document.createElement("dialog");
+    externalDialog.open = true;
+    act(() => container.append(externalDialog));
+    await waitFor(() =>
+      expect(command).toHaveBeenLastCalledWith(
+        expect.objectContaining({ nativeBounds: null }),
+      ),
+    );
+    act(() => externalDialog.remove());
+    await waitFor(() => expect(command).toHaveBeenLastCalledWith(visible));
+    unmount();
+    container.remove();
+  },
+);
+
 it("cancels native wheel scrolling and forwards fractional pixel deltas once", () => {
   const command = fixture();
   const { unmount } = render(

@@ -38,6 +38,10 @@ export class BrowserSessionHost {
     private readonly options: {
       navigationAllowed(url: string): boolean;
       register(contents: WebContents, threadId: string): void;
+      present?(
+        contentsId: number,
+        presentation: import("@artemis/protocol").BrowserViewport,
+      ): Promise<void> | undefined;
       input(
         threadId: string,
         contentsId: number,
@@ -302,9 +306,18 @@ export class BrowserSessionHost {
         if (native && !owner)
           throw new Error("Browser requires a native owner window");
         tab.stream.subscribe(input.token, sender, !native);
-        tab.window.setContentSize(input.width, input.height);
+        const scale = owner?.webContents.getZoomFactor() ?? 1;
+        if (tab.window instanceof BrowserNativeWindow)
+          tab.window.setContentSize(input.width, input.height, scale);
+        else tab.window.setContentSize(input.width, input.height);
         if (native && owner)
           native.present(owner, input.token, input.nativeBounds!);
+        if (tab.window instanceof BrowserNativeWindow)
+          await this.options.present?.(contents.id, {
+            width: input.width,
+            height: input.height,
+            scale,
+          });
         if (process.platform !== "darwin")
           contents.setFrameRate(previewFrameRate(sender));
         break;

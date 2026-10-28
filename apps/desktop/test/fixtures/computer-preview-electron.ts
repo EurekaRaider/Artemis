@@ -47,6 +47,8 @@ async function main() {
   const browsers = new BrowserSessionHost({
     navigationAllowed: (url) => /^(http:|about:blank)/u.test(url),
     register: (contents, threadId) => driver.register(contents, threadId),
+    present: (contentsId, presentation) =>
+      driver.present(contentsId, presentation),
     input: async (threadId, contentsId, input) => {
       humanInputs.push(input);
       try {

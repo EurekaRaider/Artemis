@@ -113,7 +113,12 @@ vi.mock("electron", async () => {
   };
 });
 const owner = (id: number) =>
-  ({ id, isDestroyed: () => false, send: vi.fn() }) as unknown as WebContents;
+  ({
+    id,
+    isDestroyed: () => false,
+    send: vi.fn(),
+    getZoomFactor: () => 1,
+  }) as unknown as WebContents;
 function fixture() {
   const register = vi.fn(),
     input = vi.fn(async () => {}),
@@ -451,6 +456,40 @@ it("presents native browser content without capture, parks covered pages for scr
   expect(tab.window.webContents.close).toHaveBeenCalledExactlyOnceWith({
     waitForBeforeUnload: false,
   });
+});
+
+it("maps native bounds through host zoom and keeps parked pages at the same physical size", async () => {
+  vi.stubGlobal("process", { ...process, platform: "darwin" });
+  const f = fixture(),
+    sender = owner(1);
+  sender.getZoomFactor = () => 2;
+  const tab = await f.host.open("one", "browser");
+  const present = {
+    threadId: "one",
+    tabId: "browser",
+    token: "zoomed",
+    action: "subscribe" as const,
+    width: 400,
+    height: 300,
+    nativeBounds: { x: 100, y: 80, width: 400, height: 300 },
+  };
+  await f.host.command(present, sender);
+  const view = native.views[0];
+  expect(view.setBounds).toHaveBeenLastCalledWith({
+    x: 200,
+    y: 160,
+    width: 800,
+    height: 600,
+  });
+  expect(tab.window.getContentSize()).toEqual([400, 300]);
+  await f.host.command({ ...present, nativeBounds: null }, sender);
+  expect(view.setBounds).toHaveBeenLastCalledWith({
+    x: 0,
+    y: 0,
+    width: 800,
+    height: 600,
+  });
+  f.host.dispose();
 });
 
 it("clips native surfaces to their owner window and does not let a stale unsubscribe park a replacement surface", async () => {
