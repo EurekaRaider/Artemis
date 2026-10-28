@@ -167,6 +167,54 @@ it.each(["dialog", "popover"])(
   },
 );
 
+it("ignores hidden overlapping tooltips and follows CSS hover visibility", async () => {
+  const command = fixture();
+  const tooltip = document.createElement("div");
+  tooltip.setAttribute("role", "tooltip");
+  let visibility = "hidden";
+  const computedStyle = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element) =>
+    element === tooltip
+      ? ({
+          visibility,
+          opacity: visibility === "hidden" ? "0" : "1",
+          display: "block",
+        } as CSSStyleDeclaration)
+      : computedStyle(element),
+  );
+  vi.spyOn(tooltip, "getBoundingClientRect").mockReturnValue({
+    left: 20,
+    top: 30,
+    width: 100,
+    height: 80,
+  } as DOMRect);
+  document.body.append(tooltip);
+  const { unmount } = render(
+    <PreviewCanvas
+      sessionId="session"
+      browser={{ ...browser, nativeView: true }}
+      label="Browser"
+    />,
+  );
+  const visible = expect.objectContaining({
+    nativeBounds: { x: 10, y: 20, width: 400, height: 300 },
+  });
+  await waitFor(() => expect(command).toHaveBeenLastCalledWith(visible));
+  expect(window.artemis.browserPreview).not.toHaveBeenCalled();
+  visibility = "visible";
+  act(() => tooltip.dispatchEvent(new Event("pointerover", { bubbles: true })));
+  await waitFor(() =>
+    expect(command).toHaveBeenLastCalledWith(
+      expect.objectContaining({ nativeBounds: null }),
+    ),
+  );
+  visibility = "hidden";
+  act(() => tooltip.dispatchEvent(new Event("pointerout", { bubbles: true })));
+  await waitFor(() => expect(command).toHaveBeenLastCalledWith(visible));
+  unmount();
+  tooltip.remove();
+});
+
 it("cancels native wheel scrolling and forwards fractional pixel deltas once", () => {
   const command = fixture();
   const { unmount } = render(

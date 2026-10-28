@@ -13,6 +13,15 @@ export function bindNativeBrowserSurface(
   let occluded = false;
   let frame = 0;
   let imageRevision = 0;
+  const isVisibleOverlay = (element: Element) => {
+    if (element.contains(canvas)) return false;
+    const style = getComputedStyle(element);
+    return (
+      style.display !== "none" &&
+      style.visibility === "visible" &&
+      style.opacity !== "0"
+    );
+  };
   const unsubscribe = () => {
     subscribed = false;
     last = "";
@@ -68,15 +77,13 @@ export function bindNativeBrowserSurface(
     // Native views sit above host HTML. Retain one still image while host
     // menus, annotations or dialogs cover the page; never start screen capture.
     const covered =
-      [...document.querySelectorAll("dialog[open]")].some(
-        (dialog) => !dialog.contains(canvas),
-      ) ||
+      [...document.querySelectorAll("dialog[open]")].some(isVisibleOverlay) ||
       [
         ...document.querySelectorAll(
           '[role="menu"], [role="listbox"], [role="tooltip"], [data-artemis-component="popover"], .browser-preview-picker, .browser-preview-highlight, .computer-preview-card',
         ),
       ].some((element) => {
-        if (element.contains(canvas)) return false;
+        if (!isVisibleOverlay(element)) return false;
         const other = element.getBoundingClientRect();
         return (
           other.width > 0 &&
@@ -134,8 +141,17 @@ export function bindNativeBrowserSurface(
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["open", "hidden", "style"],
+    attributeFilter: ["open", "hidden", "style", "class", "data-state"],
   });
+  const overlayEvents = [
+    "pointerover",
+    "pointerout",
+    "focusin",
+    "focusout",
+    "transitionrun",
+    "transitionend",
+  ];
+  for (const event of overlayEvents) document.addEventListener(event, schedule);
   window.addEventListener("resize", schedule);
   window.addEventListener("scroll", schedule, true);
   document.addEventListener("visibilitychange", schedule);
@@ -146,6 +162,8 @@ export function bindNativeBrowserSurface(
     cancelAnimationFrame(frame);
     resize.disconnect();
     mutations.disconnect();
+    for (const event of overlayEvents)
+      document.removeEventListener(event, schedule);
     window.removeEventListener("resize", schedule);
     window.removeEventListener("scroll", schedule, true);
     document.removeEventListener("visibilitychange", schedule);
