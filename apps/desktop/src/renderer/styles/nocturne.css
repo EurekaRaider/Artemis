@@ -708,6 +708,9 @@
 .work-record-agent.failed > [data-part="icon"] {
   color: var(--artemis-color-status-danger);
 }
+.work-record-agent:is(.queued, .blocked, .cancelled) > [data-part="icon"] {
+  color: var(--artemis-color-text-tertiary);
+}
 .work-record-agent > [data-part="title"] {
   display: contents;
 }
