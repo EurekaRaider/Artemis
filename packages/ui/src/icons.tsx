@@ -414,7 +414,7 @@ const ARTEMIS_ICON_GLYPHS = {
   ),
   push: <path d="M12 20V9 M7.5 13.5L12 9l4.5 4.5 M5 4.5h14" />,
   local: <path d="M5 6.5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1V15H5z M3 18.5h18" />,
-  source: <path d="M8.5 8l-4 4 4 4M15.5 8l4 4-4 4" />,
+  source: <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />,
   mcp: (
     <path d="M9 3.5v4 M15 3.5v4 M6.5 7.5h11V11a5.5 5.5 0 0 1-11 0z M12 16.5v4" />
   ),
