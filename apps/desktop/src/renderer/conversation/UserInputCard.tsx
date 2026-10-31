@@ -45,6 +45,8 @@ export function UserInputCard({
   if (input.status !== "pending")
     return (
       <DecisionResult
+        className="user-input-result"
+        state={input.status}
         label={
           input.skipped
             ? uiText(locale, "DecisionCard.skipped")

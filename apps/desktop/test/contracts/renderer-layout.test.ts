@@ -57,6 +57,10 @@ const stylesSource = readFileSync(
   ),
   "utf8",
 );
+const nocturneStylesSource = readFileSync(
+  new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
+  "utf8",
+);
 const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
@@ -381,9 +385,9 @@ function contrastRatio(first: string, second: string): number {
 
 describe("renderer layout contract", () => {
   it("offers Plan, Work, and Codemode in that order", () => {
-    const plan = composerContextSource.indexOf('value: "plan"');
-    const work = composerContextSource.indexOf('value: "work"');
-    const codemode = composerContextSource.indexOf('value: "codemode"');
+    const plan = composerContextSource.indexOf('["plan", "plan"]');
+    const work = composerContextSource.indexOf('["work", "work"]');
+    const codemode = composerContextSource.indexOf('["codemode", "code"]');
     expect(plan).toBeGreaterThan(-1);
     expect(work).toBeGreaterThan(plan);
     expect(codemode).toBeGreaterThan(work);
@@ -712,9 +716,9 @@ describe("renderer layout contract", () => {
     expect(cssRule(".composer-context-trigger")).toMatch(
       /\bmax-width:\s*100%[\s\S]*\boverflow:\s*hidden[\s\S]*\bwidth:\s*100%/u,
     );
-    expect(cssRule(".composer-context-picker")).toMatch(
-      /\bflex:\s*0\s+0\s+auto/u,
-    );
+    expect(
+      findCssDeclarations(nocturneStylesSource, ".composer-run-modes"),
+    ).toMatch(/\bflex:\s*0\s+0\s+auto/u);
     expect(uiStylesSource).toContain(
       '[data-artemis-component="select"] [data-part="menu"]',
     );
@@ -1098,10 +1102,8 @@ describe("renderer layout contract", () => {
 
   it("uses custom Codex-style context menus and modern UI typography", () => {
     expect(composerContextSource).not.toContain("<select");
-    expect(composerContextSource).toContain("<CodexSelect");
-    expect(composerContextSource).toContain(
-      'from "../components/CodexSelect.js"',
-    );
+    expect(composerContextSource).toContain("<RunModeControl");
+    expect(composerContextSource).toContain('from "@artemis/ui/patterns"');
     expect(cssRule(":root").replace(/\s+/gu, " ")).toContain(
       "--ui-font: var(--artemis-typography-body-family);",
     );
@@ -1127,12 +1129,10 @@ describe("renderer layout contract", () => {
     expect(mcpEditorSelectors).toHaveLength(1);
     expect(uiFormsSource).toContain('data-artemis-component="select"');
     expect(codexSelectSource).toContain('size = "comfortable"');
-    expect(composerContextSource).toContain('size="compact"');
+    expect(composerContextSource).toContain('className="composer-run-modes"');
     expect(appSource).toContain('className="review-scope-select"');
     expect(appSource).toContain('size="compact"');
-    expect(stylesSource).toContain(
-      '.composer-context-picker [data-artemis-component="select"] [data-part="menu"]',
-    );
+    expect(composerContextSource).toContain("onValueChange={onModeChange}");
     expect(stylesSource).toContain(
       '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
     );
@@ -1231,7 +1231,10 @@ describe("renderer layout contract", () => {
     expect(appSource).not.toContain("<SubagentList");
     expect(appSource).toContain("<AgentActivity");
     expect(appSource).toContain("className={`child-agent-card");
-    expect(appSource).toContain("title={child.label}");
+    expect(appSource).toContain(
+      "label={`${child.label}, ${childStatusLabels[child.status]}`}",
+    );
+    expect(appSource).toContain('className="tool-step-target"');
     expect(appSource).toContain("onActivate={() => onOpenChildAgent(child)}");
     expect(appSource).toContain("function ChildAgentPanel(");
     expect(appSource).toContain(
@@ -1299,7 +1302,12 @@ describe("renderer layout contract", () => {
     expect(assistant).toContain(
       "font-size: calc(var(--artemis-typography-body-size) + 0.5px)",
     );
-    expect(cssRule(".tool-summary-label")).toContain("font-size: 14px");
+    expect(
+      findCssDeclarations(nocturneStylesSource, ".app-shell .tool-card"),
+    ).toContain("font-size: 13px");
+    expect(
+      findCssDeclarations(nocturneStylesSource, ".tool-step-target"),
+    ).toContain("white-space: nowrap");
     expect(appSource).not.toContain('thinkingStatus: "Thinking"');
     expect(appSource).not.toContain('className="thinking-status"');
     expect(appSource).toContain('if (part.type === "thinking") return null;');
@@ -1308,9 +1316,20 @@ describe("renderer layout contract", () => {
   });
 
   it("keeps recoverable failed tool rows neutral while preserving failure details", () => {
-    const failedToolRule = cssRule(".tool-card.failed .tool-summary-label");
-    expect(failedToolRule).toMatch(/\bcolor:\s*var\(--muted\)/u);
-    expect(failedToolRule).not.toMatch(/\bcolor:\s*var\(--danger\)/u);
+    const failedToolRule = findCssDeclarations(
+      nocturneStylesSource,
+      ".tool-step-verb",
+    );
+    expect(failedToolRule).toContain(
+      "color: var(--artemis-color-text-secondary)",
+    );
+    expect(failedToolRule).not.toContain("--artemis-color-status-danger");
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        '.tool-step-status[data-status="failed"]',
+      ),
+    ).toContain("--artemis-color-status-danger");
     expect(uiText("en", "App_copy.failed")).toBe("Failed");
     expect(appSource).toContain("formatToolOutput(tool.name, tool.output)");
   });

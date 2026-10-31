@@ -80,7 +80,7 @@ describe("agent-team workbench", () => {
       "function childAgentMarkHash(identity: string)",
     );
     expect(childAgentIconSource).toContain("shape: (hash >>> 8) % 6");
-    expect(appSource).toContain("identity={child.agentId}");
+    expect(appSource).toContain("identity={member.agentId}");
     expect(childAgentIconSource).toContain('"#77acee"');
     expect(childAgentIconSource).toContain('"#72c4ae"');
     expect(childAgentIconSource).toContain('strokeWidth="1.5"');
