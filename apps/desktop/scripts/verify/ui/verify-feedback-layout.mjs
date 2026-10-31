@@ -91,9 +91,9 @@ const cases = [
     scale: 2,
     theme: "light",
     view: "environment-pr-checks",
-    // At 200% zoom, reserve the panel, symmetric 24px margins and 480px reading area.
+    // Environment needs at least 980 CSS pixels, including at 200% zoom.
     // Narrow-window auto-close is covered by verify-environment-panel-responsive.
-    width: 1_900,
+    width: 1_960,
   },
   {
     caseId: "approval-panel-dark-rtl-200",
