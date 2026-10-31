@@ -10774,6 +10774,7 @@ export function AgentTeamPanel({
                     <time>
                       {new Intl.DateTimeFormat(locale, {
                         hour: "2-digit",
+                        hourCycle: "h23",
                         minute: "2-digit",
                       }).format(new Date(message.createdAt))}
                     </time>
