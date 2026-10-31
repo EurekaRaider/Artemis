@@ -781,3 +781,31 @@
     display: none;
   }
 }
+.app-shell .tool-card {
+  margin: 0;
+}
+.app-shell .tool-card > [data-part="content"] {
+  margin-inline: 0;
+}
+.tool-step-status svg {
+  inline-size: 14px;
+  block-size: 14px;
+  min-inline-size: 14px;
+}
+.composer-run-modes > [data-part="status"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.composer-run-modes[data-state="disabled"] {
+  opacity: 1;
+}
+:root[data-material="glass"] .app-shell .composer-awaiting-decision {
+  background: var(--artemis-color-surface-base);
+  backdrop-filter: none;
+  box-shadow:
+    0 0 0 1px var(--nocturne-gold-line),
+    0 0 0 4px var(--nocturne-gold-halo);
+}
