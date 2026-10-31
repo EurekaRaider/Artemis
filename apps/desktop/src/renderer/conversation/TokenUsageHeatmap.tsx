@@ -50,6 +50,12 @@ export function TokenUsageHeatmap({
       },
     ];
   });
+  // A partial first month can occupy a single week. Keep its dates in the
+  // accessible cells, but leave enough room for the next visible month label.
+  const visibleMonthLabels = monthLabels.filter((month, index) => {
+    const next = monthLabels[index + 1];
+    return !next || next.column - month.column >= 3;
+  });
   const displayCells: DataHeatmapCell[] = cells.map((cell, index) => ({
     id: cell.date,
     label: formatTokenUsageTooltip(cell, view, locale),
@@ -63,7 +69,7 @@ export function TokenUsageHeatmap({
       activeCellId={hovered?.date}
       cells={displayCells}
       className="token-usage-chart"
-      columnLabels={monthLabels}
+      columnLabels={visibleMonthLabels}
       columns={Math.max(1, Math.ceil(cells.length / 7))}
       label={label}
       onActiveCellChange={(cellId) =>

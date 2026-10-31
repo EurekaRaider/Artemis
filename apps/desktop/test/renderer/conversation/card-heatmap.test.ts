@@ -185,7 +185,24 @@ describe("public data stat and heatmap migration (D#76 MIG5B)", () => {
       [...months!.querySelectorAll('[data-part="column-label"]')].map(
         (month) => month.textContent,
       ),
-    ).toEqual(["Jul", "Aug", "Sep"]);
+    ).toEqual(["Aug", "Sep"]);
+  });
+
+  it("retains the initial month when three weeks separate it from the next label", async () => {
+    const { TokenUsageHeatmap } =
+      await import("../../../src/renderer/conversation/TokenUsageHeatmap.js");
+    const cells = SYNTHETIC_CELLS.map((cell, index) => ({
+      ...cell,
+      date: addDaysIso("2026-07-13", index),
+      weekStart: addDaysIso("2026-07-13", index - (index % 7)),
+    }));
+    renderHeatmapInteractive(TokenUsageHeatmap, { cells });
+    expect(
+      [...document.querySelectorAll('[data-part="column-label"]')].map(
+        (month) => month.textContent,
+      ),
+    ).toEqual(["Jul", "Aug"]);
+    expect(gridcells()).toHaveLength(cells.length);
   });
 
   it("uses pointer, focus, and arrow keys with text-equivalent tooltips", async () => {
