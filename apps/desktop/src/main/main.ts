@@ -16896,7 +16896,9 @@ async function driveSmokeUserInputTransportEvidence(
     }
   };
   const domState = async (): Promise<SmokeUserInputTransportDomState> =>
-    (await window.webContents.executeJavaScript(`(() => ({
+    (await window.webContents.executeJavaScript(`(() => {
+      document.querySelectorAll('.work-record:not([open]) > summary').forEach(summary => summary.click());
+      return ({
       pendingCards: document.querySelectorAll('.user-input-card:is([data-state="pending"], [data-state="busy"])').length,
       cancelledCards: document.querySelectorAll('.user-input-result[data-state="cancelled"]').length,
       answeredCards: document.querySelectorAll('.user-input-result[data-state="answered"]').length,
@@ -16904,7 +16906,7 @@ async function driveSmokeUserInputTransportEvidence(
       cardTexts: [...document.querySelectorAll(".user-input-card, .user-input-result")].map(
         (card) => (card.textContent ?? "").replace(/\\s+/gu, " ").trim(),
       ),
-    }))()`)) as SmokeUserInputTransportDomState;
+    }); })()`)) as SmokeUserInputTransportDomState;
   const waitForDomState = async (
     description: string,
     predicate: (state: SmokeUserInputTransportDomState) => boolean,
@@ -17139,69 +17141,6 @@ async function driveSmokeUserInputTransportEvidence(
       "a finite ISO expiresAt per question",
     );
     const multiNonce = multiRequested[0]?.nonce ?? "";
-    const multiRendered = await waitForDomState(
-      "multi card pending beside legacy card",
-      (state) => state.pendingCards === 2,
-    );
-    assert(
-      "multi-card-translated-pending",
-      multiRendered.pendingCards === 2,
-      multiRendered.pendingCards,
-      2,
-    );
-    assert(
-      "multi-card-projects-first-pending-question",
-      multiRendered.cardTexts.some((text) => text.includes("Ship on Friday?")),
-      multiRendered.cardTexts,
-      "a translated card showing 'Ship on Friday?'",
-    );
-
-    // PR10B review round 3 (nit 6): capture the scenario screenshot now,
-    // while both the legacy and the translated card are pending, so the
-    // PNG carries visual evidence. A presented compositor frame armed
-    // before a double rAF confirms the cards reached the screen before
-    // capturePage — the same frame-gating the input-fields driver uses.
-    // No new named check: the audit keeps exactly 51 recorded checks.
-    if (artifacts.screenshot) {
-      const frameArrival = new Promise<boolean>((resolve) => {
-        let settled = false;
-        const finish = (presented: boolean) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          try {
-            window.webContents.endFrameSubscription();
-          } catch {
-            // Subscription API unavailable: the double rAF below already
-            // forces one frame.
-          }
-          resolve(presented);
-        };
-        const timeout = setTimeout(() => finish(false), 1_500);
-        try {
-          window.webContents.beginFrameSubscription(() => finish(true));
-        } catch {
-          finish(false);
-        }
-      });
-      await window.webContents.executeJavaScript(
-        `new Promise((resolve) => {
-           let second = 0;
-           const first = requestAnimationFrame(() => {
-             second = requestAnimationFrame(() => resolve(true));
-           });
-           setTimeout(() => {
-             cancelAnimationFrame(first);
-             cancelAnimationFrame(second);
-             resolve(false);
-           }, 1_500);
-         })`,
-      );
-      await frameArrival;
-      const image = await window.webContents.capturePage();
-      await writeFile(artifacts.screenshot, image.toPNG());
-    }
-
     // §6-2 no-auto-answer: no user action and no timeout expiry yet.
     await wait(1_200);
     assert(
@@ -17213,9 +17152,9 @@ async function driveSmokeUserInputTransportEvidence(
     const beforeTimeoutDom = await domState();
     assert(
       "cards-still-pending-without-user-action",
-      beforeTimeoutDom.pendingCards === 2,
+      beforeTimeoutDom.pendingCards === 1,
       beforeTimeoutDom.pendingCards,
-      2,
+      1,
     );
     assert(
       "multi-registry-still-pending",
@@ -17276,7 +17215,7 @@ async function driveSmokeUserInputTransportEvidence(
     );
     const afterLegacy = await waitForDomState(
       "legacy card settled",
-      (state) => state.pendingCards === 1,
+      (state) => state.pendingCards === 1 && state.answeredCards >= 1,
     );
     assert(
       "legacy-card-settled-rendered",
@@ -17284,6 +17223,68 @@ async function driveSmokeUserInputTransportEvidence(
       afterLegacy,
       "one pending card (multi) and at least one answered card",
     );
+
+    const multiRendered = await waitForDomState(
+      "multi card advances into the decision composer",
+      (state) => state.pendingCards === 2,
+    );
+    assert(
+      "multi-card-translated-pending",
+      multiRendered.pendingCards === 1,
+      multiRendered.pendingCards,
+      1,
+    );
+    assert(
+      "multi-card-projects-first-pending-question",
+      multiRendered.cardTexts.some((text) => text.includes("Ship on Friday?")),
+      multiRendered.cardTexts,
+      "a translated card showing 'Ship on Friday?'",
+    );
+
+    // Capture after the earlier decision settles: only the next pending
+    // decision occupies the composer, with the earlier answer in history. A presented compositor frame armed
+    // before a double rAF confirms the cards reached the screen before
+    // capturePage — the same frame-gating the input-fields driver uses.
+    // No new named check: the audit keeps exactly 51 recorded checks.
+    if (artifacts.screenshot) {
+      const frameArrival = new Promise<boolean>((resolve) => {
+        let settled = false;
+        const finish = (presented: boolean) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try {
+            window.webContents.endFrameSubscription();
+          } catch {
+            // Subscription API unavailable: the double rAF below already
+            // forces one frame.
+          }
+          resolve(presented);
+        };
+        const timeout = setTimeout(() => finish(false), 1_500);
+        try {
+          window.webContents.beginFrameSubscription(() => finish(true));
+        } catch {
+          finish(false);
+        }
+      });
+      await window.webContents.executeJavaScript(
+        `new Promise((resolve) => {
+           let second = 0;
+           const first = requestAnimationFrame(() => {
+             second = requestAnimationFrame(() => resolve(true));
+           });
+           setTimeout(() => {
+             cancelAnimationFrame(first);
+             cancelAnimationFrame(second);
+             resolve(false);
+           }, 1_500);
+         })`,
+      );
+      await frameArrival;
+      const image = await window.webContents.capturePage();
+      await writeFile(artifacts.screenshot, image.toPNG());
+    }
 
     // All questions of the live request are answered through both user
     // channels; each answer advances the translated card to the next
