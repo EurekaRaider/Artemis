@@ -391,6 +391,16 @@ try {
         secondary?.components,
         "public project filter, actions and a named overflow control",
       );
+      const createAction = secondary?.automations?.headerCreateAction;
+      assert(
+        "automation-header-create-action",
+        createAction?.count === 1 &&
+          createAction.publicButton === true &&
+          createAction.visible === true &&
+          Boolean(createAction.accessibleName),
+        createAction,
+        "one visible, named public create button in the page header",
+      );
     }
 
     const serializedAudit = JSON.stringify(audit);
