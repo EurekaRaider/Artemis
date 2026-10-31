@@ -8367,9 +8367,61 @@ function registerIpc(): void {
     return store.listPromptHistory();
   });
 
-  ipcMain.handle(IPC.imStatus, () => {
+  ipcMain.handle(IPC.imStatus, async () => {
     if (!imService) throw new Error("IM service is not ready.");
-    return imService.status();
+    const status = await imService.status();
+    if (smokeMode && process.env.ARTEMIS_SMOKE_VIEW === "nocturne-group") {
+      const identity = (userId: string) => ({
+        userId,
+        channel: "slack" as const,
+        connectionId: "artemis-smoke-group",
+        appId: "artemis-smoke-bot",
+        tenantId: "artemis-smoke-team",
+      });
+      return {
+        ...status,
+        remoteTasks: [
+          {
+            threadId: "artemis-smoke-environment-thread",
+            kind: "group",
+            channel: "slack",
+            connectionState: "connected",
+            group: {
+              spaceId: "artemis-smoke-team",
+              name: "Synthetic review team",
+              confirmed: true,
+              stale: false,
+              executingDeviceId: "artemis-smoke-reviewer",
+              members: [
+                {
+                  deviceId: "artemis-smoke-local",
+                  identity: identity("synthetic-local"),
+                  name: "Synthetic member",
+                  deviceName: "Test Mac",
+                  state: "online",
+                },
+                {
+                  deviceId: "artemis-smoke-reviewer",
+                  identity: identity("synthetic-reviewer"),
+                  name: "Synthetic reviewer",
+                  deviceName: "Test PC",
+                  state: "online",
+                },
+              ],
+            },
+            delegationWaits: [
+              {
+                id: "artemis-smoke-wait",
+                state: "waiting",
+                taskIds: ["artemis-smoke-remote-task"],
+                continuation: "Review the synthetic changes",
+              },
+            ],
+          },
+        ],
+      };
+    }
+    return status;
   });
   ipcMain.handle(IPC.imSave, (_event, input: unknown) => {
     if (!imService) throw new Error("IM service is not ready.");
@@ -15439,7 +15491,11 @@ async function seedSmokeMcpEditorFixture(): Promise<void> {
   // The smokeMode guard matches the IPC interception gates above: seeding
   // must stay a smoke-harness-only behavior so a merely VIEW-tagged process
   // can never write a synthetic server into a real mcp.json.
-  if (!smokeMode || !mcpConfigStore || !view?.startsWith("mcp-editor")) {
+  if (
+    !smokeMode ||
+    !mcpConfigStore ||
+    (!view?.startsWith("mcp-editor") && view !== "nocturne-resources-mcp")
+  ) {
     return;
   }
   // Synthetic identity only: the URL uses the reserved .test TLD and the
@@ -18004,7 +18060,8 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
   if (
     !store ||
     (!view?.startsWith("environment") &&
-      !view?.startsWith("icon-sizing-environment"))
+      !view?.startsWith("icon-sizing-environment") &&
+      !(smokeMode && view?.startsWith("nocturne-")))
   ) {
     return;
   }
@@ -18081,7 +18138,11 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
     mode: "work",
     target: "local",
     status:
-      view === "environment-feedback-approval" ? "waiting-approval" : "idle",
+      view === "environment-feedback-approval"
+        ? "waiting-approval"
+        : view === "nocturne-update-waiting"
+          ? "running"
+          : "idle",
     pinned: false,
     archived: false,
     createdAt: now,
@@ -18479,7 +18540,7 @@ function createMainWindow(): BrowserWindow {
           view === "markdown-editor-navigation-preview" ||
           (process.env.ARTEMIS_SMOKE_GOAL_FOCUS_PROBE === "1" &&
             view.startsWith("goal-"));
-        if (focusEvidenceView) {
+        if (focusEvidenceView || process.env.ARTEMIS_SMOKE_VISIBLE === "1") {
           // Keep focus-evidence views on the active display. A macOS runner
           // cannot activate a window parked outside every screen, so moving
           // these form and navigation views offscreen makes real
@@ -18807,6 +18868,41 @@ function createMainWindow(): BrowserWindow {
                 )};
                 if (requestedDirection === 'rtl') {
                   document.documentElement.dir = 'rtl';
+                }
+                if (view.startsWith('nocturne-')) {
+                  if (view.startsWith('nocturne-settings-')) {
+                    const settingsLabel = ${JSON.stringify(uiText(currentLocale(), "App_copy.settings"))};
+                    const button = [...document.querySelectorAll('.activity-button, .rail-item')].find((candidate) => candidate.checkVisibility({ visibilityProperty: true }) && (candidate.getAttribute('aria-label') === settingsLabel || candidate.getAttribute('title') === settingsLabel));
+                    button?.click();
+                    await wait(700);
+                    const section = view.slice('nocturne-settings-'.length);
+                    document.querySelector('#settings-tab-' + section + '-button')?.click();
+                    await wait(500);
+                  } else if (view.startsWith('nocturne-resources-')) {
+                    document.querySelector('.sidebar-nav [data-nav-view=resources]')?.click();
+                    await wait(1_000);
+                    const section = view.slice('nocturne-resources-'.length);
+                    document.querySelector('#resource-management-tab-' + section)?.click();
+                    await wait(700);
+                  } else {
+                    document.querySelector('[data-tree-row-id="thread:artemis-smoke-environment-thread"] .thread-select')?.click();
+                    await wait(800);
+                    if (view === 'nocturne-project-menu') document.querySelector('.project-action')?.click();
+                    if (view === 'nocturne-thread-menu') document.querySelector('.thread-action')?.click();
+                    if (view === 'nocturne-review-comment') {
+                      const label = ${JSON.stringify(uiText(currentLocale(), "App_copy.reviewChanges"))};
+                      [...document.querySelectorAll('.environment-popover button')].find((button) => button.textContent.trim() === label)?.click();
+                      await wait(800);
+                      document.querySelector('.review-comment-trigger')?.click();
+                      await wait(200);
+                      const input = document.querySelector('.review-comment-editor textarea');
+                      if (!(input instanceof HTMLTextAreaElement)) throw new Error('Review inline comment editor missing');
+                      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(input, 'Please explain this change.');
+                      input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    await wait(400);
+                  }
+                  return;
                 }
                 if (view === 'feedback-layout-settings') {
                   // Compact layouts close the sidebar after the zoom resize;
@@ -20041,7 +20137,7 @@ function createMainWindow(): BrowserWindow {
                         ? {
                             stateText:
                               seededRow
-                                .querySelector('[data-part="description"]')
+                                .querySelector('.resource-mcp-chips > [data-state]')
                                 ?.textContent?.trim() ?? null,
                           }
                         : null;
@@ -21088,6 +21184,56 @@ function createMainWindow(): BrowserWindow {
             )
           ) {
             await new Promise((resolve) => setTimeout(resolve, 1_000));
+          }
+          if (smokeMode && requestedSmokeView?.startsWith("nocturne-update-")) {
+            const stateName = requestedSmokeView.slice(
+              "nocturne-update-".length,
+            );
+            window.webContents.send(IPC.updateStatus, {
+              state:
+                stateName === "waiting" || stateName === "complete"
+                  ? "downloaded"
+                  : stateName,
+              currentVersion: app.getVersion(),
+              availableVersion: "1.7.21",
+              rollbackAvailable: stateName === "error",
+              ...(stateName === "downloading"
+                ? {
+                    progress: 42,
+                    downloadedBytes: 18.4 * 1048576,
+                    totalBytes: 43.6 * 1048576,
+                  }
+                : {}),
+              ...(stateName === "error"
+                ? { message: "Synthetic update verification failed" }
+                : {}),
+              ...(stateName === "complete"
+                ? { completedVersion: app.getVersion() }
+                : {}),
+            });
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+          if (
+            smokeMode &&
+            requestedSmokeView?.startsWith("nocturne-computer-")
+          ) {
+            window.webContents.send(IPC.computerState, {
+              version: 1,
+              state: requestedSmokeView.endsWith("paused")
+                ? "paused"
+                : "acting",
+              threadId: "artemis-smoke-environment-thread",
+              target: {
+                id: "artemis-smoke-browser",
+                kind: "browser",
+                name: "Synthetic Browser",
+              },
+              foreground: true,
+              ...(requestedSmokeView.endsWith("paused")
+                ? { reason: "User took control" }
+                : {}),
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1_100));
           }
           let navigationFocusEvidence = false;
           if (smokeMode) {
