@@ -12003,9 +12003,9 @@ export function Timeline({
             );
             return (
               <TimelineTurn
-                className="timeline-turn completed"
+                className={`timeline-turn ${turn.status}`}
                 key={turn.id}
-                state="completed"
+                state={turn.status}
               >
                 {userEntries.map(renderTimelineEntry)}
                 <WorkRecord
