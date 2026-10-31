@@ -2664,7 +2664,9 @@
   inline-size: 16px;
   block-size: 16px;
 }
-.app-shell .sidebar-update[data-state="checking"] .update-btn {
+.app-shell
+  .sidebar-update:is([data-state="checking"], [data-state="downloading"])
+  .update-btn {
   color: var(--muted);
   background: transparent;
 }
