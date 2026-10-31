@@ -21240,7 +21240,8 @@ function createMainWindow(): BrowserWindow {
           }
           await new Promise((resolve) => setTimeout(resolve, settleDelay));
           if (smokePreparationScale !== smokeScale) {
-            const commentVisible = await window.webContents.executeJavaScript(`(() => {
+            const commentVisible = await window.webContents
+              .executeJavaScript(`(() => {
               const input = document.querySelector('.review-comment-editor textarea');
               if (!(input instanceof HTMLTextAreaElement) || !input.checkVisibility({ visibilityProperty: true })) return false;
               const bounds = input.getBoundingClientRect();
@@ -21250,7 +21251,9 @@ function createMainWindow(): BrowserWindow {
               window.webContents.getZoomFactor() !== smokeScale ||
               !commentVisible
             ) {
-              throw new Error("Review comment was not visible at the requested zoom.");
+              throw new Error(
+                "Review comment was not visible at the requested zoom.",
+              );
             }
           }
         })
@@ -21909,6 +21912,48 @@ function createMainWindow(): BrowserWindow {
                       }
                     : null,
                   goalContextRow: document.querySelector('.composer-context-row')?.getBoundingClientRect().toJSON() ?? null,
+                  projectMenuSurface: (() => {
+                    const menu = document.querySelector('.project-menu');
+                    if (!(menu instanceof HTMLElement)) return null;
+                    const surface = (element) => {
+                      const style = getComputedStyle(element);
+                      return {
+                        tag: element.tagName,
+                        className: element.className,
+                        backgroundColor: style.backgroundColor,
+                        backdropFilter: style.backdropFilter,
+                        filter: style.filter,
+                        maskImage: style.maskImage,
+                        clipPath: style.clipPath,
+                        mixBlendMode: style.mixBlendMode,
+                        willChange: style.willChange,
+                        opacity: style.opacity,
+                        isolation: style.isolation,
+                        transform: style.transform,
+                        contain: style.contain,
+                        position: style.position,
+                        zIndex: style.zIndex,
+                      };
+                    };
+                    const ancestors = [];
+                    for (let element = menu.parentElement; element; element = element.parentElement) {
+                      ancestors.push(surface(element));
+                    }
+                    const first = menu.querySelector('button');
+                    const bounds = first?.getBoundingClientRect();
+                    const hit = bounds ? document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2) : null;
+                    return {
+                      ...surface(menu),
+                      ancestors,
+                      media: {
+                        reducedTransparency: matchMedia('(prefers-reduced-transparency: reduce)').matches,
+                        increasedContrast: matchMedia('(prefers-contrast: more)').matches,
+                        forcedColors: matchMedia('(forced-colors: active)').matches,
+                      },
+                      visible: visible(menu),
+                      firstItemUnobscured: Boolean(first && hit && first.contains(hit)),
+                    };
+                  })(),
                   composerBranchMenu: (() => {
                     const trigger = document.querySelector('.composer-context .branch-context-trigger');
                     const menu = document.querySelector('.composer-context .branch-context-menu');
