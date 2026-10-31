@@ -2582,6 +2582,35 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.app-shell .review-diff-file-header {
+  min-block-size: 40px;
+  background: var(--artemis-color-surface-base);
+}
+.app-shell .review-diff-file-header .review-file-path {
+  font-family: var(--mono-font);
+  font-size: 12.5px;
+}
+.app-shell .review-hunk {
+  min-block-size: 30px;
+  padding: 3px 12px;
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .review-actions {
+  flex: none;
+  gap: 6px;
+}
+.app-shell .review-action {
+  min-block-size: 26px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.app-shell .review-action.danger {
+  border-color: transparent;
+  background: transparent;
+  color: var(--artemis-color-status-danger-text);
+}
 
 .app-shell :is(.review-comment, .review-comment-editor) {
   margin-block: 6px;
@@ -2631,4 +2660,22 @@
   .app-shell :is(.review-comment, .review-comment-editor) {
     margin-inline-start: 12px;
   }
+}
+
+.environment-workspace-menu .environment-workspace-copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: 2px;
+}
+.environment-workspace-menu .environment-workspace-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--artemis-color-text-tertiary);
+  font: 11px/1.35 var(--mono-font);
+}
+.environment-workspace-menu [role="separator"] {
+  margin: 5px 8px;
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
 }

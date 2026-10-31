@@ -89,7 +89,7 @@ it("shows message event times and the thread channel without inventing a member 
     <Timeline {...props} events={events} />,
   );
   expect(screen.getByText("Member")).toBeVisible();
-  expect(screen.getByText("slack")).toBeVisible();
+  expect(screen.getByText("Slack")).toBeVisible();
   expect(screen.queryByText("Not a proven message author")).toBeNull();
   expect(
     [...container.querySelectorAll(".group-message-heading time")].map((node) =>

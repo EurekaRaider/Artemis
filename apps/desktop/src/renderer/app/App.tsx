@@ -818,6 +818,16 @@ function splitImChannelPrefix(
   };
 }
 
+function imChannelDisplayName(channel: string, locale: AppLocale) {
+  return channel === "slack"
+    ? "Slack"
+    : channel === "feishu" || channel === "lark"
+      ? uiText(locale, "ImNavigation.message1")
+      : channel === "wecom"
+        ? uiText(locale, "ImNavigation.message2")
+        : "IM";
+}
+
 function ThreadChannelMark({
   channel,
   locale,
@@ -826,14 +836,7 @@ function ThreadChannelMark({
   locale: AppLocale;
 }) {
   /* 第二个图标悬浮气泡：渠道名称。 */
-  const label =
-    channel === "slack"
-      ? "Slack"
-      : channel === "feishu" || channel === "lark"
-        ? uiText(locale, "ImNavigation.message1")
-        : channel === "wecom"
-          ? uiText(locale, "ImNavigation.message2")
-          : "IM";
+  const label = imChannelDisplayName(channel, locale);
   return (
     <Tooltip label={label}>
       {channel === "feishu" || channel === "lark" ? (
@@ -11664,7 +11667,9 @@ export function Timeline({
                   <ArtemisIcon name="user" />
                 </span>
                 <strong>{uiText(locale, "ImGroupMembers.message13")}</strong>
-                {imChannel && <span>{imChannel}</span>}
+                {imChannel && (
+                  <span>{imChannelDisplayName(imChannel, locale)}</span>
+                )}
                 {renderMessageTime(entry)}
               </div>
             )}

@@ -95,23 +95,33 @@ export function EnvironmentWorkspaceMenu({
         <button
           type="button"
           role="menuitemradio"
+          aria-label={t("App_copy.local")}
+          aria-description={!worktree ? path : undefined}
           aria-checked={!worktree}
           disabled={pending || (worktree && (disabled || !onHandoff))}
           onClick={() => (worktree ? void change("local") : setOpen(false))}
         >
           <EnvironmentLocalIcon />
-          <span>{t("App_copy.local")}</span>
+          <span className="environment-workspace-copy">
+            <span>{t("App_copy.local")}</span>
+            {!worktree && <small title={path}>{path}</small>}
+          </span>
           {!worktree && <EnvironmentCheckIcon />}
         </button>
         {worktree && (
           <button
             type="button"
             role="menuitemradio"
+            aria-label={label}
+            aria-description={path}
             aria-checked
             onClick={() => setOpen(false)}
           >
             <EnvironmentWorktreeIcon />
-            <span>{label}</span>
+            <span className="environment-workspace-copy">
+              <span>{label}</span>
+              <small title={path}>{path}</small>
+            </span>
             <EnvironmentCheckIcon />
           </button>
         )}
@@ -130,6 +140,7 @@ export function EnvironmentWorkspaceMenu({
             </span>
           </button>
         )}
+        <div role="separator" />
         <button
           type="button"
           role="menuitem"
