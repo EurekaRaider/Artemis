@@ -2548,11 +2548,32 @@
   overflow-x: auto;
 }
 .app-shell .review-line {
-  grid-template-columns: 44px max-content;
+  grid-template-columns: 36px 36px 16px max-content;
   inline-size: max-content;
   min-inline-size: 100%;
+  min-block-size: 21px;
+  font-size: 12px;
+  line-height: 21px;
+}
+.app-shell .review-line > [data-part="marker"] {
+  display: block;
+  grid-column: 3;
+  grid-row: 1;
+}
+.app-shell .review-line-number {
+  grid-row: 1;
+  padding-inline: 0 8px;
+}
+.app-shell .review-line-number[data-side="old"] {
+  grid-column: 1;
+}
+.app-shell .review-line-number[data-side="new"] {
+  grid-column: 2;
 }
 .app-shell .review-line code {
+  grid-column: 4;
+  grid-row: 1;
+  padding-inline: 0 12px;
   white-space: pre;
   overflow-wrap: normal;
 }
@@ -2560,4 +2581,54 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.app-shell :is(.review-comment, .review-comment-editor) {
+  margin-block: 6px;
+  margin-inline: 88px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--artemis-color-border-default);
+  border-radius: 10px;
+  background: var(--artemis-color-surface-base);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+  font-family: var(--font);
+}
+.app-shell .review-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-shell .review-comment p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.app-shell .review-comment > button {
+  align-self: flex-end;
+}
+.app-shell .review-comment-editor textarea {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.app-shell .review-comment-editor > span {
+  flex-wrap: wrap;
+  margin-block-start: 8px;
+}
+.app-shell :is(.review-comment, .review-comment-editor) button {
+  min-block-size: 26px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+[dir="rtl"] .app-shell :is(.review-comment, .review-comment-editor) {
+  direction: rtl;
+  text-align: start;
+}
+@container (max-width: 600px) {
+  .app-shell :is(.review-comment, .review-comment-editor) {
+    margin-inline-start: 12px;
+  }
 }
