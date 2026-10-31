@@ -9622,7 +9622,7 @@ ${model.providerId} · ${model.modelId}`}
                                                             className="review-comment"
                                                             key={comment.id}
                                                           >
-                                                            <p>
+                                                            <p dir="auto">
                                                               {comment.body}
                                                             </p>
                                                             <button
@@ -9652,6 +9652,7 @@ ${model.providerId} · ${model.modelId}`}
                                                               t.commentPlaceholder
                                                             }
                                                             autoFocus
+                                                            dir="auto"
                                                             onChange={(event) =>
                                                               setCommentBody(
                                                                 event.target
