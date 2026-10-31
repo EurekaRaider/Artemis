@@ -516,10 +516,26 @@ const MIG3B_GALLERY_SCAFFOLD_RULES = [
   [
     '.gallery-workflow-side [data-artemis-component="environment-panel"][data-part="root"]',
     [
-      ["inset-inline-start", "0"],
-      ["inset-inline-end", "auto"],
+      ["position", "static"],
+      ["inline-size", "min(304px, 100%)"],
+      ["max-block-size", "none"],
+      ["border-radius", "0"],
+      ["border-inline-start", "1px solid var(--artemis-color-border-subtle)"],
+      ["box-shadow", "none"],
+      ["background", "var(--artemis-color-canvas)"],
     ],
   ],
+  [
+    ".gallery-inspector-file",
+    [
+      ["display", "flex"],
+      ["align-items", "center"],
+      ["gap", "8px"],
+      ["min-block-size", "28px"],
+      ["font-size", "12px"],
+    ],
+  ],
+  [".gallery-inspector-file > span:first-of-type", [["flex", "1"]]],
   [
     '.gallery-workflow-side > [data-artemis-component="goal-editor"], .gallery-workflow-side > [data-artemis-component="sources-surface"]',
     [
@@ -665,7 +681,7 @@ const MIG5B_GALLERY_SCAFFOLD_RULES = [
     ".gallery-data-stats",
     [
       ["display", "grid"],
-      ["grid-template-columns", "repeat(3, minmax(0, 1fr))"],
+      ["grid-template-columns", "repeat(5, minmax(0, 1fr))"],
       ["padding-block", "var(--artemis-space-4)"],
       [
         "border-block",
@@ -728,6 +744,7 @@ const PRIVATE_GALLERY_CLASSES = new Set([
   "gallery-conversation-grid",
   "gallery-conversation-rtl",
   "gallery-conversation-sample",
+  "gallery-inspector-file",
   "gallery-data-grid",
   "gallery-data-scroll",
   "gallery-data-stats",
