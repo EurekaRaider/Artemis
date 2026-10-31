@@ -2068,6 +2068,91 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.settings-panel .added-model-list {
+  margin-block-start: 6px;
+}
+.settings-panel .added-model-list:has(.added-model-row) {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.settings-panel .added-model-table-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 56px 60px;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 34px;
+  padding: 0 12px;
+  border-block-end: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: 11px;
+}
+.settings-panel .added-model-table-header > :nth-child(2) {
+  text-align: end;
+}
+.settings-panel .added-model-table-header > :nth-child(3) {
+  text-align: center;
+}
+.settings-panel .added-model-row {
+  grid-template-columns: 16px minmax(0, 1fr) 60px;
+  gap: 8px;
+  min-block-size: 42px;
+  padding: 8px 12px;
+}
+.settings-panel .added-model-row > [data-part="copy"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 56px;
+  align-items: center;
+  gap: 8px;
+}
+.settings-panel .added-model-row [data-part="title"] {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.settings-panel .added-model-row [data-part="description"] {
+  display: contents;
+}
+.settings-panel .added-model-context {
+  color: var(--muted);
+  font: 12px/1.4 var(--mono-font);
+  text-align: end;
+}
+.settings-panel .added-model-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--artemis-color-status-success-text);
+}
+.settings-panel .added-model-default svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.settings-panel .added-model-row .mcp-server-actions {
+  gap: 4px;
+  padding: 0;
+}
+.settings-panel .added-model-row .mcp-server-actions button {
+  inline-size: 28px;
+  block-size: 26px;
+  min-block-size: 26px;
+  padding: 0;
+}
+.settings-panel .provider-defaults > [data-part="content"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.settings-panel .provider-defaults [data-artemis-component="select"] {
+  flex: 1 1 160px;
+  min-inline-size: 0;
+}
+.settings-panel
+  .provider-defaults
+  [data-artemis-component="segmented-control"] {
+  flex: 0 1 auto;
+}
 .settings-panel .provider-key-storage {
   display: flex;
   align-items: center;

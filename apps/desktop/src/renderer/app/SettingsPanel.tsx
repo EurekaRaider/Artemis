@@ -1250,6 +1250,21 @@ ${model.providerId} · ${model.modelId}`,
                           aria-label={t.addedModels}
                           className="added-model-list"
                         >
+                          {settings.addedModels.some(
+                            (model) => model.providerId === selectedProviderId,
+                          ) && (
+                            <div
+                              className="added-model-table-header"
+                              aria-hidden="true"
+                            >
+                              <span>{t.model}</span>
+                              <span>{t.contextWindow}</span>
+                              <span>
+                                {uiText(locale, "SettingsPanel.defaultModel")}
+                              </span>
+                              <span />
+                            </div>
+                          )}
                           {settings.addedModels
                             .filter(
                               (model) =>
@@ -1336,8 +1351,39 @@ ${model.providerId} · ${model.modelId}`,
                                       </span>
                                     }
                                     className="added-model-row"
-                                    description={`${model.providerId} · ${model.modelId} · ${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(model.contextWindow)} token`}
-                                    title={catalogModel?.name ?? model.modelId}
+                                    description={
+                                      <>
+                                        <span
+                                          className="added-model-context"
+                                          title={`${t.contextWindow}: ${model.contextWindow.toLocaleString(locale)} token`}
+                                        >
+                                          {new Intl.NumberFormat(locale, {
+                                            notation: "compact",
+                                            maximumFractionDigits: 1,
+                                          }).format(model.contextWindow)}
+                                        </span>
+                                        <span className="added-model-default">
+                                          {defaultModel?.providerId ===
+                                            model.providerId &&
+                                            defaultModel.modelId ===
+                                              model.modelId && (
+                                              <span
+                                                role="img"
+                                                aria-label={`${uiText(locale, "SettingsPanel.defaultModel")}: ${catalogModel?.name ?? model.modelId}`}
+                                              >
+                                                <ArtemisIcon name="check" />
+                                              </span>
+                                            )}
+                                        </span>
+                                      </>
+                                    }
+                                    title={
+                                      <span
+                                        title={`${model.providerId} · ${model.modelId}`}
+                                      >
+                                        {catalogModel?.name ?? model.modelId}
+                                      </span>
+                                    }
                                   />
                                   {editing && (
                                     <AddedModelEditor

@@ -2563,7 +2563,7 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("<EmptyState");
     const mcpSearch = resourceCenterSource.indexOf("label={t.searchMcp}");
     const mcpList = resourceCenterSource.indexOf(
-      'className="resource-management-list grouped"',
+      'className="resource-management-list resource-mcp-list grouped"',
       mcpSearch,
     );
     const skillSearch = resourceCenterSource.indexOf("label={t.searchSkills}");
