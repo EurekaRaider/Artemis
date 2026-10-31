@@ -85,7 +85,7 @@ describe("notification reading and sidebar", () => {
   });
 
   it.each(["failed", "completed"] as const)(
-    "clears the %s result dot after reading",
+    "keeps failure state distinct from the %s unread notification",
     (kind) => {
       const thread = {
         status: kind === "failed" ? "failed" : "idle",
@@ -107,7 +107,12 @@ describe("notification reading and sidebar", () => {
         />,
       );
       expect(container.querySelector(".thread-unread-dot")).toBeNull();
-      expect(container.querySelector(".status-dot")).toBeNull();
+      if (kind === "failed") {
+        expect(container.querySelector(".status-dot.failed")).toBeTruthy();
+        expect(screen.getByRole("img").getAttribute("aria-label")).toBeTruthy();
+      } else {
+        expect(container.querySelector(".status-dot")).toBeNull();
+      }
     },
   );
 

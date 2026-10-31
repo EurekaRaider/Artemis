@@ -43,9 +43,13 @@ export function ThreadStatusIndicator({
       thread.notification?.kind === "input-required"
         ? "waiting-user-input"
         : "waiting-approval";
-  } else if (thread.notification?.unread) {
-    if (thread.status === "failed") status = "failed";
-    else if (thread.notification.kind === "completed") status = "completed";
+  } else if (thread.status === "failed") {
+    status = "failed";
+  } else if (
+    thread.notification?.unread &&
+    thread.notification.kind === "completed"
+  ) {
+    status = "completed";
   }
   const label = status ? statusText(locale, status) : undefined;
   return (
