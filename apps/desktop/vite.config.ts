@@ -10,6 +10,8 @@ export default defineConfig({
   plugins: [react(), desktopCssOptimization(), desktopLocaleOptimization()],
   base: "./",
   build: {
+    // Desktop runs Electron 43 / Chromium 150, including native CSS nesting.
+    cssTarget: "chrome150",
     assetsInlineLimit(filePath) {
       // Keep provider artwork out of CSS and share one emitted asset per icon.
       if (filePath.replaceAll("\\", "/").includes("/settings/assets/"))

@@ -1,6 +1,38 @@
 import CleanCSS from "clean-css";
 import postcss from "postcss";
 
+function containsCssNesting(node) {
+  let nested = false;
+  const inspect = (rule) => {
+    if (
+      rule.nodes?.some(
+        (child) => child.type === "rule" || child.type === "atrule",
+      )
+    )
+      nested = true;
+  };
+  if (node.type === "rule") inspect(node);
+  node.walkRules?.(inspect);
+  return nested;
+}
+
+function containsAtRuleStatement(node) {
+  let statement = node.type === "atrule" && node.nodes === undefined;
+  node.walkAtRules?.((rule) => {
+    if (rule.nodes === undefined) statement = true;
+  });
+  return statement;
+}
+
+function serializeNodes(nodes) {
+  return postcss
+    .root({
+      nodes: nodes.map((node) => node.clone()),
+      raws: { semicolon: true },
+    })
+    .toString();
+}
+
 /** Preserve selector precedence and runtime-selected rules while deduplicating CSS. */
 export function desktopCssOptimization() {
   return {
@@ -38,20 +70,42 @@ export function desktopCssOptimization() {
           )
             declaration.remove();
         });
-        const result = new CleanCSS({
-          level: {
-            1: { all: false },
-            2: {
-              mergeSemantically: false,
-              removeUnusedAtRules: false,
-              restructureRules: false,
+        const optimizeFlat = (source) => {
+          const result = new CleanCSS({
+            level: {
+              1: { all: false },
+              2: {
+                mergeSemantically: false,
+                removeUnusedAtRules: false,
+                restructureRules: false,
+              },
             },
-          },
-        }).minify(css.toString());
-        if (result.errors.length > 0 || result.warnings.length > 0) {
-          this.error([...result.errors, ...result.warnings].join("\n"));
+          }).minify(source);
+          if (result.errors.length > 0 || result.warnings.length > 0) {
+            this.error([...result.errors, ...result.warnings].join("\n"));
+          }
+          return result.styles;
+        };
+        const output = [];
+        let flat = [];
+        const flush = () => {
+          if (flat.length === 0) return;
+          output.push(optimizeFlat(serializeNodes(flat)));
+          flat = [];
+        };
+        for (const node of css.nodes) {
+          if (containsCssNesting(node) || containsAtRuleStatement(node)) {
+            // CleanCSS 5 cannot parse nesting. Vite already minified this
+            // subtree; keep it intact and never merge rules across it. Keep
+            // at-rule statements and their terminators in their original order.
+            flush();
+            output.push(serializeNodes([node]));
+          } else {
+            flat.push(node);
+          }
         }
-        asset.source = result.styles;
+        flush();
+        asset.source = output.join("");
       }
     },
   };
