@@ -15333,7 +15333,7 @@ function seedSmokeMarkdownEditorFixture(): void {
   const projectId = "artemis-smoke-markdown-editor-project";
   const threadId = "artemis-smoke-markdown-editor-thread";
   // The verify harness owns the fixtures: ARTEMIS_SMOKE_WORKSPACE points at a
-  // throwaway directory holding NOTES.md plus the binary cover.png, so the
+  // throwaway directory holding NOTES.md plus the binary fixture.bin, so the
   // production list/read/write/image IPC handlers exercise real files while
   // only the save-error view is intercepted above.
   store.upsertProject({
@@ -19667,7 +19667,7 @@ function createMainWindow(): BrowserWindow {
                       '[data-artemis-component="workspace-file-tree-row"][title="' + fileName + '"]',
                     );
                   if (view === 'markdown-editor-binary') {
-                    const binaryRow = await treeRowFor('cover.png');
+                    const binaryRow = await treeRowFor('fixture.bin');
                     if (!binaryRow) {
                       throw new Error('Seeded binary file did not render.');
                     }
