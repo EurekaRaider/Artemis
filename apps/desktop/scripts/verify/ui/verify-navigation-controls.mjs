@@ -72,25 +72,25 @@ const steps = [
     view: "navigation-token-usage",
   },
   {
-    component: "icon-button",
+    component: "segmented-control",
     context: "workspace-editor",
-    expectedLabel: "Rich text",
-    expectedParts: ["root", "icon"],
+    expectedLabel: "Source",
+    expectedParts: ["root", "segment"],
     expectedSize: "compact",
     id: "workspace-editor",
     scenario:
-      "Workspace Markdown editor renders a public IconButton and uses real Space activation exactly once.",
+      "Workspace Markdown editor renders a public SegmentedControl and uses real Space activation exactly once.",
     view: "markdown-editor-navigation-toolbar",
   },
   {
-    component: "icon-button",
+    component: "segmented-control",
     context: "markdown-reader",
-    expectedLabel: "Rich text",
-    expectedParts: ["root", "icon"],
+    expectedLabel: "Source",
+    expectedParts: ["root", "segment"],
     expectedSize: "compact",
     id: "markdown-reader",
     scenario:
-      "Markdown reader renders a public IconButton and uses real Space activation exactly once.",
+      "Markdown reader renders a public SegmentedControl and uses real Space activation exactly once.",
     view: "markdown-editor-navigation-preview",
   },
 ];
@@ -319,16 +319,16 @@ try {
     assert(
       "named-root-role",
       Boolean(found.groupLabel) &&
-        found.role === (expectedComponent === "tabs" ? "tablist" : "button"),
+        found.role === (expectedComponent === "tabs" ? "tablist" : "group"),
       { groupLabel: found.groupLabel, role: found.role },
       {
         groupLabel: "non-empty",
-        role: expectedComponent === "tabs" ? "tablist" : "button",
+        role: expectedComponent === "tabs" ? "tablist" : "group",
       },
     );
     assert(
       "positive-button-geometry",
-      found.buttons.length >= (expectedComponent === "tabs" ? 2 : 1) &&
+      found.buttons.length >= 2 &&
         found.buttons.every(
           (button) => button.geometry.width > 0 && button.geometry.height > 0,
         ),
@@ -426,10 +426,10 @@ try {
           (button) =>
             button.role === null &&
             button.tabIndex === 0 &&
-            button.ariaPressed === null,
+            ["true", "false"].includes(button.ariaPressed),
         ),
         found.buttons,
-        "native action button in Tab order with its next action label",
+        "both native segment buttons in Tab order with explicit pressed states",
       );
     }
     const interaction = navigation.interaction;
