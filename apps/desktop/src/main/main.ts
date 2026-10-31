@@ -18780,13 +18780,15 @@ function createMainWindow(): BrowserWindow {
       ) {
         window.webContents.focus();
       }
-      const selectSmokeFilesTab = async () => {
-        if (
-          !smokeMode ||
-          !requestedSmokeView?.startsWith("markdown-editor-") ||
-          requestedSmokeView === "markdown-editor-navigation-preview"
-        )
-          return;
+      const smokeWorkspaceMenuKind =
+        requestedSmokeView === "nocturne-terminal"
+          ? "terminal"
+          : requestedSmokeView?.startsWith("markdown-editor-") &&
+              requestedSmokeView !== "markdown-editor-navigation-preview"
+            ? "file"
+            : undefined;
+      const selectSmokeWorkspaceMenu = async () => {
+        if (!smokeMode || !smokeWorkspaceMenuKind) return;
         const deadline = Date.now() + 30_000;
         while (Date.now() < deadline) {
           const menu = window
@@ -18794,7 +18796,7 @@ function createMainWindow(): BrowserWindow {
             .find((child) => !child.isDestroyed() && child.isVisible());
           if (menu && !menu.webContents.isLoadingMainFrame()) {
             const point = await menu.webContents.executeJavaScript(`(() => {
-              const entry = document.querySelector('button[data-kind="file"]');
+              const entry = document.querySelector(${JSON.stringify(`button[data-kind="${smokeWorkspaceMenuKind}"]`)});
               if (!entry) return null;
               const rect = entry.getBoundingClientRect();
               return { x: Math.round(rect.x + rect.width / 2),
@@ -18820,9 +18822,11 @@ function createMainWindow(): BrowserWindow {
           }
           await new Promise((resolve) => setTimeout(resolve, 50));
         }
-        throw new Error("Native Files tab entry did not render.");
+        throw new Error(
+          `Native ${smokeWorkspaceMenuKind} tab entry did not render.`,
+        );
       };
-      const nativeFilesSelection = selectSmokeFilesTab();
+      const nativeWorkspaceSelection = selectSmokeWorkspaceMenu();
       const prepareSmokeView = process.env.ARTEMIS_SMOKE_USER_INPUT
         ? window.webContents.executeJavaScript(
             "document.querySelector('.thread-select')?.click()",
@@ -18870,6 +18874,7 @@ function createMainWindow(): BrowserWindow {
                   document.documentElement.dir = 'rtl';
                 }
                 if (view.startsWith('nocturne-')) {
+                  if (!${JSON.stringify(smokeMode)}) return;
                   if (view.startsWith('nocturne-settings-')) {
                     const settingsLabel = ${JSON.stringify(uiText(currentLocale(), "App_copy.settings"))};
                     const button = [...document.querySelectorAll('.activity-button, .rail-item')].find((candidate) => candidate.checkVisibility({ visibilityProperty: true }) && (candidate.getAttribute('aria-label') === settingsLabel || candidate.getAttribute('title') === settingsLabel));
@@ -18889,6 +18894,28 @@ function createMainWindow(): BrowserWindow {
                     await wait(800);
                     if (view === 'nocturne-project-menu') document.querySelector('.project-action')?.click();
                     if (view === 'nocturne-thread-menu') document.querySelector('.thread-action')?.click();
+                    if (view === 'nocturne-workspace-menu') {
+                      const trigger = document.querySelector('.composer-context .environment-workspace-trigger');
+                      if (!(trigger instanceof HTMLButtonElement)) throw new Error('Composer workspace trigger missing');
+                      trigger.click();
+                      await wait(200);
+                      if (!document.querySelector('.environment-workspace-menu')) throw new Error('Workspace menu did not open');
+                    }
+                    if (view === 'nocturne-terminal') {
+                      const toggle = document.querySelector('.right-sidebar-toggle');
+                      if (toggle?.getAttribute('aria-expanded') !== 'true') toggle?.click();
+                      await wait(300);
+                      const addButton = document.querySelector('.workspace-tab-add');
+                      if (!(addButton instanceof HTMLButtonElement)) throw new Error('Dock add-tab trigger missing');
+                      addButton.click();
+                      const deadline = Date.now() + 20_000;
+                      while (Date.now() < deadline && !document.querySelector('.terminal-panel[data-state="ready"] .xterm-screen')) {
+                        const error = document.querySelector('.terminal-panel[data-state="error"]');
+                        if (error) throw new Error('Native terminal failed: ' + error.textContent);
+                        await wait(100);
+                      }
+                      if (!document.querySelector('.terminal-panel[data-state="ready"] .xterm-screen')) throw new Error('Native terminal did not become ready');
+                    }
                     if (view === 'nocturne-review-comment') {
                       const label = ${JSON.stringify(uiText(currentLocale(), "App_copy.reviewChanges"))};
                       [...document.querySelectorAll('.environment-popover button')].find((button) => button.textContent.trim() === label)?.click();
@@ -21147,7 +21174,7 @@ function createMainWindow(): BrowserWindow {
         : process.env.ARTEMIS_SMOKE_USER_INPUT || requestedSmokeView
           ? 1_500
           : 500;
-      void Promise.all([prepareSmokeView, nativeFilesSelection])
+      void Promise.all([prepareSmokeView, nativeWorkspaceSelection])
         .then(async () => {
           if (
             !Number.isFinite(requestedSettleDelay) &&
