@@ -269,16 +269,16 @@ describe("screenshot visual contracts", () => {
       ).color,
     ).toBe("var(--danger)");
   });
-  it("uses the Artemis brand artwork in the integrated sidebar", () => {
+  it("uses the moonbow mark in the integrated sidebar", () => {
     const app = readFileSync(
       new URL("../../src/renderer/app/App.tsx", import.meta.url),
       "utf8",
     );
     expect(app).toContain('className="sidebar-brand"');
     expect(app).toContain('className="rail-brand"');
-    expect(app).toContain('import artemisIcon from "../../../build/icon.png"');
-    expect(app).toContain(
-      '<img alt="" aria-hidden="true" src={artemisIcon} />',
+    expect(app).toContain("<ArtemisLogo size={24} />");
+    expect(app).not.toContain(
+      'import artemisIcon from "../../../build/icon.png"',
     );
     expect(declarations(desktop, ".artemis-mark").background).toBe(
       "transparent",

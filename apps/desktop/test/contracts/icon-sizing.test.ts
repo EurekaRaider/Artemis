@@ -251,7 +251,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(artemisIconsSource).toContain('stroke="currentColor"');
     expect(artemisIconsSource).toContain('strokeLinecap="round"');
     expect(artemisIconsSource).toContain('strokeLinejoin="round"');
-    expect(artemisIconsSource).toContain("strokeWidth = 1.5");
+    expect(artemisIconsSource).toContain("strokeWidth = 1.6");
     expect(artemisIconsSource).toContain("strokeWidth={strokeWidth}");
   });
 
@@ -319,12 +319,10 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     ).toMatch(/<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u);
   });
 
-  it("uses the Artemis prototype glyph catalog instead of substitute icons", () => {
+  it("uses the Nocturne glyph catalog without substitute icons", () => {
     expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
     expect(resourceIconsSource).not.toContain("@phosphor-icons/react");
-    expect(artemisIconsSource).toContain(
-      "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
-    );
+    expect(artemisIconsSource).toContain("nocturne:Icons.dc.html");
     expect(artemisIconsSource).toContain("data-artemis-icon={name}");
     expect(stylesSource).not.toContain("--resource-icon-accent");
     expect(stylesSource).not.toContain(
