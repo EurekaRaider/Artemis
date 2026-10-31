@@ -46,7 +46,9 @@ export function WorkRecord({
   ).length;
   const label = running
     ? uiText(locale, "WorkRecord.working")
-    : UI_COPY.App_copy[locale].workedFor;
+    : turn.status === "cancelled"
+      ? UI_COPY.App_copy_9734[locale].cancelled
+      : UI_COPY.App_copy[locale].workedFor;
   const time = formatWorkedDuration(duration);
   return (
     <TurnExecutionDisclosure
@@ -62,7 +64,13 @@ export function WorkRecord({
             <ArtemisIcon
               width={16}
               height={16}
-              name={turn.status === "failed" ? "alert" : "check"}
+              name={
+                turn.status === "failed"
+                  ? "alert"
+                  : turn.status === "cancelled"
+                    ? "stop"
+                    : "check"
+              }
             />
           )}
           <span>

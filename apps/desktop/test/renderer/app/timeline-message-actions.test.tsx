@@ -70,8 +70,8 @@ it("uses the shared copy tooltip on hover and keyboard focus and copies the mess
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
 
-it.each(["cancelled", "failed"] as const)(
-  "keeps the partial assistant answer visible after a %s turn",
+it.each(["completed", "cancelled", "failed"] as const)(
+  "keeps the assistant answer and actual status visible after a %s turn",
   (status) => {
     const state = createThreadViewState("thread");
     state.turnOrder = ["turn"];
@@ -102,6 +102,23 @@ it.each(["cancelled", "failed"] as const)(
         onUndoTurnChanges={vi.fn()}
       />,
     );
+    expect(
+      container.querySelector('[data-artemis-component="timeline-turn"]'),
+    ).toHaveAttribute("data-state", status);
+    expect(
+      container.querySelector(".work-record > summary > svg"),
+    ).toHaveAttribute(
+      "data-artemis-icon",
+      status === "failed" ? "alert" : status === "cancelled" ? "stop" : "check",
+    );
+    expect(
+      container.querySelector<HTMLDetailsElement>(".work-record")!.open,
+    ).toBe(status === "failed");
+    if (status === "cancelled") {
+      expect(
+        container.querySelector(".work-record > summary"),
+      ).toHaveTextContent("Stopped");
+    }
     expect(screen.getByText("A useful partial answer")).toBeVisible();
     expect(
       container.querySelector(".work-record .assistant-message"),
