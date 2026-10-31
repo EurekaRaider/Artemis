@@ -104,7 +104,12 @@ try {
       { theme: "dark", direction: "rtl", locale: "ar", material: "solid" },
     ],
   ]) {
-    const snapshot = await runCase(name, width, "nocturne-branch-menu", options);
+    const snapshot = await runCase(
+      name,
+      width,
+      "nocturne-branch-menu",
+      options,
+    );
     const menu = snapshot.composerBranchMenu;
     assert(
       menu?.expanded && menu.visible && menu.outsideComposer,

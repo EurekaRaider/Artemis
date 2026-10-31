@@ -37,7 +37,13 @@ const saveFailureDetail = "Simulated queued message save failure.";
 // The actions-layout gate compares the production renderer's computed styles
 // against the frozen stylesheet, so the smoke proves production equivalence
 // instead of hard-coding geometry expectations here.
-const stylesPath = join(appDirectory, "src", "renderer", "styles", "styles.css");
+const stylesPath = join(
+  appDirectory,
+  "src",
+  "renderer",
+  "styles",
+  "styles.css",
+);
 const stylesCss = await readFile(stylesPath, "utf8");
 const actionsStyleBlock =
   stylesCss.match(/\.queued-message-editor-actions\s*\{([^}]*)\}/)?.[1] ?? null;
