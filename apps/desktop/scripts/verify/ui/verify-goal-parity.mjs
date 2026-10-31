@@ -384,7 +384,7 @@ try {
       );
     }
     for (const probe of stateProbes) {
-      const expectedSize = probe.size === "comfortable" ? 36 : 28;
+      const expectedSize = probe.size === "comfortable" ? 30 : 26;
       const indicatorExpected = ["selected", "error", "loading"].includes(
         probe.state,
       );
