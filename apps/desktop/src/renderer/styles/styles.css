@@ -879,6 +879,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
 }
 
 .status-dot.failed {
+  color: var(--danger);
   background: var(--danger);
 }
 
