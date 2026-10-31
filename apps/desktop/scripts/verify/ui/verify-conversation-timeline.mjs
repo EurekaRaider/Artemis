@@ -267,13 +267,15 @@ try {
       audit.workRecordRows,
       "five columns, 18/18/44px leading columns, 8px gap, 30px row, 14px status, nowrap target",
     );
-    assert(
-      "viewport-scroll-contract",
-      timeline?.viewport?.overflowY === "auto" &&
-        timeline.viewport.scrollWidth <= timeline.viewport.clientWidth + 1,
-      timeline?.viewport ?? null,
-      "vertical auto scroll without horizontal overflow",
-    );
+    if (testCase.view !== "conversation-timeline-empty") {
+      assert(
+        "viewport-scroll-contract",
+        timeline?.viewport?.overflowY === "auto" &&
+          timeline.viewport.scrollWidth <= timeline.viewport.clientWidth + 1,
+        timeline?.viewport ?? null,
+        "vertical auto scroll without horizontal overflow",
+      );
+    }
 
     if (testCase.view === "conversation-timeline-rich") {
       for (const component of [
@@ -446,12 +448,50 @@ try {
         "visible failed status",
       );
     } else {
+      const surface = components("conversation-surface")[0];
+      const viewport = components("timeline-viewport")[0];
+      const emptyState = components("conversation-empty-state")[0];
+      const within = (inner, outer) =>
+        inner?.width > 0 &&
+        inner?.height > 0 &&
+        inner.left >= outer?.left - 1 &&
+        inner.right <= outer?.right + 1 &&
+        inner.top >= outer?.top - 1 &&
+        inner.bottom <= outer?.bottom + 1;
+      assert(
+        "empty-parent-scroll-contract",
+        surface?.state === "empty" &&
+          surface.visible === true &&
+          surface.computed.overflowY === "auto" &&
+          surface.contentFitsInline === true &&
+          timeline.viewport?.parentComponent === "conversation-surface" &&
+          within(surface.geometry, {
+            left: 0,
+            top: 0,
+            right: audit.windowInnerWidth,
+            bottom: audit.windowInnerHeight,
+          }),
+        { surface, parentComponent: timeline.viewport?.parentComponent },
+        "visible empty conversation parent, within the window, with vertical auto scroll and no horizontal overflow",
+      );
+      assert(
+        "empty-viewport-flow-contract",
+        timeline.viewport?.overflowY === "visible" &&
+          timeline.viewport.scrollWidth <= timeline.viewport.clientWidth + 1 &&
+          viewport?.visible === true &&
+          within(viewport.geometry, surface.geometry),
+        { viewport: timeline.viewport, component: viewport },
+        "visible non-scrolling welcome viewport inside its conversation parent without horizontal overflow",
+      );
       assert(
         "empty-state-visible",
         timeline.componentCounts?.["conversation-empty-state"] === 1 &&
-          timeline.componentCounts?.["conversation-message"] === 0,
-        timeline.componentCounts,
-        { "conversation-empty-state": 1, "conversation-message": 0 },
+          timeline.componentCounts?.["conversation-message"] === 0 &&
+          emptyState?.visible === true &&
+          emptyState.contentFitsInline === true &&
+          within(emptyState.geometry, viewport.geometry),
+        { counts: timeline.componentCounts, emptyState },
+        "one visible empty state fitting within the welcome viewport and no messages",
       );
     }
 
