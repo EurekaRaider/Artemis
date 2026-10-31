@@ -4085,6 +4085,12 @@ export function App() {
     "full-access": t.fullAccess,
     custom: t.customApproval,
   }[approvalPolicy];
+  const approvalPolicyIcon =
+    approvalPolicy === "full-access"
+      ? "approval-full"
+      : approvalPolicy === "agent"
+        ? "approval-agent"
+        : "approval-ask";
   const activeSelection =
     pendingModelSelection ??
     activeThread?.modelSelection ??
@@ -8050,6 +8056,20 @@ export function App() {
                               }}
                               projects={projects}
                             />
+                            {pendingComposerDecision && (
+                              <span
+                                aria-label={t.approvalPolicy}
+                                className="decision-approval-policy"
+                                role="status"
+                              >
+                                <ArtemisIcon
+                                  name={approvalPolicyIcon}
+                                  width={14}
+                                  height={14}
+                                />
+                                <span>{approvalPolicyLabel}</span>
+                              </span>
+                            )}
                             {!pendingComposerDecision && (
                               <small className="composer-send-hint">
                                 {uiText(locale, "ComposerMode.sendHint")}
@@ -8588,13 +8608,7 @@ export function App() {
                               >
                                 <ArtemisIcon
                                   className="icon"
-                                  name={
-                                    approvalPolicy === "full-access"
-                                      ? "approval-full"
-                                      : approvalPolicy === "agent"
-                                        ? "approval-agent"
-                                        : "approval-ask"
-                                  }
+                                  name={approvalPolicyIcon}
                                   width={18}
                                   height={18}
                                 />
