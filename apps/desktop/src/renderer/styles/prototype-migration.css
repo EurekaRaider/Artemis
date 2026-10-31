@@ -1,10 +1,10 @@
 /* Production composition of the approved prototype, including the v143 sidebar handoff. */
 :root {
-  --conversation-text-size: 13px;
+  --conversation-text-size: 14.5px;
   --composer-menu-label-size: 12px;
   --composer-menu-description-size: 11px;
   --management-control-bg: light-dark(#e5e5e5, #303030);
-  --blue: var(--artemis-color-brand);
+  --blue: var(--artemis-color-status-info);
   --codex-workspace-bg: var(--artemis-color-canvas);
   --environment-menu-bg: var(--artemis-color-surface-popover);
   --migration-sky: var(--artemis-color-context-2);

@@ -1818,7 +1818,7 @@ async function driveElectron() {
     const expectedCanvas = {
       default: {
         light: { normal: "#fff", high: "#fff" },
-        dark: { normal: "#181818", high: "#181818" },
+        dark: { normal: "#141519", high: "#141519" },
       },
       stress: {
         light: { normal: "#fff0a6", high: "#ffffff" },

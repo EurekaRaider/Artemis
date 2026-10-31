@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App.js";
 import { bootstrapDesktopSkin } from "./appearance/desktop-skin-bootstrap.js";
 import "./app/i18n.js";
+import "@artemis/theme-artemis/fonts.css";
 import "@artemis/ui/styles.css";
 import "./styles/styles.css";
 import "./styles/prototype-migration.css";

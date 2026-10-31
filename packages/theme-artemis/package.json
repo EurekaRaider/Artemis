@@ -16,13 +16,15 @@
     "./tokens.contrast.json": "./dist/tokens.contrast.json",
     "./integrity.json": "./dist/integrity.json",
     "./theme.css": "./dist/theme.css",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./fonts.css": "./dist/fonts/fonts.css"
   },
   "files": [
     "dist"
   ],
   "sideEffects": [
-    "./dist/theme.css"
+    "./dist/theme.css",
+    "./dist/fonts/fonts.css"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node ../../scripts/build/build-ui-package-assets.mjs theme-artemis",

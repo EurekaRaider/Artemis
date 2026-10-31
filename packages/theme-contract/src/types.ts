@@ -17,7 +17,8 @@ export type SkinTokenFileName =
 export type SkinDataFileName =
   typeof SKIN_MANIFEST_FILE_NAME | SkinTokenFileName;
 
-export type FontStackId = "system-ui" | "system-mono" | "editorial-serif";
+export type FontStackId =
+  "system-ui" | "system-mono" | "editorial-serif" | "geist" | "geist-mono";
 export type MotionEasingId =
   "standard" | "entrance" | "exit" | "linear" | "shell";
 export type ShadowId = "none" | "soft" | "raised" | "overlay";
