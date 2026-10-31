@@ -121,7 +121,7 @@ const checkGroups = {
 // a single-question description. The multi-question tool surface arrives
 // with PR10C's producer activation.
 const runtimeSource = await readFile(
-  join(repositoryRoot, "packages", "agent-host", "src", "runtime.ts"),
+  join(repositoryRoot, "packages", "agent-host", "src", "runtime", "runtime.ts"),
   "utf8",
 );
 const toolDefinitionStart = runtimeSource.indexOf('name: "request_user_input"');
