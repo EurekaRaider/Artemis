@@ -31,7 +31,7 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
 });
 
-async function setup() {
+async function setup(headerActionTarget?: HTMLElement) {
   const user = userEvent.setup();
   const state: ArtemisPluginMarketplaceState = {
     selectedView: "built-in",
@@ -69,6 +69,7 @@ async function setup() {
   await act(async () => {
     render(
       <ResourceCenter
+        headerActionTarget={headerActionTarget}
         locale="en"
         onConfirm={vi.fn(async () => true)}
         onSettingsChange={vi.fn()}
@@ -83,6 +84,23 @@ function row(id: string) {
 }
 
 describe("marketplace source ordering", () => {
+  it("keeps the add flow functional when actions are placed in the workspace header", async () => {
+    const target = document.createElement("div");
+    document.body.append(target);
+    const { user } = await setup(target);
+    const add = screen.getByRole("button", { name: "Add", exact: true });
+    expect(target).toContainElement(add);
+    await user.click(add);
+    expect(target).toBeEmptyDOMElement();
+    await user.click(
+      screen.getByRole("button", { name: "Back to marketplace" }),
+    );
+    expect(target).toContainElement(
+      screen.getByRole("button", { name: "Add", exact: true }),
+    );
+    target.remove();
+  });
+
   it("keeps keyboard sorting available alongside dragging", async () => {
     const { user, reorder } = await setup();
     await user.click(screen.getByRole("button", { name: "Add", exact: true }));

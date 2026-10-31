@@ -26,6 +26,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import type { AppLocale, CapabilityPackStatus } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import {
@@ -72,6 +73,7 @@ import {
 } from "./resource-icons.js";
 
 interface ResourceCenterProps {
+  headerActionTarget?: HTMLElement | null | undefined;
   onReviewHooks?(pluginId: string, trigger: HTMLButtonElement): void;
   locale: AppLocale;
   settings?: SettingsSnapshot;
@@ -215,6 +217,7 @@ function installedCapabilityVersion(
 }
 
 export function ResourceCenter({
+  headerActionTarget,
   onReviewHooks,
   locale,
   settings,
@@ -2830,6 +2833,37 @@ export function ResourceCenter({
   )!;
 
   if (mode === "marketplace") {
+    const headerActions = (
+      <div className="resource-header-actions">
+        <IconButton
+          className="resource-icon-button"
+          disabled={
+            operationPending ||
+            selectedMarketplaceView === "local" ||
+            marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
+            marketplaceSourceById.get(selectedMarketplaceView)?.refreshable ===
+              false ||
+            searching ||
+            installProgress !== undefined
+          }
+          icon={<RefreshIcon />}
+          label={t.refresh}
+          onClick={() => runResourceOperation(refreshSelectedMarketplace)}
+          title={t.refresh}
+        />
+        <Button
+          className="resource-add-button"
+          disabled={operationPending}
+          icon={<PlusIcon />}
+          onClick={() => {
+            setAddPluginReturnMode("marketplace");
+            setMode("add-plugin");
+          }}
+        >
+          {t.add}
+        </Button>
+      </div>
+    );
     return (
       <ResourceSurface
         busy={
@@ -2841,48 +2875,12 @@ export function ResourceCenter({
         className="resource-page resource-marketplace-page"
         label={t.title}
       >
+        {headerActionTarget && createPortal(headerActions, headerActionTarget)}
         <ManagementHeader
-          leading={
-            <img
-              className="resource-page-artwork"
-              src={resourceCenterIcon}
-              alt=""
-            />
-          }
           className="resource-page-header"
           description={t.marketDescription}
           title={t.title}
-          actions={
-            <div className="resource-header-actions">
-              <IconButton
-                className="resource-icon-button"
-                disabled={
-                  operationPending ||
-                  selectedMarketplaceView === "local" ||
-                  marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
-                  marketplaceSourceById.get(selectedMarketplaceView)
-                    ?.refreshable === false ||
-                  searching ||
-                  installProgress !== undefined
-                }
-                icon={<RefreshIcon />}
-                label={t.refresh}
-                onClick={() => runResourceOperation(refreshSelectedMarketplace)}
-                title={t.refresh}
-              />
-              <Button
-                className="resource-add-button"
-                disabled={operationPending}
-                icon={<PlusIcon />}
-                onClick={() => {
-                  setAddPluginReturnMode("marketplace");
-                  setMode("add-plugin");
-                }}
-              >
-                {t.add}
-              </Button>
-            </div>
-          }
+          actions={headerActionTarget ? undefined : headerActions}
         />
         <div className="resource-marketplace-toolbar">
           <Tabs
