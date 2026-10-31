@@ -1317,6 +1317,7 @@
   background: var(--artemis-color-surface-sunken);
 }
 .app-shell .review-scope-select [data-part="segment"] {
+  flex: none;
   min-block-size: 26px;
   padding-inline: 7px;
   white-space: nowrap;
@@ -3329,6 +3330,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   min-block-size: 26px;
   padding: 3px 8px;
   border-radius: 6px;
+  font-family: var(--font);
   font-size: 12px;
   white-space: nowrap;
 }
@@ -3579,6 +3581,14 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   }
   .app-shell .review-actions {
     flex-wrap: wrap;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .app-shell .review-action {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .app-shell .review-comment-editor button {
     white-space: nowrap;
