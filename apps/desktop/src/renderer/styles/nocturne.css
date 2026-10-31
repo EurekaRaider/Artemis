@@ -2913,3 +2913,21 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   inline-size: 14px;
   block-size: 14px;
 }
+
+.app-shell .review-lines {
+  overflow-x: auto;
+}
+.app-shell .review-line {
+  grid-template-columns: 44px max-content;
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+.app-shell .review-line code {
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.app-shell .review-hunk code {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
