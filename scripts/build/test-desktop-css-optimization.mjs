@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import postcss from "postcss";
 import { desktopCssOptimization } from "./desktop-css-optimization.mjs";
 const optimize = (source) => {
   const asset = { type: "asset", fileName: "desktop.css", source };
@@ -32,4 +33,62 @@ test("removes only identical Chromium prefix fallbacks", () => {
     /-webkit-user-select:none!important/,
   );
   assert.match(optimize(".a{-webkit-line-clamp:2}"), /-webkit-line-clamp:2/);
+});
+
+test("keeps native nesting as a barrier between flat rule optimizations", () => {
+  const nested = ".panel{& .item{color:blue}&>.item{padding:4px}}";
+  const result = optimize(`.item{color:red}${nested}.item{color:green}`);
+  assert.deepEqual(
+    postcss.parse(result).nodes.map((node) => node.toString()),
+    [".item{color:red}", nested, ".item{color:green}"],
+  );
+  assert.equal(
+    optimize(".a{color:red}.a{padding:4px}"),
+    ".a{color:red;padding:4px}",
+  );
+});
+
+test("preserves mixed declarations, ampersands, and nested conditional order", () => {
+  const source =
+    ".panel{color:red;&{color:blue}@media(min-width:800px){color:green;&>.item{padding:4px}}color:purple;@container work (max-width:400px){& .item{padding:2px}}color:black}";
+  assert.equal(optimize(source), source);
+});
+
+test("retains nesting inside media and container rules and declaration-only conditions", () => {
+  for (const source of [
+    "@media(min-width:800px){.panel{& .item{color:blue}}}",
+    "@container work (max-width:400px){.panel{&>.item{padding:2px}}}",
+    ".panel{@media(min-width:800px){color:green}}",
+  ]) {
+    assert.equal(optimize(source), source);
+  }
+});
+
+test("removes only identical prefix fallbacks inside preserved nesting", () => {
+  assert.equal(
+    optimize(
+      ".panel{& .item{-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}& .other{-webkit-user-select:none;user-select:text}}",
+    ),
+    ".panel{& .item{backdrop-filter:blur(4px)}& .other{-webkit-user-select:none;user-select:text}}",
+  );
+});
+
+test("preserves charset, import, and layer statement terminators around nesting", () => {
+  const source =
+    '@charset "UTF-8";@import url("theme.css");@layer reset,app;.panel{& .item{color:red}}@layer later;.tail{color:green}';
+  assert.equal(optimize(source), source);
+  const nodes = postcss.parse(optimize(source)).nodes;
+  assert.deepEqual(
+    nodes.map((node) =>
+      node.type === "atrule" ? [node.name, node.params] : node.selector,
+    ),
+    [
+      ["charset", '"UTF-8"'],
+      ["import", 'url("theme.css")'],
+      ["layer", "reset,app"],
+      ".panel",
+      ["layer", "later"],
+      ".tail",
+    ],
+  );
 });

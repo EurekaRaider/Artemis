@@ -1,4 +1,20 @@
-import postcss from "postcss";
+import postcss, { type Rule } from "postcss";
+
+function resolvedSelectors(rule: Rule): string[] {
+  let parent = rule.parent;
+  while (parent !== undefined && parent.type !== "rule") {
+    parent = parent.parent;
+  }
+  if (parent === undefined) return rule.selectors;
+  const ancestors = resolvedSelectors(parent);
+  const scope =
+    ancestors.length === 1 ? ancestors[0]! : `:is(${ancestors.join(", ")})`;
+  return rule.selectors.map((selector) =>
+    selector.includes("&")
+      ? selector.replaceAll("&", scope)
+      : `${scope} ${selector}`,
+  );
+}
 
 /** Read normal declarations across grouped selectors without including media overrides. */
 export function findCssDeclarations(
@@ -9,17 +25,15 @@ export function findCssDeclarations(
   const expected = postcss.list.comma(selector).map(normalize);
   const matches: string[] = [];
   postcss.parse(source).walkRules((rule) => {
-    if (
-      rule.parent?.type !== "root" &&
-      !(rule.parent?.type === "atrule" && rule.parent.name === "layer")
-    )
-      return;
-    if (
-      !expected.every((part) =>
-        postcss.list.comma(rule.selector).map(normalize).includes(part),
-      )
-    )
-      return;
+    for (
+      let parent = rule.parent;
+      parent !== undefined;
+      parent = parent.parent
+    ) {
+      if (parent.type === "atrule" && parent.name !== "layer") return;
+    }
+    const selectors = resolvedSelectors(rule).map(normalize);
+    if (!expected.every((part) => selectors.includes(part))) return;
     matches.push(
       rule.nodes
         .filter((node) => node.type === "decl")
