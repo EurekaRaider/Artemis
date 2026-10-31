@@ -814,7 +814,6 @@ export function AutomationPage(props: {
                 <Button
                   variant="quiet"
                   align="start"
-                  icon={<ArtemisIcon name="automation" />}
                   selected={selectedAutomation?.id === automation.id}
                   onClick={() => setSelectedAutomationId(automation.id)}
                 >

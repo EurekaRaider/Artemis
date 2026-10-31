@@ -127,20 +127,6 @@ export function ArchivePage({
               <ManagementCard className="archive-card">
                 <ArtemisIcon className="archive-thread-icon" name="message" />
                 <div className="archive-card-copy">
-                  <div className="archive-card-heading">
-                    <span className="archive-project">
-                      {thread.projectId
-                        ? (projectNames.get(thread.projectId) ?? "Artemis")
-                        : t.archiveTemporary}
-                    </span>
-                    <time dateTime={thread.updatedAt}>
-                      {new Intl.DateTimeFormat(locale, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      }).format(new Date(thread.updatedAt))}
-                    </time>
-                  </div>
                   <h2>{visibleThreadTitle(thread.title)}</h2>
                   {thread.goal && (
                     <p className="archive-goal">
@@ -148,6 +134,20 @@ export function ArchivePage({
                       <span>{thread.goal.objective}</span>
                     </p>
                   )}
+                </div>
+                <div className="archive-card-heading">
+                  <span className="archive-project">
+                    {thread.projectId
+                      ? (projectNames.get(thread.projectId) ?? "Artemis")
+                      : t.archiveTemporary}
+                  </span>
+                  <time dateTime={thread.updatedAt}>
+                    {new Intl.DateTimeFormat(locale, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    }).format(new Date(thread.updatedAt))}
+                  </time>
                 </div>
                 <div className="archive-card-actions">
                   <IconButton
