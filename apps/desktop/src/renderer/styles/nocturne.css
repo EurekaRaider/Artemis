@@ -2674,6 +2674,8 @@
   gap: 2px;
 }
 .environment-workspace-menu .environment-workspace-copy small {
+  direction: ltr;
+  unicode-bidi: isolate;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
