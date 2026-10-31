@@ -131,7 +131,10 @@ it("installs on local add and removes the card after uninstall", async () => {
       ?.querySelector(".resource-avatar img"),
   ).toHaveAttribute("src", preview.iconDataUrl);
   expect(
-    screen.queryByRole("button", { name: "Install", exact: true }),
+    within(uninstall.closest(".plugin-market-card") as HTMLElement).queryByRole(
+      "button",
+      { name: "Install", exact: true },
+    ),
   ).toBeNull();
   await user.click(uninstall);
   await user.click(
@@ -141,9 +144,7 @@ it("installs on local add and removes the card after uninstall", async () => {
   );
   await waitFor(() => expect(remove).toHaveBeenCalledWith(preview.id));
   await waitFor(() => expect(screen.queryByText("Ocean Skins")).toBeNull());
-  expect(
-    screen.queryByRole("button", { name: "Install", exact: true }),
-  ).toBeNull();
+  expect(document.querySelector(".plugin-market-card")).toBeNull();
 });
 
 it("shows previously installed local plugins and removes them without retaining a preview", async () => {
@@ -259,7 +260,10 @@ it("keeps imported marketplace installation explicit and retains its catalog ent
       exact: true,
     }),
   );
-  const installButton = await screen.findByRole("button", {
+  const marketplaceCard = (await screen.findByText("Ocean Skins")).closest(
+    ".plugin-market-card",
+  ) as HTMLElement;
+  const installButton = within(marketplaceCard).getByRole("button", {
     name: "Install",
     exact: true,
   });
@@ -287,7 +291,10 @@ it("keeps imported marketplace installation explicit and retains its catalog ent
     }),
   );
   expect(
-    await screen.findByRole("button", { name: "Install", exact: true }),
+    await within(marketplaceCard).findByRole("button", {
+      name: "Install",
+      exact: true,
+    }),
   ).toBeVisible();
   expect(screen.getByText("Ocean Skins")).toBeVisible();
 });

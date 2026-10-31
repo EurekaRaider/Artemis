@@ -325,7 +325,11 @@ describe("reported screenshot regressions", () => {
       ],
     });
     render(<TokenUsagePage locale="zh-CN" username="Artemis" />);
-    const button = await screen.findByRole("button", { name: "zai · glm-5.3" });
+    const table = await screen.findByRole("table");
+    await userEvent.click(table.closest("details")!.querySelector("summary")!);
+    const button = await within(table).findByRole("button", {
+      name: "zai · glm-5.3",
+    });
     expect(button).toHaveClass("token-usage-model-action");
     await userEvent.click(button);
     expect(button.closest("tr")).toHaveClass("selected");
@@ -338,7 +342,11 @@ describe("reported screenshot regressions", () => {
       name: "Token 构成",
     }).parentElement!;
     expect(composition.querySelectorAll("dt")).toHaveLength(3);
-    expect(composition).toHaveTextContent("缓存命中 Token110");
+    expect(
+      within(composition)
+        .getByText("缓存命中 Token")
+        .closest(".token-usage-detail-row"),
+    ).toHaveTextContent("110");
     expect(composition).not.toHaveTextContent("缓存读取");
     expect(composition).not.toHaveTextContent("缓存写入");
   });
@@ -407,9 +415,7 @@ describe("reported screenshot regressions", () => {
     const pluginList = container.querySelector(".resource-installed-list")!;
     expect(pluginList).not.toHaveTextContent("Server 0");
     expect(pluginList).toHaveTextContent("Shell Executor");
-    await userEvent.click(
-      screen.getByRole("tab", { name: "MCP", exact: true }),
-    );
+    await userEvent.click(screen.getByRole("tab", { name: /^MCP \d+$/ }));
     expect(
       screen.getAllByRole("heading", { name: "MCP", exact: true })[0],
     ).toBeVisible();

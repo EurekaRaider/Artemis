@@ -2070,8 +2070,23 @@ ${model.providerId} · ${model.modelId}`,
                             <th scope="row">
                               {uiText(locale, `ComposerMode.${mode}`)}
                             </th>
-                            <td>{mode === "plan" ? "—" : "✓"}</td>
-                            <td>{mode === "plan" ? "—" : "✓"}</td>
+                            {["shell", "mcp"].map((capability) => (
+                              <td
+                                key={capability}
+                                aria-label={uiText(
+                                  locale,
+                                  mode === "plan"
+                                    ? "CustomAgentsSettingsSection_labels.disabledBadge"
+                                    : "CustomAgentsSettingsSection_labels.enabledLabel",
+                                )}
+                              >
+                                {mode === "plan" ? (
+                                  "—"
+                                ) : (
+                                  <ArtemisIcon name="check" />
+                                )}
+                              </td>
+                            ))}
                             <td>{uiText(locale, `Mode.${mode}Description`)}</td>
                           </tr>
                         ))}

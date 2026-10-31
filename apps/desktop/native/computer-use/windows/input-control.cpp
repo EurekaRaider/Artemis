@@ -80,7 +80,7 @@ LRESULT CALLBACK panelProc(HWND window, UINT message, WPARAM w, LPARAM l) {
     SetTextColor(dc, RGB(236, 237, 239));
     RECT title{panelPixels(window, 36), 0, panelPixels(window, 246), area.bottom};
     std::wstring caption;
-    { std::lock_guard lock(labelLock); caption = L"Computer Use · " + controlledApplicationName; }
+    { std::lock_guard lock(labelLock); caption = L"Computer Use \u00b7 " + controlledApplicationName; }
     DrawTextW(dc, caption.c_str(), -1, &title, DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS | DT_NOPREFIX);
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(Clock::now() - panelStartedAt).count();
     const auto elapsed = std::to_wstring(seconds / 60) + L":" + (seconds % 60 < 10 ? L"0" : L"") + std::to_wstring(seconds % 60);
@@ -105,7 +105,7 @@ LRESULT CALLBACK panelProc(HWND window, UINT message, WPARAM w, LPARAM l) {
     SelectObject(item->hDC, oldBrush); SelectObject(item->hDC, oldPen); DeleteObject(fill);
     SetBkMode(item->hDC, TRANSPARENT); SetTextColor(item->hDC, RGB(26, 11, 10));
     auto oldFont = SelectObject(item->hDC, panelFont);
-    std::wstring caption; { std::lock_guard lock(labelLock); caption = L"■  " + stopLabel; }
+    std::wstring caption; { std::lock_guard lock(labelLock); caption = L"\u25a0  " + stopLabel; }
     DrawTextW(item->hDC, caption.c_str(), -1, &item->rcItem, DT_SINGLELINE | DT_VCENTER | DT_CENTER | DT_NOPREFIX);
     SelectObject(item->hDC, oldFont); return TRUE;
   }

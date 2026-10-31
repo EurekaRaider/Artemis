@@ -161,8 +161,9 @@ describe("marketplace source ordering", () => {
     await user.click(screen.getByRole("button", { name: "Add plugin" }));
     await user.click(screen.getByRole("button", { name: "Back to plugins" }));
     expect(screen.getByRole("button", { name: "Add plugin" })).toBeVisible();
-    expect(
-      screen.getByRole("tab", { name: "Plugins", exact: true }),
-    ).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Plugins \d+$/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });
