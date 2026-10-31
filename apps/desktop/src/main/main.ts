@@ -20390,7 +20390,7 @@ function createMainWindow(): BrowserWindow {
                       scope = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]');
                       if (scope === null) await wait(100);
                     }
-                    if (!scope || scope.querySelectorAll('[role="radio"]').length < 4) {
+                    if (!scope || scope.querySelectorAll('[data-part="segment"]').length < 4) {
                       throw new Error('Public Review SegmentedControl missing.');
                     }
                     return;
