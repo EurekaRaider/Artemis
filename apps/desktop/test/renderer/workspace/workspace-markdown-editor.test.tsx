@@ -147,7 +147,7 @@ describe("WorkspaceMarkdownEditor shared toolbar wiring (D#76 PR7 item 3)", () =
     ).toBeDisabled();
   });
 
-  it("switches the editing surface back and forth with one button", async () => {
+  it("switches the editing surface through visible mode segments", async () => {
     renderEditor({ dirty: true });
     const group = screen.getByRole("group", { name: labels.ariaLabel });
     const source = screen.getByRole("button", { name: labels.sourceLabel });
@@ -157,12 +157,14 @@ describe("WorkspaceMarkdownEditor shared toolbar wiring (D#76 PR7 item 3)", () =
     ).toBeInTheDocument();
 
     await userEvent.setup().click(source);
-    expect(source).toHaveAccessibleName(labels.richLabel);
+    expect(source).toHaveAttribute("aria-pressed", "true");
     const textarea = screen.getByRole("textbox", { name: labels.ariaLabel });
     expect(textarea).toHaveValue(content);
 
-    await userEvent.setup().click(source);
-    expect(source).toHaveAccessibleName(labels.sourceLabel);
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: labels.richLabel }));
+    expect(source).toHaveAttribute("aria-pressed", "false");
     expect(
       screen.queryByRole("textbox", { name: labels.ariaLabel }),
     ).not.toBeInTheDocument();

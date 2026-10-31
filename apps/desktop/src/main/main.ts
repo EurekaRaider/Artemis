@@ -12208,7 +12208,8 @@ function registerIpc(): void {
       const context = await workspaceForGitRequest(projectId, threadId);
       if (
         smokeMode &&
-        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment-pr-checks")
+        (process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment-pr-checks") ||
+          process.env.ARTEMIS_SMOKE_VIEW?.startsWith("icon-sizing-environment"))
       ) {
         const gitInfo = await inspectGitBranches(context.workspacePath);
         const checks: ProjectPullRequestCheck[] =
@@ -15332,7 +15333,7 @@ function seedSmokeMarkdownEditorFixture(): void {
   const projectId = "artemis-smoke-markdown-editor-project";
   const threadId = "artemis-smoke-markdown-editor-thread";
   // The verify harness owns the fixtures: ARTEMIS_SMOKE_WORKSPACE points at a
-  // throwaway directory holding NOTES.md plus the binary cover.png, so the
+  // throwaway directory holding NOTES.md plus the binary fixture.bin, so the
   // production list/read/write/image IPC handlers exercise real files while
   // only the save-error view is intercepted above.
   store.upsertProject({
@@ -16065,19 +16066,19 @@ async function driveSmokeNavigationControlsEvidence(
     },
     "markdown-editor-navigation-toolbar": {
       activation: "Space",
-      expectedLabel: "Rich text",
+      expectedLabel: "Source",
       rootSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
       targetSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="false"]',
     },
     "markdown-editor-navigation-preview": {
       activation: "Space",
-      expectedLabel: "Rich text",
+      expectedLabel: "Source",
       rootSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
       targetSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="false"]',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
@@ -18895,6 +18896,10 @@ function createMainWindow(): BrowserWindow {
                       trigger?.click();
                       await wait(500);
                     }
+                    if (view === 'icon-sizing-environment') {
+                      document.querySelector('.environment-pr-check-summary')?.click();
+                      await wait(300);
+                    }
                     if (view === 'icon-sizing-environment-branch-menu') {
                       document
                         .querySelector(
@@ -19662,7 +19667,7 @@ function createMainWindow(): BrowserWindow {
                       '[data-artemis-component="workspace-file-tree-row"][title="' + fileName + '"]',
                     );
                   if (view === 'markdown-editor-binary') {
-                    const binaryRow = await treeRowFor('cover.png');
+                    const binaryRow = await treeRowFor('fixture.bin');
                     if (!binaryRow) {
                       throw new Error('Seeded binary file did not render.');
                     }
@@ -22664,13 +22669,13 @@ function createMainWindow(): BrowserWindow {
                               ".environment-row-icon svg:not(.child-agent-mark)",
                             ),
                             "environment-header-action": measure(
-                              ".environment-header-action svg",
+                              ".environment-section .environment-header-action svg",
                             ),
                             "environment-chevron": measure(
                               ".environment-chevron svg",
                             ),
                             "environment-external": measure(
-                              ".environment-external svg",
+                              ".environment-check-list i svg",
                             ),
                             "environment-branch-search": measure(
                               ".environment-branch-search > svg",

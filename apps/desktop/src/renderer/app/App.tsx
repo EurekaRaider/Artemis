@@ -122,7 +122,7 @@ import {
   Tooltip,
 } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import artemisIcon from "../../../build/icon.png";
+import { ArtemisLogo, RunningArc } from "@artemis/ui/icons";
 import feishuChannelIcon from "../assets/feishu-channel.png";
 import slackChannelIcon from "../assets/slack-channel.svg";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
@@ -542,7 +542,7 @@ function appCopy(locale: Locale): (typeof copy)["en"] {
 function ArtemisMark() {
   return (
     <div className="artemis-mark" aria-label="Artemis">
-      <img alt="" aria-hidden="true" src={artemisIcon} />
+      <ArtemisLogo size={24} />
     </div>
   );
 }
@@ -7242,7 +7242,11 @@ export function App() {
                     className="status-pill"
                     onAnimationStart={synchronizeTurnIndicator}
                   >
-                    <span className={`status-dot ${statusDotStatus}`} />
+                    {statusDotStatus === "running" ? (
+                      <RunningArc />
+                    ) : (
+                      <span className={`status-dot ${statusDotStatus}`} />
+                    )}
                     <span className="status-pill-label">
                       {permissionBlock && !turnActive
                         ? uiText(locale, "ImPermission.waiting")

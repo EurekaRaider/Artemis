@@ -33,12 +33,10 @@ describe("ArtemisIcon", () => {
     expect(container.querySelector("path")).not.toBeNull();
     expect(container.querySelector("circle")).toBeNull();
   });
-  it("publishes the complete prototype 9556fac icon catalog and workspace brand", () => {
-    expect(ARTEMIS_ICON_SOURCE).toBe(
-      "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
-    );
-    expect(ARTEMIS_ICON_NAMES).toHaveLength(120);
-    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(120);
+  it("publishes the complete Nocturne icon catalog and workspace brand", () => {
+    expect(ARTEMIS_ICON_SOURCE).toBe("nocturne:Icons.dc.html");
+    expect(ARTEMIS_ICON_NAMES).toHaveLength(145);
+    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(145);
     expect(ARTEMIS_ICON_NAMES).toEqual(
       expect.arrayContaining([
         "artemis",
@@ -78,7 +76,7 @@ describe("ArtemisIcon", () => {
       expect(icon?.getAttribute("stroke")).toBe("currentColor");
       expect(icon?.getAttribute("stroke-linecap")).toBe("round");
       expect(icon?.getAttribute("stroke-linejoin")).toBe("round");
-      expect(icon?.getAttribute("stroke-width")).toBe("1.5");
+      expect(icon?.getAttribute("stroke-width")).toBe("1.6");
       expect(icon?.getAttribute("viewBox")).toBe("0 0 24 24");
       expect(icon?.getAttribute("width")).toBe("1em");
       expect(

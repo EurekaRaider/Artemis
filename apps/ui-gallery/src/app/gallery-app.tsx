@@ -1,3 +1,8 @@
+import {
+  ArtemisIcon,
+  ArtemisLogo,
+  ARTEMIS_ICON_NAMES,
+} from "@artemis/ui/icons";
 import { useLayoutEffect, useRef, useState } from "react";
 
 import { artemisThemeManifest } from "@artemis/theme-artemis";
@@ -1062,6 +1067,20 @@ export function GalleryApp() {
         </div>
       </section>
 
+      <section
+        className="gallery-probe-section"
+        aria-label="Nocturne icon catalog"
+      >
+        <h2>Nocturne icons</h2>
+        <ArtemisLogo />
+        <div className="gallery-axis-grid">
+          {ARTEMIS_ICON_NAMES.map((name) => (
+            <span key={name} title={name}>
+              <ArtemisIcon name={name} width={24} height={24} /> {name}
+            </span>
+          ))}
+        </div>
+      </section>
       <section
         className="gallery-probe-section"
         aria-labelledby="probe-heading"

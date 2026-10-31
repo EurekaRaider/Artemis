@@ -54,7 +54,7 @@ if (initialStatus !== "") {
 const windowWidth = 1_440;
 const locale = "en";
 const markdownFileName = "NOTES.md";
-const binaryFileName = "cover.png";
+const binaryFileName = "fixture.bin";
 const largeFileName = "LARGE.ts";
 const binaryPngBase64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
@@ -117,7 +117,7 @@ const steps = [
     id: "e-binary",
     view: "markdown-editor-binary",
     scenario:
-      "Open the binary cover.png; the production read-only gate renders the binary notice with no Save, status region, or editing surface.",
+      "Open the binary fixture.bin; the production read-only gate renders the binary notice with no Save, status region, or editing surface.",
   },
   {
     id: "f-image-failure",
@@ -769,7 +769,7 @@ try {
     },
     evidenceSplit: {
       productionReadOnly:
-        "The production read-only gate is the binary determination: cover.png renders the binary notice with no Save button, status region, or editing surface (step e).",
+        "The production read-only gate is the binary determination: fixture.bin renders the binary notice with no Save button, status region, or editing surface (step e).",
       componentReadOnly:
         "The component-level readOnly contract (Save disabled, chord blocked, textarea disabled) is locked by the jsdom suites: workspace-editor-toolbar.test.tsx 'disables Save when readOnly even when dirty (read-only)', 'prevents the chord default when readOnly but never calls onSave (read-only)', 'disables the mode toggle buttons when readOnly (read-only)'; workspace-markdown-editor.test.tsx 'blocks saving and the source textarea when readOnly'; workspace-file-editor.test.tsx 'blocks saving and disables the editing surface when readOnly'.",
     },

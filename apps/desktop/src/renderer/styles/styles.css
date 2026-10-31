@@ -7957,59 +7957,28 @@ button.sources-panel-entry.attachment:focus-visible {
   border-radius: 10px;
   display: inline-flex;
   flex: 0 0 auto;
-  height: 39px;
+  height: 36px;
   justify-content: center;
   overflow: hidden;
-  width: 39px;
+  width: 36px;
 }
 
 .resource-avatar[data-icon] {
-  color: var(--resource-brand, #9464eb);
-  border-radius: 0;
+  border-radius: 10px;
+  background: light-dark(
+    oklch(0.95 0.035 var(--resource-hue)),
+    oklch(0.31 0.05 var(--resource-hue))
+  );
+  color: light-dark(
+    oklch(0.47 0.13 var(--resource-hue)),
+    oklch(0.87 0.09 var(--resource-hue))
+  );
 }
-
-.resource-avatar:where([data-kind="mcp"])[data-icon],
-.resource-avatar[data-icon="connector"],
-.resource-avatar[data-icon="cloud"] {
-  color: #24abc0;
-}
-
-.resource-avatar[data-icon="github"],
-.resource-avatar[data-icon="code"] {
-  color: var(--text);
-}
-
-.resource-avatar[data-icon="document"],
-.resource-avatar[data-icon="browser"],
-.resource-avatar[data-icon="filesystem"] {
-  color: #388ded;
-}
-
-.resource-avatar[data-icon="spreadsheet"],
-.resource-avatar[data-icon="verify"],
-.resource-avatar[data-icon="test"] {
-  color: #1bb476;
-}
-
-.resource-avatar[data-icon="pdf"],
-.resource-avatar[data-icon="bug"],
-.resource-avatar[data-icon="email"] {
-  color: #ed6171;
-}
-
-.resource-avatar .resource-artwork {
-  height: 100%;
-  width: 100%;
-}
-
+.resource-avatar > svg,
 .resource-avatar .resource-semantic-icon,
 .resource-avatar .resource-semantic-icon svg {
-  height: 28px;
-  width: 28px;
-}
-
-.resource-avatar[data-icon] .resource-semantic-icon svg {
-  stroke-width: 2;
+  height: 20px;
+  width: 20px;
 }
 
 .resource-marketplace-tabs {
@@ -12378,8 +12347,8 @@ kbd {
 .resource-search-field [data-part="icon"],
 .archive-search [data-part="icon"] {
   inset-block-start: 7px;
-  inline-size: 15px;
-  block-size: 15px;
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 .token-usage-tabs [data-part="tab"] {
@@ -13263,32 +13232,19 @@ kbd {
   pointer-events: auto;
 }
 
-/* Give language marks their natural width; never squeeze their letterforms. */
+/* Uniform 16px tiles keep filenames aligned across every file family. */
 .workspace-files-panel [data-artemis-component="workspace-file-tree-row"] {
-  grid-template-columns: 1.0625rem 34px minmax(0, 1fr);
+  grid-template-columns: 1.0625rem 20px minmax(0, 1fr);
 }
-
 .workspace-files-panel
   [data-artemis-component="workspace-file-tree-row"]
-  [data-part="icon"] {
-  inline-size: 28px;
-}
-
-.workspace-file-kind:has([data-language-mark]),
-.workspace-file-kind .seti-file-icon:has([data-language-mark]) {
-  width: 28px;
-}
-
-.workspace-file-kind .seti-file-icon svg[data-language-mark] {
-  width: 28px;
-}
-
-.workspace-file-link-icon:has([data-language-mark="regular"]) {
-  width: 1.26em;
-}
-
-.workspace-file-link-icon:has([data-language-mark="wide"]) {
-  width: 1.785em;
+  [data-part="icon"],
+.workspace-file-kind,
+.workspace-file-kind .seti-file-icon,
+.workspace-file-kind .seti-file-icon svg,
+.workspace-file-link-icon {
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 .im-member-heading {
@@ -14500,4 +14456,39 @@ kbd {
   font-size: 11px;
   margin-top: 4px;
   opacity: 0.75;
+}
+
+.artemis-running-arc {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--artemis-color-brand);
+  animation: artemis-running-arc 1.2s linear infinite;
+}
+.artemis-running-arc svg {
+  inline-size: 100%;
+  block-size: 100%;
+}
+@keyframes artemis-running-arc {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .artemis-running-arc {
+    animation: none;
+  }
+}
+.thread-status-indicator .status-dot.running,
+.status-dot.queued,
+.status-dot.failed {
+  display: inline-flex;
+  inline-size: 16px;
+  block-size: 16px;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  animation: none;
+}
+.artemis-mark {
+  color: var(--artemis-color-brand);
 }
