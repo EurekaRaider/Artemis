@@ -13,12 +13,12 @@ it("keeps file icons when a message rerenders with new callbacks", () => {
     <MarkdownContent fileLinkIcons onFileLink={first} text={text} />,
   );
   expect(
-    container.querySelector(".workspace-file-link-icon svg path"),
-  ).not.toBeNull();
+    container.querySelector(".workspace-file-link-icon svg text"),
+  ).toHaveProperty("textContent", "MD");
   rerender(<MarkdownContent fileLinkIcons onFileLink={next} text={text} />);
   expect(
-    container.querySelector(".workspace-file-link-icon svg path"),
-  ).not.toBeNull();
+    container.querySelector(".workspace-file-link-icon svg text"),
+  ).toHaveProperty("textContent", "MD");
   fireEvent.click(container.querySelector("a")!);
   expect(next).toHaveBeenCalledWith("AI_HANDOFF_V2.md");
   expect(first).not.toHaveBeenCalled();
@@ -31,8 +31,8 @@ it("keeps file icons when a message rerenders with new callbacks", () => {
     />,
   );
   expect(
-    container.querySelector(".workspace-file-link-icon svg path"),
-  ).not.toBeNull();
+    container.querySelector(".workspace-file-link-icon svg text"),
+  ).toHaveProperty("textContent", "{}");
   fireEvent.click(container.querySelector("a")!);
   expect(next).toHaveBeenLastCalledWith("package.json");
 });
