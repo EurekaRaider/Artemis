@@ -2029,5 +2029,9 @@
   "Share.user": "你",
   "Share.assistant": "Artemis",
   "Share.tool": "工具",
-  "Share.offline": "离线预览"
+  "Share.offline": "离线预览",
+  "SettingsPanel.material": "界面材质",
+  "SettingsPanel.materialGlass": "液态玻璃",
+  "SettingsPanel.materialSolid": "不透明",
+  "SettingsPanel.materialHint": "系统的减少透明度和对比度设置优先。"
 }

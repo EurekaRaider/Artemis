@@ -2029,5 +2029,9 @@
   "Share.user": "أنت",
   "Share.assistant": "Artemis",
   "Share.tool": "أداة",
-  "Share.offline": "معاينة دون اتصال"
+  "Share.offline": "معاينة دون اتصال",
+  "SettingsPanel.material": "مادة الواجهة",
+  "SettingsPanel.materialGlass": "زجاج سائل",
+  "SettingsPanel.materialSolid": "معتم",
+  "SettingsPanel.materialHint": "تأخذ إعدادات الشفافية والتباين في النظام الأولوية."
 }

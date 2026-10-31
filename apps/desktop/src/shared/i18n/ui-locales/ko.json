@@ -2029,5 +2029,9 @@
   "Share.user": "나",
   "Share.assistant": "Artemis",
   "Share.tool": "도구",
-  "Share.offline": "오프라인 미리보기"
+  "Share.offline": "오프라인 미리보기",
+  "SettingsPanel.material": "인터페이스 재질",
+  "SettingsPanel.materialGlass": "리퀴드 글래스",
+  "SettingsPanel.materialSolid": "불투명",
+  "SettingsPanel.materialHint": "시스템의 투명도 및 대비 설정이 우선합니다."
 }

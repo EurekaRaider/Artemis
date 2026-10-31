@@ -2029,5 +2029,9 @@
   "Share.user": "आप",
   "Share.assistant": "Artemis",
   "Share.tool": "टूल",
-  "Share.offline": "ऑफ़लाइन पूर्वावलोकन"
+  "Share.offline": "ऑफ़लाइन पूर्वावलोकन",
+  "SettingsPanel.material": "इंटरफ़ेस सामग्री",
+  "SettingsPanel.materialGlass": "लिक्विड ग्लास",
+  "SettingsPanel.materialSolid": "अपारदर्शी",
+  "SettingsPanel.materialHint": "सिस्टम की पारदर्शिता और कंट्रास्ट सेटिंग को प्राथमिकता दी जाती है।"
 }

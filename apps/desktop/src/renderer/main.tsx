@@ -13,6 +13,7 @@ import "./styles/prototype-migration.css";
 import "./styles/windows-glass.css";
 import "@artemis/theme-artemis/theme.css";
 import "./appearance/appearance.css";
+import "./styles/nocturne.css";
 
 performance.mark?.("artemis:renderer-entry");
 

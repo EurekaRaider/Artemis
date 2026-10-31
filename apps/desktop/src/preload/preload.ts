@@ -512,6 +512,8 @@ const api: ArtemisApi = {
   setLanguage: (language) =>
     ipcRenderer.invoke(IPC.settingsLanguageSet, language),
   setTheme: (theme) => ipcRenderer.invoke(IPC.settingsThemeSet, theme),
+  setMaterial: (material) =>
+    ipcRenderer.invoke(IPC.settingsMaterialSet, material),
   setComposerPredictions: (enabled) =>
     ipcRenderer.invoke(IPC.settingsComposerPredictionsSet, enabled),
   setPreventSleep: (enabled) =>

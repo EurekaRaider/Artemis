@@ -2029,5 +2029,9 @@
   "Share.user": "Anda",
   "Share.assistant": "Artemis",
   "Share.tool": "Alat",
-  "Share.offline": "Pratinjau offline"
+  "Share.offline": "Pratinjau offline",
+  "SettingsPanel.material": "Material antarmuka",
+  "SettingsPanel.materialGlass": "Kaca cair",
+  "SettingsPanel.materialSolid": "Buram",
+  "SettingsPanel.materialHint": "Preferensi transparansi dan kontras sistem diutamakan."
 }

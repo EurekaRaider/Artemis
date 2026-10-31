@@ -2029,5 +2029,9 @@
   "Share.user": "あなた",
   "Share.assistant": "Artemis",
   "Share.tool": "ツール",
-  "Share.offline": "オフラインプレビュー"
+  "Share.offline": "オフラインプレビュー",
+  "SettingsPanel.material": "インターフェースの素材",
+  "SettingsPanel.materialGlass": "リキッドガラス",
+  "SettingsPanel.materialSolid": "不透明",
+  "SettingsPanel.materialHint": "システムの透明度とコントラストの設定が優先されます。"
 }

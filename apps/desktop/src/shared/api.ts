@@ -416,6 +416,7 @@ export interface SettingsSnapshot {
   encryptionAvailable: boolean;
   language: AppLanguage;
   theme: AppTheme;
+  material?: import("./window-material.js").MaterialPreference;
   preventSleep?: boolean;
   composerPredictions?: boolean;
   resolvedLocale: AppSnapshot["locale"];
@@ -1354,6 +1355,9 @@ export interface ArtemisApi {
   getSettings(): Promise<SettingsSnapshot>;
   setLanguage(language: AppLanguage): Promise<SettingsSnapshot>;
   setTheme(theme: AppTheme): Promise<SettingsSnapshot>;
+  setMaterial(
+    material: import("./window-material.js").MaterialPreference,
+  ): Promise<SettingsSnapshot>;
   setComposerPredictions(enabled: boolean): Promise<SettingsSnapshot>;
   setPreventSleep(enabled: boolean): Promise<SettingsSnapshot>;
   setApprovalPolicy(policy: ApprovalPolicy): Promise<SettingsSnapshot>;
@@ -1715,6 +1719,7 @@ export const IPC = {
   settingsGet: "artemis:settings-get",
   settingsLanguageSet: "artemis:settings-language-set",
   settingsThemeSet: "artemis:settings-theme-set",
+  settingsMaterialSet: "artemis:settings-material-set",
   settingsComposerPredictionsSet: "artemis:settings-composer-predictions-set",
   settingsPreventSleepSet: "artemis:settings-prevent-sleep-set",
   settingsApprovalPolicySet: "artemis:settings-approval-policy-set",

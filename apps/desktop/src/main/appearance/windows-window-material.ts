@@ -1,7 +1,12 @@
-import type { WindowMaterial } from "../../shared/window-material.js";
+import {
+  shouldUseSolidMaterial,
+  type MaterialPreference,
+  type WindowMaterial,
+} from "../../shared/window-material.js";
 
 export interface WindowsMaterialPreferences {
   release: string;
+  material?: MaterialPreference;
   dark: boolean;
   reducedTransparency: boolean;
   highContrast: boolean;
@@ -12,19 +17,14 @@ export function windowsTitleBarOverlay(dark: boolean) {
   return {
     color: "#00000000",
     symbolColor: dark ? "#ededed" : "#222222",
-    height: 48,
+    height: 46,
   };
 }
 
 export function windowsWindowMaterial(
   preferences: WindowsMaterialPreferences,
 ): WindowMaterial {
-  if (
-    preferences.reducedTransparency ||
-    preferences.highContrast ||
-    preferences.forcedColors
-  )
-    return "solid";
+  if (shouldUseSolidMaterial(preferences)) return "solid";
   const [major = 0, , build = 0] = preferences.release.split(".").map(Number);
   return major >= 10 && build >= 22621 ? "acrylic" : "web";
 }
@@ -53,8 +53,8 @@ export function applyWindowsWindowMaterial(
     material === "acrylic"
       ? "#00000000"
       : preferences.dark
-        ? "#0f1012"
-        : "#f7f7f6",
+        ? "#141519"
+        : "#ffffff",
   );
   return material;
 }

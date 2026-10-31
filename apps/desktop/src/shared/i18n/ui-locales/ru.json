@@ -2029,5 +2029,9 @@
   "Share.user": "Вы",
   "Share.assistant": "Artemis",
   "Share.tool": "Инструмент",
-  "Share.offline": "Автономный просмотр"
+  "Share.offline": "Автономный просмотр",
+  "SettingsPanel.material": "Материал интерфейса",
+  "SettingsPanel.materialGlass": "Жидкое стекло",
+  "SettingsPanel.materialSolid": "Непрозрачный",
+  "SettingsPanel.materialHint": "Системные настройки прозрачности и контрастности имеют приоритет."
 }

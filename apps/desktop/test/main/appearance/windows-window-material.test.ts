@@ -27,7 +27,7 @@ describe("Windows main-window material", () => {
         applyWindowsWindowMaterial(window, { ...preferences, release }),
       ).toBe("web");
       expect(window.setBackgroundMaterial).not.toHaveBeenCalled();
-      expect(window.setBackgroundColor).toHaveBeenCalledWith("#f7f7f6");
+      expect(window.setBackgroundColor).toHaveBeenCalledWith("#ffffff");
     },
   );
   it.each(["reducedTransparency", "highContrast", "forcedColors"] as const)(
@@ -44,9 +44,23 @@ describe("Windows main-window material", () => {
         }),
       ).toBe("solid");
       expect(window.setBackgroundMaterial).toHaveBeenCalledWith("none");
-      expect(window.setBackgroundColor).toHaveBeenCalledWith("#f7f7f6");
+      expect(window.setBackgroundColor).toHaveBeenCalledWith("#ffffff");
     },
   );
+  it("persists an opaque selection independently of system accessibility", () => {
+    const window = {
+      setBackgroundMaterial: vi.fn(),
+      setBackgroundColor: vi.fn(),
+    };
+    expect(
+      applyWindowsWindowMaterial(window, { ...preferences, material: "solid" }),
+    ).toBe("solid");
+    expect(window.setBackgroundMaterial).toHaveBeenLastCalledWith("none");
+    expect(
+      applyWindowsWindowMaterial(window, { ...preferences, material: "glass" }),
+    ).toBe("acrylic");
+    expect(window.setBackgroundMaterial).toHaveBeenLastCalledWith("acrylic");
+  });
   it("restores Acrylic after a preference change and remains transparent in dark mode", () => {
     const window = {
       setBackgroundMaterial: vi.fn(),
@@ -72,6 +86,6 @@ describe("Windows main-window material", () => {
     expect(
       applyWindowsWindowMaterial(window, { ...preferences, dark: true }),
     ).toBe("web");
-    expect(window.setBackgroundColor).toHaveBeenCalledWith("#0f1012");
+    expect(window.setBackgroundColor).toHaveBeenCalledWith("#141519");
   });
 });

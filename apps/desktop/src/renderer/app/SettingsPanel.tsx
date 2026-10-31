@@ -61,7 +61,8 @@ import {
   ManagementSection,
   SettingsSurface,
 } from "@artemis/ui/management";
-import { Tabs } from "@artemis/ui/navigation";
+import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
+import type { MaterialPreference } from "../../shared/window-material.js";
 
 import type {
   AddedModelConfiguration,
@@ -538,6 +539,14 @@ ${model.providerId} · ${model.modelId}`,
   async function setLanguage(language: AppLanguage) {
     await run(async () => {
       const updated = await window.artemis.setLanguage(language);
+      setSettings(updated);
+      onSettingsChange(updated);
+    });
+  }
+
+  async function setMaterial(material: MaterialPreference) {
+    await run(async () => {
+      const updated = await window.artemis.setMaterial(material);
       setSettings(updated);
       onSettingsChange(updated);
     });
@@ -1561,6 +1570,28 @@ ${model.providerId} · ${model.modelId}`,
                         { value: "dark", label: t.themeDark },
                       ]}
                       value={settings.theme}
+                    />
+                  </SettingsRow>
+                  <SettingsRow
+                    label={uiText(locale, "SettingsPanel.material")}
+                    description={uiText(locale, "SettingsPanel.materialHint")}
+                  >
+                    <SegmentedControl<MaterialPreference>
+                      label={uiText(locale, "SettingsPanel.material")}
+                      disabled={busy}
+                      onValueChange={(material) => void setMaterial(material)}
+                      options={[
+                        {
+                          value: "glass",
+                          label: uiText(locale, "SettingsPanel.materialGlass"),
+                        },
+                        {
+                          value: "solid",
+                          label: uiText(locale, "SettingsPanel.materialSolid"),
+                        },
+                      ]}
+                      size="compact"
+                      value={settings.material ?? "glass"}
                     />
                   </SettingsRow>
                   <AppearanceSettingsSection locale={locale} />

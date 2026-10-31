@@ -1,0 +1,271 @@
+/* Nocturne shell: content stays opaque; native material belongs to chrome. */
+:root {
+  --nocturne-glass-tint: light-dark(
+    rgb(255 255 255 / 0.62),
+    rgb(64 67 80 / 0.42)
+  );
+  --nocturne-glass-popover: light-dark(
+    rgb(255 255 255 / 0.66),
+    rgb(30 32 40 / 0.58)
+  );
+  --nocturne-glass-sidebar: light-dark(
+    rgb(244 245 248 / 0.58),
+    rgb(14 15 19 / 0.52)
+  );
+  --nocturne-lens: light-dark(rgb(255 255 255 / 0.78), rgb(255 255 255 / 0.14));
+  --nocturne-lens-edge: light-dark(rgb(255 255 255), rgb(255 255 255 / 0.42));
+  --nocturne-glass-edge: light-dark(
+    rgb(255 255 255 / 0.42),
+    rgb(255 255 255 / 0.09)
+  );
+  --nocturne-glass-highlight: light-dark(
+    rgb(255 255 255 / 0.95),
+    rgb(255 255 255 / 0.3)
+  );
+  --nocturne-glass-shadow: 0 10px 30px
+    light-dark(rgb(24 30 50 / 0.14), rgb(0 0 0 / 0.34));
+  --nocturne-gold-line: light-dark(
+    rgb(192 138 30 / 0.42),
+    rgb(232 182 90 / 0.38)
+  );
+  --nocturne-gold-halo: light-dark(#fbf2df, rgb(232 182 90 / 0.12));
+}
+.app-shell {
+  --sidebar-expanded-width: 256px;
+}
+.app-shell .workspace,
+.app-shell .conversation,
+.app-shell .timeline {
+  background: var(--artemis-color-canvas);
+}
+.app-shell .workspace-header {
+  min-block-size: 46px;
+  block-size: 46px;
+  padding-block: 0;
+  border-block-end: 1px solid var(--artemis-color-border-subtle);
+}
+.workspace-header .workspace-heading {
+  gap: 10px;
+  font-size: 12.5px;
+}
+.workspace-header .workspace-heading > strong {
+  font-weight: 550;
+}
+.workspace-header .header-actions {
+  gap: 8px;
+}
+.workspace-header
+  :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle) {
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 8px;
+}
+.workspace-header
+  :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle)
+  svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+.workspace-header .status-pill {
+  min-block-size: 26px;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.workspace-header .status-pill time {
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .sidebar[data-state="ready"] {
+  border-inline-end: 1px solid var(--artemis-color-border-subtle);
+}
+.app-shell .sidebar .sidebar-top {
+  block-size: 46px;
+  min-block-size: 46px;
+  padding: 7px 10px;
+}
+.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
+  padding-block-start: 7px;
+}
+.app-shell .sidebar .sidebar-brand {
+  min-block-size: 32px;
+  margin: 0;
+  padding: 0;
+}
+.app-shell[data-platform="darwin"] .sidebar .brand-button {
+  visibility: hidden;
+}
+.app-shell .sidebar .sidebar-collapse {
+  inline-size: 28px;
+  block-size: 28px;
+}
+.app-shell .sidebar .sidebar-header {
+  padding: 4px 10px;
+}
+.app-shell .sidebar .sidebar-header [data-part="copy"] {
+  display: none;
+}
+.app-shell .sidebar .sidebar-header-actions {
+  inline-size: 100%;
+}
+.app-shell .sidebar .sidebar-search {
+  inline-size: 100%;
+  background: transparent;
+  border-color: transparent;
+}
+.app-shell .sidebar .sidebar-search:focus-within {
+  border-color: var(--artemis-color-focus-ring);
+}
+.app-shell .sidebar .sidebar-nav {
+  gap: 0;
+  padding: 0 10px 12px;
+}
+.app-shell .sidebar .nav-row {
+  block-size: 30px;
+  min-block-size: 30px;
+  padding: 0 10px;
+  gap: 10px;
+  color: var(--artemis-color-text-secondary);
+}
+.app-shell .sidebar .nav-row svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+.app-shell .sidebar .sidebar-new-task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 10px 8px;
+  inline-size: calc(100% - 20px);
+  min-block-size: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  color: var(--artemis-color-accent-onPrimary);
+  background: var(--artemis-color-accent-primary);
+  font-weight: 550;
+}
+.sidebar-new-task kbd {
+  margin-inline-start: auto;
+  font-size: 10.5px;
+  opacity: 0.65;
+}
+.app-shell .sidebar .project-thread-row {
+  min-block-size: 30px;
+  border-radius: 8px;
+}
+.app-shell .sidebar .project-thread-row .thread-time {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11.5px;
+}
+.app-shell .sidebar .sidebar-footer {
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
+  padding: 10px 6px 0;
+}
+.app-shell .sidebar .app-version {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11.5px;
+}
+:root[data-material="glass"]
+  .app-shell
+  .sidebar[data-state="ready"]
+  > [data-part="main"] {
+  border-radius: 0;
+  margin: 0;
+  box-shadow: none;
+  background: var(--nocturne-glass-sidebar);
+  backdrop-filter: none;
+}
+:root[data-material="glass"]
+  .app-shell
+  .sidebar
+  :is(.nav-row[aria-current="page"], .project-thread-row.selected) {
+  border-radius: 10px;
+  background: var(--nocturne-lens);
+  box-shadow:
+    inset 0 1px 0 var(--nocturne-lens-edge),
+    inset 0 0 0 1px var(--artemis-color-border-subtle);
+}
+:root[data-material="glass"] .app-shell .sidebar-new-task {
+  border-radius: 999px;
+}
+:root[data-material="glass"]
+  .workspace-header
+  :is(
+    .environment-trigger,
+    .left-sidebar-toggle,
+    .right-sidebar-toggle,
+    .status-pill
+  ) {
+  border: 0;
+  border-radius: 999px;
+  block-size: 32px;
+  background: var(--nocturne-glass-tint);
+  backdrop-filter: blur(24px) saturate(1.9);
+  box-shadow:
+    inset 0 1px 0 var(--nocturne-lens-edge),
+    inset 0 0 0 1px var(--artemis-color-border-subtle);
+}
+:root[data-material="glass"] .app-shell .workspace-header {
+  border-block-end-color: transparent;
+}
+:root[data-material="glass"] .workspace-header .status-pill {
+  padding-inline: 10px;
+}
+:root[data-material="solid"] .app-shell .sidebar > [data-part="main"],
+:root[data-material="solid"] .app-shell .sidebar-rail {
+  background: var(--artemis-color-background-sidebar);
+  backdrop-filter: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+:root[data-artemis-contrast="high"] .app-shell .sidebar > [data-part="main"],
+:root[data-artemis-contrast="high"] .app-shell .sidebar-rail {
+  background: var(--artemis-color-background-sidebar);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-transparency: reduce),
+  (prefers-contrast: more),
+  (forced-colors: active) {
+  :root .app-shell .sidebar > [data-part="main"],
+  :root .app-shell .sidebar-rail,
+  :root
+    .workspace-header
+    :is(
+      .environment-trigger,
+      .left-sidebar-toggle,
+      .right-sidebar-toggle,
+      .status-pill
+    ) {
+    background: var(--artemis-color-background-sidebar);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+:root[data-material="glass"] .app-shell .sidebar-rail {
+  background: var(--nocturne-glass-sidebar);
+  backdrop-filter: none;
+}
+:root[data-material="solid"]
+  .app-shell
+  .sidebar[data-state="ready"]
+  > [data-part="main"] {
+  background: var(--artemis-color-background-sidebar);
+}
+:root[data-artemis-contrast="high"]
+  .workspace-header
+  :is(
+    .environment-trigger,
+    .left-sidebar-toggle,
+    .right-sidebar-toggle,
+    .status-pill
+  ) {
+  background: var(--artemis-color-surface-raised);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .sidebar *,
+  .app-shell .workspace-header {
+    transition: none;
+  }
+}
