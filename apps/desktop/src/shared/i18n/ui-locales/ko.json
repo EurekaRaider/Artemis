@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "준비됨",
   "ImSettingsPanel.serviceDisconnected": "연결 끊김",
   "ImSettingsPanel.powerConnected": "연결됨",
+  "TerminalPanel.desktopUserAccess": "데스크톱 사용자로 실행하며 권한을 자동으로 높이지 않습니다.",
   "TerminalPanel.processExited": "프로세스 종료, 종료 코드: {{code}}",
   "ImLegacyImport.tenantKey": "테넌트 키",
   "ImLegacyImport.botOpenId": "봇 Open ID",

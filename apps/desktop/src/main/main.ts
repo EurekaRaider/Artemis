@@ -18053,6 +18053,9 @@ async function driveSmokeUserInputTransportEvidence(
 
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
+  if (smokeMode && view === "nocturne-review-comment-wide") {
+    settingsStore?.setWorkspaceDockWidth(640);
+  }
   // The icon-sizing smoke harness reuses this same synthetic repository
   // fixture so the branch popover, commit dialog, and environment rows all
   // render against real git data that lives entirely inside the isolated
@@ -18916,7 +18919,7 @@ function createMainWindow(): BrowserWindow {
                       }
                       if (!document.querySelector('.terminal-panel[data-state="ready"] .xterm-screen')) throw new Error('Native terminal did not become ready');
                     }
-                    if (view === 'nocturne-review-comment') {
+                    if (view.startsWith('nocturne-review-comment')) {
                       const label = ${JSON.stringify(uiText(currentLocale(), "App_copy.reviewChanges"))};
                       [...document.querySelectorAll('.environment-popover button')].find((button) => button.textContent.trim() === label)?.click();
                       await wait(800);

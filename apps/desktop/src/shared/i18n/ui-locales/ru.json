@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "Готово",
   "ImSettingsPanel.serviceDisconnected": "Отключено",
   "ImSettingsPanel.powerConnected": "Подключено",
+  "TerminalPanel.desktopUserAccess": "Работает от имени пользователя рабочего стола без автоматического повышения прав.",
   "TerminalPanel.processExited": "Процесс завершён с кодом {{code}}",
   "ImLegacyImport.tenantKey": "Ключ арендатора",
   "ImLegacyImport.botOpenId": "Open ID бота",

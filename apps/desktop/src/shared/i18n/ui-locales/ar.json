@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "جاهز",
   "ImSettingsPanel.serviceDisconnected": "غير متصل",
   "ImSettingsPanel.powerConnected": "متصل",
+  "TerminalPanel.desktopUserAccess": "يعمل بحساب مستخدم سطح المكتب دون رفع الصلاحيات تلقائيًا.",
   "TerminalPanel.processExited": "انتهت العملية بالرمز {{code}}",
   "ImLegacyImport.tenantKey": "مفتاح المستأجر",
   "ImLegacyImport.botOpenId": "معرّف Open ID للبوت",

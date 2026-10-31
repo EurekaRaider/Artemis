@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "已就绪",
   "ImSettingsPanel.serviceDisconnected": "已断开",
   "ImSettingsPanel.powerConnected": "连接",
+  "TerminalPanel.desktopUserAccess": "以你的桌面用户身份运行，不会自动提权。",
   "TerminalPanel.processExited": "进程已退出，退出码：{{code}}",
   "ImLegacyImport.tenantKey": "租户标识（Tenant Key）",
   "ImLegacyImport.botOpenId": "机器人 Open ID",

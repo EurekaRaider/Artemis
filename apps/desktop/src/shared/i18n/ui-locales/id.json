@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "Siap",
   "ImSettingsPanel.serviceDisconnected": "Terputus",
   "ImSettingsPanel.powerConnected": "Terhubung",
+  "TerminalPanel.desktopUserAccess": "Berjalan sebagai pengguna desktop Anda tanpa peningkatan hak akses otomatis.",
   "TerminalPanel.processExited": "Proses berakhir dengan kode {{code}}",
   "ImLegacyImport.tenantKey": "Kunci tenant",
   "ImLegacyImport.botOpenId": "Open ID bot",

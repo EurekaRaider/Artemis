@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "तैयार",
   "ImSettingsPanel.serviceDisconnected": "डिस्कनेक्टेड",
   "ImSettingsPanel.powerConnected": "कनेक्टेड",
+  "TerminalPanel.desktopUserAccess": "आपके डेस्कटॉप उपयोगकर्ता के रूप में चलता है; अनुमतियाँ अपने आप नहीं बढ़ाई जातीं।",
   "TerminalPanel.processExited": "प्रक्रिया कोड {{code}} के साथ समाप्त हुई",
   "ImLegacyImport.tenantKey": "टेनेंट कुंजी",
   "ImLegacyImport.botOpenId": "बॉट का Open ID",
