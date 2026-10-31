@@ -1865,6 +1865,7 @@
 .app-shell .token-usage-composition-share {
   margin-inline-end: 16px;
   color: var(--muted);
+  unicode-bidi: isolate;
 }
 .app-shell .token-usage-model-bars {
   display: flex;
