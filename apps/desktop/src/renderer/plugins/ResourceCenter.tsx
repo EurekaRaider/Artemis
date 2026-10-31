@@ -2922,17 +2922,27 @@ export function ResourceCenter({
         >
           {renderProgressAndMessage()}
           <div className="resource-document-banner">
-            <ResourceAvatar
-              kind="plugin"
-              iconKey="document"
-              name={t.installRequiredDocuments}
-            />
+            <div className="resource-document-icons" aria-hidden="true">
+              {(
+                ["document", "pdf", "spreadsheet", "presentation"] as const
+              ).map((iconKey) => (
+                <ResourceAvatar
+                  key={iconKey}
+                  kind="plugin"
+                  iconKey={iconKey}
+                  name={t.installRequiredDocuments}
+                />
+              ))}
+            </div>
             <div>
               <strong>{t.installRequiredDocuments}</strong>
               <p>{t.requiredDocumentsDescription}</p>
             </div>
             <Button
               size="compact"
+              variant={
+                officePackStatus?.activeVersion ? "secondary" : "primary"
+              }
               disabled={operationPending}
               onClick={() => setOfficeCapabilityOpen(true)}
             >
