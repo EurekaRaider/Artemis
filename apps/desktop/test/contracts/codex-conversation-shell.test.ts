@@ -325,7 +325,7 @@ describe("Codex conversation shell contract", () => {
     expect(appSource).toContain("void selectMode(nextRunMode(mode))");
   });
 
-  it("uses 9556fac semantic shell tones and typography", () => {
+  it("uses Nocturne semantic shell tones and typography", () => {
     const sidebar =
       artemisDarkTokens.modes[0].tokens["color.background.sidebar"].value;
     const workspace =
@@ -334,8 +334,8 @@ describe("Codex conversation shell contract", () => {
     expect(relativeLuminance(sidebar)).toBeLessThan(
       relativeLuminance(workspace),
     );
-    expect(sidebar).toBe("#1d1d1d");
-    expect(workspace).toBe("#202020");
+    expect(sidebar).toBe("#0e0f12");
+    expect(workspace).toBe("#1a1b20");
     expect(stylesSource).toContain(
       "--ui-font: var(--artemis-typography-body-family);",
     );
