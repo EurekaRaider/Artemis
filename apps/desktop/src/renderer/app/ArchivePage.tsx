@@ -1,5 +1,5 @@
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
@@ -7,7 +7,6 @@ import { EmptyState } from "@artemis/ui/feedback";
 import { SearchField } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
-import archiveHeaderIcon from "../assets/archive-header-icon.png";
 import archiveEmptyIcon from "../assets/archive-empty-icon.png";
 
 import {
@@ -85,13 +84,6 @@ export function ArchivePage({
         <ManagementHeader
           className="archive-header"
           description={t.archiveDescription}
-          leading={
-            <img
-              className="archive-header-artwork"
-              src={archiveHeaderIcon}
-              alt=""
-            />
-          }
           title={t.archiveTitle}
         />
       }
@@ -114,48 +106,67 @@ export function ArchivePage({
         </div>
 
         <div className="archive-results">
-          {results.map((thread) => (
-            <ManagementCard className="archive-card" key={thread.id}>
-              <div className="archive-card-copy">
-                <div className="archive-card-heading">
-                  <span className="archive-project">
-                    {thread.projectId
-                      ? (projectNames.get(thread.projectId) ?? "Artemis")
-                      : t.archiveTemporary}
-                  </span>
-                  <time dateTime={thread.updatedAt}>
-                    {new Intl.DateTimeFormat(locale, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    }).format(new Date(thread.updatedAt))}
-                  </time>
+          {results.map((thread, index) => (
+            <Fragment key={thread.id}>
+              {(index === 0 ||
+                new Date(results[index - 1]!.updatedAt).toLocaleDateString(
+                  locale,
+                  { year: "numeric", month: "long" },
+                ) !==
+                  new Date(thread.updatedAt).toLocaleDateString(locale, {
+                    year: "numeric",
+                    month: "long",
+                  })) && (
+                <h3 className="archive-time-group">
+                  {new Intl.DateTimeFormat(locale, {
+                    year: "numeric",
+                    month: "long",
+                  }).format(new Date(thread.updatedAt))}
+                </h3>
+              )}
+              <ManagementCard className="archive-card">
+                <ArtemisIcon className="archive-thread-icon" name="message" />
+                <div className="archive-card-copy">
+                  <div className="archive-card-heading">
+                    <span className="archive-project">
+                      {thread.projectId
+                        ? (projectNames.get(thread.projectId) ?? "Artemis")
+                        : t.archiveTemporary}
+                    </span>
+                    <time dateTime={thread.updatedAt}>
+                      {new Intl.DateTimeFormat(locale, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      }).format(new Date(thread.updatedAt))}
+                    </time>
+                  </div>
+                  <h2>{visibleThreadTitle(thread.title)}</h2>
+                  {thread.goal && (
+                    <p className="archive-goal">
+                      <strong>{t.archiveGoal}</strong>
+                      <span>{thread.goal.objective}</span>
+                    </p>
+                  )}
                 </div>
-                <h2>{visibleThreadTitle(thread.title)}</h2>
-                {thread.goal && (
-                  <p className="archive-goal">
-                    <strong>{t.archiveGoal}</strong>
-                    <span>{thread.goal.objective}</span>
-                  </p>
-                )}
-              </div>
-              <div className="archive-card-actions">
-                <Button onClick={() => onOpen(thread)} variant="primary">
-                  {t.archiveOpen}
-                </Button>
-                <Button onClick={() => onRestore(thread)} variant="quiet">
-                  {t.archiveRestore}
-                </Button>
-                <IconButton
-                  className="management-destructive-action"
-                  icon={<ArtemisIcon name="trash" />}
-                  label={`${t.archiveDelete}: ${thread.title}`}
-                  title={t.archiveDelete}
-                  onClick={() => onDelete(thread)}
-                  variant="quiet"
-                />
-              </div>
-            </ManagementCard>
+                <div className="archive-card-actions">
+                  <Button onClick={() => onOpen(thread)} variant="quiet">
+                    {t.archiveOpen}
+                  </Button>
+                  <Button onClick={() => onRestore(thread)} variant="quiet">
+                    {t.archiveRestore}
+                  </Button>
+                  <IconButton
+                    className="management-destructive-action"
+                    icon={<ArtemisIcon name="trash" />}
+                    label={`${t.archiveDelete}: ${thread.title}`}
+                    title={t.archiveDelete}
+                    onClick={() => onDelete(thread)}
+                    variant="quiet"
+                  />
+                </div>
+              </ManagementCard>
+            </Fragment>
           ))}
           {results.length === 0 && (
             <EmptyState

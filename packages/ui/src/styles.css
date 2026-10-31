@@ -4302,35 +4302,19 @@
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="1"] {
-    background: color-mix(
-      in oklab,
-      var(--artemis-color-context-2) 18%,
-      var(--artemis-color-surface-base)
-    );
+    background: var(--artemis-color-usage-4);
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="2"] {
-    background: color-mix(
-      in oklab,
-      var(--artemis-color-context-2) 36%,
-      var(--artemis-color-surface-base)
-    );
+    background: var(--artemis-color-usage-3);
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="3"] {
-    background: color-mix(
-      in oklab,
-      var(--artemis-color-context-1) 58%,
-      var(--artemis-color-surface-base)
-    );
+    background: var(--artemis-color-usage-2);
   }
 
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="4"] {
-    background: color-mix(
-      in oklab,
-      var(--artemis-color-status-info) 82%,
-      var(--artemis-color-surface-base)
-    );
+    background: var(--artemis-color-usage-1);
   }
 
   [data-artemis-component="data-heatmap"]

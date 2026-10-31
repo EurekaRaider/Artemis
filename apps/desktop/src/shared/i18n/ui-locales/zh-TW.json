@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ 傳送 · ⇧↵ 換行",
   "ComposerMode.decisionHint": "↑↓ 選擇 · ↵ 確認",
   "EnvironmentPanel.githubNoPullRequest": "目前分支沒有提取要求。",
-  "EnvironmentPanel.pushBeforePullRequest": "推送分支後即可建立提取要求。"
+  "EnvironmentPanel.pushBeforePullRequest": "推送分支後即可建立提取要求。",
+  "SettingsPanel.search": "搜尋設定",
+  "Providers.keychain": "系統鑰匙圈",
+  "ResourceCenter.sandbox": "沙箱",
+  "SettingsPanel.newTaskDefaults": "新任務預設設定",
+  "SettingsPanel.defaultModel": "預設模型"
 }

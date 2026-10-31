@@ -2005,11 +2005,9 @@ export function ResourceCenter({
           <div className="plugin-market-card-titles">
             <strong>
               {"Office"}
-              {installedVersion && (
-                <span className="plugin-market-card-vn">
-                  v{installedVersion}
-                </span>
-              )}
+              <span className="plugin-market-card-vn">
+                {installedVersion ? `v${installedVersion}` : ""}
+              </span>
             </strong>
             <small className="plugin-market-card-source">
               {t.marketplaceSource}: {t.bundledPlugins}
@@ -2294,11 +2292,9 @@ export function ResourceCenter({
             >
               {displayName}
               {/* 已安装的插件在名称后跟小号 v+版本号。 */}
-              {installedVersion && (
-                <span className="plugin-market-card-vn">
-                  v{installedVersion}
-                </span>
-              )}
+              <span className="plugin-market-card-vn">
+                v{installedVersion ?? plugin.version}
+              </span>
             </strong>
             <small
               className="plugin-market-card-source"
@@ -2353,6 +2349,26 @@ export function ResourceCenter({
           )}
         </div>
         <div className="plugin-market-card-footer">
+          <span className="plugin-permission-tags">
+            {plugin.mcpServers.length > 0 && (
+              <span>
+                <ArtemisIcon name="mcp" />
+                {t.mcp} {plugin.mcpServers.length}
+              </span>
+            )}
+            {plugin.skills.length > 0 && (
+              <span>
+                <ArtemisIcon name="skill" />
+                {t.skills} {plugin.skills.length}
+              </span>
+            )}
+            {plugin.hasHooks && (
+              <span>
+                <ArtemisIcon name="hooks" />
+                {uiText(locale, "Hooks.title")}
+              </span>
+            )}
+          </span>
           <div
             className="plugin-market-card-actions"
             data-installed={installed && Boolean(installedPlugin)}
@@ -2872,10 +2888,7 @@ export function ResourceCenter({
             disabled={operationPending}
             label={t.manage}
             onValueChange={(tab) => openManagement(tab)}
-            options={managementTabOptions.map((option) => ({
-              ...option,
-              label: t[option.value],
-            }))}
+            options={managementTabOptions}
             size="compact"
             value="plugins"
           />
@@ -2906,6 +2919,24 @@ export function ResourceCenter({
           aria-labelledby="resource-management-tab-plugins"
         >
           {renderProgressAndMessage()}
+          <div className="resource-document-banner">
+            <ResourceAvatar
+              kind="plugin"
+              iconKey="document"
+              name={t.installRequiredDocuments}
+            />
+            <div>
+              <strong>{t.installRequiredDocuments}</strong>
+              <p>{t.requiredDocumentsDescription}</p>
+            </div>
+            <Button
+              size="compact"
+              disabled={operationPending}
+              onClick={() => setOfficeCapabilityOpen(true)}
+            >
+              {officePackStatus?.activeVersion ? t.configure : t.install}
+            </Button>
+          </div>
           {officePackStatus?.updateVersion && (
             <InlineNotice tone="info">
               Office:{" "}
@@ -3199,10 +3230,7 @@ export function ResourceCenter({
             if (tab === "plugins") setMode("marketplace");
             switchManagementTab(tab);
           }}
-          options={managementTabOptions.map((option) => ({
-            ...option,
-            label: t[option.value],
-          }))}
+          options={managementTabOptions}
           size="compact"
           value={managementTab}
         />
@@ -3638,7 +3666,66 @@ export function ResourceCenter({
                     </div>
                   }
                   className="resource-management-row"
-                  description={`${owner ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · ` : ""}${!server.config.enabled ? t.disabled : server.state === "connected" ? t.connected : statusText(locale, server.state)} · ${server.tools.length} ${t.tools}${server.error ? ` · ${server.error}` : ""}`}
+                  description={
+                    <>
+                      <span>
+                        {owner
+                          ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · `
+                          : ""}
+                        {server.tools.length} {t.tools}
+                        {server.error ? ` · ${server.error}` : ""}
+                      </span>
+                      <span className="resource-mcp-chips">
+                        <span data-state={server.state}>
+                          {!server.config.enabled
+                            ? t.disabled
+                            : server.state === "connected"
+                              ? t.connected
+                              : statusText(locale, server.state)}
+                        </span>
+                        {server.config.transport === "stdio" ? (
+                          <>
+                            <span
+                              title={uiText(
+                                locale,
+                                server.config.fullAccess
+                                  ? "McpServerEditor_labels.mcpFullAccessHint"
+                                  : "McpServerEditor_labels.mcpAllowNetworkHint",
+                              )}
+                            >
+                              <ArtemisIcon
+                                name={
+                                  server.config.fullAccess ? "lock" : "sandbox"
+                                }
+                              />
+                              {server.config.fullAccess
+                                ? uiText(
+                                    locale,
+                                    "McpServerEditor_labels.mcpFullAccess",
+                                  )
+                                : uiText(locale, "ResourceCenter.sandbox")}
+                            </span>
+                            <span>
+                              {uiText(
+                                locale,
+                                "McpServerEditor_labels.mcpAllowNetwork",
+                              )}
+                              :{" "}
+                              {server.config.fullAccess ||
+                              server.config.allowNetwork
+                                ? t.enabled
+                                : t.disabled}
+                            </span>
+                          </>
+                        ) : (
+                          <span>
+                            <ArtemisIcon name="browser" />
+                            {server.config.transport}
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  }
                   key={server.config.id}
                   leading={
                     <ResourceAvatar

@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ 送信 · ⇧↵ 改行",
   "ComposerMode.decisionHint": "↑↓ 選択 · ↵ 確認",
   "EnvironmentPanel.githubNoPullRequest": "このブランチのプルリクエストはありません。",
-  "EnvironmentPanel.pushBeforePullRequest": "ブランチをプッシュするとプルリクエストを作成できます。"
+  "EnvironmentPanel.pushBeforePullRequest": "ブランチをプッシュするとプルリクエストを作成できます。",
+  "SettingsPanel.search": "設定を検索",
+  "Providers.keychain": "システムキーチェーン",
+  "ResourceCenter.sandbox": "サンドボックス",
+  "SettingsPanel.newTaskDefaults": "新しいタスクの既定値",
+  "SettingsPanel.defaultModel": "既定のモデル"
 }

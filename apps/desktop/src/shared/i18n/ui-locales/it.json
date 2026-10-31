@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ Invia · ⇧↵ Nuova riga",
   "ComposerMode.decisionHint": "↑↓ Scegli · ↵ Conferma",
   "EnvironmentPanel.githubNoPullRequest": "Nessuna pull request per questo ramo.",
-  "EnvironmentPanel.pushBeforePullRequest": "Esegui il push del ramo per creare una pull request."
+  "EnvironmentPanel.pushBeforePullRequest": "Esegui il push del ramo per creare una pull request.",
+  "SettingsPanel.search": "Cerca nelle impostazioni",
+  "Providers.keychain": "Portachiavi di sistema",
+  "ResourceCenter.sandbox": "Sandbox",
+  "SettingsPanel.newTaskDefaults": "Valori predefiniti per nuove attività",
+  "SettingsPanel.defaultModel": "Modello predefinito"
 }

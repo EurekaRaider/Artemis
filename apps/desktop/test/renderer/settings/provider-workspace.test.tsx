@@ -317,3 +317,65 @@ it("fuzzy searches provider names and IDs without changing the selected provider
   await userEvent.clear(search);
   expect(within(navigation).getAllByRole("button")).toHaveLength(3);
 });
+
+it("saves new-task model defaults without changing credentials and constrains effort to the selected model", async () => {
+  const reasoning = {
+    ...syntheticModel,
+    modelId: "reasoner",
+    name: "Reasoner",
+    reasoning: true,
+    thinkingLevels: ["low", "high"] as const,
+  };
+  const settings = settingsSnapshot({
+    models: [syntheticModel, reasoning],
+    addedModels: [syntheticModel, reasoning],
+    selection: {
+      providerId: syntheticModel.providerId,
+      modelId: syntheticModel.modelId,
+      thinkingLevel: "off",
+    },
+  });
+  const save = vi.fn(async (selection) => ({ ...settings, selection }));
+  const saveKey = vi.fn();
+  stubSettingsApi(settings, { setModelSelection: save, saveApiKey: saveKey });
+  await open(settings);
+  await userEvent.click(screen.getByLabelText("Default model"));
+  await userEvent.click(screen.getByRole("option", { name: /Reasoner/ }));
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith({
+      providerId: syntheticModel.providerId,
+      modelId: "reasoner",
+      thinkingLevel: "high",
+    }),
+  );
+  const effort = screen.getByRole("group", { name: "Reasoning effort" });
+  expect(within(effort).getAllByRole("button")).toHaveLength(2);
+  await userEvent.click(within(effort).getByRole("button", { name: "Low" }));
+  await waitFor(() =>
+    expect(save).toHaveBeenLastCalledWith({
+      providerId: syntheticModel.providerId,
+      modelId: "reasoner",
+      thinkingLevel: "low",
+      ultraMode: false,
+    }),
+  );
+  expect(saveKey).not.toHaveBeenCalled();
+});
+
+it("searches settings navigation without unmounting the active provider or exposing a credential draft", async () => {
+  const settings = settingsSnapshot({ models: [syntheticModel] });
+  stubSettingsApi(settings);
+  await open(settings);
+  await userEvent.type(
+    screen.getByLabelText("Search settings"),
+    "zz-no-section",
+  );
+  expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+    "Providers & models",
+  ]);
+  expect(
+    screen.getByRole("tabpanel", { name: "Providers & models" }),
+  ).toBeVisible();
+  await userEvent.clear(screen.getByLabelText("Search settings"));
+  expect(screen.getAllByRole("tab")).toHaveLength(7);
+});

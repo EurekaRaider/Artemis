@@ -279,3 +279,26 @@ describe("automation model selection", () => {
     expect(confirm).toHaveBeenCalledOnce();
   });
 });
+
+it("selects an automation without running it and keeps its weekly schedule in the detail pane", async () => {
+  const second = {
+    ...automation,
+    id: "automation-2",
+    name: "Friday digest",
+    prompt: "Summarize Friday changes.",
+    schedule: { ...automation.schedule, daysOfWeek: [5] },
+  } as Automation;
+  await setup({ records: [automation, second] });
+  const detail = document.querySelector(".automation-detail") as HTMLElement;
+  expect(within(detail).getByText(automation.prompt)).toBeVisible();
+  expect(within(detail).queryByText(second.prompt)).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: /Friday digest/ }));
+  expect(within(detail).getByText(second.prompt)).toBeVisible();
+  expect(within(detail).queryByText(automation.prompt)).toBeNull();
+  expect(
+    detail.querySelectorAll('.automation-week [data-scheduled="true"]'),
+  ).toHaveLength(1);
+  expect(
+    detail.querySelector('.automation-week [data-scheduled="true"]'),
+  ).toHaveTextContent("Fri09:00");
+});

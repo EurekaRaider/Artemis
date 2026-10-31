@@ -208,11 +208,18 @@ export function TokenUsagePage({
     { label: t.peakWeek, value: number.format(peakWeek) },
     { label: t.activeDays, value: exactNumber.format(activeDays) },
     {
-      label: t.longestStreak,
-      value: `${exactNumber.format(longestStreak(allCells))} ${t.days}`,
+      label: t.cacheHitRate,
+      value:
+        cacheMetrics.hitRate === undefined
+          ? "—"
+          : percent.format(cacheMetrics.hitRate),
     },
   ];
   const observations = [
+    {
+      label: t.longestStreak,
+      value: `${exactNumber.format(longestStreak(allCells))} ${t.days}`,
+    },
     {
       label: t.averageActiveDay,
       value: number.format(activeDays === 0 ? 0 : totalTokens / activeDays),
@@ -287,25 +294,24 @@ export function TokenUsagePage({
       state={usageState}
     >
       <header className="token-usage-profile">
-        <div aria-hidden="true" className="token-usage-avatar">
-          {profileAvatar ? (
-            <img
-              alt=""
-              className="token-usage-avatar-image"
-              src={profileAvatar}
-            />
-          ) : (
-            userInitials(username)
-          )}
+        <div>
+          <h1>{t.title}</h1>
+          <p>{t.subtitle}</p>
         </div>
-        <h1>{username}</h1>
-        <p title={t.subtitle}>
-          <span className="token-usage-handle">@{username}</span>
-          <span aria-hidden="true" className="token-usage-profile-separator">
-            ·
+        <span className="token-usage-account">
+          <span aria-hidden="true" className="token-usage-avatar">
+            {profileAvatar ? (
+              <img
+                alt=""
+                className="token-usage-avatar-image"
+                src={profileAvatar}
+              />
+            ) : (
+              userInitials(username)
+            )}
           </span>
-          <span className="token-usage-profile-badge">Artemis</span>
-        </p>
+          {username}
+        </span>
       </header>
 
       <section className="token-usage-summary" aria-label={t.title}>
@@ -388,51 +394,79 @@ export function TokenUsagePage({
       {usageModelsForTable.length > 0 && (
         <section className="token-usage-models" aria-label={t.usageByModel}>
           <h2>{t.usageByModel}</h2>
-          <div className="token-usage-models-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>{t.modelColumn}</th>
-                  <th>{t.inputTokens}</th>
-                  <th>{t.outputTokens}</th>
-                  <th>{t.cacheHitTokens}</th>
-                  <th title={t.cacheHitRateDescription}>{t.cacheHitRate}</th>
-                  <th>{t.modelTotalTokens}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usageModelsForTable.map((model) => (
-                  <tr
-                    className={selectedModel === model.key ? "selected" : ""}
-                    key={model.key}
+          <div className="token-usage-model-bars">
+            {usageModelsForTable.map((model) => (
+              <div key={model.key}>
+                <div>
+                  <Button
+                    variant="quiet"
+                    onClick={() => {
+                      setSelectedModel(model.key);
+                      setHovered(undefined);
+                    }}
                   >
-                    <td>
-                      <Button
-                        className="token-usage-model-action"
-                        selected={selectedModel === model.key}
-                        onClick={() => {
-                          setSelectedModel(model.key);
-                          setHovered(undefined);
-                        }}
-                        variant="quiet"
-                      >
-                        {modelLabel(model)}
-                      </Button>
-                    </td>
-                    <td>{number.format(model.inputTokens)}</td>
-                    <td>{number.format(model.outputTokens)}</td>
-                    <td>{number.format(model.cacheHitTokens)}</td>
-                    <td title={t.cacheHitRateDescription}>
-                      {model.cacheHitRate === undefined
-                        ? "—"
-                        : percent.format(model.cacheHitRate)}
-                    </td>
-                    <td>{number.format(model.totalTokens)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    {modelLabel(model)}
+                  </Button>
+                  <span>{number.format(model.totalTokens)}</span>
+                </div>
+                <div className="token-usage-model-bar" aria-hidden="true">
+                  <span
+                    style={{
+                      inlineSize: `${Math.max(0, Math.min(100, (model.totalTokens / Math.max(1, ...usageModelsForTable.map((item) => item.totalTokens))) * 100))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
+          <details className="token-usage-model-breakdown">
+            <summary>{t.insights}</summary>
+            <div className="token-usage-models-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{t.modelColumn}</th>
+                    <th>{t.inputTokens}</th>
+                    <th>{t.outputTokens}</th>
+                    <th>{t.cacheHitTokens}</th>
+                    <th title={t.cacheHitRateDescription}>{t.cacheHitRate}</th>
+                    <th>{t.modelTotalTokens}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usageModelsForTable.map((model) => (
+                    <tr
+                      className={selectedModel === model.key ? "selected" : ""}
+                      key={model.key}
+                    >
+                      <td>
+                        <Button
+                          className="token-usage-model-action"
+                          selected={selectedModel === model.key}
+                          onClick={() => {
+                            setSelectedModel(model.key);
+                            setHovered(undefined);
+                          }}
+                          variant="quiet"
+                        >
+                          {modelLabel(model)}
+                        </Button>
+                      </td>
+                      <td>{number.format(model.inputTokens)}</td>
+                      <td>{number.format(model.outputTokens)}</td>
+                      <td>{number.format(model.cacheHitTokens)}</td>
+                      <td title={t.cacheHitRateDescription}>
+                        {model.cacheHitRate === undefined
+                          ? "—"
+                          : percent.format(model.cacheHitRate)}
+                      </td>
+                      <td>{number.format(model.totalTokens)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
         </section>
       )}
 
@@ -451,6 +485,15 @@ export function TokenUsagePage({
 
         <div className="token-usage-detail-block">
           <h2>{t.tokenComposition}</h2>
+          <div className="token-usage-composition-bar" aria-hidden="true">
+            {composition.map((item) => (
+              <span
+                key={item.tone}
+                className={item.tone}
+                style={{ flex: item.value }}
+              />
+            ))}
+          </div>
           <dl className="token-usage-detail-list">
             {composition.map((item) => (
               <div className="token-usage-detail-row" key={item.label}>
@@ -461,7 +504,21 @@ export function TokenUsagePage({
                   />
                   {item.label}
                 </dt>
-                <dd>{number.format(item.value)}</dd>
+                <dd>
+                  <span className="token-usage-composition-share">
+                    {percent.format(
+                      item.value /
+                        Math.max(
+                          1,
+                          composition.reduce(
+                            (sum, entry) => sum + entry.value,
+                            0,
+                          ),
+                        ),
+                    )}
+                  </span>
+                  {number.format(item.value)}
+                </dd>
               </div>
             ))}
           </dl>

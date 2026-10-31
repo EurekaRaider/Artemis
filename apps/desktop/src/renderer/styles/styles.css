@@ -1145,8 +1145,7 @@ body:has(.app-shell[data-platform="darwin"]) .settings-panel {
   width: var(--icon-size-lg);
 }
 
-.environment-trigger svg,
-.environment-agent-mark {
+.environment-trigger svg {
   height: 16px;
   width: 16px;
 }
@@ -2000,7 +1999,6 @@ button.environment-row:disabled {
   justify-content: flex-end;
   margin-top: 0;
 }
-
 
 .environment-git-dialog {
   background: var(--environment-menu-bg);
@@ -8407,20 +8405,6 @@ button.sources-panel-entry.attachment:focus-visible {
   width: 96px;
 }
 
-.token-usage-handle {
-  color: color-mix(in srgb, var(--muted) 92%, transparent);
-}
-
-.token-usage-profile-separator {
-  color: color-mix(in srgb, var(--muted) 54%, transparent);
-}
-
-.token-usage-profile-badge {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 26px;
-}
-
 .token-usage-summary {
   border: 1px solid color-mix(in srgb, var(--border-soft) 82%, transparent);
   border-radius: 18px;
@@ -11858,9 +11842,7 @@ kbd {
   gap: 10px;
 }
 
-.resource-page-artwork,
-.archive-header-artwork,
-.automation-header-artwork {
+.resource-page-artwork {
   display: block;
   inline-size: 40px;
   block-size: 40px;

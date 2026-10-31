@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ 보내기 · ⇧↵ 줄바꿈",
   "ComposerMode.decisionHint": "↑↓ 선택 · ↵ 확인",
   "EnvironmentPanel.githubNoPullRequest": "이 브랜치에 대한 풀 리퀘스트가 없습니다.",
-  "EnvironmentPanel.pushBeforePullRequest": "브랜치를 푸시하면 풀 리퀘스트를 만들 수 있습니다."
+  "EnvironmentPanel.pushBeforePullRequest": "브랜치를 푸시하면 풀 리퀘스트를 만들 수 있습니다.",
+  "SettingsPanel.search": "설정 검색",
+  "Providers.keychain": "시스템 키체인",
+  "ResourceCenter.sandbox": "샌드박스",
+  "SettingsPanel.newTaskDefaults": "새 작업 기본값",
+  "SettingsPanel.defaultModel": "기본 모델"
 }

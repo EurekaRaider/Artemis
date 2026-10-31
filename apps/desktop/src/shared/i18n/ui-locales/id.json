@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ Kirim · ⇧↵ Baris baru",
   "ComposerMode.decisionHint": "↑↓ Pilih · ↵ Konfirmasi",
   "EnvironmentPanel.githubNoPullRequest": "Tidak ada pull request untuk cabang ini.",
-  "EnvironmentPanel.pushBeforePullRequest": "Push cabang ini untuk membuat pull request."
+  "EnvironmentPanel.pushBeforePullRequest": "Push cabang ini untuk membuat pull request.",
+  "SettingsPanel.search": "Cari pengaturan",
+  "Providers.keychain": "Rantai Kunci Sistem",
+  "ResourceCenter.sandbox": "Sandbox",
+  "SettingsPanel.newTaskDefaults": "Default tugas baru",
+  "SettingsPanel.defaultModel": "Model default"
 }

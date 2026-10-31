@@ -52,8 +52,10 @@ export function DataGallery() {
         >
           <div className="gallery-data-stats" aria-label="Synthetic totals">
             <DataStat label="Total tokens" value="48.2K" />
+            <DataStat label="Peak day" value="6.4K" />
+            <DataStat label="Peak week" value="18.2K" />
             <DataStat label="Active days" value="19" />
-            <DataStat label="Longest streak" value="7 days" />
+            <DataStat label="Cache hit rate" value="63%" />
           </div>
           <div className="gallery-data-scroll">
             <DataHeatmap

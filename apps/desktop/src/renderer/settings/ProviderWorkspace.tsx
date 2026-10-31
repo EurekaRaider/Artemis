@@ -1,3 +1,4 @@
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { ArrowsDownUp, Plus } from "@phosphor-icons/react";
 import { ProviderIcon } from "./ProviderIcon.js";
 import { useEffect, useState, type ReactNode } from "react";
@@ -371,6 +372,14 @@ function ProviderCredentials({
                 );
             }}
           >
+            {settings.encryptionAvailable && (
+              <span className="provider-key-storage">
+                <ArtemisIcon name="lock" />
+                {settings.platform === "darwin"
+                  ? uiText(locale, "Providers.keychain")
+                  : t.encrypted}
+              </span>
+            )}
             <TextField
               className="provider-api-key"
               size="compact"
@@ -384,11 +393,11 @@ function ProviderCredentials({
               }}
               disabled={disabled || !settings.encryptionAvailable}
               placeholder={
-                credential?.type === "api_key" ? t.storedApiKey : t.apiKey
+                credential?.type === "api_key" ? "••••••••••••••••" : t.apiKey
               }
               description={
                 settings.encryptionAvailable
-                  ? uiText(locale, "Providers.keyHint")
+                  ? `${credential?.type === "api_key" ? `${t.storedApiKey} · ` : ""}${uiText(locale, "Providers.keyHint")}`
                   : t.unavailable
               }
             />

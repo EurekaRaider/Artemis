@@ -1255,3 +1255,708 @@
   [data-part="marker"][data-status="in_progress"]::after {
   background: var(--artemis-color-brand);
 }
+
+/* Management surfaces share the same compact content hierarchy. */
+.app-shell
+  :is(.automation-page, .archive-page, .token-usage-page, .resource-page) {
+  background: var(--artemis-color-canvas);
+  color: var(--artemis-color-text-primary);
+}
+.app-shell
+  :is(.automation-page, .archive-page, .token-usage-page)
+  > [data-part="content"] {
+  padding: 28px 32px;
+}
+.app-shell
+  :is(.automation-page, .archive-page, .resource-page)
+  [data-artemis-component="management-header"]
+  [data-part="title"],
+.app-shell .token-usage-profile h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+.app-shell
+  :is(.automation-page, .archive-page, .resource-page)
+  [data-artemis-component="management-header"]
+  [data-part="description"] {
+  font-size: 13px;
+  margin-block-start: 6px;
+  color: var(--artemis-color-text-secondary);
+}
+.app-shell .automation-master-detail {
+  display: grid;
+  grid-template-columns: minmax(260px, 420px) minmax(300px, 1fr);
+  align-items: start;
+  gap: 0;
+  border-block-start: 1px solid var(--border-soft);
+  margin-block-start: 16px;
+}
+.app-shell .automation-master {
+  min-inline-size: 0;
+  padding: 12px 16px 12px 0;
+  border-inline-end: 1px solid var(--border-soft);
+  align-self: stretch;
+}
+[dir="rtl"] .app-shell .automation-master {
+  padding: 12px 0 12px 16px;
+}
+.app-shell .automation-master-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  margin-block-end: 4px;
+}
+.app-shell .automation-master-row[data-selected="true"] {
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .automation-master-row > button {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  block-size: auto;
+  white-space: normal;
+  justify-content: start;
+  align-items: start;
+  gap: 10px;
+}
+.app-shell .automation-master-row > button > svg {
+  flex: 0 0 16px;
+  margin-block-start: 3px;
+}
+.app-shell .automation-master-row [data-artemis-component="switch"] {
+  flex: 0 0 auto;
+}
+.app-shell .automation-master-copy {
+  display: grid;
+  gap: 5px;
+  text-align: start;
+  min-inline-size: 0;
+}
+.app-shell .automation-master-copy > :is(strong, span, small) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-shell .automation-master-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell .automation-master-copy :is(span, small) {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.app-shell .automation-master-copy [data-state="failed"] {
+  color: var(--artemis-color-status-danger-text);
+}
+.app-shell .automation-detail {
+  padding: 20px 0 20px 24px;
+}
+[dir="rtl"] .app-shell .automation-detail {
+  padding: 20px 24px 20px 0;
+}
+.app-shell .automation-detail .automation-card {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.app-shell .automation-detail .automation-card-heading h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.app-shell .automation-detail .automation-prompt {
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 16px;
+  background: var(--artemis-color-surface-sunken);
+  border-radius: 10px;
+  white-space: pre-wrap;
+}
+.app-shell .automation-detail .automation-card-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.app-shell .automation-detail .automation-actions {
+  flex-wrap: wrap;
+  justify-content: start;
+}
+.app-shell .automation-detail .automation-history {
+  inline-size: 100%;
+}
+.app-shell .automation-history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-shell .automation-run {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-block-end: 1px solid var(--border-soft);
+}
+.app-shell .automation-run .automation-history-row {
+  flex: 1;
+  min-inline-size: 0;
+}
+.app-shell .automation-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+  margin-block: 18px;
+}
+.app-shell .automation-week > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 2px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .automation-week > [data-scheduled="true"] {
+  color: var(--artemis-color-text-primary);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.app-shell .automation-week small {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .archive-page > [data-part="header"] {
+  padding: 28px 32px 0;
+}
+.app-shell .archive-content {
+  max-inline-size: 1100px;
+  margin-inline: auto;
+}
+.app-shell .archive-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.app-shell .archive-time-group {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 24px 0 8px;
+}
+.app-shell .archive-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border: 0;
+  border-block-end: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell .archive-thread-icon {
+  inline-size: 18px;
+  block-size: 18px;
+  flex: 0 0 18px;
+  color: var(--muted);
+}
+.app-shell .archive-card-copy {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.app-shell .archive-card-copy h2 {
+  order: -1;
+  font-size: 13px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+}
+.app-shell .archive-card-heading {
+  gap: 12px;
+  justify-content: start;
+  font-size: 11.5px;
+}
+.app-shell .archive-card-actions {
+  flex-shrink: 0;
+  gap: 4px;
+}
+.app-shell .archive-goal {
+  margin: 0;
+  font-size: 11.5px;
+}
+.app-shell .token-usage-page > [data-part="content"] {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  max-inline-size: 1160px;
+  margin-inline: auto;
+}
+.app-shell
+  .token-usage-page
+  :is(
+    .token-usage-profile,
+    .token-usage-summary,
+    .token-usage-activity,
+    .token-usage-details
+  ) {
+  grid-column: 1 / -1;
+  inline-size: 100%;
+  margin: 0;
+}
+.app-shell .token-usage-profile {
+  flex-direction: row;
+  justify-content: space-between;
+  text-align: start;
+  gap: 16px;
+  padding: 0;
+}
+.app-shell .token-usage-profile p {
+  font-size: 13px;
+  margin-block-start: 6px;
+  line-height: 1.6;
+}
+.app-shell .token-usage-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.app-shell .token-usage-avatar {
+  inline-size: 28px;
+  block-size: 28px;
+  font-size: 12px;
+  margin: 0;
+  border-radius: 8px;
+  background: var(--artemis-color-surface-sunken);
+  color: var(--artemis-color-text-primary);
+  border-color: var(--border-soft);
+  box-shadow: none;
+}
+.app-shell .token-usage-summary {
+  padding: 0;
+  border-radius: 12px;
+}
+.app-shell .token-usage-summary [data-artemis-component="data-stat"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 20px;
+  align-items: start;
+  text-align: start;
+}
+.app-shell .token-usage-summary [data-part="label"] {
+  order: -1;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.app-shell .token-usage-summary [data-part="value"] {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell
+  .token-usage-summary
+  > [data-artemis-component="data-stat"]
+  + [data-artemis-component="data-stat"] {
+  border-left: 0;
+  border-inline-start: 1px solid var(--border-soft);
+}
+.app-shell
+  :is(.token-usage-activity, .token-usage-models, .token-usage-detail-block) {
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 20px 22px;
+  background: var(--artemis-color-canvas);
+}
+.app-shell
+  :is(.token-usage-activity, .token-usage-models, .token-usage-detail-block)
+  h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.app-shell .token-usage-chart {
+  min-inline-size: 640px;
+}
+.app-shell .token-usage-activity-controls {
+  gap: 12px;
+}
+.app-shell .token-usage-chart [data-part="cell"] {
+  border-radius: 3px;
+}
+.app-shell .token-usage-models {
+  grid-column: 2;
+  grid-row: 4;
+  inline-size: 100%;
+  margin: 0;
+  min-inline-size: 0;
+}
+.app-shell .token-usage-details {
+  display: contents;
+}
+.app-shell .token-usage-detail-block:first-child {
+  grid-column: 1 / -1;
+  grid-row: 5;
+}
+.app-shell .token-usage-detail-block:last-child {
+  grid-column: 1;
+  grid-row: 4;
+}
+.app-shell .token-usage-composition-bar {
+  display: flex;
+  block-size: 10px;
+  border-radius: 5px;
+  gap: 2px;
+  overflow: hidden;
+  margin-block: 14px;
+}
+.app-shell .token-usage-composition-bar .input {
+  background: var(--artemis-color-usage-1);
+}
+.app-shell .token-usage-composition-bar .output {
+  background: var(--artemis-color-usage-2);
+}
+.app-shell .token-usage-composition-bar .cache-read {
+  background: var(--artemis-color-usage-3);
+}
+.app-shell .token-usage-composition-share {
+  margin-inline-end: 16px;
+  color: var(--muted);
+}
+.app-shell .token-usage-model-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.app-shell .token-usage-model-bars > div > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.app-shell .token-usage-model-bars button {
+  padding-inline: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+  display: block;
+  text-align: start;
+}
+.app-shell .token-usage-model-bars span {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.app-shell .token-usage-model-bar {
+  block-size: 6px;
+  border-radius: 3px;
+  background: var(--artemis-color-surface-sunken);
+  overflow: hidden;
+}
+.app-shell .token-usage-model-bar span {
+  display: block;
+  block-size: 100%;
+  background: var(--artemis-color-status-info);
+  border-radius: inherit;
+}
+.app-shell .token-usage-model-breakdown {
+  margin-block-start: 20px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.app-shell
+  .resource-page
+  :is(
+    .resource-page-header,
+    .resource-marketplace-toolbar,
+    .resource-management-toolbar
+  ) {
+  padding-inline: 32px;
+}
+.app-shell .resource-page-artwork {
+  display: none;
+}
+.app-shell .resource-category-tabs {
+  border-radius: 8px;
+  padding: 3px;
+  background: var(--artemis-color-surface-sunken);
+  border: 0;
+  gap: 3px;
+}
+.app-shell .resource-category-tabs [data-part="tab"] {
+  block-size: 28px;
+  min-block-size: 28px;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.app-shell .resource-document-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 16px;
+  margin-block: 12px 20px;
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .resource-document-banner > div {
+  flex: 1;
+  min-inline-size: 0;
+}
+.app-shell .resource-document-banner strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell .resource-document-banner p {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+.app-shell .plugin-market-card {
+  border-radius: 12px;
+  padding: 16px;
+  gap: 12px;
+}
+.app-shell .plugin-market-card-heading {
+  align-items: center;
+  gap: 10px;
+}
+.app-shell .plugin-market-card-titles {
+  flex: 1;
+  min-inline-size: 0;
+}
+.app-shell .plugin-market-card-titles strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell .plugin-market-card-vn {
+  display: inline;
+  margin-inline-start: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.app-shell .plugin-market-card-footer {
+  margin-block-start: auto;
+}
+.app-shell
+  .plugin-market-card-actions
+  > :is(button, [data-artemis-component="status"]) {
+  min-inline-size: 64px;
+  block-size: 26px;
+  min-block-size: 26px;
+  border-radius: 6px;
+}
+.app-shell .resource-mcp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-block-start: 6px;
+}
+.app-shell .resource-mcp-chips > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--artemis-color-surface-sunken);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+.app-shell .resource-mcp-chips svg {
+  inline-size: 12px;
+  block-size: 12px;
+}
+.app-shell .resource-mcp-chips [data-state="connected"] {
+  color: var(--artemis-color-status-success-text);
+}
+.settings-panel {
+  inline-size: min(1000px, calc(100vw - 40px));
+  width: min(1000px, calc(100vw - 40px));
+  block-size: min(720px, calc(100dvh - 64px));
+  height: min(720px, calc(100dvh - 64px));
+  max-block-size: calc(100dvh - 64px);
+  border-radius: 16px;
+  background: var(--artemis-color-canvas);
+}
+.settings-panel [data-artemis-component="settings-surface"] {
+  background: var(--artemis-color-canvas);
+}
+.settings-panel
+  [data-artemis-component="settings-surface"]
+  > [data-part="body"] {
+  grid-template-columns: 232px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.settings-panel
+  [data-artemis-component="settings-surface"]
+  > [data-part="body"]
+  > [data-part="navigation"] {
+  background: var(--artemis-color-background-sidebar);
+  padding: 12px;
+  border-inline-end: 1px solid var(--border-soft);
+  border-block-end: 0;
+}
+.settings-panel .settings-navigation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-block-size: 100%;
+}
+.settings-panel .settings-tabs {
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.settings-panel .settings-tabs [data-part="tab"] {
+  font-size: 13px;
+  font-weight: 500;
+}
+.settings-panel .settings-import-shortcut {
+  margin-block-start: auto;
+  block-size: auto;
+  padding: 10px 8px;
+  flex-wrap: wrap;
+  justify-content: start;
+  text-align: start;
+  white-space: normal;
+  font-size: 12px;
+}
+.settings-panel .settings-import-shortcut span:last-child {
+  display: block;
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 11px;
+}
+.settings-panel .provider-workspace {
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 16px;
+}
+.settings-panel .provider-navigation-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-panel .provider-key-storage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.settings-panel .provider-key-storage svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.settings-panel .settings-mode-capabilities {
+  border-collapse: collapse;
+  inline-size: 100%;
+  font-size: 12px;
+}
+.settings-panel .settings-mode-capabilities :is(th, td) {
+  padding: 10px 8px;
+  border-block-end: 1px solid var(--border-soft);
+  text-align: start;
+}
+.settings-panel .settings-mode-capabilities th {
+  font-weight: 550;
+  white-space: nowrap;
+}
+.settings-panel .settings-mode-capabilities td:last-child {
+  color: var(--muted);
+  line-height: 1.5;
+}
+@media (max-width: 1200px) {
+  .app-shell .automation-master-detail {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(300px, 1fr);
+  }
+  .app-shell
+    :is(.automation-page, .archive-page, .token-usage-page)
+    > [data-part="content"] {
+    padding: 24px;
+  }
+  .app-shell .token-usage-summary [data-artemis-component="data-stat"] {
+    padding: 14px 10px;
+  }
+  .app-shell .token-usage-summary [data-part="value"] {
+    font-size: 23px;
+  }
+}
+@media (max-width: 720px) {
+  .settings-panel
+    [data-artemis-component="settings-surface"]
+    > [data-part="body"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-panel .settings-tabs {
+    flex-direction: row;
+  }
+  .settings-panel .settings-navigation-content {
+    min-block-size: 0;
+  }
+  .settings-panel .settings-import-shortcut {
+    display: none;
+  }
+  .app-shell .automation-master-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-shell .automation-master {
+    border-inline-end: 0;
+    padding: 0;
+  }
+  .app-shell .automation-detail {
+    padding: 20px 0;
+  }
+}
+
+.app-shell .plugin-market-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.app-shell .plugin-permission-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.app-shell .plugin-permission-tags > span {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 10.5px;
+  color: var(--muted);
+  background: var(--artemis-color-surface-sunken);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+.app-shell .plugin-permission-tags svg {
+  inline-size: 12px;
+  block-size: 12px;
+}
+.settings-panel
+  .provider-defaults
+  [data-artemis-component="segmented-control"] {
+  flex-wrap: wrap;
+}

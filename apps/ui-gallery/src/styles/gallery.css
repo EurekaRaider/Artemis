@@ -534,7 +534,7 @@
 
   .gallery-data-stats {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     padding-block: var(--artemis-space-4);
     border-block: var(--artemis-border-width-default) solid
       var(--artemis-color-border-subtle);

@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ Отправить · ⇧↵ Новая строка",
   "ComposerMode.decisionHint": "↑↓ Выбрать · ↵ Подтвердить",
   "EnvironmentPanel.githubNoPullRequest": "Для этой ветки нет запроса на слияние.",
-  "EnvironmentPanel.pushBeforePullRequest": "Отправьте ветку, чтобы создать запрос на слияние."
+  "EnvironmentPanel.pushBeforePullRequest": "Отправьте ветку, чтобы создать запрос на слияние.",
+  "SettingsPanel.search": "Поиск настроек",
+  "Providers.keychain": "Системная связка ключей",
+  "ResourceCenter.sandbox": "Песочница",
+  "SettingsPanel.newTaskDefaults": "Настройки новых задач",
+  "SettingsPanel.defaultModel": "Модель по умолчанию"
 }

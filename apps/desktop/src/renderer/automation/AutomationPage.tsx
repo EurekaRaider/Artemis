@@ -9,7 +9,6 @@ import {
   thinkingLevelLabel,
   thinkingLevelsForModel,
 } from "../settings/model-selection.js";
-import automationHeaderIcon from "../assets/automation-header-icon.png";
 import { Temporal } from "@js-temporal/polyfill";
 import {
   createAutomationViewState,
@@ -42,7 +41,13 @@ import {
   InlineNotice,
   Popover,
 } from "@artemis/ui/feedback";
-import { Checkbox, Select, TextAreaField, TextField } from "@artemis/ui/forms";
+import {
+  Checkbox,
+  Select,
+  Switch,
+  TextAreaField,
+  TextField,
+} from "@artemis/ui/forms";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 
 type Locale = AppLocale;
@@ -548,6 +553,7 @@ export function AutomationPage(props: {
     createAutomationViewState,
   );
   const [projectFilter, setProjectFilter] = useState("");
+  const [selectedAutomationId, setSelectedAutomationId] = useState<string>();
   const [draft, setDraft] = useState<AutomationDraft>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -693,6 +699,10 @@ export function AutomationPage(props: {
     [projectFilter, state.automations],
   );
 
+  const selectedAutomation =
+    automations.find((item) => item.id === selectedAutomationId) ??
+    automations[0];
+
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!draft || !normalizedSelection || busy) return;
@@ -759,13 +769,6 @@ export function AutomationPage(props: {
             {t.create}
           </Button>
         }
-        leading={
-          <img
-            className="automation-header-artwork"
-            src={automationHeaderIcon}
-            alt=""
-          />
-        }
         className="automation-header"
         description={t.pageSubtitle}
         title={t.title}
@@ -793,212 +796,312 @@ export function AutomationPage(props: {
         ) : null}
       </div>
 
-      <div className="automation-list">
-        {automations.map((automation) => {
-          const runs = Object.values(state.runs)
-            .filter((run) => run.automationId === automation.id)
-            .sort((left, right) =>
-              right.createdAt.localeCompare(left.createdAt),
+      <div className="automation-master-detail">
+        <div className="automation-master" aria-label={t.title}>
+          {automations.map((automation) => {
+            const latestRun = Object.values(state.runs)
+              .filter((run) => run.automationId === automation.id)
+              .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+            const project = props.projects.find(
+              (item) => item.id === automation.projectId,
             );
-          const project = props.projects.find(
-            (candidate) => candidate.id === automation.projectId,
-          );
-          const taskSelection =
-            automation.modelSelection ?? props.settings?.selection;
-          const taskModel = props.settings?.models.find(
-            (model) =>
-              taskSelection && modelKey(model) === modelKey(taskSelection),
-          );
-          const statusLabel =
-            automation.authorizationState === "required"
-              ? t.authorizationRequired
-              : automation.enabled
-                ? t.enabled
-                : t.paused;
-          return (
-            <ManagementCard className="automation-card" key={automation.id}>
-              <div className="automation-card-heading">
-                <div>
-                  <h2>{automation.name}</h2>
-                  <span>
-                    {project?.name ?? t.unavailableProject} ·{" "}
-                    {uiText(props.locale, `App_copy.${automation.mode}`)} ·{" "}
-                    {automation.target === "local" ? t.local : t.managed}
-                  </span>
-                </div>
-                <Status
-                  className="automation-state"
-                  tone={
-                    automation.authorizationState === "required"
-                      ? "warning"
-                      : automation.enabled
-                        ? "success"
-                        : "neutral"
-                  }
+            return (
+              <div
+                className="automation-master-row"
+                data-selected={selectedAutomation?.id === automation.id}
+                key={automation.id}
+              >
+                <Button
+                  variant="quiet"
+                  align="start"
+                  selected={selectedAutomation?.id === automation.id}
+                  onClick={() => setSelectedAutomationId(automation.id)}
                 >
-                  {statusLabel}
-                </Status>
+                  <ArtemisIcon name="automation" />
+                  <span className="automation-master-copy">
+                    <strong>{automation.name}</strong>
+                    <span>
+                      {project?.name ?? t.unavailableProject} ·{" "}
+                      {scheduleLabel(automation, props.locale)}
+                    </span>
+                    <small data-state={latestRun?.state}>
+                      {latestRun?.state === "failed"
+                        ? `${statusText(props.locale, latestRun.state)} · ${formatDate(latestRun.createdAt, props.locale)}`
+                        : automation.enabled
+                          ? `${t.nextRun}: ${formatDate(automation.nextRunAt, props.locale)}`
+                          : t.pausedUntilEnabled}
+                    </small>
+                  </span>
+                </Button>
+                <Switch
+                  checked={automation.enabled}
+                  disabled={busy}
+                  label={`${automation.enabled ? t.pauseTask : t.enableTask}: ${automation.name}`}
+                  onCheckedChange={(enabled) =>
+                    void invoke(() =>
+                      window.artemis.setAutomationEnabled(
+                        automation.id,
+                        enabled,
+                      ),
+                    )
+                  }
+                />
               </div>
-              <p className="automation-prompt">{automation.prompt}</p>
-              <div className="automation-meta">
-                <span className="automation-schedule-label">
-                  <ArtemisIcon name="clock" />
-                  {scheduleLabel(automation, props.locale)}
-                </span>
-                <span>
-                  {automation.enabled
-                    ? `${t.nextRun}: ${formatDate(automation.nextRunAt, props.locale)}`
-                    : t.pausedUntilEnabled}
-                </span>
-              </div>
-              <p className="automation-model-summary">
-                {t.model}:{" "}
-                {taskModel?.name ?? taskSelection?.modelId ?? t.chooseModel}
-                {taskSelection && (
-                  <>
-                    {" "}
-                    · {t.thinking}:{" "}
-                    {taskSelection.ultraMode
-                      ? UI_COPY.App_copy[props.locale].ultraMode
-                      : thinkingLevelLabel(
-                          taskSelection.thinkingLevel,
-                          props.locale,
-                        )}
-                  </>
-                )}
-              </p>
-              <div className="automation-card-footer">
-                <div className="automation-actions">
-                  {automation.authorizationState === "required" && (
-                    <Button
-                      icon={<ArtemisIcon name="approval" />}
-                      disabled={busy}
-                      onClick={() =>
-                        void invoke(() =>
-                          window.artemis.authorizeAutomation(automation.id),
-                        )
+            );
+          })}
+        </div>
+        <div className="automation-list automation-detail">
+          {automations
+            .filter((item) => item.id === selectedAutomation?.id)
+            .map((automation) => {
+              const runs = Object.values(state.runs)
+                .filter((run) => run.automationId === automation.id)
+                .sort((left, right) =>
+                  right.createdAt.localeCompare(left.createdAt),
+                );
+              const project = props.projects.find(
+                (candidate) => candidate.id === automation.projectId,
+              );
+              const taskSelection =
+                automation.modelSelection ?? props.settings?.selection;
+              const taskModel = props.settings?.models.find(
+                (model) =>
+                  taskSelection && modelKey(model) === modelKey(taskSelection),
+              );
+              const statusLabel =
+                automation.authorizationState === "required"
+                  ? t.authorizationRequired
+                  : automation.enabled
+                    ? t.enabled
+                    : t.paused;
+              return (
+                <ManagementCard className="automation-card" key={automation.id}>
+                  <div className="automation-card-heading">
+                    <div>
+                      <h2>{automation.name}</h2>
+                      <span>
+                        {project?.name ?? t.unavailableProject} ·{" "}
+                        {uiText(props.locale, `App_copy.${automation.mode}`)} ·{" "}
+                        {automation.target === "local" ? t.local : t.managed}
+                      </span>
+                    </div>
+                    <Status
+                      className="automation-state"
+                      tone={
+                        automation.authorizationState === "required"
+                          ? "warning"
+                          : automation.enabled
+                            ? "success"
+                            : "neutral"
                       }
                     >
-                      {t.authorize}
-                    </Button>
-                  )}
-                  <Button
-                    icon={<ArtemisIcon name="send" />}
-                    disabled={
-                      busy || automation.authorizationState === "required"
-                    }
-                    onClick={() =>
-                      void invoke(() =>
-                        window.artemis.runAutomationNow(automation.id),
-                      )
-                    }
-                  >
-                    {t.runNow}
-                  </Button>
-                  <Button
-                    icon={
-                      automation.enabled ? (
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                        >
-                          <path d="M9 5v14M15 5v14" />
-                        </svg>
-                      ) : (
-                        <ArtemisIcon name="send" />
-                      )
-                    }
-                    disabled={busy}
-                    onClick={() =>
-                      void invoke(() =>
-                        window.artemis.setAutomationEnabled(
-                          automation.id,
-                          !automation.enabled,
-                        ),
-                      )
-                    }
-                  >
-                    {automation.enabled ? t.pauseTask : t.enableTask}
-                  </Button>
-                  <Button
-                    icon={<ArtemisIcon name="edit" />}
-                    disabled={busy}
-                    onClick={() => openDraft(automation)}
-                  >
-                    {t.edit}
-                  </Button>
-                  <IconButton
-                    disabled={busy}
-                    label={t.moreActions}
-                    aria-expanded={moreAutomation === automation.id}
-                    icon={<ArtemisIcon name="more" />}
-                    onClick={(event) => {
-                      moreAnchor.current = event.currentTarget;
-                      setMoreAutomation(
-                        moreAutomation === automation.id
-                          ? undefined
-                          : automation.id,
-                      );
-                    }}
-                  />
-                </div>
-                <details className="automation-history">
-                  <summary>
-                    {t.history}
-                    <ArtemisIcon name="chevron" />
-                  </summary>
-                  <div className="automation-history-content">
-                    <span>
-                      {t.lastRun}:{" "}
-                      {formatDate(automation.lastRunAt, props.locale)}
-                    </span>
-                    {runs.length === 0 ? (
-                      <span>{t.noRuns}</span>
-                    ) : (
-                      runs.slice(0, 5).map((run) => (
-                        <Button
-                          align="start"
-                          className="automation-history-row"
-                          disabled={!run.threadId}
-                          key={run.id}
-                          onClick={() =>
-                            run.threadId && props.onOpenThread(run.threadId)
-                          }
-                          variant="quiet"
-                        >
-                          <span className={`automation-run-dot ${run.state}`} />
-                          <span>
-                            {formatDate(run.scheduledFor, props.locale)}
-                          </span>
-                          <span>{statusText(props.locale, run.state)}</span>
-                          {run.reason && <small>{run.reason}</small>}
-                        </Button>
-                      ))
-                    )}
+                      {statusLabel}
+                    </Status>
                   </div>
-                </details>
-              </div>
-            </ManagementCard>
-          );
-        })}
-        {loading ? (
-          <div className="automation-loading" aria-busy="true">
-            <div />
-            <div />
-          </div>
-        ) : automations.length === 0 && !message ? (
-          <EmptyState
-            className="automation-empty"
-            title={t.empty}
-            description={t.emptyDescription}
-            icon={<ArtemisIcon name="automation" />}
-          />
-        ) : null}
+                  <p className="automation-prompt">{automation.prompt}</p>
+                  <div className="automation-meta">
+                    <span className="automation-schedule-label">
+                      <ArtemisIcon name="clock" />
+                      {scheduleLabel(automation, props.locale)}
+                    </span>
+                    <span>
+                      {automation.enabled
+                        ? `${t.nextRun}: ${formatDate(automation.nextRunAt, props.locale)}`
+                        : t.pausedUntilEnabled}
+                    </span>
+                  </div>
+                  {"daysOfWeek" in automation.schedule && (
+                    <div
+                      className="automation-week"
+                      aria-label={scheduleLabel(automation, props.locale)}
+                    >
+                      {weekLabels[props.locale].map((day, index) => {
+                        const scheduled =
+                          "daysOfWeek" in automation.schedule &&
+                          automation.schedule.daysOfWeek.includes(index + 1);
+                        return (
+                          <div key={index} data-scheduled={scheduled}>
+                            <span>{day}</span>
+                            <small>
+                              {scheduled
+                                ? automation.schedule.kind ===
+                                  "windowed-interval"
+                                  ? automation.schedule.startTime
+                                  : automation.schedule.kind === "weekly"
+                                    ? automation.schedule.localTime
+                                    : "·"
+                                : "·"}
+                            </small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="automation-model-summary">
+                    {t.model}:{" "}
+                    {taskModel?.name ?? taskSelection?.modelId ?? t.chooseModel}
+                    {taskSelection && (
+                      <>
+                        {" "}
+                        · {t.thinking}:{" "}
+                        {taskSelection.ultraMode
+                          ? UI_COPY.App_copy[props.locale].ultraMode
+                          : thinkingLevelLabel(
+                              taskSelection.thinkingLevel,
+                              props.locale,
+                            )}
+                      </>
+                    )}
+                  </p>
+                  <div className="automation-card-footer">
+                    <div className="automation-actions">
+                      {automation.authorizationState === "required" && (
+                        <Button
+                          icon={<ArtemisIcon name="approval" />}
+                          disabled={busy}
+                          onClick={() =>
+                            void invoke(() =>
+                              window.artemis.authorizeAutomation(automation.id),
+                            )
+                          }
+                        >
+                          {t.authorize}
+                        </Button>
+                      )}
+                      <Button
+                        icon={<ArtemisIcon name="send" />}
+                        disabled={
+                          busy || automation.authorizationState === "required"
+                        }
+                        onClick={() =>
+                          void invoke(() =>
+                            window.artemis.runAutomationNow(automation.id),
+                          )
+                        }
+                      >
+                        {t.runNow}
+                      </Button>
+                      <Button
+                        icon={
+                          <ArtemisIcon
+                            name={automation.enabled ? "pause" : "play"}
+                          />
+                        }
+                        disabled={busy}
+                        onClick={() =>
+                          void invoke(() =>
+                            window.artemis.setAutomationEnabled(
+                              automation.id,
+                              !automation.enabled,
+                            ),
+                          )
+                        }
+                      >
+                        {automation.enabled ? t.pauseTask : t.enableTask}
+                      </Button>
+                      <Button
+                        icon={<ArtemisIcon name="edit" />}
+                        disabled={busy}
+                        onClick={() => openDraft(automation)}
+                      >
+                        {t.edit}
+                      </Button>
+                      <IconButton
+                        disabled={busy}
+                        label={t.moreActions}
+                        aria-expanded={moreAutomation === automation.id}
+                        icon={<ArtemisIcon name="more" />}
+                        onClick={(event) => {
+                          moreAnchor.current = event.currentTarget;
+                          setMoreAutomation(
+                            moreAutomation === automation.id
+                              ? undefined
+                              : automation.id,
+                          );
+                        }}
+                      />
+                    </div>
+                    <details className="automation-history" open>
+                      <summary>
+                        {t.history}
+                        <ArtemisIcon name="chevron" />
+                      </summary>
+                      <div className="automation-history-content">
+                        <span>
+                          {t.lastRun}:{" "}
+                          {formatDate(automation.lastRunAt, props.locale)}
+                        </span>
+                        {runs.length === 0 ? (
+                          <span>{t.noRuns}</span>
+                        ) : (
+                          runs.slice(0, 5).map((run) => (
+                            <div className="automation-run" key={run.id}>
+                              <Button
+                                align="start"
+                                className="automation-history-row"
+                                disabled={!run.threadId}
+                                key={run.id}
+                                onClick={() =>
+                                  run.threadId &&
+                                  props.onOpenThread(run.threadId)
+                                }
+                                variant="quiet"
+                              >
+                                <span
+                                  className={`automation-run-dot ${run.state}`}
+                                />
+                                <span>
+                                  {formatDate(run.scheduledFor, props.locale)}
+                                </span>
+                                <span>
+                                  {statusText(props.locale, run.state)}
+                                </span>
+                                {run.reason && <small>{run.reason}</small>}
+                              </Button>
+                              {run.state === "failed" && (
+                                <Button
+                                  disabled={
+                                    busy ||
+                                    automation.authorizationState === "required"
+                                  }
+                                  size="compact"
+                                  variant="quiet"
+                                  icon={<ArtemisIcon name="refresh" />}
+                                  onClick={() =>
+                                    void invoke(() =>
+                                      window.artemis.runAutomationNow(
+                                        automation.id,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  {uiText(props.locale, "App_copy.queueRetry")}
+                                </Button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
+                  </div>
+                </ManagementCard>
+              );
+            })}
+          {loading ? (
+            <div className="automation-loading" aria-busy="true">
+              <div />
+              <div />
+            </div>
+          ) : automations.length === 0 && !message ? (
+            <EmptyState
+              className="automation-empty"
+              title={t.empty}
+              description={t.emptyDescription}
+              icon={<ArtemisIcon name="automation" />}
+            />
+          ) : null}
+        </div>
       </div>
-
       <p className="automation-local-note">
         <ArtemisIcon name="info" />
         {t.subtitle}

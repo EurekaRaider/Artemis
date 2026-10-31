@@ -329,7 +329,7 @@ describe("Resource Center catalog feedback", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Back to plugins" }),
     );
-    await userEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    await userEvent.click(screen.getByRole("tab", { name: /^Skills \d+$/ }));
     await userEvent.click(
       screen.getByRole("button", { name: "Find Agent Skills" }),
     );

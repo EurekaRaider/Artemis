@@ -991,10 +991,7 @@ describe("settings management operation contract (MIG5A)", () => {
       "API key · synthetic-provider",
     ) as HTMLInputElement;
     expect(credential.type).toBe("password");
-    expect(credential).toHaveAttribute(
-      "placeholder",
-      "API key already stored — leave blank to keep it",
-    );
+    expect(credential).toHaveAttribute("placeholder", "••••••••••••••••");
 
     await userEvent.click(
       within(

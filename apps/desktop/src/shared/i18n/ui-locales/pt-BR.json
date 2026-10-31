@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ Enviar · ⇧↵ Nova linha",
   "ComposerMode.decisionHint": "↑↓ Selecionar · ↵ Confirmar",
   "EnvironmentPanel.githubNoPullRequest": "Nenhuma solicitação de pull para este branch.",
-  "EnvironmentPanel.pushBeforePullRequest": "Envie este branch para criar uma solicitação de pull."
+  "EnvironmentPanel.pushBeforePullRequest": "Envie este branch para criar uma solicitação de pull.",
+  "SettingsPanel.search": "Buscar configurações",
+  "Providers.keychain": "Chaves do sistema",
+  "ResourceCenter.sandbox": "Sandbox",
+  "SettingsPanel.newTaskDefaults": "Padrões para novas tarefas",
+  "SettingsPanel.defaultModel": "Modelo padrão"
 }

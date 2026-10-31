@@ -7,7 +7,13 @@ import {
   InlineNotice,
   LoadingState,
 } from "@artemis/ui/feedback";
-import { Select, Switch, TextAreaField, TextField } from "@artemis/ui/forms";
+import {
+  SearchField,
+  Select,
+  Switch,
+  TextAreaField,
+  TextField,
+} from "@artemis/ui/forms";
 import {
   ManagementCard,
   ManagementHeader,
@@ -38,6 +44,7 @@ export function ManagementGallery() {
   const [settingsTab, setSettingsTab] = useState<"general" | "providers">(
     "general",
   );
+  const [theme, setTheme] = useState("system");
   const [provider, setProvider] = useState("synthetic-provider");
   const [material, setMaterial] = useState<"glass" | "solid">("glass");
   const [eventCount, setEventCount] = useState(0);
@@ -52,13 +59,21 @@ export function ManagementGallery() {
           header={<ManagementHeader headingLevel={3} title="Settings" />}
           label={`Settings · ${settingsTab}`}
           navigation={
-            <Tabs
-              label="Settings sections"
-              onValueChange={setSettingsTab}
-              orientation="vertical"
-              options={SETTINGS_TABS}
-              value={settingsTab}
-            />
+            <div className="gallery-management-navigation">
+              <SearchField
+                label="Search settings"
+                placeholder="Search settings"
+                value=""
+                onValueChange={() => undefined}
+              />
+              <Tabs
+                label="Settings sections"
+                onValueChange={setSettingsTab}
+                orientation="vertical"
+                options={SETTINGS_TABS}
+                value={settingsTab}
+              />
+            </div>
           }
         >
           {SETTINGS_TABS.map((option) => (
@@ -89,15 +104,28 @@ export function ManagementGallery() {
                 onValueChange={setProvider}
                 value={provider}
               />
-              <Select
-                label={option.value === "general" ? "Theme" : "Provider model"}
-                onValueChange={() => undefined}
-                options={[
-                  { label: "System", value: "system" },
-                  { label: "Dark", value: "dark" },
-                ]}
-                value="system"
-              />
+              {option.value === "general" ? (
+                <SegmentedControl
+                  label="Theme"
+                  value={theme}
+                  onValueChange={setTheme}
+                  options={[
+                    { value: "light", label: "Light" },
+                    { value: "dark", label: "Dark" },
+                    { value: "system", label: "System" },
+                  ]}
+                />
+              ) : (
+                <Select
+                  label="Provider model"
+                  onValueChange={() => undefined}
+                  options={[
+                    { label: "System", value: "system" },
+                    { label: "Dark", value: "dark" },
+                  ]}
+                  value="system"
+                />
+              )}
               <TextAreaField
                 label="Global instructions"
                 onValueChange={() => undefined}

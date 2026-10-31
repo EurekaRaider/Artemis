@@ -1,11 +1,8 @@
 import {
-  Cube,
-  User,
-  ChatDots,
-  CaretDown,
-  CaretUp,
-  Plus,
-} from "@phosphor-icons/react";
+  selectionForModelSwitch,
+  thinkingLevelLabel,
+  thinkingLevelsForModel,
+} from "../settings/model-selection.js";
 import { ProviderWorkspace } from "../settings/ProviderWorkspace.js";
 import "../settings/provider-settings.css";
 import { modelAdvancedOptionsSchema } from "@artemis/protocol";
@@ -31,6 +28,7 @@ import {
 } from "react";
 import type {
   AppLocale,
+  ModelSelection,
   AppLanguage,
   AppTheme,
   ProviderConnection,
@@ -48,6 +46,7 @@ import {
 } from "@artemis/ui/feedback";
 import {
   Checkbox,
+  SearchField,
   Select,
   Switch,
   TextAreaField,
@@ -207,10 +206,10 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const t = labels[locale];
   const [narrowNavigation, setNarrowNavigation] = useState(
-    () => window.matchMedia?.("(max-width: 980px)").matches ?? false,
+    () => window.matchMedia?.("(max-width: 720px)").matches ?? false,
   );
   useEffect(() => {
-    const media = window.matchMedia?.("(max-width: 980px)");
+    const media = window.matchMedia?.("(max-width: 720px)");
     if (!media) return;
     const update = () => setNarrowNavigation(media.matches);
     update();
@@ -218,6 +217,7 @@ export function SettingsPanel({
     return () => media.removeEventListener("change", update);
   }, []);
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [settingsSearch, setSettingsSearch] = useState("");
   const [addModelProviderId, setAddModelProviderId] = useState<string>();
   const [selectedProviderId, setSelectedProviderId] = useState(
     () =>
@@ -838,6 +838,40 @@ ${model.providerId} · ${model.modelId}`,
     }
   }
 
+  const defaultModels = models.filter(
+    (model) =>
+      model.configured &&
+      (settings?.addedModels.some(
+        (added) =>
+          added.providerId === model.providerId &&
+          added.modelId === model.modelId,
+      ) ||
+        settings?.providers.some(
+          (provider) => provider.id === model.providerId,
+        ) ||
+        (settings?.selection?.providerId === model.providerId &&
+          settings.selection.modelId === model.modelId)),
+  );
+  const defaultModel = defaultModels.find(
+    (model) =>
+      model.providerId === settings?.selection?.providerId &&
+      model.modelId === settings?.selection?.modelId,
+  );
+  const defaultThinkingLevels = thinkingLevelsForModel(defaultModel);
+  async function saveDefaultModel(selection: ModelSelection) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const updated = await window.artemis.setModelSelection(selection);
+      setSettings(updated);
+      onSettingsChange(updated);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const activeTabLabel: Record<SettingsTab, string> = {
     hooks: uiText(locale, "Hooks.title"),
     general: t.tabGeneral,
@@ -882,64 +916,102 @@ ${model.providerId} · ${model.modelId}`,
           label={`${t.title} · ${activeTabLabel[activeTab]}`}
           navigation={
             settings ? (
-              <Tabs<SettingsTab>
-                className="settings-tabs"
-                label={t.title}
-                onValueChange={setActiveTab}
-                orientation={narrowNavigation ? "horizontal" : "vertical"}
-                options={[
-                  {
-                    id: "settings-tab-general-button",
-                    icon: <ArtemisIcon name="gear" />,
-                    label: t.tabGeneral,
-                    panelId: "settings-tab-general",
-                    value: "general",
-                  },
-                  {
-                    id: "settings-tab-providers-button",
-                    icon: <ArtemisIcon name="database" />,
-                    label: t.tabProviders,
-                    panelId: "settings-tab-providers",
-                    value: "providers",
-                  },
-                  {
-                    id: "settings-tab-agents-button",
-                    icon: <User aria-hidden="true" />,
-                    label: t.tabAgents,
-                    panelId: "settings-tab-agents",
-                    value: "agents",
-                  },
-                  {
-                    id: "settings-tab-im-button",
-                    icon: <ChatDots aria-hidden="true" />,
-                    label: activeTabLabel.im,
-                    panelId: "settings-tab-im",
-                    value: "im",
-                  },
-                  {
-                    id: "settings-tab-capabilities-button",
-                    icon: <ArtemisIcon name="approval" />,
-                    label: t.tabCapabilities,
-                    panelId: "settings-tab-capabilities",
-                    value: "capabilities",
-                  },
-                  {
-                    id: "settings-tab-hooks-button",
-                    icon: <ArtemisIcon name="connector" />,
-                    label: uiText(locale, "Hooks.title"),
-                    panelId: "settings-tab-hooks",
-                    value: "hooks",
-                  },
-                  {
-                    id: "settings-tab-maintenance-button",
-                    icon: <ArtemisIcon name="refresh" />,
-                    label: t.tabMaintenance,
-                    panelId: "settings-tab-maintenance",
-                    value: "maintenance",
-                  },
-                ]}
-                value={activeTab}
-              />
+              <div className="settings-navigation-content">
+                <SearchField
+                  className="settings-search"
+                  label={uiText(locale, "SettingsPanel.search")}
+                  placeholder={uiText(locale, "SettingsPanel.search")}
+                  value={settingsSearch}
+                  onValueChange={setSettingsSearch}
+                  size="compact"
+                />
+                <Tabs<SettingsTab>
+                  className="settings-tabs"
+                  label={t.title}
+                  onValueChange={setActiveTab}
+                  orientation={narrowNavigation ? "horizontal" : "vertical"}
+                  options={(
+                    [
+                      {
+                        id: "settings-tab-general-button",
+                        icon: <ArtemisIcon name="gear" />,
+                        label: t.tabGeneral,
+                        panelId: "settings-tab-general",
+                        value: "general",
+                      },
+                      {
+                        id: "settings-tab-providers-button",
+                        icon: <ArtemisIcon name="database" />,
+                        label: t.tabProviders,
+                        panelId: "settings-tab-providers",
+                        value: "providers",
+                      },
+                      {
+                        id: "settings-tab-agents-button",
+                        icon: <ArtemisIcon name="agents" />,
+                        label: t.tabAgents,
+                        panelId: "settings-tab-agents",
+                        value: "agents",
+                      },
+                      {
+                        id: "settings-tab-im-button",
+                        icon: <ArtemisIcon name="message" />,
+                        label: activeTabLabel.im,
+                        panelId: "settings-tab-im",
+                        value: "im",
+                      },
+                      {
+                        id: "settings-tab-capabilities-button",
+                        icon: <ArtemisIcon name="approval" />,
+                        label: t.tabCapabilities,
+                        panelId: "settings-tab-capabilities",
+                        value: "capabilities",
+                      },
+                      {
+                        id: "settings-tab-hooks-button",
+                        icon: <ArtemisIcon name="connector" />,
+                        label: uiText(locale, "Hooks.title"),
+                        panelId: "settings-tab-hooks",
+                        value: "hooks",
+                      },
+                      {
+                        id: "settings-tab-maintenance-button",
+                        icon: <ArtemisIcon name="refresh" />,
+                        label: t.tabMaintenance,
+                        panelId: "settings-tab-maintenance",
+                        value: "maintenance",
+                      },
+                    ] as const
+                  ).filter(
+                    (option) =>
+                      option.value === activeTab ||
+                      !settingsSearch.trim() ||
+                      option.label
+                        .toLocaleLowerCase(locale)
+                        .includes(
+                          settingsSearch.trim().toLocaleLowerCase(locale),
+                        ),
+                  )}
+                  value={activeTab}
+                />
+                <Button
+                  className="settings-import-shortcut"
+                  variant="quiet"
+                  icon={<ArtemisIcon name="download" />}
+                  onClick={() => {
+                    setSettingsSearch("");
+                    setActiveTab("agents");
+                    window.requestAnimationFrame(() =>
+                      document
+                        .querySelector(".configuration-import-section")
+                        ?.scrollIntoView({ block: "start" }),
+                    );
+                  }}
+                >
+                  {t.configurationImport}
+                  <span>Codex · Claude · OpenCode</span>
+                </Button>
+              </div>
             ) : (
               <span aria-hidden="true" />
             )
@@ -1056,7 +1128,7 @@ ${model.providerId} · ${model.modelId}`,
                                   : selectedProviderId,
                               )
                             }
-                            icon={<Plus aria-hidden="true" size={18} />}
+                            icon={<ArtemisIcon name="plus" />}
                           >
                             {t.saveModel}
                           </Button>
@@ -1201,13 +1273,7 @@ ${model.providerId} · ${model.modelId}`,
                                   key={key}
                                 >
                                   <ManagementRow
-                                    leading={
-                                      <Cube
-                                        aria-hidden="true"
-                                        size={26}
-                                        weight="regular"
-                                      />
-                                    }
+                                    leading={<ArtemisIcon name="model" />}
                                     actions={
                                       <span className="mcp-server-actions">
                                         <IconButton
@@ -1242,15 +1308,14 @@ ${model.providerId} · ${model.modelId}`,
                                           variant="quiet"
                                           icon={
                                             editing ? (
-                                              <CaretUp
-                                                size={20}
-                                                aria-hidden="true"
+                                              <ArtemisIcon
+                                                name="chevron"
+                                                style={{
+                                                  transform: "rotate(180deg)",
+                                                }}
                                               />
                                             ) : (
-                                              <CaretDown
-                                                size={20}
-                                                aria-hidden="true"
-                                              />
+                                              <ArtemisIcon name="chevron" />
                                             )
                                           }
                                         />
@@ -1307,6 +1372,73 @@ ${model.providerId} · ${model.modelId}`,
                             />
                           )}
                         </div>
+                      </ManagementSection>
+                    )}
+                    {!showProviderForm && (
+                      <ManagementSection
+                        className="settings-section provider-defaults"
+                        title={uiText(locale, "SettingsPanel.newTaskDefaults")}
+                      >
+                        <Select
+                          label={uiText(locale, "SettingsPanel.defaultModel")}
+                          disabled={busy || defaultModels.length === 0}
+                          size="compact"
+                          value={
+                            defaultModel
+                              ? modelKey(
+                                  defaultModel.providerId,
+                                  defaultModel.modelId,
+                                )
+                              : ""
+                          }
+                          options={
+                            defaultModels.length
+                              ? defaultModels.map((model) => ({
+                                  value: modelKey(
+                                    model.providerId,
+                                    model.modelId,
+                                  ),
+                                  label: `${model.name} · ${model.providerId}`,
+                                }))
+                              : [{ value: "", label: t.noAddedModels }]
+                          }
+                          onValueChange={(key) => {
+                            const model = defaultModels.find(
+                              (item) =>
+                                modelKey(item.providerId, item.modelId) === key,
+                            );
+                            if (model)
+                              void saveDefaultModel(
+                                selectionForModelSwitch(
+                                  model,
+                                  settings.selection,
+                                ),
+                              );
+                          }}
+                        />
+                        {defaultThinkingLevels.length > 0 &&
+                          settings.selection && (
+                            <SegmentedControl
+                              label={
+                                UI_COPY.AutomationPage_text[locale].thinking
+                              }
+                              disabled={busy}
+                              size="compact"
+                              value={settings.selection.thinkingLevel}
+                              options={defaultThinkingLevels.map((value) => ({
+                                value,
+                                label: thinkingLevelLabel(value, locale),
+                              }))}
+                              onValueChange={(thinkingLevel) => {
+                                if (settings.selection)
+                                  void saveDefaultModel({
+                                    ...settings.selection,
+                                    thinkingLevel,
+                                    ultraMode: false,
+                                  });
+                              }}
+                            />
+                          )}
                       </ManagementSection>
                     )}
                     {showProviderForm && (
@@ -1558,16 +1690,15 @@ ${model.providerId} · ${model.modelId}`,
                     label={t.theme}
                     description={t.themeHint}
                   >
-                    <Select<AppTheme>
+                    <SegmentedControl<AppTheme>
                       size="compact"
-                      labelVisibility="hidden"
                       label={t.theme}
                       disabled={busy}
                       onValueChange={(theme) => void setTheme(theme)}
                       options={[
-                        { value: "system", label: t.themeSystem },
                         { value: "light", label: t.themeLight },
                         { value: "dark", label: t.themeDark },
+                        { value: "system", label: t.themeSystem },
                       ]}
                       value={settings.theme}
                     />
@@ -1920,6 +2051,39 @@ ${model.providerId} · ${model.modelId}`,
 
               {activeTab === "capabilities" && (
                 <>
+                  <ManagementSection
+                    className="settings-section"
+                    title={t.tabCapabilities}
+                  >
+                    <table className="settings-mode-capabilities">
+                      <thead>
+                        <tr>
+                          <th>{uiText(locale, "AutomationPage_text.mode")}</th>
+                          <th>{t.shellRuntime}</th>
+                          <th>MCP</th>
+                          <th>{uiText(locale, "App_copy.taskMode")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(["plan", "work", "codemode"] as const).map((mode) => (
+                          <tr key={mode}>
+                            <th scope="row">
+                              {uiText(locale, `ComposerMode.${mode}`)}
+                            </th>
+                            <td>{mode === "plan" ? "—" : "✓"}</td>
+                            <td>{mode === "plan" ? "—" : "✓"}</td>
+                            <td>{uiText(locale, `Mode.${mode}Description`)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="settings-hint">
+                      {uiText(
+                        locale,
+                        "ResourceCenter_labels.installMcpLocalWarning",
+                      )}
+                    </p>
+                  </ManagementSection>
                   <ManagementSection
                     className="settings-section"
                     title="Computer Use"

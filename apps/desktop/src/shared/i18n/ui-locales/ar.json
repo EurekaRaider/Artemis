@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ إرسال · ⇧↵ سطر جديد",
   "ComposerMode.decisionHint": "↑↓ اختيار · ↵ تأكيد",
   "EnvironmentPanel.githubNoPullRequest": "لا يوجد طلب سحب لهذا الفرع.",
-  "EnvironmentPanel.pushBeforePullRequest": "ادفع هذا الفرع لإنشاء طلب سحب."
+  "EnvironmentPanel.pushBeforePullRequest": "ادفع هذا الفرع لإنشاء طلب سحب.",
+  "SettingsPanel.search": "البحث في الإعدادات",
+  "Providers.keychain": "سلسلة مفاتيح النظام",
+  "ResourceCenter.sandbox": "بيئة معزولة",
+  "SettingsPanel.newTaskDefaults": "الإعدادات الافتراضية للمهام الجديدة",
+  "SettingsPanel.defaultModel": "النموذج الافتراضي"
 }

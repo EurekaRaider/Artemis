@@ -2054,5 +2054,10 @@
   "ComposerMode.sendHint": "↵ 发送 · ⇧↵ 换行",
   "ComposerMode.decisionHint": "↑↓ 选择 · ↵ 确认",
   "EnvironmentPanel.githubNoPullRequest": "当前分支没有拉取请求。",
-  "EnvironmentPanel.pushBeforePullRequest": "推送分支后即可创建拉取请求。"
+  "EnvironmentPanel.pushBeforePullRequest": "推送分支后即可创建拉取请求。",
+  "SettingsPanel.search": "搜索设置",
+  "Providers.keychain": "系统钥匙串",
+  "ResourceCenter.sandbox": "沙箱",
+  "SettingsPanel.newTaskDefaults": "新任务默认设置",
+  "SettingsPanel.defaultModel": "默认模型"
 }
