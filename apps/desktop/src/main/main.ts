@@ -18904,6 +18904,23 @@ function createMainWindow(): BrowserWindow {
                       await wait(200);
                       if (!document.querySelector('.environment-workspace-menu')) throw new Error('Workspace menu did not open');
                     }
+                    if (view === 'nocturne-branch-menu') {
+                      const deadline = Date.now() + 10_000;
+                      let trigger;
+                      while (Date.now() < deadline) {
+                        trigger = document.querySelector('.composer-context .branch-context-trigger');
+                        if (trigger instanceof HTMLButtonElement && trigger.checkVisibility({ visibilityProperty: true })) break;
+                        await wait(50);
+                      }
+                      if (!(trigger instanceof HTMLButtonElement)) throw new Error('Composer branch trigger missing');
+                      trigger.click();
+                      while (Date.now() < deadline && !document.querySelector('.composer-context .branch-context-menu [role="menuitemradio"][aria-checked="true"]')) {
+                        await wait(50);
+                      }
+                      if (trigger.getAttribute('aria-expanded') !== 'true' || !document.querySelector('.composer-context .branch-context-menu [role="menuitemradio"][aria-checked="true"]')) {
+                        throw new Error('Composer branch menu did not load the current Git branch');
+                      }
+                    }
                     if (view === 'nocturne-terminal') {
                       const toggle = document.querySelector('.right-sidebar-toggle');
                       if (toggle?.getAttribute('aria-expanded') !== 'true') toggle?.click();
@@ -21868,6 +21885,33 @@ function createMainWindow(): BrowserWindow {
                       }
                     : null,
                   goalContextRow: document.querySelector('.composer-context-row')?.getBoundingClientRect().toJSON() ?? null,
+                  composerBranchMenu: (() => {
+                    const trigger = document.querySelector('.composer-context .branch-context-trigger');
+                    const menu = document.querySelector('.composer-context .branch-context-menu');
+                    if (!(trigger instanceof HTMLButtonElement) || !(menu instanceof HTMLElement)) return null;
+                    const bounds = menu.getBoundingClientRect();
+                    const items = [...menu.querySelectorAll('[role="menuitemradio"]')];
+                    const first = items[0];
+                    const firstBounds = first?.getBoundingClientRect();
+                    const topItem = firstBounds ? document.elementFromPoint(firstBounds.left + firstBounds.width / 2, firstBounds.top + firstBounds.height / 2) : null;
+                    return {
+                      trigger: trigger.getBoundingClientRect().toJSON(),
+                      expanded: trigger.getAttribute('aria-expanded') === 'true',
+                      outsideComposer: trigger.closest('.composer') === null,
+                      menu: bounds.toJSON(),
+                      visible: visible(menu),
+                      withinViewport: bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0 && bounds.bottom <= window.innerHeight,
+                      borderRadius: getComputedStyle(menu).borderRadius,
+                      searchPresent: Boolean(menu.querySelector('.composer-context-search input')),
+                      firstItemUnobscured: Boolean(first && topItem && first.contains(topItem)),
+                      items: items.map((item) => ({
+                        label: item.querySelector('strong')?.textContent?.trim(),
+                        checked: item.getAttribute('aria-checked') === 'true',
+                        checkVisible: Boolean(item.querySelector('i svg')),
+                        height: item.getBoundingClientRect().height,
+                      })),
+                    };
+                  })(),
                   goalComposer: composerBounds
                     ? {
                         top: composerBounds.top,

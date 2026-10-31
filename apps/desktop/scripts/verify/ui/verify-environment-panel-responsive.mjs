@@ -26,7 +26,13 @@ async function runCase(
   name,
   width,
   view = "environment",
-  { direction = "ltr", scale = 1, theme = "light" } = {},
+  {
+    direction = "ltr",
+    scale = 1,
+    theme = "light",
+    locale = "zh-CN",
+    material,
+  } = {},
 ) {
   const screenshotPath = join(outputDirectory, `${name}.png`);
   const accessibilityPath = join(outputDirectory, `${name}.a11y.json`);
@@ -34,12 +40,13 @@ async function runCase(
     ...process.env,
     ARTEMIS_SMOKE_SCREENSHOT: screenshotPath,
     ARTEMIS_SMOKE_ACCESSIBILITY: accessibilityPath,
-    ARTEMIS_SMOKE_LOCALE: "zh-CN",
+    ARTEMIS_SMOKE_LOCALE: locale,
     ARTEMIS_SMOKE_DIRECTION: direction,
     ARTEMIS_SMOKE_SCALE: String(scale),
     ARTEMIS_SMOKE_THEME: theme,
     ARTEMIS_SMOKE_VIEW: view,
     ARTEMIS_SMOKE_WINDOW_WIDTH: String(width),
+    ...(material ? { ARTEMIS_SMOKE_MATERIAL: material } : {}),
   };
   delete environment.ELECTRON_RUN_AS_NODE;
   delete environment.ARTEMIS_DEV_SERVER_URL;
@@ -88,6 +95,46 @@ async function runCase(
 }
 
 try {
+  for (const [name, width, options] of [
+    ["shell-branch-light", 1420, { theme: "light", material: "glass" }],
+    ["shell-branch-dark-narrow", 980, { theme: "dark", material: "glass" }],
+    [
+      "shell-branch-rtl-solid",
+      980,
+      { theme: "dark", direction: "rtl", locale: "ar", material: "solid" },
+    ],
+  ]) {
+    const snapshot = await runCase(name, width, "nocturne-branch-menu", options);
+    const menu = snapshot.composerBranchMenu;
+    assert(
+      menu?.expanded && menu.visible && menu.outsideComposer,
+      `${name}: the external Composer branch trigger did not open its menu.`,
+    );
+    assert(
+      menu.withinViewport && menu.firstItemUnobscured,
+      `${name}: the branch menu is clipped or its first row is covered.`,
+    );
+    assert(
+      menu.menu.bottom <= menu.trigger.top &&
+        menu.menu.left <= menu.trigger.left &&
+        menu.menu.right >= menu.trigger.right,
+      `${name}: the menu is not anchored above the Composer branch trigger: ${JSON.stringify(menu)}`,
+    );
+    assert(
+      menu.borderRadius === "11px" &&
+        menu.items.every((item) => item.height >= 32),
+      `${name}: branch menu radius or row density differs from the menu contract.`,
+    );
+    const selected = menu.items.filter((item) => item.checked);
+    assert(
+      menu.searchPresent &&
+        menu.items.length >= 6 &&
+        selected.length === 1 &&
+        selected[0].label === "main" &&
+        selected[0].checkVisible,
+      `${name}: search, real fixture branches or the current-branch check is missing.`,
+    );
+  }
   for (const view of [
     "environment-new-conversation",
     "environment-unstarted",
