@@ -302,9 +302,9 @@ try {
         "archive-public-controls",
         secondary?.archive?.searchPresent === true &&
           secondary?.components?.searchField === 1 &&
-          secondary?.components?.button >= 2,
+          secondary?.components?.iconButton === 3,
         secondary?.components,
-        "public search and restore/delete actions",
+        "public search and three restore/open/delete icon actions",
       );
     } else if (testCase.pageId === "token-usage") {
       const heatmap = audit.cardHeatmap?.heatmap;
