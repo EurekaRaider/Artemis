@@ -227,10 +227,11 @@ describe("Goal objective preview", () => {
     await user.hover(
       screen.getByText(objective, { normalizer: (text) => text }),
     );
-    expect(screen.getByRole("tooltip").textContent).toBe(objective);
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toBe(objective);
     expect(screen.getByRole("button", { name: /运行中/ })).toHaveAttribute(
       "aria-describedby",
-      screen.getByRole("tooltip").id,
+      tooltip.id,
     );
     await user.click(screen.getByRole("button", { name: "编辑目标" }));
     expect(onEdit).toHaveBeenCalledTimes(1);

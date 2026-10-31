@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "일시 중지",
   "ComputerUse.takeOver": "직접 제어",
   "ComputerUse.returnControl": "Artemis에 제어 반환",
-  "Review.sendToArtemis": "Artemis로 보내기"
+  "Review.sendToArtemis": "Artemis로 보내기",
+  "DecisionCard.previousQuestion": "이전 질문",
+  "DecisionCard.nextQuestion": "다음 질문",
+  "DecisionCard.changeModel": "모델 변경"
 }

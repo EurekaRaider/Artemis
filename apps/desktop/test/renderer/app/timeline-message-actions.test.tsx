@@ -54,7 +54,7 @@ it("uses the shared copy tooltip on hover and keyboard focus and copies the mess
   expect(copy).not.toHaveAttribute("title");
   expect(screen.queryByRole("tooltip")).toBeNull();
   await user.hover(copy);
-  const tooltip = screen.getByRole("tooltip", { name: "复制消息" });
+  const tooltip = await screen.findByRole("tooltip", { name: "复制消息" });
   expect(tooltip).toHaveAttribute("data-artemis-component", "tooltip");
   expect(copy).toHaveAttribute("aria-describedby", tooltip.id);
   await user.click(copy);
@@ -63,7 +63,9 @@ it("uses the shared copy tooltip on hover and keyboard focus and copies the mess
   expect(screen.queryByRole("tooltip")).toBeNull();
   fireEvent.blur(copy);
   fireEvent.focus(copy);
-  expect(screen.getByRole("tooltip", { name: "复制消息" })).toBeVisible();
+  expect(
+    await screen.findByRole("tooltip", { name: "复制消息" }),
+  ).toBeVisible();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("tooltip")).toBeNull();
 });

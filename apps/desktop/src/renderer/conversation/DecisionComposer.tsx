@@ -90,57 +90,62 @@ export function DecisionComposer({
   onRevisePlan?: ((text: string) => Promise<void>) | undefined;
 }) {
   return (
-    <ComposerSurface
-      {...props}
-      className={`${className ?? ""}${decision ? " composer-awaiting-decision" : ""}`}
-      context={decision ? undefined : context}
-      onDragEnter={decision ? undefined : props.onDragEnter}
-      onDragLeave={decision ? undefined : props.onDragLeave}
-      onDragOver={decision ? undefined : props.onDragOver}
-      onDrop={decision ? undefined : props.onDrop}
-    >
-      {decision ? (
-        <>
-          <div className="composer-decision" key={decision.entry}>
-            {decision.kind === "plan" ? (
-              <PlanDecisionCard
-                plan={decision.plan}
-                locale={locale}
-                onAccept={onAcceptPlan}
-                onRevise={onRevisePlan}
-              />
-            ) : decision.kind === "approval" ? (
-              <ApprovalDecisionCard
-                approval={decision.approval}
-                locale={locale}
-                onResolve={onResolveApproval}
-                {...(decision.actorName
-                  ? {
-                      actorLabel: `${UI_COPY.App_copy[locale].agentActor}: ${decision.actorName}`,
-                    }
-                  : {})}
-              />
-            ) : isMultiQuestionUserInput(decision.input) ? (
-              <MultiQuestionUserInputCard
-                active
-                input={decision.input}
-                locale={locale}
-                onResolve={onResolveUserInput}
-              />
-            ) : (
-              <UserInputCard
-                active
-                input={decision.input}
-                locale={locale}
-                onResolve={onResolveUserInput}
-              />
-            )}
-          </div>
-          {context ? <div data-part="context">{context}</div> : null}
-        </>
-      ) : (
-        children
-      )}
-    </ComposerSurface>
+    <>
+      <ComposerSurface
+        {...props}
+        className={`${className ?? ""}${decision ? " composer-awaiting-decision" : ""}`}
+        onDragEnter={decision ? undefined : props.onDragEnter}
+        onDragLeave={decision ? undefined : props.onDragLeave}
+        onDragOver={decision ? undefined : props.onDragOver}
+        onDrop={decision ? undefined : props.onDrop}
+      >
+        {decision ? (
+          <>
+            <div className="composer-decision" key={decision.entry}>
+              {decision.kind === "plan" ? (
+                <PlanDecisionCard
+                  plan={decision.plan}
+                  locale={locale}
+                  onAccept={onAcceptPlan}
+                  onRevise={onRevisePlan}
+                />
+              ) : decision.kind === "approval" ? (
+                <ApprovalDecisionCard
+                  approval={decision.approval}
+                  locale={locale}
+                  onResolve={onResolveApproval}
+                  {...(decision.actorName
+                    ? {
+                        actorLabel: `${UI_COPY.App_copy[locale].agentActor}: ${decision.actorName}`,
+                      }
+                    : {})}
+                />
+              ) : isMultiQuestionUserInput(decision.input) ? (
+                <MultiQuestionUserInputCard
+                  active
+                  input={decision.input}
+                  locale={locale}
+                  onResolve={onResolveUserInput}
+                />
+              ) : (
+                <UserInputCard
+                  active
+                  input={decision.input}
+                  locale={locale}
+                  onResolve={onResolveUserInput}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          children
+        )}
+      </ComposerSurface>
+      {context ? (
+        <div className="composer-context-surface" data-part="context">
+          {context}
+        </div>
+      ) : null}
+    </>
   );
 }

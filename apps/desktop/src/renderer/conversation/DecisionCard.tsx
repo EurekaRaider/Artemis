@@ -18,6 +18,7 @@ export function DecisionOptions({
   replyRef,
   replyMaxLength = 2000,
   optionAccessory,
+  numbered = true,
 }: {
   options: readonly Pick<
     UserInputOption,
@@ -32,6 +33,7 @@ export function DecisionOptions({
   replyRef?: Ref<HTMLInputElement> | undefined;
   replyMaxLength?: number | undefined;
   optionAccessory?: ((index: number) => ReactNode) | undefined;
+  numbered?: boolean;
   registerButton?: (index: number, button: HTMLButtonElement | null) => void;
 }) {
   const [focused, setFocused] = useState(
@@ -77,8 +79,15 @@ export function DecisionOptions({
                 registerButton?.(index, button);
               }}
             >
-              <span className="decision-option-number" aria-hidden="true">
-                {index + 1}
+              <span
+                className={
+                  numbered
+                    ? "decision-option-number"
+                    : "decision-option-indicator"
+                }
+                aria-hidden="true"
+              >
+                {numbered ? index + 1 : null}
               </span>
               <span className="decision-option-copy">
                 <strong>{option.label}</strong>

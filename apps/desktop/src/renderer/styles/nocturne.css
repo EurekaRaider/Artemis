@@ -126,6 +126,8 @@
   padding: 0 10px;
   gap: 10px;
   color: var(--artemis-color-text-secondary);
+  font-size: 13px;
+  font-weight: 400;
 }
 .app-shell .sidebar .nav-row svg {
   inline-size: 16px;
@@ -147,7 +149,12 @@
 .sidebar-new-task kbd {
   margin-inline-start: auto;
   font-size: 10.5px;
-  opacity: 0.65;
+  opacity: 0.55;
+  color: inherit;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 .app-shell .sidebar .project-thread-row {
   min-block-size: 30px;
@@ -277,6 +284,60 @@
 }
 
 /* Conversation controls and work records. */
+.app-shell .conversation[data-state="empty"] {
+  justify-content: safe center;
+  gap: 28px;
+  padding: 24px 24px 40px;
+  overflow-y: auto;
+}
+.app-shell .conversation[data-state="empty"] > .timeline-scroll,
+.app-shell .conversation[data-state="empty"] > .composer-wrap {
+  flex: 0 0 auto;
+  inline-size: 100%;
+  max-inline-size: 740px;
+  margin: 0 auto;
+  padding: 0;
+  inset-inline-end: auto;
+}
+.app-shell .conversation[data-state="empty"] > .timeline-scroll {
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+.app-shell .conversation-empty-state {
+  align-items: flex-start;
+  gap: 10px;
+  inline-size: 100%;
+  min-block-size: 0;
+  block-size: auto;
+  margin: 0;
+  padding: 0 4px;
+  inset-inline-end: auto;
+  text-align: start;
+}
+.app-shell .conversation-empty-state > [data-part="icon"],
+.app-shell .conversation-empty-state .artemis-mark,
+.app-shell .conversation-empty-state .artemis-mark svg {
+  inline-size: 30px;
+  block-size: 30px;
+}
+.app-shell .conversation-empty-state > [data-part="title"],
+.app-shell .conversation-empty-state > [data-part="detail"] {
+  margin: 0;
+}
+.app-shell .conversation-empty-state h1 {
+  margin: 0;
+  font-family: var(--artemis-typography-body-family);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 38px;
+  letter-spacing: -0.025em;
+}
+.app-shell .conversation-greeting-detail {
+  margin: 0;
+  color: var(--artemis-color-text-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+}
 .composer-wrap {
   container: composer / inline-size;
 }
@@ -285,13 +346,8 @@
   flex-direction: column;
   border-radius: 16px;
 }
-.app-shell .composer > [data-part="context"] {
-  order: 5;
-  background: var(--artemis-color-canvas);
-  border: 0;
-  border-radius: 0;
-  margin-block-end: -9px;
-  padding-block: 8px 0;
+.app-shell .composer-context-surface {
+  padding: 8px 4px 0;
 }
 .app-shell .composer-context-row {
   flex-wrap: nowrap;
@@ -457,7 +513,8 @@
 .app-shell .user-message {
   margin-inline-start: auto;
   margin-inline-end: 0;
-  max-inline-size: 85%;
+  max-inline-size: 76%;
+  border: 0;
   border-radius: 16px 16px 4px 16px;
   background: var(--artemis-color-surface-user);
 }
@@ -488,6 +545,11 @@
   font-size: 13px;
   color: var(--artemis-color-text-secondary);
 }
+.app-shell .work-record > summary svg:not(.work-record-chevron) {
+  inline-size: 16px;
+  block-size: 16px;
+  transform: none;
+}
 .work-record > summary > svg:first-child {
   color: var(--artemis-color-status-success);
 }
@@ -499,7 +561,9 @@
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
 }
-.work-record .work-record-chevron {
+.app-shell .work-record .work-record-chevron {
+  inline-size: 14px;
+  block-size: 14px;
   margin-inline-start: 0;
   flex-shrink: 0;
 }
@@ -632,10 +696,31 @@
     0 0 0 4px var(--nocturne-gold-halo);
 }
 .app-shell .decision-card {
-  border-radius: 12px;
+  border-radius: 14px;
+}
+.app-shell .composer-awaiting-decision {
+  border-radius: 14px;
+  padding: 0;
+}
+.app-shell .turn-error-banner {
+  background: var(--artemis-color-status-danger-subtle);
+}
+.turn-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.turn-error-actions > button {
+  min-block-size: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--artemis-color-border-default);
+  border-radius: 6px;
+  color: var(--artemis-color-text-primary);
+  font-size: 12px;
 }
 .app-shell .composer-decision > .decision-card {
   box-shadow: none;
+  padding: 16px;
 }
 .decision-card > header strong::before {
   content: "";
@@ -666,8 +751,69 @@
   font-size: 11px;
   white-space: nowrap;
 }
-.decision-card.multi-question .user-question-progress {
+.decision-card.multi-question .user-question-progress-tabs {
+  margin-block-end: 14px;
+}
+.decision-card.multi-question .user-question-dots {
+  inline-size: 100%;
+  gap: 5px;
+}
+.decision-card.multi-question .user-question-dot {
+  flex: 1;
+  inline-size: auto;
+  block-size: 3px;
+  min-block-size: 3px;
+  padding: 0;
+  border-radius: 3px;
+  background: var(--artemis-color-border-default);
+}
+.decision-card.multi-question .user-question-dot.active,
+.decision-card.multi-question .user-question-dot.done {
+  background: var(--artemis-color-brand);
+}
+.decision-card.multi-question .user-question-progress-sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.decision-card.multi-question .user-question-nav {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-block-start: 14px;
+}
+.decision-card.multi-question .user-question-nav > button {
+  min-block-size: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.decision-card.multi-question .user-question-nav > span {
+  order: -1;
+  margin-inline-end: auto;
+}
+.decision-card.multi-question .user-question-nav > button:last-child {
+  color: var(--artemis-color-text-inverse);
+  background: var(--artemis-color-accent-primary);
+}
+.decision-card.multi-question .decision-option-copy small {
+  flex: 1 0 100%;
+}
+.decision-card .decision-option-indicator {
+  display: block;
+  flex: 0 0 16px;
+  block-size: 16px;
+  margin-block-start: 2px;
+  border: 1px solid var(--artemis-color-border-strong);
+  border-radius: 50%;
+}
+.decision-card .decision-option:focus-visible .decision-option-indicator {
+  border-color: var(--artemis-color-brand);
+  box-shadow: inset 0 0 0 3px var(--artemis-color-surface-base);
+  background: var(--artemis-color-brand);
 }
 .app-shell .thread-waiting-badge {
   color: var(--artemis-color-focus-ring);

@@ -120,6 +120,24 @@ describe("sequential single questions", () => {
     await user.keyboard("{Home}");
     expect(tabs()[0]).toHaveFocus();
   });
+  it("navigates with previous and next while preserving drafts and answers", async () => {
+    const user = userEvent.setup();
+    const { onResolve } = setup();
+    const previous = screen.getByRole("button", { name: "上一题" });
+    const next = screen.getByRole("button", { name: "下一题" });
+    expect(previous).toBeDisabled();
+    await user.type(textbox(), "第一题草稿");
+    await user.click(next);
+    expect(screen.getByText("第 2/3 题")).toBeInTheDocument();
+    expect(textbox()).toHaveValue("");
+    await user.click(next);
+    expect(next).toBeDisabled();
+    await user.click(previous);
+    await user.click(previous);
+    expect(previous).toBeDisabled();
+    expect(textbox()).toHaveValue("第一题草稿");
+    expect(onResolve).not.toHaveBeenCalled();
+  });
   it("retains independent text drafts across question switches", async () => {
     const user = userEvent.setup();
     setup();

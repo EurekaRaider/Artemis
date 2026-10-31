@@ -149,6 +149,7 @@ function QuestionSlide({
       ) : (
         <>
           <DecisionOptions
+            numbered={false}
             options={question.options}
             locale={locale}
             busy={busy}
@@ -414,82 +415,7 @@ export function MultiQuestionUserInputCard({
           : input.status
       }
     >
-      <header>
-        <strong data-part="question">
-          {currentQuestion?.question ?? input.header}
-        </strong>
-        <div className="decision-question-meta">
-          <span className="decision-question-progress">
-            {fill(t.questionProgress, {
-              index: activeQuestionIndex + 1,
-              count: questionCount,
-            })}
-          </span>
-          {input.status === "pending" && currentQuestion && (
-            <span className="decision-waiting">
-              <time
-                aria-label={t.timeoutHint}
-                className="user-input-timeout"
-                dateTime={currentQuestion.expiresAt}
-                title={t.timeoutHint}
-              >
-                {formatUserInputCountdown(
-                  Date.parse(currentQuestion.expiresAt) - clock,
-                )}
-              </time>
-            </span>
-          )}
-        </div>
-      </header>
-      <div className="user-question-progress">
-        <div
-          aria-label={t.progressLabel}
-          aria-valuemax={questionCount}
-          aria-valuemin={0}
-          aria-valuenow={answeredCount}
-          className="user-question-progress-bar"
-          role="progressbar"
-        >
-          <i
-            style={{
-              width: questionCount
-                ? `${(answeredCount / questionCount) * 100}%`
-                : "0%",
-            }}
-          />
-        </div>
-        <span className="user-question-progress-text" data-part="status">
-          {fill(t.answeredProgress, {
-            count: answeredCount,
-            total: questionCount,
-          })}
-        </span>
-      </div>
-      <div className="user-question-track">
-        {input.questions.map((question, index) => (
-          <QuestionSlide
-            locale={locale}
-            error={Boolean(errors[question.questionId])}
-            onSkip={() => void resolveQuestion(question, { skipped: true })}
-            answer={input.answers[question.questionId]}
-            busy={Boolean(resolvingQuestions[question.questionId])}
-            current={index === activeQuestionIndex}
-            key={question.questionId}
-            onCustomSubmit={(customAnswer) =>
-              void resolveQuestion(question, { customAnswer })
-            }
-            onOptionSelect={(selectedOptionLabel) =>
-              void resolveQuestion(question, { selectedOptionLabel })
-            }
-            panelId={`${reactId}-q${index}-panel`}
-            question={question}
-            registerOptionButton={registerOptionButton}
-            tabId={`${reactId}-q${index}-tab`}
-            t={t}
-          />
-        ))}
-      </div>
-      <div className="user-question-nav">
+      <div className="user-question-progress-tabs">
         <div
           aria-label={t.questionNavLabel}
           className="user-question-dots"
@@ -522,6 +448,87 @@ export function MultiQuestionUserInputCard({
             );
           })}
         </div>
+      </div>
+      <header>
+        <strong data-part="question">
+          {currentQuestion?.question ?? input.header}
+        </strong>
+        <div className="decision-question-meta">
+          <span className="decision-question-progress">
+            {fill(t.questionProgress, {
+              index: activeQuestionIndex + 1,
+              count: questionCount,
+            })}
+          </span>
+          {input.status === "pending" && currentQuestion && (
+            <span className="decision-waiting">
+              <time
+                aria-label={t.timeoutHint}
+                className="user-input-timeout"
+                dateTime={currentQuestion.expiresAt}
+                title={t.timeoutHint}
+              >
+                {formatUserInputCountdown(
+                  Date.parse(currentQuestion.expiresAt) - clock,
+                )}
+              </time>
+            </span>
+          )}
+        </div>
+      </header>
+      <span
+        aria-label={t.progressLabel}
+        aria-valuemax={questionCount}
+        aria-valuemin={0}
+        aria-valuenow={answeredCount}
+        className="user-question-progress-sr"
+        role="progressbar"
+      />
+      <div className="user-question-track">
+        {input.questions.map((question, index) => (
+          <QuestionSlide
+            locale={locale}
+            error={Boolean(errors[question.questionId])}
+            onSkip={() => void resolveQuestion(question, { skipped: true })}
+            answer={input.answers[question.questionId]}
+            busy={Boolean(resolvingQuestions[question.questionId])}
+            current={index === activeQuestionIndex}
+            key={question.questionId}
+            onCustomSubmit={(customAnswer) =>
+              void resolveQuestion(question, { customAnswer })
+            }
+            onOptionSelect={(selectedOptionLabel) =>
+              void resolveQuestion(question, { selectedOptionLabel })
+            }
+            panelId={`${reactId}-q${index}-panel`}
+            question={question}
+            registerOptionButton={registerOptionButton}
+            tabId={`${reactId}-q${index}-tab`}
+            t={t}
+          />
+        ))}
+      </div>
+      <div className="user-question-nav">
+        <button
+          type="button"
+          disabled={activeQuestionIndex === 0}
+          onClick={() => goToQuestion(activeQuestionIndex - 1, false)}
+        >
+          {uiText(locale, "DecisionCard.previousQuestion")}
+        </button>
+        <span className="user-question-progress-text" data-part="status">
+          {fill(t.answeredProgress, {
+            count: answeredCount,
+            total: questionCount,
+          })}
+        </span>
+        <button
+          type="button"
+          disabled={activeQuestionIndex === questionCount - 1}
+          onClick={() => goToQuestion(activeQuestionIndex + 1, false)}
+        >
+          {uiText(locale, "DecisionCard.nextQuestion")}
+        </button>
       </div>
     </UserInputFrame>
   );
