@@ -300,7 +300,9 @@ export function TerminalPanel({
           return window.artemis.closeTerminal(descriptor.terminalId);
         }
         terminalId = descriptor.terminalId;
-        setDesktopUserAccess(descriptor.sandboxImplementation === "desktop-user");
+        setDesktopUserAccess(
+          descriptor.sandboxImplementation === "desktop-user",
+        );
         setDetail(
           descriptor.sandboxImplementation === "desktop-user"
             ? descriptor.shell

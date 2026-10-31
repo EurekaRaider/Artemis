@@ -1850,7 +1850,9 @@
   grid-template-rows: repeat(var(--data-rows), 13px);
   gap: 3px;
 }
-.app-shell .token-usage-chart :is([data-part="row"], [data-part="column-labels"]) {
+.app-shell
+  .token-usage-chart
+  :is([data-part="row"], [data-part="column-labels"]) {
   grid-template-columns: repeat(var(--data-columns), 13px);
   gap: 3px;
 }
@@ -3521,7 +3523,14 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   grid-template-columns: 30px minmax(0, 1fr);
   padding: 10px 0;
 }
-.app-shell .sources-panel-entry.attachment :is(.sources-panel-icon, .workspace-file-kind, .seti-file-icon, .seti-file-icon svg),
+.app-shell
+  .sources-panel-entry.attachment
+  :is(
+    .sources-panel-icon,
+    .workspace-file-kind,
+    .seti-file-icon,
+    .seti-file-icon svg
+  ),
 .app-shell .sources-panel-entry.attachment > img {
   inline-size: 30px;
   block-size: 30px;
