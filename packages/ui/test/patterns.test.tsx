@@ -149,6 +149,31 @@ describe("Agent patterns", () => {
     expect(document.activeElement).toBe(review);
   });
 
+  it("mirrors horizontal run-mode arrow navigation in RTL", () => {
+    const change = vi.fn();
+    render(
+      <RunModeControl
+        label="Modes"
+        value="work"
+        statusLabel="Ready"
+        onValueChange={change}
+        options={[
+          { value: "plan", label: "Plan" },
+          { value: "work", label: "Work" },
+          { value: "codemode", label: "Code" },
+        ]}
+      />,
+    );
+    const modes = screen.getAllByRole("radio");
+    modes.forEach((mode) => {
+      mode.style.direction = "rtl";
+    });
+    fireEvent.keyDown(modes[1]!, { key: "ArrowLeft" });
+    expect(change).toHaveBeenLastCalledWith("codemode");
+    fireEvent.keyDown(modes[1]!, { key: "ArrowRight" });
+    expect(change).toHaveBeenLastCalledWith("plan");
+  });
+
   it("keeps icon-only visuals tied to string-owned rendered names", () => {
     const { container } = render(
       <>
