@@ -646,17 +646,17 @@ const expectedCssRules = new Map([
       "font-size": "var(--artemis-typography-label-size)",
       "line-height": "1.5",
       overflow: "hidden",
-      padding: "var(--artemis-space-1)",
+      padding: "5px",
       background: "var(--artemis-color-surface-raised)",
       border:
         "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
-      "border-radius": "var(--artemis-radius-control)",
+      "border-radius": "11px",
     },
   ],
   [
     'normal|[data-artemis-component="select"] [data-part="search"]',
     {
-      "min-block-size": "var(--artemis-size-control-compact)",
+      "min-block-size": "32px",
       "margin-block-end": "var(--artemis-space-1)",
     },
   ],
@@ -679,7 +679,7 @@ const expectedCssRules = new Map([
       "grid-template-columns": "var(--artemis-space-4) minmax(0, 1fr)",
       "align-items": "center",
       gap: "var(--artemis-space-1)",
-      "min-block-size": "var(--artemis-size-control-compact)",
+      "min-block-size": "32px",
       padding: "var(--artemis-space-1) var(--artemis-space-2)",
       "border-radius": "var(--artemis-radius-control)",
       "text-align": "start",
@@ -1032,13 +1032,12 @@ const CL3_EXPECTED_CSS_RULES = [
     'normal|[data-artemis-component="tooltip"]',
     {
       "z-index": "80",
-      padding: "var(--artemis-space-1) var(--artemis-space-2)",
-      color:
-        "color-mix(in srgb, var(--artemis-color-text-primary) 85%, var(--artemis-color-surface-base))",
-      background: "var(--artemis-color-surface-user)",
-      "border-color": "var(--artemis-color-border-default)",
+      padding: "6px 9px",
+      color: "#f5f5f7",
+      background: "#24252a",
+      "border-color": "rgb(255 255 255 / 0.12)",
       "box-shadow": "0 4px 12px rgb(0 0 0 / 12%)",
-      "border-radius": "var(--artemis-radius-control)",
+      "border-radius": "7px",
       "pointer-events": "none",
     },
   ],
@@ -2423,14 +2422,14 @@ const MIG2_EXPECTED_CSS_RULES = [
       "align-items": "center",
       gap: "var(--artemis-space-1)",
       opacity: "0",
-      transition:
-        "opacity var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
+      transition: "opacity 120ms ease-out 200ms",
     },
   ],
   [
     'normal|[data-artemis-component="conversation-message"]:hover > [data-part="actions"], [data-artemis-component="conversation-message"]:focus-within > [data-part="actions"]',
     {
       opacity: "1",
+      "transition-delay": "0ms",
     },
   ],
   [

@@ -129,25 +129,25 @@
   [
     "normal|[data-artemis-theme=\"dark\"] [data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"1\"]",
     {
-      "background": "color-mix(in oklab, var(--artemis-color-context-2) 24%, var(--artemis-color-surface-base))"
+      "background": "var(--artemis-color-usage-4)"
     }
   ],
   [
     "normal|[data-artemis-theme=\"dark\"] [data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"2\"]",
     {
-      "background": "color-mix(in oklab, var(--artemis-color-context-2) 42%, var(--artemis-color-surface-base))"
+      "background": "var(--artemis-color-usage-3)"
     }
   ],
   [
     "normal|[data-artemis-theme=\"dark\"] [data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"3\"]",
     {
-      "background": "color-mix(in oklab, var(--artemis-color-context-2) 62%, var(--artemis-color-surface-base))"
+      "background": "var(--artemis-color-usage-2)"
     }
   ],
   [
     "normal|[data-artemis-theme=\"dark\"] [data-artemis-component=\"data-heatmap\"] [data-part=\"cell\"][data-level=\"4\"]",
     {
-      "background": "color-mix(in oklab, var(--artemis-color-context-4) 78%, var(--artemis-color-surface-base))"
+      "background": "var(--artemis-color-usage-1)"
     }
   ]
 ]
