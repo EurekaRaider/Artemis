@@ -356,6 +356,15 @@ try {
         },
       );
     } else {
+      const heading = secondary?.automations?.heading;
+      assert(
+        "automation-heading-readable",
+        heading?.width > 0 &&
+          heading?.height > 0 &&
+          heading.height <= heading.lineHeight * 2 + 1,
+        heading,
+        "page heading uses at most two lines at every supported scale",
+      );
       assert(
         "automation-real-card",
         secondary?.automations?.cardCount === 1 &&

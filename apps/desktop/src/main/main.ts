@@ -22818,6 +22818,16 @@ function createMainWindow(): BrowserWindow {
                             secondaryPagesView ===
                             "secondary-pages-automations"
                               ? {
+                                  heading: (() => {
+                                    const heading = root?.querySelector(".automation-header h1");
+                                    if (!heading) return null;
+                                    const bounds = heading.getBoundingClientRect();
+                                    return {
+                                      width: bounds.width,
+                                      height: bounds.height,
+                                      lineHeight: Number.parseFloat(getComputedStyle(heading).lineHeight),
+                                    };
+                                  })(),
                                   cardCount:
                                     root?.querySelectorAll(".automation-card")
                                       .length ?? 0,
