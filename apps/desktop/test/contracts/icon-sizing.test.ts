@@ -201,12 +201,12 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     },
   );
 
-  it("fills resource avatars with artwork while preserving semantic glyph geometry", () => {
+  it("uses equal-size Nocturne tiles with fixed semantic glyph geometry", () => {
     for (const [selector, size] of [
-      [".resource-avatar", "39px"],
-      [".resource-avatar .resource-artwork", "100%"],
-      [".resource-avatar .resource-semantic-icon", "28px"],
-      [".resource-avatar .resource-semantic-icon svg", "28px"],
+      [".resource-avatar", "36px"],
+      [".resource-avatar > svg", "20px"],
+      [".resource-avatar .resource-semantic-icon", "20px"],
+      [".resource-avatar .resource-semantic-icon svg", "20px"],
     ]) {
       const block = cssRuleBlock(stylesSource, selector!);
       expect(block).toContain(`width: ${size}`);

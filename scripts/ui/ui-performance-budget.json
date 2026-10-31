@@ -28,7 +28,7 @@
       "desktopJsBytes": 10000000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
-      "galleryJsBytes": 372500,
+      "galleryJsBytes": 405000,
       "uiCssBytes": 153000
     },
     "startup": {
@@ -54,6 +54,16 @@
     }
   },
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-11-01",
+      "baseHead": "ba15daed4d006833015e6b1cb99b79e567abffbc",
+      "baseGalleryJsBytes": 371600,
+      "measuredGalleryJsBytes": 399519,
+      "galleryJsIncreaseBytes": 27919,
+      "previousGalleryJsMaximumBytes": 372500,
+      "galleryJsMaximumBytes": 405000,
+      "reason": "The approved Nocturne handoff requires a Gallery specimen of the complete public icon catalog and the moonbow brand. Importing the catalog adds 27919 bytes to the Gallery production bundle. Keep a bounded 405000-byte Gallery ceiling; desktop, shared UI, startup and workload ceilings are unchanged."
+    },
     {
       "date": "2026-09-28",
       "measurementHead": "1eebe759adb88713d079d02b27ddfd6408a6e9df",

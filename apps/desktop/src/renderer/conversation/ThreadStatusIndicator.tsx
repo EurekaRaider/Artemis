@@ -1,3 +1,4 @@
+import { RunningArc, ArtemisIcon } from "@artemis/ui/icons";
 import { uiText } from "../../shared/i18n/ui-text.js";
 import type {
   AgentEvent,
@@ -54,7 +55,17 @@ export function ThreadStatusIndicator({
       aria-label={label}
       role={status ? "img" : undefined}
     >
-      {status && <span aria-hidden="true" className={`status-dot ${status}`} />}
+      {status && (
+        <span aria-hidden="true" className={`status-dot ${status}`}>
+          {status === "running" ? (
+            <RunningArc />
+          ) : status === "queued" ? (
+            <ArtemisIcon name="clock" />
+          ) : status === "failed" ? (
+            <ArtemisIcon name="alert" />
+          ) : null}
+        </span>
+      )}
     </span>
   );
 }

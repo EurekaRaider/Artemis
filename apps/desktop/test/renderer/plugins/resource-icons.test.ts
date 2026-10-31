@@ -13,10 +13,8 @@ import {
 } from "../../../src/renderer/plugins/resource-icons.js";
 
 describe("resource icons", () => {
-  it("ships the prototype resource glyphs as a typed production catalog", () => {
-    expect(ARTEMIS_ICON_SOURCE).toBe(
-      "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html",
-    );
+  it("ships the Nocturne resource glyphs as a typed production catalog", () => {
+    expect(ARTEMIS_ICON_SOURCE).toBe("nocturne:Icons.dc.html");
     expect(RESOURCE_ICON_NAMES).toHaveLength(39);
     expect(new Set(RESOURCE_ICON_NAMES).size).toBe(RESOURCE_ICON_NAMES.length);
 
@@ -29,14 +27,14 @@ describe("resource icons", () => {
       expect(markup).toContain('height="1em"');
       expect(markup).toContain('aria-hidden="true"');
       expect(markup).toContain('stroke="currentColor"');
-      expect(markup).toContain('stroke-width="1.5"');
+      expect(markup).toContain('stroke-width="1.6"');
     }
 
     const skill = renderToStaticMarkup(
       createElement(ArtemisIcon, { name: "skill" }),
     );
     expect(skill).toContain(
-      'd="M12 3.5l2.3 6.2 6.2 2.3-6.2 2.3L12 20.5l-2.3-6.2-6.2-2.3 6.2-2.3z"',
+      'd="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v13H6.5A1.5 1.5 0 0 0 5 18.5z M5 18.5A1.5 1.5 0 0 0 6.5 20H19 M9 8.5h6"',
     );
   });
 

@@ -4,17 +4,38 @@ import {
   type ReactNode,
   type SVGProps,
 } from "react";
-import {
-  ARTEMIS_CODE_ICON_PATH,
-  ARTEMIS_MARKDOWN_ICON_PATH,
-} from "./editor-icon-paths.js";
 
-export const ARTEMIS_ICON_SOURCE =
-  "ui-prototype-9556fac:components.html#cat-icons;artemis-ui.html" as const;
+export const ARTEMIS_ICON_SOURCE = "nocturne:Icons.dc.html" as const;
 
 export { ARTEMIS_MARKDOWN_ICON_PATH } from "./editor-icon-paths.js";
 
 export const ARTEMIS_ICON_NAMES = [
+  "at",
+  "cursor",
+  "frame",
+  "arrow-down",
+  "reply",
+  "comment",
+
+  "plan",
+  "work",
+  "user",
+  "update",
+  "update-ready",
+  "moon",
+  "pause",
+  "play",
+  "share",
+  "fork",
+  "key",
+  "gauge",
+  "sandbox",
+  "filter",
+  "camera",
+  "check-circle",
+  "x-circle",
+  "question",
+  "eye",
   "artemis",
   "message",
   "mobile",
@@ -152,31 +173,39 @@ export type ArtemisIconName =
   | (typeof ARTEMIS_VISUAL_ICON_NAMES)[number];
 
 const ARTEMIS_ICON_GLYPHS = {
-  undo: <path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12h-3" />,
+  at: (
+    <path d="M15.5 12a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z M15.5 8.5v4.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7" />
+  ),
+  cursor: <path d="M5.5 4l13 6.2-5.6 1.7-1.7 5.6z M13 13l5.5 5.5" />,
+  frame: (
+    <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8 M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8 M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16 M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" />
+  ),
+  "arrow-down": <path d="M12 5v14 M6 13l6 6 6-6" />,
+  reply: <path d="M9.5 7L4.5 12l5 5 M4.5 12H14a5.5 5.5 0 0 1 5.5 5.5V19" />,
+  comment: (
+    <path d="M5 5.5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-6.5L8 20v-3.5H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z M8 10h8 M8 13h5" />
+  ),
+
+  undo: <path d="M9 14L4.5 9.5 9 5 M4.5 9.5H15a4.5 4.5 0 0 1 0 9h-3" />,
   expand: <path d="M14.5 4H20v5.5M20 4l-5.5 5.5M9.5 20H4v-5.5M4 20l5.5-5.5" />,
   collapse: <path d="M4 14h6v6M10 14l-7 7M20 10h-6V4M14 10l7-7" />,
   external: (
-    <>
-      <path d="M14 4h6v6M20 4l-9 9" />
-      <path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" />
-    </>
+    <path d="M14 4.5h5.5V10 M19.5 4.5L11 13 M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10" />
   ),
   commit: (
-    <>
-      <path d="M3.5 12h5M15.5 12h5" />
-      <circle cx="12" cy="12" r="3.5" />
-    </>
+    <path d="M3.5 12h5 M15.5 12h5 M8.5 12a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0" />
   ),
   "pull-request": (
-    <>
-      <circle cx="6" cy="5.5" r="1.75" />
-      <circle cx="6" cy="18.5" r="1.75" />
-      <circle cx="18" cy="18.5" r="1.75" />
-      <path d="M6 7.25v9.5M18 16.75V8a3 3 0 0 0-3-3h-3m2.5-2.5L12 5l2.5 2.5" />
-    </>
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v12 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
   ),
   worktree: <path d="M4 12h4l12-9M14 3h6v6M12 15l8 6M14 21h6v-6" />,
-  stop: <rect x="7" y="7" width="10" height="10" rx="1" fill="currentColor" />,
+  stop: (
+    <path
+      d="M7 9a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z"
+      fill="currentColor"
+      stroke="none"
+    />
+  ),
   unlink: (
     <>
       <path d="m9.2 14.8 5.6-5.6" />
@@ -185,44 +214,23 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   mobile: (
-    <>
-      <rect x="6" y="3" width="12" height="18" rx="4" />
-      <path d="M10.4 6.5h3.2" />
-    </>
+    <path d="M8 3.5h8a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z M11 17.5h2" />
   ),
   monitor: (
-    <>
-      <rect x="3.5" y="4" width="17" height="12.5" rx="2" />
-      <path d="M4.5 13.5h15M12 16.5v2.6M9.2 20.5h5.6" />
-    </>
+    <path d="M3.5 6A1.5 1.5 0 0 1 5 4.5h14A1.5 1.5 0 0 1 20.5 6v8.5A1.5 1.5 0 0 1 19 16H5a1.5 1.5 0 0 1-1.5-1.5z M9 20h6 M12 16v4 M10.5 7.5l4.5 2-2 .8-.8 2z" />
   ),
-  artemis: (
-    <>
-      <circle cx="12" cy="12" r="8.2" />
-      <path d="M6.5 17.5 17.5 6.5M13.5 6.5h4v4" />
-    </>
-  ),
+  artemis: <path d="M17.5 4.585a8 8 0 1 0 0 14.83a7.6 7.6 0 0 1 0-14.83Z" />,
   message: (
-    <>
-      {" "}
-      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.3-.6L3 21l1.7-5.6A8.3 8.3 0 0 1 3 11.5 8.5 8.5 0 0 1 21 11.5z"></path>{" "}
-    </>
+    <path d="M4 6.5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2V11a2 2 0 0 1-2 2H9.5l-3 2.5V13H6a2 2 0 0 1-2-2z M16 9h2a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2V20l-3-2.5h-3a2 2 0 0 1-2-2V15" />
   ),
   "agent-configuration": (
-    <>
-      {" "}
-      <rect height="12" rx="2.5" width="14" x="5" y="7"></rect>
-      <path d="M9 7V5.5A2.5 2.5 0 0 1 11.5 3h1A2.5 2.5 0 0 1 15 5.5V7"></path>{" "}
-    </>
+    <path d="M6 9.5A2.5 2.5 0 0 1 8.5 7h7A2.5 2.5 0 0 1 18 9.5v6a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 6 15.5z M12 7V4.5 M9.8 12v1 M14.2 12v1 M3.5 11.5v3 M20.5 11.5v3" />
   ),
   folder: (
-    <path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h3l2 2.5h8A1.5 1.5 0 0 1 20 10v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17z" />
+    <path d="M4 7.5a2 2 0 0 1 2-2h3.2l2 2H18a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
   ),
   "folder-open": (
-    <path
-      d="M3.5 6.5a2 2 0 012-2h4l2 2.5h7a2 2 0 012 2v1M3.5 6.5v10.5m0 0a2 2 0 002 2h11.3a2 2 0 001.9-1.4l2.3-7.6a1.5 1.5 0 00-1.4-1.9H5.7a2 2 0 00-1.9 1.5l-.3 1.4z"
-      transform="translate(0,-0.5)"
-    />
+    <path d="M4 17V7.5a2 2 0 0 1 2-2h3.2l2 2H17a2 2 0 0 1 2 2V10 M4 17l2.2-5.6a1.5 1.5 0 0 1 1.4-.9h12a1 1 0 0 1 .9 1.4l-2.1 5.5a2 2 0 0 1-1.8 1.1H5.5A1.5 1.5 0 0 1 4 17z" />
   ),
   files: (
     <>
@@ -232,68 +240,39 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   file: (
-    <>
-      <path d="M8 3.5h6l3.5 3.5v12a1.5 1.5 0 01-1.5 1.5H8A1.5 1.5 0 016.5 19V5a1.5 1.5 0 011.5-1.5z" />
-      <path d="M14 3.5V7h3.5" />
-    </>
+    <path d="M7 3.5h6.5L18 8v11.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z M13.5 3.5V8H18" />
   ),
   "sidebar-l": (
-    <>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-      <path d="M9.5 4.5v15" />
-    </>
+    <path d="M4 6.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M9.5 4.5v15" />
   ),
   "sidebar-r": (
-    <>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-      <path d="M14.5 4.5v15" />
-    </>
+    <path d="M4 6.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M14.5 4.5v15" />
   ),
   browser: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M3.5 12h17M12 3.5c2.3 2.2 3.5 5 3.5 8.5s-1.2 6.3-3.5 8.5c-2.3-2.2-3.5-5-3.5-8.5S9.7 5.7 12 3.5z" />
-    </>
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M3.5 12h17 M12 3.5c2.4 2.5 3.5 5.3 3.5 8.5s-1.1 6-3.5 8.5c-2.4-2.5-3.5-5.3-3.5-8.5s1.1-6 3.5-8.5z" />
   ),
-  terminal: <path d="M5 7.5l4.5 4.5L5 16.5M12 17h7" />,
+  terminal: (
+    <path d="M4 6.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M8 9.5l2.5 2.5L8 14.5 M13 15h3" />
+  ),
   markdown: (
-    <path
-      d={ARTEMIS_MARKDOWN_ICON_PATH}
-      fill="var(--artemis-color-status-success, #60c878)"
-      stroke="none"
-    />
+    <path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h14A1.5 1.5 0 0 1 20.5 7v10a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 17z M7 15V9l2.5 3L12 9v6 M16 9v6 M14 13l2 2 2-2" />
   ),
   plus: <path d="M12 5.5v13M5.5 12h13" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
   search: (
-    <>
-      <circle cx="11" cy="11" r="6.5" />
-      <path d="M20.5 20.5L16 16" />
-    </>
+    <path d="M4.5 11a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0 M20 20l-4.4-4.4" />
   ),
   edit: (
-    <>
-      <path d="M4 20h4l11-11a2.1 2.1 0 00-3-3L5 17l-1 3z" />
-      <path d="M13.5 7.5l3 3" />
-    </>
+    <path d="M14.5 6.5l3 3 M4.5 19.5l.9-3.9L16 5a2.1 2.1 0 0 1 3 3L8.4 18.6z" />
   ),
   "edit-square": (
-    <>
-      <path d="M12.5 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5" />
-      <path d="M17.6 3.4a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 8.6-8.6z" />
-    </>
+    <path d="M11 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V13 M17.8 3.7a2 2 0 0 1 2.8 2.8L13 14.1l-3.6.9.9-3.6z" />
   ),
   trash: (
-    <>
-      <path d="M4 7h16M9.5 7V5a1.5 1.5 0 011.5-1.5h2A1.5 1.5 0 0114.5 5v2M6.5 7l.8 12a1.5 1.5 0 001.5 1.4h6.4a1.5 1.5 0 001.5-1.4l.8-12" />
-      <path d="M10 11v6M14 11v6" />
-    </>
+    <path d="M4.5 7h15 M10 4h4 M6.5 7l.8 11.6A1.5 1.5 0 0 0 8.8 20h6.4a1.5 1.5 0 0 0 1.5-1.4L17.5 7 M10 11v5 M14 11v5" />
   ),
   refresh: (
-    <>
-      <path d="M20.5 11a8.5 8.5 0 10.5 4" />
-      <path d="M21 4.5v5h-5" />
-    </>
+    <path d="M19.5 12a7.5 7.5 0 0 1-13.3 4.8 M4.5 12a7.5 7.5 0 0 1 13.3-4.8 M18.2 3.8v3.4h-3.4 M5.8 20.2v-3.4h3.4" />
   ),
   chevron: <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />,
   "chev-left": <path d="M14.5 6.5L9 12l5.5 5.5" />,
@@ -319,85 +298,36 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   archive: (
-    <>
-      {" "}
-      <rect height="5" rx="1.5" width="16" x="4" y="4"></rect>
-      <path d="M5.5 9v9A1.5 1.5 0 0 0 7 19.5h10a1.5 1.5 0 0 0 1.5-1.5V9M10 13h4"></path>{" "}
-    </>
+    <path d="M4 5.5h16v3.5H4z M5.5 9v9a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5V9 M10 13h4" />
   ),
   review: (
-    <>
-      <rect x="4" y="3.5" width="16" height="17" rx="2" />
-      <path d="M8 8h8M8 12h8M8 16h5" />
-    </>
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v12 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
   ),
   mode: (
-    <>
-      <rect x="4" y="4" width="16" height="16" rx="3" />
-      <path d="M8.5 9.5l2.5 2.5-2.5 2.5M13 14.5h3" />
-    </>
+    <path d="M4 6l1.5 1.5L8.5 4.5 M12 6h8 M12 12h8 M12 18h8 M4.5 12h3 M4.5 18h3" />
   ),
-  usage: (
-    <>
-      <path d="M5.5 18.5v-6M12 18.5v-11M18.5 18.5v-8" />
-      <path d="M3.5 20.5h17" opacity="0.5" />
-    </>
-  ),
+  usage: <path d="M4 19.5h16 M7 16v-4 M11 16V7 M15 16v-6 M19 16V9.5" />,
   automation: (
-    <>
-      {" "}
-      <circle cx="12" cy="12" r="8"></circle>
-      <path d="M12 7.5V12l3 2"></path>{" "}
-    </>
+    <path d="M17 4.5l2.5 2.5L17 9.5 M4.5 11v-1a3 3 0 0 1 3-3h12 M7 19.5L4.5 17 7 14.5 M19.5 13v1a3 3 0 0 1-3 3h-12" />
   ),
-  hooks: (
-    <>
-      <circle cx="15" cy="5" r="2" />
-      <path d="M15 7v9a5 5 0 0 1-10 0v-3l3 3M5 10h5" />
-    </>
-  ),
+  hooks: <path d="M8 3.5v10a4.5 4.5 0 0 0 9 0V11 M14.5 13.5L17 11l2.5 2.5" />,
   "hook-plugin": (
-    <>
-      <path d="m15 3 3 3-3 3-3-3 3-3Z" />
-      <path d="M15 9v7a5 5 0 0 1-10 0v-3l3 3M5 10h5" />
-    </>
+    <path d="M8 3.5v10a4.5 4.5 0 0 0 9 0V11 M14.5 13.5L17 11l2.5 2.5" />
   ),
   resource: (
-    <>
-      {" "}
-      <rect height="15" rx="3" width="17" x="3.5" y="4.5"></rect>
-      <path d="M3.5 9.5h17M8 14h4"></path>{" "}
-    </>
+    <path d="M4.5 6A1.5 1.5 0 0 1 6 4.5h2.5A1.5 1.5 0 0 1 10 6v2.5A1.5 1.5 0 0 1 8.5 10H6a1.5 1.5 0 0 1-1.5-1.5z M14 6a1.5 1.5 0 0 1 1.5-1.5H18A1.5 1.5 0 0 1 19.5 6v2.5A1.5 1.5 0 0 1 18 10h-2.5A1.5 1.5 0 0 1 14 8.5z M4.5 15.5A1.5 1.5 0 0 1 6 14h2.5a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18z M16.75 14v5.5 M14 16.75h5.5" />
   ),
   settings: (
-    <>
-      {" "}
-      <circle cx="12" cy="12" r="3"></circle>
-      <circle cx="12" cy="12" r="8" strokeDasharray="2.5 3"></circle>{" "}
-    </>
+    <path d="M4 7.5h8 M17 7.5h3 M12 7.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0 M4 16.5h3 M12 16.5h8 M7 16.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0" />
   ),
   gear: (
-    <>
-      <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" />
-      <circle cx="12" cy="12" r="3" />
-    </>
+    <path d="M4 7.5h8 M17 7.5h3 M12 7.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0 M4 16.5h3 M12 16.5h8 M7 16.5a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0" />
   ),
   model: (
-    <>
-      <path
-        d="M12 3.5a8.5 8.5 0 018.5 8.5 8.5 8.5 0 01-8.5 8.5A8.5 8.5 0 013.5 12 8.5 8.5 0 0112 3.5z"
-        opacity="0.45"
-      />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-    </>
+    <path d="M7 8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1z M10 3.5V7 M14 3.5V7 M10 17v3.5 M14 17v3.5 M3.5 10H7 M3.5 14H7 M17 10h3.5 M17 14h3.5" />
   ),
   more: (
-    <>
-      <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
-      <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
-    </>
+    <path d="M5 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0 M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0 M17 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0" />
   ),
   block: (
     <>
@@ -406,30 +336,16 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   alert: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 8v5M12 16.5v.5" />
-    </>
+    <path d="M10.3 4.9a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z M12 10v3.5 M12 16.8v.1" />
   ),
   clock: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 7.5V12l3 2" />
-    </>
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M12 7.5V12l3 2" />
   ),
   grid: (
-    <>
-      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
-      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
-      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
-      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
-    </>
+    <path d="M4.5 6A1.5 1.5 0 0 1 6 4.5h2.5A1.5 1.5 0 0 1 10 6v2.5A1.5 1.5 0 0 1 8.5 10H6a1.5 1.5 0 0 1-1.5-1.5z M14 6a1.5 1.5 0 0 1 1.5-1.5H18A1.5 1.5 0 0 1 19.5 6v2.5A1.5 1.5 0 0 1 18 10h-2.5A1.5 1.5 0 0 1 14 8.5z M4.5 15.5A1.5 1.5 0 0 1 6 14h2.5a1.5 1.5 0 0 1 1.5 1.5V18a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 18z M16.75 14v5.5 M14 16.75h5.5" />
   ),
   sun: (
-    <>
-      <circle cx="12" cy="12" r="3.5" />
-      <path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5 5l1.8 1.8M17.2 17.2L19 19M19 5l-1.8 1.8M6.8 17.2L5 19" />
-    </>
+    <path d="M8.5 12a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0 M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5.6 5.6L7 7 M17 17l1.4 1.4 M5.6 18.4L7 17 M17 7l1.4-1.4" />
   ),
   list: (
     <>
@@ -440,17 +356,9 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   target: (
-    <>
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="4.5" />
-      <circle cx="12" cy="12" r="1" />
-    </>
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M7.5 12a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0-9 0 M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0" />
   ),
-  download: (
-    <>
-      <path d="M12 4v10M7.5 10.5 12 15l4.5-4.5M5.5 19h13" />
-    </>
-  ),
+  download: <path d="M12 4v11 M7.5 10.5L12 15l4.5-4.5 M5 19.5h14" />,
   task: (
     <>
       <circle cx="12" cy="12" r="8.5" />
@@ -465,127 +373,66 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   info: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M12 11v5M12 7.5v.5" />
-    </>
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M12 11v5 M12 7.9v.1" />
   ),
   sparkle: (
     <path d="M12 3.5l2.3 6.2 6.2 2.3-6.2 2.3L12 20.5l-2.3-6.2-6.2-2.3 6.2-2.3z" />
   ),
   tool: (
-    <path d="M14.5 6.5a3.5 3.5 0 00-4.7 4.2L4 16.5V20h3.5l5.8-5.8a3.5 3.5 0 004.2-4.7l-2.7 2.7-2.5-.5-.5-2.5 2.7-2.7z" />
+    <path d="M14.6 6.4a4 4 0 0 0-5.3 5.2L4.5 16.4v3.1h3.1l4.8-4.8a4 4 0 0 0 5.2-5.3l-2.4 2.4-2.3-.5-.5-2.3z" />
   ),
   image: (
-    <>
-      <rect x="3.5" y="4" width="17" height="16" rx="2" />
-      <circle cx="9" cy="9.5" r="1.8" />
-      <path d="M20.5 14.5l-4-4L6 20" />
-    </>
+    <path d="M4 6.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 16l4.5-4.5 4 4 2.5-2.5 5 4.5 M14.5 8.5a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0" />
   ),
   lock: (
-    <>
-      <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
-      <path d="M8 10.5V7.5a4 4 0 018 0v3" />
-    </>
+    <path d="M6.5 11h11a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1V12a1 1 0 0 1 1-1z M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
   ),
   attach: (
-    <path d="M20.5 11.5l-8 8a5 5 0 01-7-7l8-8a3.5 3.5 0 015 5l-7.5 7.5a2 2 0 01-3-3l7-7" />
+    <path d="M19.5 11.5l-7.4 7.4a4.8 4.8 0 0 1-6.8-6.8l7.7-7.7a3.2 3.2 0 0 1 4.5 4.5l-7.6 7.6a1.6 1.6 0 0 1-2.3-2.3l7-7" />
   ),
   send: <path d="M20 4L10 14M20 4l-6.5 16-3.5-6-6-3.5z" />,
   warning: (
-    <>
-      <path d="M12 4L2.8 19.5h18.4L12 4z" />
-      <path d="M12 10v4M12 17v.5" />
-    </>
+    <path d="M10.3 4.9a2 2 0 0 1 3.4 0l7 12.1a2 2 0 0 1-1.7 3H5a2 2 0 0 1-1.7-3z M12 10v3.5 M12 16.8v.1" />
   ),
   environment: (
-    <>
-      <circle cx="6" cy="6" r="2.4" />
-      <circle cx="6" cy="18" r="2.4" />
-      <circle cx="18" cy="9" r="2.4" />
-      <path d="M6 8.4v7.2M8 7l7.7 1.3M8 17l7.7-6.6" />
-    </>
+    <path d="M12 3.5l7.5 4.2v8.6L12 20.5l-7.5-4.2V7.7z M12 12l7.5-4.3 M12 12v8.5 M12 12L4.5 7.7" />
   ),
   layers: (
-    <>
-      <path d="M12 3L3.5 7.5 12 12l8.5-4.5L12 3z" />
-      <path d="M3.5 12l8.5 4.5L20.5 12" />
-      <path d="M3.5 16.5l8.5 4.5 8.5-4.5" />
-    </>
+    <path d="M12 4l8.5 4.5L12 13 3.5 8.5z M3.5 12.5L12 17l8.5-4.5 M3.5 16.5L12 21l8.5-4.5" />
   ),
   branch: (
-    <>
-      <circle cx="6.5" cy="6" r="2.2" />
-      <circle cx="6.5" cy="18" r="2.2" />
-      <circle cx="17.5" cy="8" r="2.2" />
-      <path d="M6.5 8.2v7.6M17.5 10.2c0 3.5-3 5.3-6 5.6" />
-    </>
+    <path d="M7 4v16 M15 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M17 9v.5a4.5 4.5 0 0 1-4.5 4.5H7" />
   ),
   "git-branch": (
-    <>
-      <circle cx="6.5" cy="6" r="2.2" />
-      <circle cx="6.5" cy="18" r="2.2" />
-      <circle cx="17.5" cy="8" r="2.2" />
-      <path d="M6.5 8.2v7.6M17.5 10.2a7 7 0 01-7 5.6" />
-    </>
+    <path d="M7 4v16 M15 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M17 9v.5a4.5 4.5 0 0 1-4.5 4.5H7" />
   ),
   changes: (
-    <path d="M4 8h13M13 4.5l3.5 3.5L13 11.5M20 16H7M11 12.5L7.5 16l3.5 3.5" />
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v12 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
   ),
   compare: (
-    <>
-      <path d="M8 4.5v15M16 4.5v15" opacity="0.45" />
-      <path d="M4 8.5l4-4M4 8.5l4 4M20 15.5l-4 4M20 15.5l-4-4" />
-    </>
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v12 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
   ),
-  push: (
-    <>
-      <path d="M12 16V4.5M8 8.5l4-4 4 4" />
-      <path d="M5 19.5h14" />
-    </>
-  ),
-  local: (
-    <>
-      <rect x="4" y="4.5" width="16" height="11" rx="2" />
-      <path d="M2.5 19.5h19" />
-    </>
-  ),
+  push: <path d="M12 20V9 M7.5 13.5L12 9l4.5 4.5 M5 4.5h14" />,
+  local: <path d="M5 6.5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1V15H5z M3 18.5h18" />,
   source: <path d="M8.5 8l-4 4 4 4M15.5 8l4 4-4 4" />,
   mcp: (
-    <>
-      <rect x="4" y="7" width="16" height="10" rx="2" />
-      <path d="M8 11h.01M12 11h.01M16 11h.01" strokeWidth="2" />
-      <path d="M12 17v3M9 20h6" />
-    </>
+    <path d="M9 3.5v4 M15 3.5v4 M6.5 7.5h11V11a5.5 5.5 0 0 1-11 0z M12 16.5v4" />
   ),
   context: (
-    <>
-      <circle cx="12" cy="12" r="3.5" />
-      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9L19 19M19 5l-2.1 2.1M7.1 16.9L5 19" />
-    </>
+    <path d="M12 4l8.5 4.5L12 13 3.5 8.5z M3.5 12.5L12 17l8.5-4.5 M3.5 16.5L12 21l8.5-4.5" />
   ),
   check: <path d="M4.5 12.5l5 5 10-11" />,
   approval: (
-    <>
-      {" "}
-      <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z"></path>{" "}
-    </>
+    <path d="M12 3.5l7 2.6v5.4c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6.1z" />
   ),
   "approval-ask": (
-    <path d="M8 12V5a1.5 1.5 0 0 1 3 0v6-7a1.5 1.5 0 0 1 3 0v7-5a1.5 1.5 0 0 1 3 0v6-3a1.5 1.5 0 0 1 3 0v5c0 5-2.5 8-7 8-3 0-5-2-6.5-4.5L3 12a1.5 1.5 0 0 1 2.5-1.5L8 14" />
+    <path d="M12 3.5l7 2.6v5.4c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6.1z" />
   ),
   "approval-agent": (
-    <>
-      <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z" />
-      <path d="m8 9 2.5 3L8 15m5 0h3" />
-    </>
+    <path d="M12 3.5l7 2.6v5.4c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6.1z M9 12l2.2 2.2L15.5 10" />
   ),
   "approval-full": (
-    <>
-      <path d="M12 3.5 20 7v5c0 4.8-3.4 7.6-8 8.5C7.4 19.6 4 16.8 4 12V7z" />
-      <path d="M12 8v5m0 3h.01" />
-    </>
+    <path d="M12 3.5l7 2.6v5.4c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6.1z M9 12l2.2 2.2L15.5 10" />
   ),
   "tool-activity": (
     <>
@@ -605,33 +452,15 @@ const ARTEMIS_ICON_GLYPHS = {
       <circle cx="18" cy="12" r="1.5" />
     </>
   ),
-  "token-usage": (
-    <>
-      {" "}
-      <path d="M5 19v-8M12 19V5M19 19v-5"></path>{" "}
-    </>
-  ),
+  "token-usage": <path d="M4 19.5h16 M7 16v-4 M11 16V7 M15 16v-6 M19 16V9.5" />,
   "review-empty": (
-    <>
-      <rect x="4" y="3.5" width="16" height="17" rx="2" />
-      <path d="M8 12.5l2.5 2.5 5-5.5" />
-    </>
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v12 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
   ),
   agents: (
-    <>
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5" />
-      <circle cx="16.5" cy="9.5" r="2.5" />
-      <path d="M15.5 14.2c2.7.3 5 2.2 5 4.8" />
-    </>
+    <path d="M6 8a3 3 0 1 0 6 0a3 3 0 1 0-6 0 M3.5 19.5a5.5 5.5 0 0 1 11 0 M15.5 5.2a2.8 2.8 0 0 1 0 5.6 M17 14.3a5 5 0 0 1 3.5 5.2" />
   ),
   bot: (
-    <>
-      <rect x="5" y="7" width="14" height="13" rx="3" />
-      <path d="M12 7V3M3 11v5M21 11v5M9 16h6" />
-      <circle cx="9" cy="12" r="1" />
-      <circle cx="15" cy="12" r="1" />
-    </>
+    <path d="M6 9.5A2.5 2.5 0 0 1 8.5 7h7A2.5 2.5 0 0 1 18 9.5v6a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 6 15.5z M12 7V4.5 M9.8 12v1 M14.2 12v1 M3.5 11.5v3 M20.5 11.5v3" />
   ),
   "bot-add": (
     <>
@@ -645,10 +474,7 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   copy: (
-    <>
-      <rect height="11" rx="2" width="11" x="9.5" y="9.5" />
-      <path d="M5.5 14.5h-1A1.5 1.5 0 0 1 3 13V4.5A1.5 1.5 0 0 1 4.5 3H13a1.5 1.5 0 0 1 1.5 1.5v1" />
-    </>
+    <path d="M8.5 9.5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1z M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3" />
   ),
   /* Channel brand marks are filled glyphs: the element-level fill/stroke
      overrides opt out of the library's stroke system. Feishu/Lark mark is
@@ -691,29 +517,19 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   calendar: (
-    <>
-      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
-      <path d="M3.5 9.5h17M8 3v3.5M16 3v3.5" />
-    </>
+    <path d="M4.5 6.5A1.5 1.5 0 0 1 6 5h12a1.5 1.5 0 0 1 1.5 1.5V19a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19z M4.5 10h15 M8.5 3v4 M15.5 3v4" />
   ),
   checklist: (
-    <>
-      <path d="M9 6h11M9 12h11M9 18h11" />
-      <path d="M3.5 5.5l1.2 1.2 2-2.2M3.5 11.5l1.2 1.2 2-2.2M3.5 17.5l1.2 1.2 2-2.2" />
-    </>
+    <path d="M4 6l1.5 1.5L8.5 4.5 M12 6h8 M12 12h8 M12 18h8 M4.5 12h3 M4.5 18h3" />
   ),
   cloud: (
     <path d="M7 18.5a4.5 4.5 0 01-.6-8.96 5.5 5.5 0 0110.9-1.3A4 4 0 0117.5 18.5H7z" />
   ),
-  code: <path d={ARTEMIS_CODE_ICON_PATH} />,
+  code: (
+    <path d="M8.5 7.5L4 12l4.5 4.5 M15.5 7.5L20 12l-4.5 4.5 M13.5 5l-3 14" />
+  ),
   "code-review": (
-    <>
-      <circle cx="6" cy="6" r="2.2" />
-      <circle cx="6" cy="18" r="2.2" />
-      <circle cx="18" cy="8" r="2.2" />
-      <path d="M6 8.2v7.6M18 10.2a6 6 0 01-6 5.6" />
-      <path d="M13.5 15.5l2 2 3.5-3.5" />
-    </>
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v12 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
   ),
   codegraph: (
     <>
@@ -738,11 +554,7 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   document: (
-    <>
-      <path d="M7 3.5h7l4 4V20a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 016 19V5a1.5 1.5 0 011-1.5z" />
-      <path d="M14 3.5V8h4" />
-      <path d="M9 13h6M9 16.5h4" />
-    </>
+    <path d="M7 3.5h6.5L18 8v11.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z M13.5 3.5V8H18 M9 12.5h6 M9 16h4.5" />
   ),
   email: (
     <>
@@ -782,7 +594,7 @@ const ARTEMIS_ICON_GLYPHS = {
       <path d="M12 3.5a5.5 5.5 0 00-3 10c.8.6 1.5 1.6 1.7 2.5h2.6c.2-.9.9-1.9 1.7-2.5a5.5 5.5 0 00-3-10z" />
     </>
   ),
-  lightning: <path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12l1-8z" />,
+  lightning: <path d="M13 3L5 13.5h6L10 21l9-11h-6z" />,
   package: (
     <>
       <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" />
@@ -790,12 +602,7 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   palette: (
-    <>
-      <path d="M12 3.5a8.5 8.5 0 00-1 16.9c1 .2 1.5-.5 1.5-1.2 0-.5-.3-.9-.3-1.5 0-.9.7-1.5 1.6-1.5h1.7a4.5 4.5 0 004.5-4.5c0-4.6-4-8.2-9-8.2z" />
-      <circle cx="8" cy="10.5" r="1" />
-      <circle cx="12" cy="8" r="1" />
-      <circle cx="16" cy="10.5" r="1" />
-    </>
+    <path d="M12 3.5l5.5 6.5-3.5 10h-4L6.5 10z M12 3.5V11 M10.8 12.2a1.2 1.2 0 1 0 2.4 0a1.2 1.2 0 1 0-2.4 0" />
   ),
   pdf: (
     <>
@@ -817,16 +624,10 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   presentation: (
-    <>
-      <rect x="3" y="4" width="18" height="12" rx="1.5" />
-      <path d="M12 16v3M8.5 21l3.5-2 3.5 2" />
-    </>
+    <path d="M3.5 5h17 M5 5v9.5A1.5 1.5 0 0 0 6.5 16h11a1.5 1.5 0 0 0 1.5-1.5V5 M12 16v4 M9 20h6" />
   ),
   skill: (
-    <>
-      <path d="M12 3.5l2.3 6.2 6.2 2.3-6.2 2.3L12 20.5l-2.3-6.2-6.2-2.3 6.2-2.3z" />
-      <circle cx="19" cy="5" r="1.5" />
-    </>
+    <path d="M5 5.5A1.5 1.5 0 0 1 6.5 4H19v13H6.5A1.5 1.5 0 0 0 5 18.5z M5 18.5A1.5 1.5 0 0 0 6.5 20H19 M9 8.5h6" />
   ),
   "skill-authoring": (
     <>
@@ -842,10 +643,7 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   spreadsheet: (
-    <>
-      <rect x="3.5" y="4" width="17" height="16" rx="2" />
-      <path d="M3.5 9h17M3.5 14h17M9.5 9v11M15.5 9v11" />
-    </>
+    <path d="M4 6.5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z M4 10h16 M4 14.5h16 M9.5 4.5v15" />
   ),
   test: (
     <>
@@ -872,17 +670,62 @@ const ARTEMIS_ICON_GLYPHS = {
     </>
   ),
   web: (
-    <>
-      <circle cx="12" cy="12" r="8.5" />
-      <path d="M3.5 12h17M12 3.5c2.5 2 3.8 5 3.8 8.5s-1.3 6.5-3.8 8.5c-2.5-2-3.8-5-3.8-8.5s1.3-6.5 3.8-8.5z" />
-      <path d="M5 8h14M5 16h14" />
-    </>
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M3.5 12h17 M12 3.5c2.4 2.5 3.5 5.3 3.5 8.5s-1.1 6-3.5 8.5c-2.4-2.5-3.5-5.3-3.5-8.5s1.1-6 3.5-8.5z" />
   ),
   "web-video": (
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M10 8.5l5 3.5-5 3.5v-7z" />
     </>
+  ),
+  plan: (
+    <path d="M4 6l1.5 1.5L8.5 4.5 M12 6h8 M12 12h8 M12 18h8 M4.5 12h3 M4.5 18h3" />
+  ),
+  work: (
+    <path d="M14.6 6.4a4 4 0 0 0-5.3 5.2L4.5 16.4v3.1h3.1l4.8-4.8a4 4 0 0 0 5.2-5.3l-2.4 2.4-2.3-.5-.5-2.3z" />
+  ),
+  user: (
+    <path d="M8.5 8a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0 M5 20a7 7 0 0 1 14 0" />
+  ),
+  update: (
+    <path d="M19.5 12a7.5 7.5 0 1 1-7.5-7.5c2.1 0 4.1.8 5.6 2.3l1.9 1.4 M19.5 4.5v3.7h-3.7 M12 15.5V9.5 M9.5 12L12 9.5l2.5 2.5" />
+  ),
+  "update-ready": (
+    <path d="M19.5 12a7.5 7.5 0 1 1-7.5-7.5c2.1 0 4.1.8 5.6 2.3l1.9 1.4 M19.5 4.5v3.7h-3.7 M9 12.2l2.2 2.2 4-4.2" />
+  ),
+  moon: <path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z" />,
+  pause: <path d="M9 6.5v11 M15 6.5v11" />,
+  play: (
+    <path d="M7.5 5.8v12.4a.8.8 0 0 0 1.2.7l9.6-6.2a.8.8 0 0 0 0-1.4L8.7 5.1a.8.8 0 0 0-1.2.7z" />
+  ),
+  share: (
+    <path d="M12 15V4.5 M7.5 9L12 4.5 16.5 9 M5 13.5v5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-5" />
+  ),
+  fork: (
+    <path d="M5 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M15 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M10 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M7 7v1.5a3 3 0 0 0 3 3h4a3 3 0 0 0 3-3V7 M12 11.5V17" />
+  ),
+  key: (
+    <path d="M4 15.5a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0-9 0 M11.7 12.3L20 4 M17 7l2.5 2.5 M14.5 9.5l2 2" />
+  ),
+  gauge: <path d="M4.5 17a7.5 7.5 0 1 1 15 0 M12 17l3.5-5" />,
+  sandbox: (
+    <path d="M12 3.5l7.5 4.2v8.6L12 20.5l-7.5-4.2V7.7z M12 12l7.5-4.3 M12 12v8.5 M12 12L4.5 7.7" />
+  ),
+  filter: <path d="M4 5h16l-6 7.5V19l-4 1.5v-8z" />,
+  camera: (
+    <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.5-2h5L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z M9 13a3 3 0 1 0 6 0a3 3 0 1 0-6 0" />
+  ),
+  "check-circle": (
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M8.5 12.3l2.4 2.4 4.6-4.9" />
+  ),
+  "x-circle": (
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M9.5 9.5l5 5 M14.5 9.5l-5 5" />
+  ),
+  question: (
+    <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M9.6 9.5a2.5 2.5 0 0 1 4.8.8c0 1.7-2.4 2.2-2.4 3.7 M12 16.9v.1" />
+  ),
+  eye: (
+    <path d="M3 12s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0" />
   ),
 } satisfies Readonly<Record<ArtemisIconName, ReactNode>>;
 
@@ -962,7 +805,7 @@ export function ArtemisIcon({
   height = "1em",
   fallback,
   name,
-  strokeWidth = 1.5,
+  strokeWidth = 1.6,
   width = "1em",
   ...props
 }: ArtemisIconProps) {
@@ -987,6 +830,52 @@ export function ArtemisIcon({
             <SkinIconShape key={index} shape={shape} />
           ))
         : (fallback ?? ARTEMIS_ICON_GLYPHS[name])}
+    </svg>
+  );
+}
+
+/** Shared running indicator; the wrapper owns motion so SVG geometry stays stable. */
+export function RunningArc({
+  className = "",
+  size = 16,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`artemis-running-arc ${className}`}
+      style={{ width: size, height: size }}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      >
+        <circle cx="12" cy="12" r="8.5" opacity=".22" />
+        <path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5" />
+      </svg>
+    </span>
+  );
+}
+export function ArtemisLogo({ size = 48 }: { size?: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 48 48"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M35 9.17A16 16 0 1 0 35 38.83A15.2 15.2 0 0 1 35 9.17Z" />
+      {size >= 32 && <path d="M35 9.17V38.83" />}
     </svg>
   );
 }

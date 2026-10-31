@@ -12208,7 +12208,8 @@ function registerIpc(): void {
       const context = await workspaceForGitRequest(projectId, threadId);
       if (
         smokeMode &&
-        process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment-pr-checks")
+        (process.env.ARTEMIS_SMOKE_VIEW?.startsWith("environment-pr-checks") ||
+          process.env.ARTEMIS_SMOKE_VIEW?.startsWith("icon-sizing-environment"))
       ) {
         const gitInfo = await inspectGitBranches(context.workspacePath);
         const checks: ProjectPullRequestCheck[] =
@@ -18895,6 +18896,10 @@ function createMainWindow(): BrowserWindow {
                       trigger?.click();
                       await wait(500);
                     }
+                    if (view === 'icon-sizing-environment') {
+                      document.querySelector('.environment-pr-check-summary')?.click();
+                      await wait(300);
+                    }
                     if (view === 'icon-sizing-environment-branch-menu') {
                       document
                         .querySelector(
@@ -22664,13 +22669,13 @@ function createMainWindow(): BrowserWindow {
                               ".environment-row-icon svg:not(.child-agent-mark)",
                             ),
                             "environment-header-action": measure(
-                              ".environment-header-action svg",
+                              ".environment-section .environment-header-action svg",
                             ),
                             "environment-chevron": measure(
                               ".environment-chevron svg",
                             ),
                             "environment-external": measure(
-                              ".environment-external svg",
+                              ".environment-check-list i svg",
                             ),
                             "environment-branch-search": measure(
                               ".environment-branch-search > svg",
