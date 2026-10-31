@@ -22849,12 +22849,16 @@ function createMainWindow(): BrowserWindow {
                           ? document.querySelector(rootSelector)
                           : null;
                         const rootBounds = root?.getBoundingClientRect();
+                        const headerActions = secondaryPagesView === "secondary-pages-automations"
+                          ? document.querySelector(".management-header-action")
+                          : null;
                         const publicComponentCount = (component) => {
                           const selector =
                             '[data-artemis-component="' + component + '"]';
                           return (
                             (root?.matches(selector) ? 1 : 0) +
-                            (root?.querySelectorAll(selector).length ?? 0)
+                            (root?.querySelectorAll(selector).length ?? 0) +
+                            (headerActions?.querySelectorAll(selector).length ?? 0)
                           );
                         };
                         return {
@@ -22950,6 +22954,16 @@ function createMainWindow(): BrowserWindow {
                                       width: bounds.width,
                                       height: bounds.height,
                                       lineHeight: Number.parseFloat(getComputedStyle(heading).lineHeight),
+                                    };
+                                  })(),
+                                  headerCreateAction: (() => {
+                                    const buttons = [...(headerActions?.querySelectorAll(".automation-create-button") ?? [])];
+                                    const button = buttons[0];
+                                    return {
+                                      count: buttons.length,
+                                      publicButton: button?.getAttribute("data-artemis-component") === "button",
+                                      visible: Boolean(button?.checkVisibility({ visibilityProperty: true })),
+                                      accessibleName: button?.getAttribute("aria-label")?.trim() || button?.textContent?.trim() || null,
                                     };
                                   })(),
                                   cardCount:
