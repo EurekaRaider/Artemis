@@ -10685,7 +10685,7 @@ export function AgentTeamPanel({
                   className={`agent-team-member ${member.status}`}
                   key={member.agentId}
                   style={{
-                    paddingInlineStart: 12 + ((member.depth ?? 1) - 1) * 16,
+                    paddingInlineStart: ((member.depth ?? 1) - 1) * 16,
                   }}
                 >
                   {childCount > 0 ? (

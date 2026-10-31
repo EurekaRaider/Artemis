@@ -21,6 +21,8 @@ import {
 
 import type { WorkspaceFileLink } from "../../shared/api.js";
 import { type McpGroup, groupMcpUsage } from "../workspace/EnvironmentPanel.js";
+import { WorkspaceFileIcon } from "../workspace/WorkspaceFilesPanel.js";
+import { filePresentation } from "../workspace/workspace-file-presentation.js";
 
 const labels = UI_COPY.SourcesPanel_labels satisfies Record<
   AppLocale,
@@ -109,8 +111,16 @@ function WebIcon() {
   return <ArtemisIcon name="web" />;
 }
 
-function AttachmentIcon({ image }: { image: boolean }) {
-  return <ArtemisIcon name={image ? "image" : "file"} />;
+function AttachmentIcon({ image, name }: { image: boolean; name: string }) {
+  return image ? (
+    <ArtemisIcon name="image" />
+  ) : (
+    <WorkspaceFileIcon
+      path={name}
+      presentation={filePresentation(name)}
+      symlink={false}
+    />
+  );
 }
 
 function SourceCard({
@@ -469,7 +479,7 @@ export function SourcesPanel({
                 />
               ) : (
                 <SourceEntryIcon>
-                  <AttachmentIcon image={image} />
+                  <AttachmentIcon image={image} name={attachment.name} />
                 </SourceEntryIcon>
               )}
               <SourceEntryBody>
@@ -520,7 +530,10 @@ export function SourcesPanel({
                 />
               ) : (
                 <SourceEntryIcon>
-                  <AttachmentIcon image={source.kind === "image"} />
+                  <AttachmentIcon
+                    image={source.kind === "image"}
+                    name={source.name}
+                  />
                 </SourceEntryIcon>
               )}
               <SourceEntryBody>

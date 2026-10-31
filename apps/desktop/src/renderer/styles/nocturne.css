@@ -2706,3 +2706,102 @@
   margin-block-start: auto;
   border-block-start: 1px solid var(--artemis-color-border-subtle);
 }
+
+.app-shell :is(.agent-team-panel, .sources-panel) {
+  background: var(--artemis-color-canvas);
+}
+.app-shell .agent-team-header {
+  min-block-size: 42px;
+  padding: 0 14px;
+}
+.app-shell .agent-team-header strong {
+  font-size: 13px;
+}
+.app-shell .agent-team-grid {
+  padding: 12px 14px;
+  gap: 16px;
+}
+.app-shell :is(.agent-team-members, .agent-team-collaboration) h3 {
+  margin-block-end: 6px;
+  letter-spacing: 0;
+}
+.app-shell .agent-team-member {
+  padding-inline-end: 0;
+  border: 0;
+  border-radius: 0;
+  text-align: start;
+}
+.app-shell .agent-team-member-open {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 10px 0;
+  text-align: start;
+}
+.app-shell .agent-team-member-open > .child-agent-mark {
+  box-sizing: border-box;
+  inline-size: 30px;
+  block-size: 30px;
+  padding: 7px;
+  border-radius: 9px;
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .agent-team-member.running {
+  background: var(--artemis-color-surface-raised);
+}
+.app-shell .agent-team-member.running .child-agent-mark {
+  background: var(--nocturne-gold-halo);
+}
+.app-shell .agent-team-member-summary {
+  gap: 2px;
+}
+.app-shell .agent-team-message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app-shell .agent-team-message {
+  padding: 0;
+  padding-inline-start: 52px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.app-shell .agent-team-message header {
+  gap: 4px;
+  line-height: 1.5;
+}
+.app-shell .agent-team-message header strong {
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.app-shell .agent-team-message header time {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 44px;
+  margin: 0;
+  color: var(--artemis-color-text-tertiary);
+  font: 11.5px/1.65 var(--mono-font);
+  direction: ltr;
+}
+.app-shell .agent-team-message p {
+  margin: 0;
+  color: var(--artemis-color-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.app-shell .sources-panel-scroll {
+  padding: 12px 14px;
+}
+.app-shell .sources-panel-entry.attachment {
+  grid-template-columns: 30px minmax(0, 1fr);
+  padding: 10px 0;
+}
+.app-shell .sources-panel-entry.attachment :is(.sources-panel-icon, .workspace-file-kind, .seti-file-icon, .seti-file-icon svg),
+.app-shell .sources-panel-entry.attachment > img {
+  inline-size: 30px;
+  block-size: 30px;
+  max-inline-size: 30px;
+}
