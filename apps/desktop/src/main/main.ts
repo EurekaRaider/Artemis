@@ -16100,19 +16100,19 @@ async function driveSmokeNavigationControlsEvidence(
     },
     "markdown-editor-navigation-toolbar": {
       activation: "Space",
-      expectedLabel: "Rich text",
+      expectedLabel: "Source",
       rootSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
       targetSelector:
-        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-file-layout"] [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="false"]',
     },
     "markdown-editor-navigation-preview": {
       activation: "Space",
-      expectedLabel: "Rich text",
+      expectedLabel: "Source",
       rootSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"]',
       targetSelector:
-        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="icon-button"]',
+        '[data-artemis-component="workspace-tab-pane"][data-state="active"] > [data-artemis-component="workspace-editor-toolbar"] [data-part="mode"] [data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="false"]',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
