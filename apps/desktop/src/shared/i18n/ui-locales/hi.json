@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "रोकें",
   "ComputerUse.takeOver": "नियंत्रण लें",
   "ComputerUse.returnControl": "Artemis को नियंत्रण लौटाएँ",
-  "Review.sendToArtemis": "Artemis को भेजें"
+  "Review.sendToArtemis": "Artemis को भेजें",
+  "DecisionCard.previousQuestion": "पिछला प्रश्न",
+  "DecisionCard.nextQuestion": "अगला प्रश्न",
+  "DecisionCard.changeModel": "मॉडल बदलें"
 }

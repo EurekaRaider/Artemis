@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "إيقاف مؤقت",
   "ComputerUse.takeOver": "تولّي التحكم",
   "ComputerUse.returnControl": "إعادة التحكم إلى Artemis",
-  "Review.sendToArtemis": "إرسال إلى Artemis"
+  "Review.sendToArtemis": "إرسال إلى Artemis",
+  "DecisionCard.previousQuestion": "السؤال السابق",
+  "DecisionCard.nextQuestion": "السؤال التالي",
+  "DecisionCard.changeModel": "تغيير النموذج"
 }

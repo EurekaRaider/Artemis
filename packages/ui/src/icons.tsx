@@ -870,12 +870,16 @@ export function ArtemisLogo({ size = 48 }: { size?: number }) {
       viewBox="0 0 48 48"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="1.4"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M35 9.17A16 16 0 1 0 35 38.83A15.2 15.2 0 0 1 35 9.17Z" />
-      {size >= 32 && <path d="M35 9.17V38.83" />}
+      <path
+        d="M35 9.17A16 16 0 1 0 35 38.83A15.2 15.2 0 0 1 35 9.17Z"
+        fill="currentColor"
+        stroke="none"
+      />
+      {size >= 32 && <path d="M35 9.17V38.83" opacity="0.6" />}
     </svg>
   );
 }

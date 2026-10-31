@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "暂停",
   "ComputerUse.takeOver": "接管",
   "ComputerUse.returnControl": "交还给 Artemis",
-  "Review.sendToArtemis": "发送给 Artemis"
+  "Review.sendToArtemis": "发送给 Artemis",
+  "DecisionCard.previousQuestion": "上一题",
+  "DecisionCard.nextQuestion": "下一题",
+  "DecisionCard.changeModel": "换个模型"
 }

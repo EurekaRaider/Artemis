@@ -395,6 +395,7 @@ import {
   type BooleanPreferencePersistenceQueue,
 } from "./boolean-preference-persistence.js";
 import {
+  latestFailedTurnPrompt,
   reduceTurnFailureNotices,
   type TurnFailureNotices,
 } from "../conversation/turn-failure-notices.js";
@@ -3568,27 +3569,6 @@ export function App() {
   const activeTurnFailure = activeThreadId
     ? turnFailureNotices[activeThreadId]
     : undefined;
-  const turnFailureBanner = activeTurnFailure ? (
-    <div className="turn-error-banner" role="alert">
-      <span>{activeTurnFailure}</span>
-      <button
-        aria-label={t.dismissTurnError}
-        onClick={() =>
-          activeThreadId &&
-          setTurnFailureNotices((current) =>
-            reduceTurnFailureNotices(current, {
-              type: "dismiss",
-              threadId: activeThreadId,
-            }),
-          )
-        }
-        title={t.dismissTurnError}
-        type="button"
-      >
-        <CloseIcon />
-      </button>
-    </div>
-  ) : null;
   const dockWidthBounds = workspaceDockWidthBounds(
     workspaceContent.current?.clientWidth ?? window.innerWidth,
     window.innerWidth,
@@ -4161,6 +4141,68 @@ export function App() {
     );
   }, [switchableModels, modelFilter, locale]);
   const modelPickerThinkingLevels = thinkingLevelsForModel(activeModel);
+  const failedTurnPrompt = activeTurnFailure
+    ? latestFailedTurnPrompt(threadState)
+    : undefined;
+  const turnFailureBanner = activeTurnFailure ? (
+    <div className="turn-error-banner" role="alert">
+      <span>{activeTurnFailure}</span>
+      {!activeThread?.archived && (
+        <div className="turn-error-actions">
+          {failedTurnPrompt && (
+            <button
+              type="button"
+              disabled={
+                busy ||
+                turnActive ||
+                Boolean(pendingComposerDecision) ||
+                Boolean(prompt.trim()) ||
+                attachments.length > 0 ||
+                selectedComposerSkillNames.length > 0 ||
+                customAgentTasks.length > 0
+              }
+              onClick={() => editConversationMessage(failedTurnPrompt)}
+            >
+              {t.editAndResend}
+            </button>
+          )}
+          <button
+            type="button"
+            disabled={
+              busy ||
+              turnActive ||
+              Boolean(pendingComposerDecision) ||
+              switchableModels.length === 0
+            }
+            onClick={() => {
+              setApprovalMenuOpen(false);
+              setModelPickerSection("model");
+              setModelFilter("");
+              setModelPickerOpen(true);
+            }}
+          >
+            {uiText(locale, "DecisionCard.changeModel")}
+          </button>
+        </div>
+      )}
+      <button
+        aria-label={t.dismissTurnError}
+        onClick={() =>
+          activeThreadId &&
+          setTurnFailureNotices((current) =>
+            reduceTurnFailureNotices(current, {
+              type: "dismiss",
+              threadId: activeThreadId,
+            }),
+          )
+        }
+        title={t.dismissTurnError}
+        type="button"
+      >
+        <CloseIcon />
+      </button>
+    </div>
+  ) : null;
 
   const switchComposerModel = useCallback(
     async (model: SettingsSnapshot["models"][number]) => {

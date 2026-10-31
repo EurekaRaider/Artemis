@@ -119,7 +119,10 @@ describe("decisions share the composer", () => {
     const composer = screen.getByRole("region", { name: "发送消息" });
     expect(screen.queryByRole("textbox", { name: "消息草稿" })).toBeNull();
     expect(within(composer).getByText("选择布局")).toBeInTheDocument();
-    expect(composer.lastElementChild).toContainElement(
+    expect(composer).not.toContainElement(
+      screen.getByRole("button", { name: "停止任务" }),
+    );
+    expect(composer.nextElementSibling).toContainElement(
       screen.getByRole("button", { name: "停止任务" }),
     );
     await user.click(within(composer).getByRole("button", { name: /简洁/ }));
