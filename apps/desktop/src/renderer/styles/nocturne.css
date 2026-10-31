@@ -362,6 +362,14 @@
 .app-shell .composer-context {
   min-inline-size: 0;
 }
+.app-shell .branch-context-trigger > span,
+.app-shell .branch-context-menu .branch-list > button strong {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  font-weight: 400;
+}
 .app-shell .composer-toolbar {
   flex-wrap: nowrap;
   gap: 8px;
