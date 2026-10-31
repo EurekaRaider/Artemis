@@ -20195,20 +20195,20 @@ function createMainWindow(): BrowserWindow {
                         ...document.querySelectorAll('.resource-management-row'),
                       ].find(
                         (candidate) =>
-                          candidate.querySelector('strong')?.textContent?.trim() ===
+                          candidate.querySelector('.resource-mcp-name')?.textContent?.trim() ===
                           serverName,
                       );
                       return seededRow
                         ? {
                             stateText:
                               seededRow
-                                .querySelector('.resource-mcp-chips > [data-state]')
+                                .querySelector('.resource-mcp-connection')
                                 ?.textContent?.trim() ?? null,
                           }
                         : null;
                     };
                     // Zero-dial evidence (PR8 review F2/F3): both seeded rows
-                    // must render their offline state ("Disabled · N tools"),
+                    // must render their offline state ("Disabled"),
                     // proving the fixtures entered mcp.json with enabled:false
                     // and were never auto-connected at startup.
                     window.__mcpEditorSeedRow = readSeedRowByName(
@@ -20258,7 +20258,7 @@ function createMainWindow(): BrowserWindow {
                       ...document.querySelectorAll('.resource-management-row'),
                     ].find(
                       (candidate) =>
-                        candidate.querySelector('strong')?.textContent?.trim() ===
+                        candidate.querySelector('.resource-mcp-name')?.textContent?.trim() ===
                         serverName,
                     );
                     if (!row) {
@@ -22574,7 +22574,7 @@ function createMainWindow(): BrowserWindow {
                           ?.textContent?.trim() ?? null,
                       manageServerNames: [
                         ...document.querySelectorAll(
-                          '.resource-management-list .resource-management-row strong',
+                          '.resource-management-list .resource-mcp-row .resource-mcp-name',
                         ),
                       ].map((name) => name.textContent?.trim() ?? ''),
                       focusTag: document.activeElement?.tagName ?? null,
