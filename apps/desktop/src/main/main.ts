@@ -16058,16 +16058,16 @@ async function driveSmokeFormControlsEvidence(
   }
 
   if (view === "turn-changes-form-controls") {
-    await evaluate(`window.__reviewScopeRoot = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]'); window.__reviewScopeBefore = window.__reviewScopeRoot.querySelector('[aria-pressed="true"]');`);
+    await evaluate(`window.__reviewScopeRoot = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]'); window.__reviewScopeBefore = window.__reviewScopeRoot.querySelector('[aria-pressed="true"]').textContent.trim();`);
     await pressKey("Tab", 9);
     await pressKey("Enter", 13);
     await wait(350);
-    const changed = await evaluate<boolean>(`window.__reviewScopeBefore.getAttribute('aria-pressed') === 'false'`);
-    if (!changed) throw new Error("Review scope did not activate from the keyboard.");
-    await evaluate(`window.__reviewScopeBefore.focus()`);
-    await pressKey("Enter", 13);
-    await wait(350);
-    await evaluate(`window.__formControlsInteraction = { keyboardActivated: true, rootStable: window.__reviewScopeRoot === document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]'), restored: window.__reviewScopeBefore.getAttribute('aria-pressed') === 'true' }`);
+    const interaction = await evaluate<{keyboardActivated: boolean; rootStable: boolean}>(`(() => {
+      const root = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]');
+      window.__formControlsInteraction = { keyboardActivated: root?.querySelector('[aria-pressed="true"]')?.textContent.trim() !== window.__reviewScopeBefore, rootStable: root === window.__reviewScopeRoot };
+      return window.__formControlsInteraction;
+    })()`);
+    if (!interaction.keyboardActivated || !interaction.rootStable) throw new Error("Review scope did not activate from the keyboard.");
     return;
   }
 
