@@ -3525,7 +3525,7 @@ export function ResourceCenter({
               </Button>
             </div>
           }
-          className="resource-management-section"
+          className="resource-management-section resource-mcp-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
           role="tabpanel"
@@ -3609,7 +3609,7 @@ export function ResourceCenter({
               </div>
             </ManagementCard>
           )}
-          <div className="resource-management-list grouped">
+          <div className="resource-management-list resource-mcp-list grouped">
             {visibleMcp.map((server) => {
               const owner = owningPluginForMcp(server);
               const displayName = owner
@@ -3667,66 +3667,67 @@ export function ResourceCenter({
                       />
                     </div>
                   }
-                  className="resource-management-row"
+                  className="resource-management-row resource-mcp-row"
                   description={
-                    <>
-                      <span>
-                        {owner
-                          ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · `
-                          : ""}
-                        {server.tools.length} {t.tools}
-                        {server.error ? ` · ${server.error}` : ""}
-                      </span>
-                      <span className="resource-mcp-chips">
-                        <span data-state={server.state}>
-                          {!server.config.enabled
-                            ? t.disabled
-                            : server.state === "connected"
-                              ? t.connected
-                              : statusText(locale, server.state)}
-                        </span>
-                        {server.config.transport === "stdio" ? (
-                          <>
-                            <span
-                              title={uiText(
-                                locale,
-                                server.config.fullAccess
-                                  ? "McpServerEditor_labels.mcpFullAccessHint"
-                                  : "McpServerEditor_labels.mcpAllowNetworkHint",
-                              )}
-                            >
-                              <ArtemisIcon
-                                name={
-                                  server.config.fullAccess ? "lock" : "sandbox"
-                                }
-                              />
-                              {server.config.fullAccess
-                                ? uiText(
-                                    locale,
-                                    "McpServerEditor_labels.mcpFullAccess",
-                                  )
-                                : uiText(locale, "ResourceCenter.sandbox")}
-                            </span>
-                            <span>
-                              {uiText(
-                                locale,
-                                "McpServerEditor_labels.mcpAllowNetwork",
-                              )}
-                              :{" "}
-                              {server.config.fullAccess ||
-                              server.config.allowNetwork
-                                ? t.enabled
-                                : t.disabled}
-                            </span>
-                          </>
-                        ) : (
-                          <span>
-                            <ArtemisIcon name="browser" />
-                            {server.config.transport}
+                    <span className="resource-mcp-chips">
+                      {server.config.transport === "stdio" ? (
+                        <>
+                          <span
+                            data-mode={
+                              server.config.fullAccess
+                                ? "compatibility"
+                                : "sandbox"
+                            }
+                            title={uiText(
+                              locale,
+                              server.config.fullAccess
+                                ? "McpServerEditor_labels.mcpFullAccessHint"
+                                : "McpServerEditor_labels.mcpAllowNetworkHint",
+                            )}
+                          >
+                            <ArtemisIcon
+                              name={
+                                server.config.fullAccess ? "lock" : "sandbox"
+                              }
+                            />
+                            {server.config.fullAccess
+                              ? uiText(
+                                  locale,
+                                  "McpServerEditor_labels.mcpFullAccess",
+                                )
+                              : uiText(locale, "ResourceCenter.sandbox")}
                           </span>
-                        )}
+                          <span>
+                            {uiText(
+                              locale,
+                              "McpServerEditor_labels.mcpAllowNetwork",
+                            )}
+                            :{" "}
+                            {server.config.fullAccess ||
+                            server.config.allowNetwork
+                              ? t.enabled
+                              : t.disabled}
+                          </span>
+                        </>
+                      ) : (
+                        <span>
+                          <ArtemisIcon name="browser" />
+                          {server.config.transport}
+                        </span>
+                      )}
+                      <span
+                        className="resource-mcp-connection"
+                        data-state={
+                          server.config.enabled ? server.state : "disabled"
+                        }
+                      >
+                        {!server.config.enabled
+                          ? t.disabled
+                          : server.state === "connected"
+                            ? t.connected
+                            : statusText(locale, server.state)}
                       </span>
-                    </>
+                    </span>
                   }
                   key={server.config.id}
                   leading={
@@ -3739,7 +3740,18 @@ export function ResourceCenter({
                       name={displayName}
                     />
                   }
-                  title={displayName}
+                  title={
+                    <>
+                      <span className="resource-mcp-name">{displayName}</span>
+                      <span className="resource-mcp-tools">
+                        {owner
+                          ? `${t.fromPlugins}: ${pluginDisplayName(owner)} · `
+                          : ""}
+                        {server.tools.length} {t.tools}
+                        {server.error ? ` · ${server.error}` : ""}
+                      </span>
+                    </>
+                  }
                 />
               );
             })}
