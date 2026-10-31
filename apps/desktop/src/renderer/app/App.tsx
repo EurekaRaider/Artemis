@@ -1044,6 +1044,7 @@ export function App() {
   }>();
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [projectMenuId, setProjectMenuId] = useState<string>();
+  const projectMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [threadMenuId, setThreadMenuId] = useState<string>();
   const [sharingThreadId, setSharingThreadId] = useState<string>();
   const threadMenuAnchor = useRef<HTMLButtonElement | null>(null);
@@ -6472,8 +6473,11 @@ export function App() {
                       <Tooltip align="end" label={t.moreProjectActions}>
                         <button
                           aria-label={t.moreProjectActions}
+                          aria-haspopup="menu"
+                          aria-expanded={projectMenuId === project.id}
                           className="project-action"
-                          onClick={() => {
+                          onClick={(event) => {
+                            projectMenuAnchor.current = event.currentTarget;
                             setThreadMenuId(undefined);
                             setProjectMenuId((current) =>
                               current === project.id ? undefined : project.id,
@@ -6484,8 +6488,19 @@ export function App() {
                         </button>
                       </Tooltip>
                       {projectMenuId === project.id && (
-                        <div className="project-menu">
+                        <Popover
+                          anchorRef={projectMenuAnchor}
+                          align="end"
+                          className="project-menu"
+                          label={t.moreProjectActions}
+                          onOpenChange={(open) => {
+                            if (!open) setProjectMenuId(undefined);
+                          }}
+                          open
+                          role="menu"
+                        >
                           <button
+                            role="menuitem"
                             onClick={(event) => {
                               setHooksQuery({ projectId: project.id });
                               setProjectMenuId(undefined);
@@ -6496,6 +6511,7 @@ export function App() {
                             <span>{uiText(locale, "Hooks.title")}</span>
                           </button>
                           <button
+                            role="menuitem"
                             disabled={
                               hasActiveTask ||
                               !snapshot.threads.some(
@@ -6516,6 +6532,7 @@ export function App() {
                             <span>{uiText(locale, "App.inline7")}</span>
                           </button>
                           <button
+                            role="menuitem"
                             className="danger"
                             disabled={
                               hasActiveTask ||
@@ -6531,6 +6548,7 @@ export function App() {
                             <span>{uiText(locale, "App.inline8")}</span>
                           </button>
                           <button
+                            role="menuitem"
                             className="danger"
                             disabled={hasActiveTask}
                             onClick={() => void removeProject(project)}
@@ -6543,7 +6561,7 @@ export function App() {
                             <ArtemisIcon name="trash" width={16} height={16} />
                             <span>{t.removeProject}</span>
                           </button>
-                        </div>
+                        </Popover>
                       )}
                     </div>
                     {projectOpen && (
