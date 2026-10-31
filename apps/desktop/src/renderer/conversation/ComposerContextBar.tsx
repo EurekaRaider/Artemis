@@ -523,6 +523,7 @@ export function ComposerContextBar({
                     <label htmlFor="new-project-branch">{t.branchName}</label>
                     <input
                       autoFocus
+                      dir="auto"
                       disabled={Boolean(branchBusy)}
                       id="new-project-branch"
                       onChange={(event) => setNewBranchName(event.target.value)}
@@ -562,6 +563,7 @@ export function ComposerContextBar({
                       <SearchIcon />
                       <input
                         aria-label={t.searchBranches}
+                        dir="auto"
                         onChange={(event) => setBranchQuery(event.target.value)}
                         placeholder={t.searchBranches}
                         ref={branchSearchRef}
