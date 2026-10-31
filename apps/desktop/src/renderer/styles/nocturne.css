@@ -365,7 +365,8 @@
 .app-shell .composer-context-row:has(> .decision-approval-policy) {
   flex-wrap: wrap;
 }
-.app-shell .composer-context-row:has(> .decision-approval-policy)
+.app-shell
+  .composer-context-row:has(> .decision-approval-policy)
   > .composer-context {
   flex: 1 1 210px;
 }
@@ -484,7 +485,8 @@
   }
 }
 @container composer (max-width: 680px) {
-  .app-shell .composer-context-row:has(> .decision-approval-policy)
+  .app-shell
+    .composer-context-row:has(> .decision-approval-policy)
     > .composer-context:has(.branch-context-trigger) {
     flex-basis: 100%;
   }
