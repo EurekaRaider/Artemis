@@ -3189,8 +3189,8 @@ describe("default and synthetic stress skin conformance", () => {
     const navigationSnapshots = [
       ...container.querySelectorAll<HTMLElement>(navigationSelector),
     ].map(snapshotNavigationRoot);
-    // The editor exposes both Markdown modes as a persistent segmented control.
-    expect(navigationSnapshots).toHaveLength(9);
+    // Markdown modes and Settings theme are persistent segmented controls.
+    expect(navigationSnapshots).toHaveLength(10);
     expect(detailsTab.getAttribute("aria-selected")).toBe("true");
     expect(sourceSegment.getAttribute("aria-pressed")).toBe("true");
     expectCompleteTabRelations(container);
