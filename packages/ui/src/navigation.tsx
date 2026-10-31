@@ -473,11 +473,18 @@ export function Tabs<Value extends string>({
   );
 }
 
-export type SegmentedControlOption<Value extends string> =
-  NavigationOptionBase<Value>;
+export interface SegmentedControlOption<
+  Value extends string,
+> extends NavigationOptionBase<Value> {
+  readonly icon?: ReactNode;
+}
 
-export type SegmentedControlProps<Value extends string> =
-  CommonNavigationProps<Value> & SelectionProps<Value>;
+export type SegmentedControlProps<Value extends string> = Omit<
+  CommonNavigationProps<Value>,
+  "options"
+> & {
+  readonly options: readonly SegmentedControlOption<Value>[];
+} & SelectionProps<Value>;
 
 export function SegmentedControl<Value extends string>({
   className,
@@ -523,6 +530,7 @@ export function SegmentedControl<Value extends string>({
             onClick={() => select(option.value)}
             type="button"
           >
+            {option.icon && <span aria-hidden="true">{option.icon}</span>}
             {option.label}
           </button>
         );

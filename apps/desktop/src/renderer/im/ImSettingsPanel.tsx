@@ -749,24 +749,6 @@ export function ImSettingsPanel({
             <p>{t("ImSetupGuide.message26")}</p>
           </aside>
         </div>
-        <section id="im-prepare" tabIndex={-1}>
-          <ImGatewayInstructions t={t} onOpen={() => setAdvancedDetail(true)} />
-        </section>
-        <section id="im-device" tabIndex={-1}>
-          {/* 入口卡：点击进入整幅二级卡（与「高级」同模式）。 */}
-          <button
-            type="button"
-            className="im-gateway-fold"
-            onClick={() => setShowRemote(true)}
-          >
-            <span className="im-gateway-fold-head">
-              <span className="im-gateway-entry-icon">
-                <PlugsConnected size={20} weight="duotone" aria-hidden="true" />
-              </span>
-              {t("ImSettingsPanel.message46")}
-            </span>
-          </button>
-        </section>
       </>
     );
   }
@@ -2013,7 +1995,7 @@ export function ImSettingsPanel({
             {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
             <button
               type="button"
-              className="im-channel-row"
+              className="im-channel-row im-channel-group-row"
               onClick={(event) => {
                 groupDialogTrigger.current = event.currentTarget;
                 setChannelDetail(false);
@@ -2036,6 +2018,33 @@ export function ImSettingsPanel({
               </span>
               <span aria-hidden="true" className="im-capsule-btn">
                 {t("ImSettingsPanel.goGrant")}
+              </span>
+            </button>
+          </section>
+        </div>
+        <div className="im-advanced-entries">
+          <section id="im-prepare" tabIndex={-1}>
+            <ImGatewayInstructions
+              t={t}
+              onOpen={() => setAdvancedDetail(true)}
+            />
+          </section>
+          <section id="im-device" tabIndex={-1}>
+            {/* 入口卡：点击进入整幅二级卡（与「高级」同模式）。 */}
+            <button
+              type="button"
+              className="im-gateway-fold"
+              onClick={() => setShowRemote(true)}
+            >
+              <span className="im-gateway-fold-head">
+                <span className="im-gateway-entry-icon">
+                  <PlugsConnected
+                    size={20}
+                    weight="duotone"
+                    aria-hidden="true"
+                  />
+                </span>
+                {t("ImSettingsPanel.message46")}
               </span>
             </button>
           </section>
