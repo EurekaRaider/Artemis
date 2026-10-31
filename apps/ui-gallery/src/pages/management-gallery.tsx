@@ -17,7 +17,7 @@ import {
   ResourceSurface,
   SettingsSurface,
 } from "@artemis/ui/management";
-import { Tabs } from "@artemis/ui/navigation";
+import { SegmentedControl, Tabs } from "@artemis/ui/navigation";
 
 const SETTINGS_TABS = [
   {
@@ -39,6 +39,7 @@ export function ManagementGallery() {
     "general",
   );
   const [provider, setProvider] = useState("synthetic-provider");
+  const [material, setMaterial] = useState<"glass" | "solid">("glass");
   const [eventCount, setEventCount] = useState(0);
   const [networkAllowed, setNetworkAllowed] = useState(false);
   const [fullAccess, setFullAccess] = useState(false);
@@ -69,6 +70,18 @@ export function ManagementGallery() {
               role="tabpanel"
               title={option.value === "general" ? "Application" : "Provider"}
             >
+              {option.value === "general" && (
+                <SegmentedControl<"glass" | "solid">
+                  label="Interface material"
+                  onValueChange={setMaterial}
+                  options={[
+                    { value: "glass", label: "Liquid glass" },
+                    { value: "solid", label: "Opaque" },
+                  ]}
+                  size="compact"
+                  value={material}
+                />
+              )}
               <TextField
                 label={
                   option.value === "general" ? "Display name" : "Provider ID"

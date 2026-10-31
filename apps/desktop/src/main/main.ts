@@ -39,7 +39,12 @@ import {
   applyWindowsWindowMaterial,
   windowsTitleBarOverlay,
 } from "./appearance/windows-window-material.js";
-import type { WindowMaterial } from "../shared/window-material.js";
+import {
+  parseMaterialPreference,
+  shouldUseSolidMaterial,
+  type MaterialPreference,
+  type WindowMaterial,
+} from "../shared/window-material.js";
 import { HooksService, type HookContext } from "./hooks/hooks-service.js";
 import { migratePluginUserData } from "./plugins/plugin-data-migration.js";
 import {
@@ -555,6 +560,7 @@ interface PendingMultiUserInput {
 }
 
 let mainWindow: BrowserWindow | undefined;
+let materialPreference: MaterialPreference = "glass";
 let windowMaterial: WindowMaterial =
   process.platform === "darwin" ? "vibrancy" : "web";
 let store: AppStore | undefined;
@@ -892,7 +898,7 @@ function applyMacDockIcon(): void {
 
 function syncWindowBackgroundColors(): void {
   for (const window of BrowserWindow.getAllWindows()) {
-    if (process.platform === "win32" && window === mainWindow) {
+    if (window === mainWindow) {
       syncMainWindowMaterial(window);
     } else {
       window.setBackgroundColor(windowBackgroundColor());
@@ -904,17 +910,33 @@ function syncWindowBackgroundColors(): void {
 }
 
 function syncMainWindowMaterial(window: BrowserWindow): void {
-  if (process.platform !== "win32") return;
-  window.setTitleBarOverlay(
-    windowsTitleBarOverlay(nativeTheme.shouldUseDarkColors),
-  );
-  const next = applyWindowsWindowMaterial(window, {
-    release: osRelease(),
+  const preferences = {
+    material: materialPreference,
     dark: nativeTheme.shouldUseDarkColors,
     reducedTransparency: nativeTheme.prefersReducedTransparency,
     highContrast: nativeTheme.shouldUseHighContrastColors,
     forcedColors: nativeTheme.inForcedColorsMode,
-  });
+  };
+  const solid = shouldUseSolidMaterial(preferences);
+  let next: WindowMaterial;
+  if (process.platform === "win32") {
+    window.setTitleBarOverlay(windowsTitleBarOverlay(preferences.dark));
+    next = applyWindowsWindowMaterial(window, {
+      ...preferences,
+      release: osRelease(),
+    });
+  } else {
+    next = solid ? "solid" : process.platform === "darwin" ? "vibrancy" : "web";
+    if (process.platform === "darwin")
+      window.setVibrancy(solid ? null : "sidebar");
+    window.setBackgroundColor(
+      next === "vibrancy"
+        ? "#00000000"
+        : preferences.dark
+          ? "#141519"
+          : "#ffffff",
+    );
+  }
   if (next !== windowMaterial) {
     windowMaterial = next;
     window.webContents.send(IPC.windowMaterialChanged, next);
@@ -2371,6 +2393,7 @@ async function getSettingsSnapshot(): Promise<SettingsSnapshot> {
     encryptionAvailable: settingsStore.encryptionAvailable,
     language,
     theme,
+    material: await settingsStore.materialPreference(),
     preventSleep: await settingsStore.preventSleepPreference(),
     composerPredictions: await settingsStore.composerPredictionsPreference(),
     resolvedLocale: currentLocale(),
@@ -8512,6 +8535,17 @@ function registerIpc(): void {
       if (!settingsStore) throw new Error("Agent settings are not ready.");
       await settingsStore.setPreventSleepPreference(enabled);
       sleepPrevention.setEnabled(enabled);
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
+    IPC.settingsMaterialSet,
+    async (_event, value: unknown): Promise<SettingsSnapshot> => {
+      if (!settingsStore) throw new Error("Agent settings are not ready.");
+      const material = parseMaterialPreference(value);
+      await settingsStore.setMaterialPreference(material);
+      materialPreference = material;
+      syncWindowBackgroundColors();
       return getSettingsSnapshot();
     },
   );
@@ -21410,6 +21444,14 @@ function createMainWindow(): BrowserWindow {
                     document.documentElement.dataset.artemisTheme ?? null,
                   contrastMode:
                     document.documentElement.dataset.artemisContrast ?? null,
+                  interfaceMaterial: document.documentElement.dataset.material ?? null,
+                  nativeMaterial: ${JSON.stringify(windowMaterial)},
+                  chromeGeometry: {
+                    sidebarWidth: document.querySelector('.sidebar')?.getBoundingClientRect().width ?? null,
+                    headerHeight: document.querySelector('.workspace-header')?.getBoundingClientRect().height ?? null,
+                    sidebarBackground: (() => { const node = document.querySelector('.sidebar > [data-part="main"]'); return node ? getComputedStyle(node).backgroundColor : null; })(),
+                    sidebarBackdrop: (() => { const node = document.querySelector('.sidebar > [data-part="main"]'); return node ? getComputedStyle(node).backdropFilter : null; })(),
+                  },
                   windowInnerWidth: window.innerWidth,
                   windowInnerHeight: window.innerHeight,
                   workspaceWidth: workspaceBounds?.width ?? null,
@@ -24031,6 +24073,11 @@ app
       join(app.getPath("userData"), "AGENTS.md"),
     );
     nativeTheme.on("updated", syncWindowBackgroundColors);
+    if (smokeMode && process.env.ARTEMIS_SMOKE_MATERIAL) {
+      await settingsStore.setMaterialPreference(
+        parseMaterialPreference(process.env.ARTEMIS_SMOKE_MATERIAL),
+      );
+    }
     const smokeTheme = process.env.ARTEMIS_SMOKE_THEME;
     if (
       smokeMode &&
@@ -24040,6 +24087,7 @@ app
     ) {
       await settingsStore.setThemePreference(smokeTheme);
     }
+    materialPreference = await settingsStore.materialPreference();
     applyNativeTheme(await settingsStore.themePreference());
     languagePreference = await settingsStore.languagePreference();
     resolvedLocalePreference = resolveAppLocale(

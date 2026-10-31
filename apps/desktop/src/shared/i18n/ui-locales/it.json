@@ -2029,5 +2029,9 @@
   "Share.user": "Tu",
   "Share.assistant": "Artemis",
   "Share.tool": "Strumento",
-  "Share.offline": "Anteprima offline"
+  "Share.offline": "Anteprima offline",
+  "SettingsPanel.material": "Materiale dell’interfaccia",
+  "SettingsPanel.materialGlass": "Vetro liquido",
+  "SettingsPanel.materialSolid": "Opaco",
+  "SettingsPanel.materialHint": "Le preferenze di trasparenza e contrasto del sistema hanno la priorità."
 }

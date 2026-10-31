@@ -958,6 +958,13 @@ export function App() {
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>("agent");
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsSnapshot>();
+  const effectiveMaterial =
+    runtimeSettings?.material === "solid" || windowMaterial === "solid"
+      ? "solid"
+      : "glass";
+  useEffect(() => {
+    document.documentElement.dataset.material = effectiveMaterial;
+  }, [effectiveMaterial]);
   const [installingUpdate, setInstallingUpdate] = useState(false);
   const announcedUpdate = useRef<string | undefined>(undefined);
   const [pendingModelSelection, setPendingModelSelection] =
@@ -1173,15 +1180,10 @@ export function App() {
     [closeSidebarPeek],
   );
   const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
-  const [defaultProjectSidebarWidth, setDefaultProjectSidebarWidth] = useState(
-    () => (window.innerWidth <= 1100 ? 250 : PROJECT_SIDEBAR_WIDTH_DEFAULT),
-  );
+  const defaultProjectSidebarWidth = PROJECT_SIDEBAR_WIDTH_DEFAULT;
   useEffect(() => {
     let compact = window.innerWidth <= 1060;
     const resize = () => {
-      setDefaultProjectSidebarWidth(
-        window.innerWidth <= 1100 ? 250 : PROJECT_SIDEBAR_WIDTH_DEFAULT,
-      );
       const nextCompact = window.innerWidth <= 1060;
       if (nextCompact && !compact) changeSidebarOpen(false);
       compact = nextCompact;
@@ -5905,8 +5907,8 @@ export function App() {
 
   const navigationItems = [
     ["resources", uiText(locale, "App.inline5"), <ResourceIcon />],
-    ["token-usage", uiText(locale, "App.inline6"), <TokenUsageIcon />],
     ["automations", t.automations, <AutomationIcon />],
+    ["token-usage", uiText(locale, "App.inline6"), <TokenUsageIcon />],
     ["archive", uiText(locale, "App.archiveConversations"), <ArchiveIcon />],
   ] as const;
 
@@ -5924,6 +5926,7 @@ export function App() {
       data-sidebar-peek={(sidebarPeek && !sidebarOpen) || undefined}
       data-platform={snapshot.platform}
       data-window-material={windowMaterial}
+      data-material={effectiveMaterial}
       data-renderer-ready="true"
       sidebarOpen={sidebarOpen}
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
@@ -6185,6 +6188,17 @@ export function App() {
                 </button>
               </div>
             </div>
+            <button
+              type="button"
+              className="sidebar-new-task"
+              onClick={() => beginNewConversation()}
+            >
+              <ArtemisIcon name="edit-square" width={16} height={16} />
+              <span>{uiText(locale, "App.inline9")}</span>
+              <kbd aria-hidden="true">
+                {snapshot.platform === "darwin" ? "⌘N" : "Ctrl+N"}
+              </kbd>
+            </button>
             <PanelHeader
               actions={
                 <div className="sidebar-header-actions">
@@ -6223,14 +6237,6 @@ export function App() {
                   <span>{label}</span>
                 </button>
               ))}
-              <button
-                type="button"
-                className="nav-row"
-                onClick={() => beginNewConversation()}
-              >
-                <ArtemisIcon name="edit-square" />
-                <span>{uiText(locale, "App.inline9")}</span>
-              </button>
             </nav>
           </>
         }

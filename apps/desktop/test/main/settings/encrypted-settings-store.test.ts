@@ -41,6 +41,20 @@ async function createStore() {
 }
 
 describe("EncryptedSettingsStore", () => {
+  it("defaults to glass, persists the material and rejects unsupported values", async () => {
+    const { filePath, store } = await createStore();
+    expect(await store.materialPreference()).toBe("glass");
+    await store.setMaterialPreference("solid");
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    expect(await reopened.materialPreference()).toBe("solid");
+    await expect(
+      store.setMaterialPreference("wallpaper" as "glass"),
+    ).rejects.toThrow();
+    expect(await store.materialPreference()).toBe("solid");
+  });
   it("defaults composer predictions on and persists opting out", async () => {
     const { filePath, store } = await createStore();
     expect(await store.composerPredictionsPreference()).toBe(true);

@@ -1,4 +1,8 @@
 import {
+  parseMaterialPreference,
+  type MaterialPreference,
+} from "../../shared/window-material.js";
+import {
   parseSkinSelection,
   type SkinSelection,
 } from "../../shared/appearance.js";
@@ -53,6 +57,7 @@ interface PersistedSettings {
   addedModels?: AddedModelConfiguration[];
   language?: AppLanguage;
   theme?: AppTheme;
+  material?: MaterialPreference;
   skinSelection?: SkinSelection | null;
   preventSleep?: boolean;
   composerPredictions?: boolean;
@@ -358,6 +363,16 @@ export class EncryptedSettingsStore {
   async setSkinSelection(value: SkinSelection | null): Promise<void> {
     const settings = await this.load();
     settings.skinSelection = parseSkinSelection(value);
+    await this.save(settings);
+  }
+
+  async materialPreference(): Promise<MaterialPreference> {
+    return (await this.load()).material ?? "glass";
+  }
+  async setMaterialPreference(value: MaterialPreference): Promise<void> {
+    const material = parseMaterialPreference(value);
+    const settings = await this.load();
+    settings.material = material;
     await this.save(settings);
   }
 
@@ -862,6 +877,9 @@ export class EncryptedSettingsStore {
           typeof parsed.composerPredictions !== "boolean") ||
         (parsed.preventSleep !== undefined &&
           typeof parsed.preventSleep !== "boolean") ||
+        (parsed.material !== undefined &&
+          parsed.material !== "glass" &&
+          parsed.material !== "solid") ||
         (parsed.theme !== undefined &&
           !appThemeSchema.safeParse(parsed.theme).success) ||
         (parsed.approvalPolicy !== undefined &&

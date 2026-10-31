@@ -146,7 +146,7 @@ describe("token usage navigation", () => {
     expect(focusBranch).not.toContain("window.showInactive()");
   });
 
-  it("places usage immediately after resources in the integrated navigation and opens its page", () => {
+  it("places usage after automations in the integrated navigation and opens its page", () => {
     const start = appSource.indexOf('<nav className="sidebar-nav"');
     const navigation = appSource.slice(
       start,
@@ -156,8 +156,11 @@ describe("token usage navigation", () => {
     expect(appSource.search(/\[\s*"token-usage",/u)).toBeGreaterThan(
       appSource.search(/\[\s*"resources",/u),
     );
+    expect(appSource.search(/\[\s*"token-usage",/u)).toBeGreaterThan(
+      appSource.search(/\[\s*"automations",/u),
+    );
     expect(appSource.search(/\[\s*"automations",/u)).toBeGreaterThan(
-      appSource.search(/\[\s*"token-usage",/u),
+      appSource.search(/\[\s*"resources",/u),
     );
     expect(navigation).toContain("onClick={() => setActiveView(view)}");
     expect(navigation).toContain(
