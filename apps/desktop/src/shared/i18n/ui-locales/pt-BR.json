@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Chaves do sistema",
   "ResourceCenter.sandbox": "Sandbox",
   "SettingsPanel.newTaskDefaults": "Padrões para novas tarefas",
-  "SettingsPanel.defaultModel": "Modelo padrão"
+  "SettingsPanel.defaultModel": "Modelo padrão",
+  "Update.checking": "Verificando atualizações…",
+  "Update.toVersion": "Atualizar para v{{version}}",
+  "Update.readyWithTasks": "v{{version}} pronta · {{count}} tarefas em execução",
+  "Update.waitingForTasks": "A instalação aguardará o fim das tarefas em execução.",
+  "Update.later": "Mais tarde",
+  "Update.releaseNotes": "Notas completas da versão",
+  "ComputerUse.pause": "Pausar",
+  "ComputerUse.takeOver": "Assumir controle",
+  "ComputerUse.returnControl": "Devolver controle ao Artemis",
+  "Review.sendToArtemis": "Enviar para Artemis"
 }

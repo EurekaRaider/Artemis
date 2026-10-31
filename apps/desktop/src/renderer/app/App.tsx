@@ -1,3 +1,4 @@
+import { SidebarUpdateControl } from "../updates/SidebarUpdateControl.js";
 import { SegmentedControl } from "@artemis/ui/navigation";
 import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
 import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
@@ -958,7 +959,7 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.material = effectiveMaterial;
   }, [effectiveMaterial]);
-  const [installingUpdate, setInstallingUpdate] = useState(false);
+  const [updateAnnouncement, setUpdateAnnouncement] = useState<string>();
   const announcedUpdate = useRef<string | undefined>(undefined);
   const [pendingModelSelection, setPendingModelSelection] =
     useState<ModelSelection>();
@@ -1500,7 +1501,7 @@ export function App() {
     if (!version || announcedUpdate.current === version) return;
     announcedUpdate.current = version;
     if (claimUpdateAnnouncement(version)) {
-      setToast(uiText(locale, "Update.completed", { version }));
+      setUpdateAnnouncement(version);
     }
   }, [runtimeSettings?.update.completedVersion, locale, setToast]);
   const username = snapshot?.userName ?? t.local;
@@ -1600,6 +1601,10 @@ export function App() {
   // prompt state 落地后消费此标记并调用 sendPrompt（空闲直发、运行中
   // 走 followUpTurn 排队）；置 null 表示没有待自动发送的文本。
   const designPanelAutoSendText = useRef<{
+    draftKey: string;
+    text: string;
+  } | null>(null);
+  const reviewCommentAutoSendText = useRef<{
     draftKey: string;
     text: string;
   } | null>(null);
@@ -4695,6 +4700,7 @@ export function App() {
         setReviewComments((current) => [...current, comment]);
         setCommentLineId(undefined);
         setCommentBody("");
+        return comment;
       } catch (error) {
         setToast(error instanceof Error ? error.message : String(error));
       } finally {
@@ -5705,6 +5711,55 @@ export function App() {
     void sendPrompt();
   }, [activeComposerDraftKey, busy, prompt, retiredGroup, sendPrompt]);
 
+  // Review comments use the ordinary composer submission path, including
+  // its run mode, follow-up queue and approval checks. Never replace a draft.
+  useEffect(() => {
+    const pending = reviewCommentAutoSendText.current;
+    if (!pending) return;
+    if (
+      pending.draftKey !== activeComposerDraftKey ||
+      prompt.trim() !== pending.text ||
+      attachments.length > 0 ||
+      selectedSkills.length > 0 ||
+      customAgentTasks.length > 0
+    ) {
+      reviewCommentAutoSendText.current = null;
+      return;
+    }
+    if (busy || retiredGroup) return;
+    reviewCommentAutoSendText.current = null;
+    void sendPrompt();
+  }, [
+    activeComposerDraftKey,
+    attachments.length,
+    busy,
+    customAgentTasks.length,
+    prompt,
+    retiredGroup,
+    selectedSkills.length,
+    sendPrompt,
+  ]);
+
+  const sendReviewComment = async (lineId: string) => {
+    if (
+      busy ||
+      retiredGroup ||
+      prompt.trim() ||
+      attachments.length ||
+      selectedSkills.length ||
+      customAgentTasks.length
+    )
+      return;
+    const comment = await saveReviewComment(lineId);
+    if (!comment || activeThreadIdRef.current !== comment.threadId) return;
+    const text = `${comment.path}:${comment.newLine ?? comment.oldLine ?? 1}\n\n${comment.body}`;
+    reviewCommentAutoSendText.current = {
+      draftKey: activeComposerDraftKey,
+      text,
+    };
+    setPrompt((current) => (current.trim() ? current : text));
+  };
+
   const updateActiveGoal = useCallback(
     async (action: "pause" | "resume" | "clear") => {
       if (!activeThread || goalMutationPending) return;
@@ -6064,105 +6119,24 @@ export function App() {
                 </button>
               )}
             </span>
-            {runtimeSettings?.update.availableVersion && (
-              <button
-                className={
-                  runtimeSettings.update.state === "downloaded"
-                    ? "update-btn downloaded"
-                    : "update-btn"
+            {runtimeSettings && (
+              <SidebarUpdateControl
+                status={runtimeSettings.update}
+                locale={locale}
+                activeTaskCount={
+                  snapshot?.threads.filter(
+                    (thread) =>
+                      thread.status === "running" ||
+                      thread.status === "waiting-approval",
+                  ).length ?? 0
                 }
-                type="button"
-                aria-label={uiText(
-                  locale,
-                  runtimeSettings.update.state === "downloaded"
-                    ? "Update.install"
-                    : runtimeSettings.update.manualUpdate
-                      ? "Update.manualDownload"
-                      : "Update.download",
-                )}
-                title={`${uiText(locale, runtimeSettings.update.state === "downloaded" ? "Update.install" : runtimeSettings.update.manualUpdate ? "Update.manualDownload" : "Update.download")} · v${runtimeSettings.update.availableVersion}`}
-                disabled={
-                  installingUpdate ||
-                  ["checking", "downloading"].includes(
-                    runtimeSettings.update.state,
+                onStatus={(update) =>
+                  setRuntimeSettings((current) =>
+                    current ? { ...current, update } : current,
                   )
                 }
-                onClick={async () => {
-                  try {
-                    if (runtimeSettings.update.manualDownloadUrl) {
-                      window.open(
-                        runtimeSettings.update.manualDownloadUrl,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    } else if (runtimeSettings.update.state === "downloaded") {
-                      setInstallingUpdate(true);
-                      await window.artemis.installUpdate();
-                    } else {
-                      const update = await window.artemis.downloadUpdate();
-                      setRuntimeSettings((current) =>
-                        current ? { ...current, update } : current,
-                      );
-                      if (update.state === "error")
-                        setToast({
-                          error: true,
-                          message: update.message ?? update.state,
-                        });
-                    }
-                  } catch (error) {
-                    setInstallingUpdate(false);
-                    setToast({
-                      error: true,
-                      message:
-                        error instanceof Error ? error.message : String(error),
-                    });
-                  }
-                }}
-              >
-                {runtimeSettings.update.state === "downloaded" ? (
-                  uiText(
-                    locale,
-                    installingUpdate ? "Update.installing" : "Update.install",
-                  )
-                ) : (
-                  <ArtemisIcon name="download" />
-                )}
-              </button>
-            )}
-            {(runtimeSettings?.update.state === "downloading" ||
-              runtimeSettings?.update.state === "downloaded" ||
-              (runtimeSettings?.update.state === "error" &&
-                runtimeSettings.update.message)) && (
-              <div className="sidebar-update-progress">
-                {runtimeSettings.update.message &&
-                runtimeSettings.update.state !== "downloading" &&
-                !installingUpdate ? (
-                  <span role="alert">{runtimeSettings.update.message}</span>
-                ) : runtimeSettings.update.state === "downloading" ? (
-                  <>
-                    <span>
-                      {statusText(locale, "downloading")}{" "}
-                      <span>
-                        {Math.round(runtimeSettings.update.progress ?? 0)}%
-                      </span>
-                    </span>
-                    <progress
-                      aria-label={statusText(locale, "downloading")}
-                      max={100}
-                      value={runtimeSettings.update.progress ?? 0}
-                    />
-                  </>
-                ) : (
-                  <span role="status">
-                    {uiText(
-                      locale,
-                      installingUpdate
-                        ? "Update.installing"
-                        : "Update.downloaded",
-                    )}
-                  </span>
-                )}
-              </div>
+                onError={(message) => setToast({ error: true, message })}
+              />
             )}
           </div>
         }
@@ -9654,7 +9628,7 @@ ${model.providerId} · ${model.modelId}`}
                                                               {t.cancelComment}
                                                             </button>
                                                             <button
-                                                              className="primary-button compact"
+                                                              className="text-button"
                                                               disabled={
                                                                 reviewBusy ||
                                                                 !commentBody.trim()
@@ -9666,6 +9640,36 @@ ${model.providerId} · ${model.modelId}`}
                                                               }
                                                             >
                                                               {t.saveComment}
+                                                            </button>
+                                                            <button
+                                                              className="primary-button compact"
+                                                              disabled={
+                                                                reviewBusy ||
+                                                                busy ||
+                                                                Boolean(
+                                                                  retiredGroup,
+                                                                ) ||
+                                                                !commentBody.trim() ||
+                                                                Boolean(
+                                                                  prompt.trim(),
+                                                                ) ||
+                                                                attachments.length >
+                                                                  0 ||
+                                                                selectedSkills.length >
+                                                                  0 ||
+                                                                customAgentTasks.length >
+                                                                  0
+                                                              }
+                                                              onClick={() =>
+                                                                void sendReviewComment(
+                                                                  line.id,
+                                                                )
+                                                              }
+                                                            >
+                                                              {uiText(
+                                                                locale,
+                                                                "Review.sendToArtemis",
+                                                              )}
                                                             </button>
                                                           </span>
                                                         </div>
@@ -10282,6 +10286,36 @@ ${model.providerId} · ${model.modelId}`}
         </Dialog>
       )}
 
+      {updateAnnouncement && (
+        <Dialog
+          className="update-announcement"
+          label={uiText(locale, "Update.completed", {
+            version: updateAnnouncement,
+          })}
+          open
+          onOpenChange={(open) => {
+            if (!open) setUpdateAnnouncement(undefined);
+          }}
+        >
+          <ArtemisLogo size={48} />
+          <h2>
+            {uiText(locale, "Update.completed", {
+              version: updateAnnouncement,
+            })}
+          </h2>
+          <a
+            href={`https://github.com/EurekaRaider/Artemis/releases/tag/v${encodeURIComponent(updateAnnouncement)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {uiText(locale, "Update.releaseNotes")}{" "}
+            <ArtemisIcon name="external" />
+          </a>
+          <Button onClick={() => setUpdateAnnouncement(undefined)}>
+            {t.renameClose}
+          </Button>
+        </Dialog>
+      )}
       {settingsOpen && (
         <Suspense
           fallback={
@@ -11542,6 +11576,14 @@ export function Timeline({
             key={entry}
             kind="user"
           >
+            {imGroup && (
+              <div className="group-message-heading">
+                <span className="group-message-avatar">
+                  <ArtemisIcon name="user" />
+                </span>
+                <span>{imGroup.members[0]?.identity.channel}</span>
+              </div>
+            )}
             {files.length > 0 && (
               <div className="message-attachments">
                 {files.map((source) => (
@@ -11597,6 +11639,14 @@ export function Timeline({
           kind="assistant"
           state={turn?.status === "running" ? "streaming" : "ready"}
         >
+          {imGroup && (
+            <div className="group-message-heading">
+              <span className="group-message-avatar">
+                <ArtemisLogo size={20} />
+              </span>
+              <span>Artemis</span>
+            </div>
+          )}
           <MarkdownContent
             fileLinkIcons
             videoThreadId={state.threadId}
@@ -11700,7 +11750,10 @@ export function Timeline({
   };
 
   return (
-    <TimelineSurface className="timeline">
+    <TimelineSurface
+      className="timeline"
+      data-group={imGroup ? "true" : undefined}
+    >
       {groupedTimeline.turns.map(({ entries, turn }, turnIndex) => (
         <HistoryTurn
           key={`${state.threadId}:${turn.id}`}

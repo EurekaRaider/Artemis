@@ -43,6 +43,8 @@ export interface ReleaseUpdateStatus {
   manualUpdate?: boolean;
   completedVersion?: string;
   progress?: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
   rollbackAvailable: boolean;
   message?: string;
 }
@@ -167,6 +169,8 @@ export class ReleaseUpdateManager {
       this.update({
         state: "checking",
         progress: undefined,
+        downloadedBytes: undefined,
+        totalBytes: undefined,
         message: undefined,
       });
     });
@@ -184,6 +188,8 @@ export class ReleaseUpdateManager {
         upToDate: true,
         availableVersion: undefined,
         progress: undefined,
+        downloadedBytes: undefined,
+        totalBytes: undefined,
         message: undefined,
       });
     });
@@ -191,6 +197,13 @@ export class ReleaseUpdateManager {
       this.update({
         state: "downloading",
         progress: Math.max(0, Math.min(100, progress.percent)),
+        downloadedBytes: Number.isFinite(progress.transferred)
+          ? Math.max(0, progress.transferred)
+          : undefined,
+        totalBytes:
+          Number.isFinite(progress.total) && progress.total > 0
+            ? progress.total
+            : undefined,
       });
     });
     this.updater.on("update-downloaded", (info: UpdateInfo) => {
@@ -298,7 +311,13 @@ export class ReleaseUpdateManager {
     ) {
       throw new Error("No update is available to download");
     }
-    this.update({ state: "downloading", progress: 0, message: undefined });
+    this.update({
+      state: "downloading",
+      progress: 0,
+      downloadedBytes: undefined,
+      totalBytes: undefined,
+      message: undefined,
+    });
     try {
       await this.updater.downloadUpdate();
     } catch (error) {

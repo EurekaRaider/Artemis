@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@artemis/ui/actions";
 import { LoadingState } from "@artemis/ui/feedback";
 import { ArtemisIcon } from "@artemis/ui/icons";
@@ -38,7 +38,6 @@ const reasonKeys: Readonly<Record<string, UiMessageKey>> = {
 export function ComputerUseControls({
   locale,
   permissionsOnly = false,
-  nativeGlass = false,
 }: {
   locale: AppLocale;
   permissionsOnly?: boolean;
@@ -53,53 +52,25 @@ export function ComputerUseControls({
     ComputerPermission[] | undefined
   >();
   const [error, setError] = useState<string>();
-  const controlRef = useRef<HTMLElement>(null);
   const active = !permissionsOnly && state.state !== "idle";
   const reasonKey =
     state.reason && Object.hasOwn(reasonKeys, state.reason)
       ? reasonKeys[state.reason]
       : undefined;
-  useLayoutEffect(() => {
-    const control = controlRef.current;
-    const conversation = control?.closest<HTMLElement>(".conversation");
-    if (
-      !active ||
-      !control ||
-      !conversation ||
-      (!nativeGlass && !control.closest('.app-shell[data-platform="darwin"]'))
-    )
-      return;
-    const update = () => {
-      const pane = conversation.getBoundingClientRect();
-      const bar = control.getBoundingClientRect();
-      // The BrowserWindow already has its native material underneath.
-      // Cut only this rounded rectangle out of the opaque conversation canvas.
-      const mask = `<svg xmlns="http://www.w3.org/2000/svg" width="${pane.width}" height="${pane.height}"><defs><mask id="cutout"><rect width="100%" height="100%" fill="white"/><rect x="${bar.x - pane.x}" y="${bar.y - pane.y}" width="${bar.width}" height="${bar.height}" rx="12" fill="black"/></mask></defs><rect width="100%" height="100%" mask="url(#cutout)"/></svg>`;
-      conversation.style.setProperty(
-        "--computer-glass-mask",
-        `url('data:image/svg+xml,${encodeURIComponent(mask)}')`,
-      );
-      conversation.dataset.computerGlass = "true";
-      control.dataset.nativeGlass = "true";
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    // Also track banners/composer growth that moves the bar without resizing it.
-    for (
-      let element: HTMLElement | null = control;
-      element;
-      element = element.parentElement
-    ) {
-      observer.observe(element);
-      if (element === conversation) break;
-    }
-    return () => {
-      observer.disconnect();
-      delete control.dataset.nativeGlass;
-      delete conversation.dataset.computerGlass;
-      conversation.style.removeProperty("--computer-glass-mask");
-    };
-  }, [active, nativeGlass]);
+  const [elapsed, setElapsed] = useState(0);
+  const [takenOver, setTakenOver] = useState(false);
+  useEffect(() => {
+    setElapsed(0);
+    setTakenOver(false);
+  }, [state.threadId, state.target?.name]);
+  useEffect(() => {
+    if (!active || state.state === "paused") return;
+    const timer = window.setInterval(
+      () => setElapsed((value) => value + 1),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [active, state.state]);
   useEffect(() => {
     if (permissionsOnly || !window.artemis.onComputerState) return;
     let live = true;
@@ -146,7 +117,6 @@ export function ComputerUseControls({
   if (!permissionsOnly && state.state === "idle") return null;
   return (
     <aside
-      ref={controlRef}
       className={permissionsOnly ? "computer-permissions" : "computer-control"}
       aria-label={uiText(locale, "ComputerUse.title")}
     >
@@ -154,6 +124,9 @@ export function ComputerUseControls({
         <>
           <div className="computer-control-status" role="status">
             <ArtemisIcon name="monitor" aria-hidden="true" />
+            <span className="computer-control-timer">
+              {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
+            </span>
             <span className="computer-control-summary">
               <span
                 className="computer-control-name"
@@ -177,30 +150,77 @@ export function ComputerUseControls({
             </span>
           ) : null}
           <div className="computer-control-actions">
+            {state.state !== "paused" ? (
+              <>
+                <Button
+                  variant="quiet"
+                  icon={<ArtemisIcon name="pause" />}
+                  onClick={() =>
+                    run(async () => {
+                      if (state.threadId)
+                        await window.artemis.controlComputer(
+                          "stop",
+                          state.threadId,
+                        );
+                    })
+                  }
+                >
+                  {uiText(locale, "ComputerUse.pause")}
+                </Button>
+                <Button
+                  variant="quiet"
+                  icon={<ArtemisIcon name="cursor" />}
+                  onClick={() =>
+                    run(async () => {
+                      if (state.threadId) {
+                        await window.artemis.controlComputer(
+                          "stop",
+                          state.threadId,
+                        );
+                        setTakenOver(true);
+                      }
+                    })
+                  }
+                >
+                  {uiText(locale, "ComputerUse.takeOver")}
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="quiet"
+                icon={<ArtemisIcon name="play" />}
+                onClick={() =>
+                  run(async () => {
+                    if (state.threadId) {
+                      await window.artemis.controlComputer(
+                        "resume",
+                        state.threadId,
+                      );
+                      setTakenOver(false);
+                    }
+                  })
+                }
+              >
+                {takenOver
+                  ? uiText(locale, "ComputerUse.returnControl")
+                  : copy.resume}
+              </Button>
+            )}
             <Button
               className="computer-control-stop"
               variant="quiet"
-              icon={
-                <span
-                  className={
-                    state.state === "paused"
-                      ? "computer-resume-symbol"
-                      : "computer-stop-symbol"
-                  }
-                  aria-hidden="true"
-                />
-              }
+              icon={<ArtemisIcon name="stop" />}
               onClick={() =>
                 run(async () => {
                   if (state.threadId)
                     await window.artemis.controlComputer(
-                      state.state === "paused" ? "resume" : "stop",
+                      "stop",
                       state.threadId,
                     );
                 })
               }
             >
-              {state.state === "paused" ? copy.resume : copy.stop}
+              {copy.stop}
             </Button>
           </div>
         </>

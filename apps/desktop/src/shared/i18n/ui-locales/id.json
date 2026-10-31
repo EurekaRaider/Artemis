@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Rantai Kunci Sistem",
   "ResourceCenter.sandbox": "Sandbox",
   "SettingsPanel.newTaskDefaults": "Default tugas baru",
-  "SettingsPanel.defaultModel": "Model default"
+  "SettingsPanel.defaultModel": "Model default",
+  "Update.checking": "Memeriksa pembaruan…",
+  "Update.toVersion": "Perbarui ke v{{version}}",
+  "Update.readyWithTasks": "v{{version}} siap · {{count}} tugas berjalan",
+  "Update.waitingForTasks": "Instalasi akan menunggu tugas yang berjalan selesai.",
+  "Update.later": "Nanti",
+  "Update.releaseNotes": "Catatan rilis lengkap",
+  "ComputerUse.pause": "Jeda",
+  "ComputerUse.takeOver": "Ambil alih",
+  "ComputerUse.returnControl": "Kembalikan kendali ke Artemis",
+  "Review.sendToArtemis": "Kirim ke Artemis"
 }

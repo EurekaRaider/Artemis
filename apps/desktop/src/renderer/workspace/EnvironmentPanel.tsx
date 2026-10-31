@@ -27,7 +27,7 @@ import {
   type PromptAttachment,
   type TaskSourceState,
 } from "@artemis/protocol";
-import { Popover } from "@artemis/ui/feedback";
+import { LoadingState, Popover } from "@artemis/ui/feedback";
 import { ArtemisIcon, RunningArc } from "@artemis/ui/icons";
 import {
   EnvironmentControl,
@@ -1860,6 +1860,7 @@ export function EnvironmentPanel({
       />
       {panelVisible && (
         <EnvironmentPanelSurface
+          data-group={imGroup ? "true" : undefined}
           id={panelId}
           label={commitOpen ? t.commitOrPush : t.title}
           ref={panel}
@@ -1925,10 +1926,13 @@ export function EnvironmentPanel({
                         {t.retry}
                       </button>
                     </div>
-                  ) : (
+                  ) : gitInfo ? (
                     <div className="environment-setting-row" role="status">
-                      <span>{gitInfo ? t.notGit : t.loading}</span>
+                      <ArtemisIcon name="git-branch" />
+                      <span>{t.notGit}</span>
                     </div>
+                  ) : (
+                    <LoadingState label={t.loading} lines={3} />
                   )}
                 </EnvironmentSection>
               )}

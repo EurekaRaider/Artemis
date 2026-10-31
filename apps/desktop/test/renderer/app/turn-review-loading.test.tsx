@@ -76,8 +76,47 @@ it("keeps historical review stable during live output while preserving refresh a
     available: true,
     scope: query.scope,
     text: "",
-    files: [],
+    files: [
+      {
+        id: "file",
+        path: "audit.md",
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        binary: false,
+        untracked: false,
+        hunks: [
+          {
+            id: "hunk",
+            header: "@@ -1 +1 @@",
+            additions: 1,
+            deletions: 0,
+            lines: [
+              { id: "line", kind: "addition", text: "Review this", newLine: 1 },
+            ],
+          },
+        ],
+      },
+    ],
   }));
+  const addReviewComment = vi.fn(
+    async (input: {
+      threadId: string;
+      scope: string;
+      lineId: string;
+      body: string;
+    }) => ({
+      ...input,
+      id: "comment",
+      path: "audit.md",
+      kind: "addition",
+      text: "Review this",
+      newLine: 1,
+      createdAt: now,
+      updatedAt: now,
+    }),
+  );
+  const followUpTurn = vi.fn(async () => {});
   const pending = new Promise(() => {});
   let receiveEvents!: (events: AgentEvent[]) => void;
   const handlers: Record<string, unknown> = {
@@ -120,6 +159,8 @@ it("keeps historical review stable during live output while preserving refresh a
     },
     getReviewDiff,
     listReviewComments: async () => [],
+    addReviewComment,
+    followUpTurn,
     listInstalledSkills: async () => [],
     listArtemisPlugins: async () => [],
   };
@@ -195,9 +236,8 @@ it("keeps historical review stable during live output while preserving refresh a
 
   fireEvent.click(document.querySelector(".review-toolbar-action")!);
   await waitFor(() => expect(getReviewDiff).toHaveBeenCalledTimes(2));
-  fireEvent.click(document.querySelector(".review-scope-select button")!);
   fireEvent.click(
-    await screen.findByRole("option", { name: "Unstaged", exact: true }),
+    await screen.findByRole("button", { name: "Unstaged", exact: true }),
   );
   await waitFor(() =>
     expect(getReviewDiff).toHaveBeenLastCalledWith({
@@ -229,4 +269,27 @@ it("keeps historical review stable during live output while preserving refresh a
     threadId: "thread",
     scope: "unstaged",
   });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add inline comment", exact: true }),
+  );
+  fireEvent.change(screen.getByPlaceholderText("Write a review comment…"), {
+    target: { value: "Explain this change" },
+  });
+  const composer =
+    document.querySelector<HTMLTextAreaElement>(".composer textarea")!;
+  fireEvent.change(composer, { target: { value: "Unsent draft" } });
+  expect(
+    screen.getByRole("button", { name: "Send to Artemis" }),
+  ).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Save comment" })).toBeEnabled();
+  fireEvent.change(composer, { target: { value: "" } });
+  fireEvent.click(screen.getByRole("button", { name: "Send to Artemis" }));
+  await waitFor(() =>
+    expect(followUpTurn).toHaveBeenCalledWith({
+      threadId: "thread",
+      text: "audit.md:1\n\nExplain this change",
+    }),
+  );
+  expect(addReviewComment).toHaveBeenCalledOnce();
+  expect(composer.value).toBe("");
 });

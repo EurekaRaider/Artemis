@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Системная связка ключей",
   "ResourceCenter.sandbox": "Песочница",
   "SettingsPanel.newTaskDefaults": "Настройки новых задач",
-  "SettingsPanel.defaultModel": "Модель по умолчанию"
+  "SettingsPanel.defaultModel": "Модель по умолчанию",
+  "Update.checking": "Проверка обновлений…",
+  "Update.toVersion": "Обновить до v{{version}}",
+  "Update.readyWithTasks": "v{{version}} готова · выполняется задач: {{count}}",
+  "Update.waitingForTasks": "Установка начнётся после завершения текущих задач.",
+  "Update.later": "Позже",
+  "Update.releaseNotes": "Полное описание выпуска",
+  "ComputerUse.pause": "Пауза",
+  "ComputerUse.takeOver": "Взять управление",
+  "ComputerUse.returnControl": "Вернуть управление Artemis",
+  "Review.sendToArtemis": "Отправить Artemis"
 }

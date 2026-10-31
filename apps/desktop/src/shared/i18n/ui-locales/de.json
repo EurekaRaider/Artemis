@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Systemschlüsselbund",
   "ResourceCenter.sandbox": "Sandbox",
   "SettingsPanel.newTaskDefaults": "Vorgaben für neue Aufgaben",
-  "SettingsPanel.defaultModel": "Standardmodell"
+  "SettingsPanel.defaultModel": "Standardmodell",
+  "Update.checking": "Suche nach Updates…",
+  "Update.toVersion": "Auf v{{version}} aktualisieren",
+  "Update.readyWithTasks": "v{{version}} bereit · {{count}} Aufgaben laufen",
+  "Update.waitingForTasks": "Die Installation wartet auf den Abschluss laufender Aufgaben.",
+  "Update.later": "Später",
+  "Update.releaseNotes": "Vollständige Versionshinweise",
+  "ComputerUse.pause": "Pause",
+  "ComputerUse.takeOver": "Übernehmen",
+  "ComputerUse.returnControl": "An Artemis zurückgeben",
+  "Review.sendToArtemis": "An Artemis senden"
 }

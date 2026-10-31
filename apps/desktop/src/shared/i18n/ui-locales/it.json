@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Portachiavi di sistema",
   "ResourceCenter.sandbox": "Sandbox",
   "SettingsPanel.newTaskDefaults": "Valori predefiniti per nuove attività",
-  "SettingsPanel.defaultModel": "Modello predefinito"
+  "SettingsPanel.defaultModel": "Modello predefinito",
+  "Update.checking": "Ricerca aggiornamenti…",
+  "Update.toVersion": "Aggiorna a v{{version}}",
+  "Update.readyWithTasks": "v{{version}} pronta · {{count}} attività in corso",
+  "Update.waitingForTasks": "L’installazione attenderà la fine delle attività in corso.",
+  "Update.later": "Più tardi",
+  "Update.releaseNotes": "Note di rilascio complete",
+  "ComputerUse.pause": "Pausa",
+  "ComputerUse.takeOver": "Prendi il controllo",
+  "ComputerUse.returnControl": "Restituisci il controllo ad Artemis",
+  "Review.sendToArtemis": "Invia ad Artemis"
 }

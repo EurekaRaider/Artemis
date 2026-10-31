@@ -505,6 +505,8 @@ export interface ReleaseUpdateStatus {
   manualUpdate?: boolean;
   completedVersion?: string;
   progress?: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
   rollbackAvailable: boolean;
   message?: string;
 }

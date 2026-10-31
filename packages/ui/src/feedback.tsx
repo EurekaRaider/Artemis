@@ -1,4 +1,5 @@
 import {
+  Children,
   cloneElement,
   useEffect,
   useId,
@@ -519,6 +520,14 @@ export function Tooltip({
   const anchorRef = useRef<HTMLSpanElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const cancelHover = () => {
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = undefined;
+  };
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
   const [focused, setFocused] = useState(false);
   const pointerDown = useRef(false);
   const overlayId = useRef(Symbol("artemis-tooltip")).current;
@@ -551,6 +560,7 @@ export function Tooltip({
       if (event.key !== "Escape" || !isTopDismissibleOverlay(overlayId)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
+      cancelHover();
       setHovered(false);
       setFocused(false);
     };
@@ -580,8 +590,14 @@ export function Tooltip({
       onPointerCancel={() => {
         pointerDown.current = false;
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => {
+        cancelHover();
+        hoverTimer.current = setTimeout(() => setHovered(true), 500);
+      }}
+      onMouseLeave={() => {
+        cancelHover();
+        setHovered(false);
+      }}
       ref={anchorRef}
     >
       {cloneElement(children, { "aria-describedby": describedBy })}
@@ -977,7 +993,7 @@ export function ToastViewport({
       className={className}
       data-artemis-toast-viewport=""
     >
-      {children}
+      {Children.toArray(children).slice(-3)}
     </div>,
     target,
   );

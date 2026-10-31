@@ -2059,5 +2059,15 @@
   "Providers.keychain": "システムキーチェーン",
   "ResourceCenter.sandbox": "サンドボックス",
   "SettingsPanel.newTaskDefaults": "新しいタスクの既定値",
-  "SettingsPanel.defaultModel": "既定のモデル"
+  "SettingsPanel.defaultModel": "既定のモデル",
+  "Update.checking": "更新を確認中…",
+  "Update.toVersion": "v{{version}} に更新",
+  "Update.readyWithTasks": "v{{version}} の準備完了 · {{count}} 件実行中",
+  "Update.waitingForTasks": "実行中のタスクが完了してからインストールします。",
+  "Update.later": "後で",
+  "Update.releaseNotes": "すべてのリリースノート",
+  "ComputerUse.pause": "一時停止",
+  "ComputerUse.takeOver": "操作を引き継ぐ",
+  "ComputerUse.returnControl": "Artemis に操作を戻す",
+  "Review.sendToArtemis": "Artemis に送信"
 }

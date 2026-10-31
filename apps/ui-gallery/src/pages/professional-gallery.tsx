@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/icons/ArrowClockwise";
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/icons/ArrowLeft";
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/icons/ArrowRight";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   BrowserAddressForm,
   BrowserAddressInput,
@@ -46,16 +44,16 @@ export function ProfessionalGallery() {
         <BrowserToolbar label="Browser shell toolbar">
           <BrowserNavigation label="Browser history controls">
             <BrowserNavigationButton
-              icon={<ArrowLeftIcon weight="bold" />}
+              icon={<ArtemisIcon name="chev-left" />}
               label="Back"
             />
             <BrowserNavigationButton
               disabled
-              icon={<ArrowRightIcon weight="bold" />}
+              icon={<ArtemisIcon name="chev-right" />}
               label="Forward"
             />
             <BrowserNavigationButton
-              icon={<ArrowClockwiseIcon weight="bold" />}
+              icon={<ArtemisIcon name="refresh" />}
               label="Reload"
             />
           </BrowserNavigation>

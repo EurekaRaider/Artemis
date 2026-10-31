@@ -2059,5 +2059,15 @@
   "Providers.keychain": "系統鑰匙圈",
   "ResourceCenter.sandbox": "沙箱",
   "SettingsPanel.newTaskDefaults": "新任務預設設定",
-  "SettingsPanel.defaultModel": "預設模型"
+  "SettingsPanel.defaultModel": "預設模型",
+  "Update.checking": "正在檢查更新…",
+  "Update.toVersion": "更新至 v{{version}}",
+  "Update.readyWithTasks": "v{{version}} 已就緒 · {{count}} 個任務執行中",
+  "Update.waitingForTasks": "安裝會等執行中的任務結束。",
+  "Update.later": "稍後",
+  "Update.releaseNotes": "完整版本說明",
+  "ComputerUse.pause": "暫停",
+  "ComputerUse.takeOver": "接管",
+  "ComputerUse.returnControl": "交還給 Artemis",
+  "Review.sendToArtemis": "傳送給 Artemis"
 }

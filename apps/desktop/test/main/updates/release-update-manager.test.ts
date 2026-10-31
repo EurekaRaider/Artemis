@@ -178,7 +178,7 @@ describe("ReleaseUpdateManager", () => {
       transferred: 42,
       total: 100,
     });
-    expect(manager.getStatus().progress).toBe(42);
+    expect(manager.getStatus()).toMatchObject({progress: 42, downloadedBytes: 42, totalBytes: 100});
     await manager.check();
     expect(updater.checkForUpdates).not.toHaveBeenCalled();
     await expect(manager.download()).rejects.toThrow("No update");

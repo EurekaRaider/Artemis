@@ -2059,5 +2059,15 @@
   "Providers.keychain": "سلسلة مفاتيح النظام",
   "ResourceCenter.sandbox": "بيئة معزولة",
   "SettingsPanel.newTaskDefaults": "الإعدادات الافتراضية للمهام الجديدة",
-  "SettingsPanel.defaultModel": "النموذج الافتراضي"
+  "SettingsPanel.defaultModel": "النموذج الافتراضي",
+  "Update.checking": "جارٍ التحقق من التحديثات…",
+  "Update.toVersion": "التحديث إلى v{{version}}",
+  "Update.readyWithTasks": "v{{version}} جاهز · {{count}} مهام قيد التشغيل",
+  "Update.waitingForTasks": "سينتظر التثبيت انتهاء المهام الجارية.",
+  "Update.later": "لاحقًا",
+  "Update.releaseNotes": "ملاحظات الإصدار الكاملة",
+  "ComputerUse.pause": "إيقاف مؤقت",
+  "ComputerUse.takeOver": "تولّي التحكم",
+  "ComputerUse.returnControl": "إعادة التحكم إلى Artemis",
+  "Review.sendToArtemis": "إرسال إلى Artemis"
 }

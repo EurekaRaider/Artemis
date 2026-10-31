@@ -2059,5 +2059,15 @@
   "Providers.keychain": "系统钥匙串",
   "ResourceCenter.sandbox": "沙箱",
   "SettingsPanel.newTaskDefaults": "新任务默认设置",
-  "SettingsPanel.defaultModel": "默认模型"
+  "SettingsPanel.defaultModel": "默认模型",
+  "Update.checking": "正在检查更新…",
+  "Update.toVersion": "更新到 v{{version}}",
+  "Update.readyWithTasks": "v{{version}} 已就绪 · {{count}} 个任务运行中",
+  "Update.waitingForTasks": "安装会等运行中的任务结束。",
+  "Update.later": "稍后",
+  "Update.releaseNotes": "完整发布说明",
+  "ComputerUse.pause": "暂停",
+  "ComputerUse.takeOver": "接管",
+  "ComputerUse.returnControl": "交还给 Artemis",
+  "Review.sendToArtemis": "发送给 Artemis"
 }

@@ -717,6 +717,8 @@ export function GalleryApp() {
         </button>
         {toastVisible ? (
           <ToastViewport label="Gallery notifications">
+            <Toast tone="info">Resource index updated.</Toast>
+            <Toast tone="info">Review snapshot saved.</Toast>
             <Toast
               dismissLabel="Dismiss"
               onDismiss={() => setToastVisible(false)}

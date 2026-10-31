@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
 
-it("waits for the Review action before clicking and checking its Select", async () => {
+it("waits for the Review action before clicking and checking its SegmentedControl", async () => {
   const main = readFileSync(
     new URL("../../../src/main/main.ts", import.meta.url),
     "utf8",
@@ -17,6 +17,7 @@ it("waits for the Review action before clicking and checking its Select", async 
       opened = true;
     });
     closest = () => ({});
+    querySelectorAll = () => Array.from({ length: 4 }, () => ({}));
   }
   const button = new Button();
   const trigger = new Button();

@@ -310,7 +310,9 @@ describe("Feedback overlays", () => {
     );
     await user.hover(screen.getByRole("button", { name: "Add" }));
     expect(
-      screen.getByRole("tooltip", { name: "Add bot" }).closest("dialog"),
+      (await screen.findByRole("tooltip", { name: "Add bot" })).closest(
+        "dialog",
+      ),
     ).toBe(screen.getByRole("dialog", { name: "Settings" }));
   });
 
@@ -323,13 +325,15 @@ describe("Feedback overlays", () => {
     );
     const trigger = screen.getByRole("button", { name: "New" });
     await user.hover(trigger);
-    const tooltip = screen.getByRole("tooltip", { name: "Create task" });
+    const tooltip = await screen.findByRole("tooltip", { name: "Create task" });
     expect(trigger.getAttribute("aria-describedby")).toContain(tooltip.id);
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("tooltip", { name: "Create task" })).toBeNull();
     await user.unhover(trigger);
     await user.hover(trigger);
-    expect(screen.getByRole("tooltip", { name: "Create task" })).toBeTruthy();
+    expect(
+      await screen.findByRole("tooltip", { name: "Create task" }),
+    ).toBeTruthy();
   });
 
   it("dismisses a clicked computer tooltip on mouse leave and preserves keyboard focus", async () => {
@@ -343,7 +347,7 @@ describe("Feedback overlays", () => {
     );
     const trigger = screen.getByRole("img", { name: "电脑在线" });
     await user.click(trigger);
-    expect(screen.getByRole("tooltip")).toBeTruthy();
+    expect(await screen.findByRole("tooltip")).toBeTruthy();
     expect(document.activeElement).toBe(trigger);
     await user.unhover(trigger);
     expect(screen.queryByRole("tooltip")).toBeNull();
@@ -431,4 +435,42 @@ describe("Feedback states", () => {
     expect(screen.getByRole("alert").textContent).toContain("Try again");
     expect(screen.getByText("No tasks")).toBeTruthy();
   });
+});
+
+it("delays hover tooltips for 500ms and cancels a pending reveal on leave", () => {
+  vi.useFakeTimers();
+  try {
+    render(
+      <Tooltip label="Delayed">
+        <button>Target</button>
+      </Tooltip>,
+    );
+    const trigger = screen.getByRole("button", { name: "Target" });
+    fireEvent.mouseEnter(trigger);
+    act(() => vi.advanceTimersByTime(499));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.getByRole("tooltip").textContent).toBe("Delayed");
+    fireEvent.mouseLeave(trigger);
+    fireEvent.mouseEnter(trigger);
+    act(() => vi.advanceTimersByTime(250));
+    fireEvent.mouseLeave(trigger);
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("limits the notification stack to the three newest entries", () => {
+  render(
+    <ToastViewport label="Notifications">
+      {[1, 2, 3, 4].map((id) => (
+        <Toast key={id}>Notice {id}</Toast>
+      ))}
+    </ToastViewport>,
+  );
+  expect(
+    screen.getAllByRole("status").map((toast) => toast.textContent),
+  ).toEqual(["Notice 2", "Notice 3", "Notice 4"]);
 });

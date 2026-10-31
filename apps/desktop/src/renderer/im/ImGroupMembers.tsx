@@ -262,6 +262,9 @@ export function ImGroupMembers({
                   className="environment-setting-row"
                   role="listitem"
                   key={imIdentityKey(member.identity)}
+                  data-executing={
+                    member.self && Boolean(group.executingDeviceId)
+                  }
                 >
                   <span className="environment-setting-copy">
                     <strong
@@ -435,6 +438,7 @@ export function ImGroupMembers({
               <div
                 key={imIdentityKey(member.identity)}
                 className="environment-setting-row"
+                data-executing={member.deviceId === group.executingDeviceId}
                 role="listitem"
               >
                 <span className="environment-setting-copy">
@@ -483,21 +487,7 @@ export function ImGroupMembers({
                   >
                     <IconButton
                       className="im-member-action im-member-mention"
-                      icon={
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <circle cx="12" cy="12" r="4" />
-                          <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
-                        </svg>
-                      }
+                      icon={<ArtemisIcon name="at" width={14} height={14} />}
                       label={`@ ${member.name}`}
                       disabled={
                         !group.confirmed || member.state === "unavailable"

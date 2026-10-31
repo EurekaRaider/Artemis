@@ -1960,3 +1960,324 @@
   [data-artemis-component="segmented-control"] {
   flex-wrap: wrap;
 }
+
+/* Menus and utility overlays form the light chrome above opaque content. */
+.app-shell [role="menu"],
+[data-artemis-component="popover"][role="menu"],
+.environment-workspace-menu {
+  border-radius: 11px;
+  padding: 5px;
+  background: var(--artemis-color-surface-popover);
+  border: 1px solid var(--artemis-color-border-default);
+  box-shadow: var(--artemis-shadow-overlay);
+}
+:is(
+    .app-shell [role="menu"],
+    [data-artemis-component="popover"][role="menu"],
+    .environment-workspace-menu
+  )
+  :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]) {
+  min-block-size: 32px;
+  border-radius: 6px;
+  padding: 5px 8px;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+}
+:is(.app-shell [role="menu"], [data-artemis-component="popover"][role="menu"])
+  .danger {
+  color: var(--artemis-color-status-danger-text);
+  border-block-start: 1px solid var(--border-soft);
+  margin-block-start: 5px;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+:root[data-material="glass"]
+  :is(
+    [role="menu"],
+    .environment-workspace-menu,
+    [data-artemis-component="select"] [data-part="menu"]
+  ) {
+  background: var(--nocturne-glass-popover);
+  backdrop-filter: blur(24px) saturate(1.9);
+  box-shadow:
+    inset 0 1px 0 var(--nocturne-lens-edge),
+    var(--artemis-shadow-overlay);
+}
+.app-shell .computer-control {
+  color-scheme: dark;
+  --artemis-color-text-primary: #ecedef;
+  --artemis-color-text-secondary: #a9adb6;
+  --artemis-color-interaction-hover: rgb(255 255 255 / 0.08);
+  --artemis-color-border-default: rgb(255 255 255 / 0.12);
+  background: #1d1e23;
+  color: #ecedef;
+  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 999px;
+  padding: 6px 8px 6px 14px;
+  min-block-size: 42px;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
+  backdrop-filter: none;
+}
+.app-shell .computer-control-summary {
+  gap: 6px;
+}
+.app-shell .computer-control-mode {
+  color: #a9adb6;
+}
+.app-shell .computer-control-status > svg {
+  color: #e8b65a;
+}
+.app-shell .computer-control-timer {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: #a9adb6;
+  order: 2;
+}
+.app-shell .computer-control-actions > button {
+  padding-inline: 8px;
+  border-radius: 999px;
+  color: #ecedef;
+}
+.app-shell .computer-control-actions > .computer-control-stop {
+  color: #f2736b;
+  background: rgb(242 115 107 / 0.1);
+}
+.app-shell .computer-control-actions svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.app-shell .computer-control-reason {
+  padding-inline: 8px;
+  font-size: 11px;
+}
+.app-shell .sidebar-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  flex-basis: 100%;
+  padding-block-start: 6px;
+}
+.app-shell .sidebar-update .update-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  inline-size: auto;
+  max-inline-size: 100%;
+  min-block-size: 28px;
+  block-size: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--artemis-color-status-info);
+  background: color-mix(
+    in srgb,
+    var(--artemis-color-status-info) 9%,
+    transparent
+  );
+  font-size: 11.5px;
+}
+.app-shell .sidebar-update .update-btn.downloaded {
+  color: var(--artemis-color-text-inverse);
+  background: var(--artemis-color-accent-primary);
+}
+.app-shell .sidebar-update .update-btn svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+.app-shell .sidebar-update[data-state="checking"] .update-btn {
+  color: var(--muted);
+  background: transparent;
+}
+.app-shell .sidebar-update[data-state="error"] .update-btn {
+  color: var(--artemis-color-status-danger-text);
+  background: transparent;
+}
+.app-shell .update-progress-icon {
+  position: relative;
+  inline-size: 24px;
+  block-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.app-shell .update-btn .update-progress-icon > svg:first-child {
+  position: absolute;
+  inset: 0;
+  inline-size: 24px;
+  block-size: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  transform: rotate(-90deg);
+}
+.app-shell .update-progress-icon circle:first-child {
+  opacity: 0.18;
+}
+.app-shell .update-byte-count,
+.app-shell .update-rollback-note {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .update-task-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  background: var(--artemis-color-surface-sunken);
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.app-shell .update-task-notice span:last-of-type {
+  color: var(--muted);
+}
+.app-shell .update-error {
+  color: var(--artemis-color-status-danger-text);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+.app-shell .update-checking-icon {
+  animation: nocturne-stop 1.2s linear infinite;
+}
+.update-announcement {
+  max-inline-size: 420px;
+  padding: 28px;
+  text-align: center;
+}
+.update-announcement h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-block: 16px;
+}
+.update-announcement a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+  font-size: 13px;
+  margin-block: 16px;
+  color: var(--artemis-color-status-info);
+}
+.update-announcement a svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.app-shell .environment-popover[data-group="true"] {
+  inline-size: 300px;
+  width: 300px;
+}
+.app-shell .im-group-members .environment-setting-row {
+  padding: 8px;
+  border-radius: 8px;
+}
+.app-shell .im-group-members [data-executing="true"] {
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .im-member-heading {
+  gap: 8px;
+}
+.app-shell :is(.im-member-kind, .im-member-computer) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 9px;
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .im-member-executor {
+  color: var(--artemis-color-focus-ring);
+}
+.app-shell .im-delegation-wait {
+  background: var(--nocturne-gold-halo);
+  color: var(--artemis-color-focus-ring);
+  border: 1px solid var(--nocturne-gold-line);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+.app-shell .im-delegation-wait[data-state="interrupted"] {
+  border-color: var(--artemis-color-border-default);
+  background: var(--artemis-color-surface-sunken);
+  color: var(--muted);
+}
+.app-shell .timeline[data-group="true"] :is(.user-message, .assistant-message) {
+  margin-inline: 0;
+  max-inline-size: 100%;
+  inline-size: 100%;
+  padding-inline-start: 44px;
+  background: transparent;
+  border-radius: 0;
+}
+.app-shell .group-message-heading {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-block-end: 6px;
+  text-transform: capitalize;
+}
+.app-shell .group-message-avatar {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 9px;
+  background: var(--artemis-color-surface-sunken);
+  color: var(--artemis-color-text-secondary);
+}
+.app-shell .group-message-avatar > svg {
+  inline-size: 20px;
+  block-size: 20px;
+}
+.app-shell
+  .workspace-dock
+  :is(
+    [data-artemis-component="terminal-header"],
+    [data-artemis-component="browser-toolbar"],
+    [data-artemis-component="workspace-editor-toolbar"],
+    .office-header
+  ) {
+  min-block-size: 40px;
+  padding: 6px 12px;
+  border-block-end: 1px solid var(--border-soft);
+  background: var(--artemis-color-canvas);
+}
+.app-shell .workspace-dock :is(.office-footer, .terminal-status) {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .update-checking-icon {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce),
+  (prefers-contrast: more),
+  (forced-colors: active) {
+  :root[data-material="glass"]
+    :is(
+      [role="menu"],
+      .environment-workspace-menu,
+      [data-artemis-component="select"] [data-part="menu"]
+    ) {
+    background: var(--artemis-color-surface-popover);
+    backdrop-filter: none;
+    box-shadow: var(--artemis-shadow-overlay);
+  }
+}
+:root[data-artemis-contrast="high"]
+  :is(
+    [role="menu"],
+    .environment-workspace-menu,
+    [data-artemis-component="select"] [data-part="menu"]
+  ) {
+  background: var(--artemis-color-surface-popover);
+  backdrop-filter: none;
+}

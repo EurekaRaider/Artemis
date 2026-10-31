@@ -2059,5 +2059,15 @@
   "Providers.keychain": "시스템 키체인",
   "ResourceCenter.sandbox": "샌드박스",
   "SettingsPanel.newTaskDefaults": "새 작업 기본값",
-  "SettingsPanel.defaultModel": "기본 모델"
+  "SettingsPanel.defaultModel": "기본 모델",
+  "Update.checking": "업데이트 확인 중…",
+  "Update.toVersion": "v{{version}}로 업데이트",
+  "Update.readyWithTasks": "v{{version}} 준비 완료 · 작업 {{count}}개 실행 중",
+  "Update.waitingForTasks": "실행 중인 작업이 끝난 후 설치합니다.",
+  "Update.later": "나중에",
+  "Update.releaseNotes": "전체 릴리스 노트",
+  "ComputerUse.pause": "일시 중지",
+  "ComputerUse.takeOver": "직접 제어",
+  "ComputerUse.returnControl": "Artemis에 제어 반환",
+  "Review.sendToArtemis": "Artemis로 보내기"
 }

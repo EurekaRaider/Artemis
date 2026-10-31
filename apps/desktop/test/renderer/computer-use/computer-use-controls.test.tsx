@@ -93,15 +93,7 @@ it("stops, resumes and revokes the actual target's grant", async () => {
   expect(await screen.findByText("没有应用授权")).toBeVisible();
 });
 
-it("removes the Windows native cutout when Acrylic falls back to an opaque surface", async () => {
-  const disconnect = vi.fn();
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      disconnect = disconnect;
-    },
-  );
+it("keeps the control capsule opaque across native material changes", async () => {
   stubWindowArtemis({
     getComputerState: async () => ({
       version: 1,
@@ -110,30 +102,40 @@ it("removes the Windows native cutout when Acrylic falls back to an opaque surfa
     }),
     onComputerState: () => () => {},
   });
-  const view = (nativeGlass: boolean) => (
-    <div className="app-shell" data-platform="win32">
-      <div className="conversation">
-        <ComputerUseControls locale="zh-CN" nativeGlass={nativeGlass} />
-      </div>
-    </div>
+  const rendered = render(<ComputerUseControls locale="zh-CN" nativeGlass />);
+  const control = await screen.findByRole("complementary");
+  expect(control.dataset.nativeGlass).toBeUndefined();
+  rendered.rerender(<ComputerUseControls locale="zh-CN" nativeGlass={false} />);
+  expect(control).toBe(screen.getByRole("complementary"));
+  expect(control.style.getPropertyValue("--computer-glass-mask")).toBe("");
+});
+
+it("takes over and returns control through the existing stop/resume host actions", async () => {
+  const user = userEvent.setup();
+  let notify!: (state: ComputerControlState) => void;
+  const state: ComputerControlState = {
+    version: 1,
+    state: "acting",
+    threadId: "task",
+    target: { id: "browser:1", kind: "browser", name: "Browser" },
+  };
+  const control = vi.fn(async (action: "stop" | "resume") =>
+    notify({ ...state, state: action === "stop" ? "paused" : "acting" }),
   );
-  const rendered = render(view(true));
-  try {
-    const control = await screen.findByRole("complementary");
-    const conversation = control.closest<HTMLElement>(".conversation")!;
-    expect(control.dataset.nativeGlass).toBe("true");
-    expect(
-      conversation.style.getPropertyValue("--computer-glass-mask"),
-    ).toContain("data:image/svg+xml");
-    rendered.rerender(view(false));
-    expect(control.dataset.nativeGlass).toBeUndefined();
-    expect(conversation.dataset.computerGlass).toBeUndefined();
-    expect(conversation.style.getPropertyValue("--computer-glass-mask")).toBe(
-      "",
-    );
-    expect(disconnect).toHaveBeenCalledOnce();
-  } finally {
-    rendered.unmount();
-    vi.unstubAllGlobals();
-  }
+  stubWindowArtemis({
+    getComputerState: async () => state,
+    onComputerState: (callback: typeof notify) => {
+      notify = callback;
+      return () => {};
+    },
+    controlComputer: control,
+  });
+  render(<ComputerUseControls locale="en" />);
+  await user.click(await screen.findByRole("button", { name: "Take over" }));
+  expect(control).toHaveBeenLastCalledWith("stop", "task");
+  await user.click(
+    await screen.findByRole("button", { name: "Return to Artemis" }),
+  );
+  expect(control).toHaveBeenLastCalledWith("resume", "task");
+  expect(await screen.findByRole("button", { name: "Pause" })).toBeEnabled();
 });

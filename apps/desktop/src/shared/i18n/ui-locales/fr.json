@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Trousseau système",
   "ResourceCenter.sandbox": "Bac à sable",
   "SettingsPanel.newTaskDefaults": "Valeurs par défaut des nouvelles tâches",
-  "SettingsPanel.defaultModel": "Modèle par défaut"
+  "SettingsPanel.defaultModel": "Modèle par défaut",
+  "Update.checking": "Recherche de mises à jour…",
+  "Update.toVersion": "Mettre à jour vers v{{version}}",
+  "Update.readyWithTasks": "v{{version}} prête · {{count}} tâches en cours",
+  "Update.waitingForTasks": "L’installation attendra la fin des tâches en cours.",
+  "Update.later": "Plus tard",
+  "Update.releaseNotes": "Notes de version complètes",
+  "ComputerUse.pause": "Pause",
+  "ComputerUse.takeOver": "Prendre le contrôle",
+  "ComputerUse.returnControl": "Rendre le contrôle à Artemis",
+  "Review.sendToArtemis": "Envoyer à Artemis"
 }

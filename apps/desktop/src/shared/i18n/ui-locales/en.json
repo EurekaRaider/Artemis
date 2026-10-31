@@ -2059,5 +2059,15 @@
   "Providers.keychain": "System Keychain",
   "ResourceCenter.sandbox": "Sandbox",
   "SettingsPanel.newTaskDefaults": "New task defaults",
-  "SettingsPanel.defaultModel": "Default model"
+  "SettingsPanel.defaultModel": "Default model",
+  "Update.checking": "Checking for updates…",
+  "Update.toVersion": "Update to v{{version}}",
+  "Update.readyWithTasks": "v{{version}} is ready · {{count}} tasks running",
+  "Update.waitingForTasks": "Installation will wait for running tasks to finish.",
+  "Update.later": "Later",
+  "Update.releaseNotes": "Full release notes",
+  "ComputerUse.pause": "Pause",
+  "ComputerUse.takeOver": "Take over",
+  "ComputerUse.returnControl": "Return to Artemis",
+  "Review.sendToArtemis": "Send to Artemis"
 }

@@ -2059,5 +2059,15 @@
   "Providers.keychain": "सिस्टम कीचेन",
   "ResourceCenter.sandbox": "सैंडबॉक्स",
   "SettingsPanel.newTaskDefaults": "नए कार्य के डिफ़ॉल्ट",
-  "SettingsPanel.defaultModel": "डिफ़ॉल्ट मॉडल"
+  "SettingsPanel.defaultModel": "डिफ़ॉल्ट मॉडल",
+  "Update.checking": "अपडेट जाँचे जा रहे हैं…",
+  "Update.toVersion": "v{{version}} में अपडेट करें",
+  "Update.readyWithTasks": "v{{version}} तैयार · {{count}} कार्य चल रहे हैं",
+  "Update.waitingForTasks": "इंस्टॉल करने से पहले चल रहे कार्यों के समाप्त होने की प्रतीक्षा होगी।",
+  "Update.later": "बाद में",
+  "Update.releaseNotes": "पूरी रिलीज़ जानकारी",
+  "ComputerUse.pause": "रोकें",
+  "ComputerUse.takeOver": "नियंत्रण लें",
+  "ComputerUse.returnControl": "Artemis को नियंत्रण लौटाएँ",
+  "Review.sendToArtemis": "Artemis को भेजें"
 }

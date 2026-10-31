@@ -2059,5 +2059,15 @@
   "Providers.keychain": "Llavero del sistema",
   "ResourceCenter.sandbox": "Entorno aislado",
   "SettingsPanel.newTaskDefaults": "Valores predeterminados para nuevas tareas",
-  "SettingsPanel.defaultModel": "Modelo predeterminado"
+  "SettingsPanel.defaultModel": "Modelo predeterminado",
+  "Update.checking": "Buscando actualizaciones…",
+  "Update.toVersion": "Actualizar a v{{version}}",
+  "Update.readyWithTasks": "v{{version}} lista · {{count}} tareas en ejecución",
+  "Update.waitingForTasks": "La instalación esperará a que terminen las tareas en ejecución.",
+  "Update.later": "Más tarde",
+  "Update.releaseNotes": "Notas completas de la versión",
+  "ComputerUse.pause": "Pausar",
+  "ComputerUse.takeOver": "Tomar el control",
+  "ComputerUse.returnControl": "Devolver el control a Artemis",
+  "Review.sendToArtemis": "Enviar a Artemis"
 }
