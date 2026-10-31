@@ -1050,6 +1050,8 @@ export function App() {
     edge: ThreadDropEdge;
   }>();
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
+  const [managementActionTarget, setManagementActionTarget] =
+    useState<HTMLDivElement | null>(null);
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const projectMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [threadMenuId, setThreadMenuId] = useState<string>();
@@ -6031,6 +6033,9 @@ export function App() {
     ["token-usage", uiText(locale, "App.inline6"), <TokenUsageIcon />],
     ["archive", uiText(locale, "App.archiveConversations"), <ArchiveIcon />],
   ] as const;
+  const managementViewLabel =
+    navigationItems.find(([view]) => view === activeView)?.[1] ??
+    activeWorkspaceLabel;
 
   return (
     <ApplicationShell
@@ -7211,9 +7216,16 @@ export function App() {
       <section className="workspace">
         {activeView !== "workspace" && (
           <Toolbar
-            actions={null}
+            actions={
+              activeView === "automations" || activeView === "resources" ? (
+                <div
+                  className="management-header-action"
+                  ref={setManagementActionTarget}
+                />
+              ) : null
+            }
             className="workspace-header"
-            label={activeWorkspaceLabel}
+            label={managementViewLabel}
           >
             <div className="workspace-header-leading">
               <button
@@ -7226,7 +7238,7 @@ export function App() {
                 <LeftSidebarIcon />
               </button>
               <div className="workspace-heading">
-                <strong dir="auto">{activeWorkspaceLabel}</strong>
+                <strong dir="auto">{managementViewLabel}</strong>
               </div>
             </div>
           </Toolbar>
@@ -7252,6 +7264,7 @@ export function App() {
         ) : activeView === "automations" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
             <AutomationPage
+              headerActionTarget={managementActionTarget}
               locale={locale}
               settings={runtimeSettings}
               onConfirm={requestConfirmation}
@@ -7277,6 +7290,7 @@ export function App() {
         ) : activeView === "resources" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
             <ResourceCenter
+              headerActionTarget={managementActionTarget}
               locale={locale}
               onReviewHooks={(pluginId, trigger) => {
                 setHooksQuery({

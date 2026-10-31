@@ -1479,10 +1479,9 @@
   background: var(--artemis-color-canvas);
   color: var(--artemis-color-text-primary);
 }
-.app-shell
-  :is(.automation-page, .archive-page, .token-usage-page)
-  > [data-part="content"] {
-  padding: 28px 32px;
+.app-shell :is(.resource-page, .token-usage-page) > [data-part="content"] {
+  max-inline-size: 1040px;
+  padding: 32px 48px 40px;
 }
 .app-shell
   :is(.automation-page, .archive-page, .resource-page)
@@ -1506,22 +1505,61 @@
 .app-shell .automation-page .automation-header [data-part="description"] {
   font-size: 13.5px;
 }
+.app-shell .automation-page > [data-part="content"] {
+  flex: 1 0 auto;
+  min-block-size: 100%;
+  max-inline-size: none;
+  margin: 0;
+  padding: 0;
+}
+.app-shell .management-header-action {
+  display: flex;
+  align-items: center;
+}
+.app-shell
+  .management-header-action
+  :is(.automation-create-button, .resource-add-button) {
+  align-self: center;
+  block-size: 26px;
+  min-block-size: 26px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+}
 .app-shell .automation-master-detail {
   display: grid;
-  grid-template-columns: minmax(260px, 420px) minmax(300px, 1fr);
-  align-items: start;
+  flex: 1;
+  grid-template-columns: 420px minmax(0, 1fr);
+  align-items: stretch;
   gap: 0;
-  border-block-start: 1px solid var(--border-soft);
-  margin-block-start: 16px;
+  margin: 0;
 }
 .app-shell .automation-master {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-inline-size: 0;
-  padding: 12px 16px 12px 0;
+  padding: 28px 20px;
   border-inline-end: 1px solid var(--border-soft);
-  align-self: stretch;
 }
-[dir="rtl"] .app-shell .automation-master {
-  padding: 12px 0 12px 16px;
+.app-shell .automation-master .automation-header {
+  margin: 0;
+  padding-inline: 4px;
+}
+.app-shell .automation-master .automation-toolbar {
+  gap: 8px;
+  padding: 0 4px;
+  border: 0;
+  margin: 0;
+}
+.app-shell .automation-master-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-shell .automation-master .automation-local-note {
+  margin-block: auto 0;
+  padding-block-start: 20px;
+  padding-inline: 4px;
 }
 .app-shell .automation-master-row {
   display: flex;
@@ -1531,7 +1569,7 @@
   padding-inline-start: 16px;
   border: 1px solid transparent;
   border-radius: 12px;
-  margin-block-end: 6px;
+  margin: 0;
 }
 .app-shell .automation-master-row[data-selected="true"] {
   background: var(--artemis-color-surface-base);
@@ -1587,10 +1625,8 @@
   color: var(--artemis-color-status-danger-text);
 }
 .app-shell .automation-detail {
-  padding: 20px 0 20px 24px;
-}
-[dir="rtl"] .app-shell .automation-detail {
-  padding: 20px 24px 20px 0;
+  display: block;
+  padding: 28px 40px;
 }
 .app-shell .automation-detail .automation-card {
   border: 0;
@@ -1599,12 +1635,48 @@
   box-shadow: none;
   background: transparent;
 }
+.app-shell .automation-detail .automation-card > [data-part="content"] {
+  gap: 22px;
+  padding: 0;
+}
+.app-shell .automation-detail .automation-card-heading {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.app-shell .automation-title-block {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-shell .automation-title-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.app-shell .automation-title-line .automation-state {
+  border-radius: 999px;
+  background: var(--artemis-color-surface-sunken);
+  padding: 2px 8px;
+}
+.app-shell .automation-title-line .automation-state[data-tone="success"] {
+  background: var(--artemis-color-status-success-subtle);
+}
+.app-shell .automation-title-line .automation-state[data-tone="warning"] {
+  background: var(--artemis-color-status-warning-subtle);
+}
 .app-shell .automation-detail .automation-card-heading h2 {
+  margin: 0;
   font-size: 18px;
   font-weight: 600;
   line-height: 26px;
 }
 .app-shell .automation-detail .automation-prompt {
+  margin: 0;
+  color: var(--artemis-color-text-primary);
   font-size: 14px;
   line-height: 1.65;
   padding: 14px 16px;
@@ -1613,14 +1685,77 @@
   border-radius: 12px;
   white-space: pre-wrap;
 }
+.app-shell .automation-context {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.app-shell .automation-context > div {
+  min-inline-size: 0;
+  padding: 14px;
+}
+.app-shell .automation-context dt {
+  margin-block-end: 6px;
+  font-size: 11.5px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .automation-context dd {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  color: var(--artemis-color-text-primary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.app-shell .automation-context dd svg {
+  flex: 0 0 14px;
+  inline-size: 14px;
+  block-size: 14px;
+  margin-block-start: 2px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .automation-detail .automation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+.app-shell .automation-detail .automation-week {
+  margin-block-start: -12px;
+}
 .app-shell .automation-detail .automation-card-footer {
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 .app-shell .automation-detail .automation-actions {
+  flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: start;
+  gap: 10px;
+}
+.app-shell .automation-detail .automation-actions > button {
+  min-block-size: 30px;
+  block-size: 30px;
+  font-size: 12.5px;
+  background: var(--artemis-color-surface-base);
+  border: 1px solid var(--border);
+}
+.app-shell
+  .automation-detail
+  .automation-actions
+  > button:hover:not(:disabled) {
+  background: var(--artemis-color-interaction-hover);
+}
+.app-shell
+  .automation-detail
+  .automation-actions
+  > [data-artemis-component="icon-button"] {
+  inline-size: 30px;
 }
 .app-shell .automation-detail .automation-history {
   inline-size: 100%;
@@ -1671,11 +1806,25 @@
   font-variant-numeric: tabular-nums;
 }
 .app-shell .archive-page > [data-part="header"] {
-  padding: 28px 32px 0;
+  inline-size: 100%;
+  max-inline-size: 960px;
+  margin-inline: auto;
+  padding: 32px 48px 0;
+}
+.app-shell .archive-header {
+  max-inline-size: none;
+  padding: 0;
+}
+.app-shell .archive-page > [data-part="content"] {
+  inline-size: 100%;
+  max-inline-size: 960px;
+  margin-inline: auto;
+  padding: 18px 48px 40px;
 }
 .app-shell .archive-content {
-  max-inline-size: 1100px;
-  margin-inline: auto;
+  max-inline-size: none;
+  margin: 0;
+  padding: 0;
 }
 .app-shell .archive-results {
   display: flex;
@@ -1762,7 +1911,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
-  max-inline-size: 1160px;
+  max-inline-size: 1040px;
   margin-inline: auto;
 }
 .app-shell
@@ -1971,7 +2120,7 @@
     .resource-marketplace-toolbar,
     .resource-management-toolbar
   ) {
-  padding-inline: 32px;
+  padding-inline: 0;
 }
 .app-shell .resource-page-artwork {
   display: none;
@@ -2526,12 +2675,26 @@
 }
 @media (max-width: 1200px) {
   .app-shell .automation-master-detail {
-    grid-template-columns: minmax(220px, 0.8fr) minmax(300px, 1fr);
+    grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1fr);
   }
-  .app-shell
-    :is(.automation-page, .archive-page, .token-usage-page)
-    > [data-part="content"] {
+  .app-shell .automation-detail {
+    padding-inline: 24px;
+  }
+  .app-shell .automation-context {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .app-shell .automation-context > div {
+    padding: 0;
+  }
+  .app-shell :is(.resource-page, .token-usage-page) > [data-part="content"] {
     padding: 24px;
+  }
+  .app-shell .archive-page > [data-part="header"] {
+    padding: 24px 24px 0;
+  }
+  .app-shell .archive-page > [data-part="content"] {
+    padding: 18px 24px 32px;
   }
   .app-shell .token-usage-summary [data-artemis-component="data-stat"] {
     padding: 14px 10px;
@@ -2608,10 +2771,14 @@
   }
   .app-shell .automation-master {
     border-inline-end: 0;
-    padding: 0;
+    border-block-end: 1px solid var(--border-soft);
+    padding: 24px 20px;
   }
   .app-shell .automation-detail {
-    padding: 20px 0;
+    padding: 24px;
+  }
+  .app-shell .automation-context {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

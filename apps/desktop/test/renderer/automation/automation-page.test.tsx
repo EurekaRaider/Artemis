@@ -84,6 +84,7 @@ const automation: Automation = {
 async function setup(
   options: {
     records?: Automation[];
+    headerActionTarget?: HTMLElement;
     settings?: typeof settings;
     save?: (input: SaveAutomationInput) => Promise<Automation>;
   } = {},
@@ -93,6 +94,7 @@ async function setup(
       (async (input: SaveAutomationInput) => ({ ...automation, ...input })),
   );
   const remove = vi.fn(async () => {});
+  const setEnabled = vi.fn(async () => {});
   const confirm = vi.fn(async () => true);
   stubWindowArtemis({
     listAutomations: async () => options.records ?? [],
@@ -100,10 +102,12 @@ async function setup(
     onAutomationEvent: () => () => {},
     saveAutomation: save,
     deleteAutomation: remove,
+    setAutomationEnabled: setEnabled,
     authorizeAutomation: async () => {},
   });
   render(
     <AutomationPage
+      headerActionTarget={options.headerActionTarget}
       locale="en"
       projects={[project]}
       settings={options.settings ?? settings}
@@ -112,7 +116,7 @@ async function setup(
     />,
   );
   await act(async () => {});
-  return { save, remove, confirm };
+  return { save, remove, confirm, setEnabled };
 }
 async function create() {
   await userEvent.click(screen.getByRole("button", { name: "New automation" }));
@@ -301,4 +305,36 @@ it("selects an automation without running it and keeps its weekly schedule in th
   expect(
     detail.querySelector('.automation-week [data-scheduled="true"]'),
   ).toHaveTextContent("Fri09:00");
+});
+
+describe("automation management controls", () => {
+  it("opens the existing creation dialog from the workspace header", async () => {
+    const headerActionTarget = document.createElement("div");
+    document.body.append(headerActionTarget);
+    try {
+      await setup({ headerActionTarget });
+      await userEvent.click(
+        within(headerActionTarget).getByRole("button", {
+          name: "New automation",
+        }),
+      );
+      expect(
+        screen.getByRole("dialog", { name: "New automation" }),
+      ).toBeInTheDocument();
+    } finally {
+      headerActionTarget.remove();
+    }
+  });
+
+  it("keeps the existing enable action in the detail menu", async () => {
+    const { setEnabled } = await setup({
+      records: [{ ...automation, enabled: false }],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    await userEvent.click(screen.getByRole("button", { name: "Enable task" }));
+    expect(setEnabled).toHaveBeenCalledExactlyOnceWith(automation.id, true);
+    expect(
+      screen.queryByRole("button", { name: "Enable task" }),
+    ).not.toBeInTheDocument();
+  });
 });
