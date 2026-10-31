@@ -26,6 +26,11 @@ it.each(["inline-start", "block-start"] as const)(
       "aria-checked",
       "true",
     );
+    expect(screen.getByRole("menuitemradio", { name: "本地" })).toHaveAttribute(
+      "aria-description",
+      "/fixture",
+    );
+    expect(screen.getByRole("separator")).toBeVisible();
     await user.click(screen.getByRole("menuitem", { name: "新建本地工作树" }));
     expect(handoff).toHaveBeenCalledWith("managed-worktree");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
