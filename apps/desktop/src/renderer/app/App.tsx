@@ -11709,7 +11709,7 @@ export function Timeline({
           initialVisible={turnIndex >= groupedTimeline.turns.length - 12}
         >
           {() => {
-            if (turn.status !== "completed") {
+            if (turn.status === "running") {
               const firstExecution = entries.findIndex(
                 (entry) =>
                   entry.kind !== "entry" || !entry.entry.startsWith("user:"),

@@ -1192,3 +1192,37 @@
   block-size: 14px;
   min-inline-size: 14px;
 }
+
+.app-shell .environment-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-shell .environment-branch-control .environment-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.app-shell .environment-branch-control .environment-row > svg {
+  flex: none;
+}
+.app-shell .environment-popover svg[data-environment-tone] {
+  color: var(--artemis-color-text-secondary);
+}
+.app-shell .environment-activity-row small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.app-shell
+  .environment-activity-row[data-status="running"]
+  .environment-row-icon {
+  color: var(--artemis-color-focus-ring);
+}
+.app-shell .composer > [data-part="context"] {
+  background: transparent;
+  border: 0;
+  border-end-start-radius: inherit;
+  border-end-end-radius: inherit;
+}

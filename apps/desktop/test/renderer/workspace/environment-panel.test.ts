@@ -185,12 +185,13 @@ describe("task environment panel state", () => {
     expect(panelSource).not.toContain("mcpGroups.length > 0 &&");
   });
 
-  it("shows stable identity marks instead of generic person icons", () => {
-    expect(panelSource).toContain("<ChildAgentIcon");
+  it("uses the standard agent glyph and a running status indicator", () => {
+    expect(panelSource).toContain('<ArtemisIcon name="agents"');
     expect(panelSource).not.toContain(
       'className="environment-agent-team-trigger"',
     );
-    expect(panelSource).toContain("identity={agent.agentId}");
+    expect(panelSource).toContain("data-status={agent.status}");
+    expect(panelSource).toContain("<RunningArc size={12}");
     expect(panelSource).not.toContain("function AgentIcon(");
     expect(stylesSource).toContain(
       ".environment-row-icon svg:not(.child-agent-mark)",

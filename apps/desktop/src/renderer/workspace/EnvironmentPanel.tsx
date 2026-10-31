@@ -28,7 +28,7 @@ import {
   type TaskSourceState,
 } from "@artemis/protocol";
 import { Popover } from "@artemis/ui/feedback";
-import { ArtemisIcon } from "@artemis/ui/icons";
+import { ArtemisIcon, RunningArc } from "@artemis/ui/icons";
 import {
   EnvironmentControl,
   EnvironmentPanelSurface,
@@ -45,7 +45,6 @@ import type {
   ReviewScope,
   ReviewFile,
 } from "../../shared/api.js";
-import { ChildAgentIcon } from "../components/ChildAgentIcon.js";
 import { customAgentInstanceIdentity } from "../settings/custom-agent-identity.js";
 import { EnvironmentWorkspaceMenu } from "./EnvironmentWorkspaceMenu.js";
 import { EnvironmentPullRequestError } from "./EnvironmentPullRequestError.js";
@@ -1590,6 +1589,7 @@ export function EnvironmentPanel({
   const renderAgentRow = (agent: ChildAgentState) => (
     <button
       className="environment-activity-row"
+      data-status={agent.status}
       key={agent.agentId}
       onClick={() => {
         hidePanel();
@@ -1598,14 +1598,12 @@ export function EnvironmentPanel({
       type="button"
     >
       <span className="environment-row-icon">
-        <ChildAgentIcon
-          className="environment-agent-mark"
-          identity={agent.agentId}
-        />
+        <ArtemisIcon name="agents" width={14} height={14} />
       </span>
       <span>
         <strong title={agent.label}>{agent.label}</strong>
         <small>
+          {agent.status === "running" && <RunningArc size={12} />}
           {agentStatusLabels[agent.status]}
           {agent.customAgent
             ? ` · ${customAgentInstanceIdentity(agent.customAgent, locale)}`

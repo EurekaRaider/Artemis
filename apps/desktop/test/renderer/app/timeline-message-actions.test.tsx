@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   createThreadViewState,
   reduceAgentEvent,
@@ -9,6 +9,8 @@ import {
 } from "@artemis/protocol";
 import { Timeline } from "../../../src/renderer/app/App.js";
 import "../../fixtures/renderer-test-utils.js";
+
+afterEach(cleanup);
 
 vi.mock("../../../src/renderer/appearance/desktop-skin-bootstrap.js", () => ({
   desktopSkinHost: { setTheme: vi.fn() },
@@ -65,3 +67,45 @@ it("uses the shared copy tooltip on hover and keyboard focus and copies the mess
   fireEvent.keyDown(document, { key: "Escape" });
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
+
+it.each(["cancelled", "failed"] as const)(
+  "keeps the partial assistant answer visible after a %s turn",
+  (status) => {
+    const state = createThreadViewState("thread");
+    state.turnOrder = ["turn"];
+    state.order = ["user:user", "part:reply"];
+    state.entryTurnIds = { "user:user": "turn", "part:reply": "turn" };
+    state.userMessages = { user: { id: "user", text: "Continue this work" } };
+    state.messageParts = {
+      reply: { id: "reply", type: "text", text: "A useful partial answer" },
+    };
+    state.turns = {
+      turn: { id: "turn", mode: "work", status, order: state.order },
+    };
+    const { container } = render(
+      <Timeline
+        installedPlugins={[]}
+        installedSkills={[]}
+        state={state}
+        locale="en"
+        onExternalLink={vi.fn()}
+        onFileLink={vi.fn()}
+        onFileLinkContextMenu={vi.fn()}
+        onOpenChildAgent={vi.fn()}
+        onOpenTurnReview={vi.fn()}
+        onCopyText={vi.fn()}
+        onEditUserMessage={vi.fn()}
+        onResolve={vi.fn()}
+        onResolveUserInput={vi.fn()}
+        onUndoTurnChanges={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("A useful partial answer")).toBeVisible();
+    expect(
+      container.querySelector(".work-record .assistant-message"),
+    ).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Copy message" }),
+    ).toHaveLength(2);
+  },
+);
