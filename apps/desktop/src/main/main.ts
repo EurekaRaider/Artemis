@@ -23566,6 +23566,10 @@ function createMainWindow(): BrowserWindow {
                               },
                               contentFitsInline:
                                 root.scrollWidth <= root.clientWidth + 1,
+                              visible: root.checkVisibility({
+                                checkOpacity: true,
+                                checkVisibilityCSS: true,
+                              }),
                               computed: {
                                 contentVisibility: style.contentVisibility,
                                 direction: style.direction,
@@ -23706,6 +23710,9 @@ function createMainWindow(): BrowserWindow {
                             viewport:
                               viewport instanceof HTMLElement
                                 ? {
+                                    parentComponent: viewport.parentElement?.getAttribute(
+                                      'data-artemis-component',
+                                    ) ?? null,
                                     clientHeight: viewport.clientHeight,
                                     clientWidth: viewport.clientWidth,
                                     scrollHeight: viewport.scrollHeight,
