@@ -809,3 +809,12 @@
     0 0 0 1px var(--nocturne-gold-line),
     0 0 0 4px var(--nocturne-gold-halo);
 }
+.app-shell .tool-card .tool-step-status {
+  inline-size: 18px;
+  justify-content: center;
+}
+.app-shell .tool-card .tool-step-status svg {
+  inline-size: 14px;
+  block-size: 14px;
+  min-inline-size: 14px;
+}
