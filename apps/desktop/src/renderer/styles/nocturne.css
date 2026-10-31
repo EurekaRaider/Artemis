@@ -2306,6 +2306,11 @@
   inline-size: 20px;
   block-size: 20px;
 }
+
+.app-shell .assistant-message .group-message-avatar {
+  background: #121418;
+  color: var(--artemis-color-brand);
+}
 .app-shell
   .workspace-dock
   :is(
@@ -2677,5 +2682,27 @@
 }
 .environment-workspace-menu [role="separator"] {
   margin: 5px 8px;
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
+}
+
+.app-shell .goal-editor-content {
+  padding: 16px;
+  gap: 14px;
+}
+.app-shell .goal-editor-input {
+  flex: none;
+  block-size: 96px;
+  min-block-size: 96px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.app-shell .goal-editor-meta {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.app-shell .goal-editor-footer {
+  margin-block-start: auto;
   border-block-start: 1px solid var(--artemis-color-border-subtle);
 }
