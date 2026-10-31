@@ -16897,11 +16897,11 @@ async function driveSmokeUserInputTransportEvidence(
   };
   const domState = async (): Promise<SmokeUserInputTransportDomState> =>
     (await window.webContents.executeJavaScript(`(() => ({
-      pendingCards: document.querySelectorAll(".user-input-card.pending").length,
-      cancelledCards: document.querySelectorAll(".user-input-card.cancelled").length,
-      answeredCards: document.querySelectorAll(".user-input-card.answered").length,
-      timedOutCards: document.querySelectorAll(".user-input-card.timed-out").length,
-      cardTexts: [...document.querySelectorAll(".user-input-card")].map(
+      pendingCards: document.querySelectorAll('.user-input-card:is([data-state="pending"], [data-state="busy"])').length,
+      cancelledCards: document.querySelectorAll('.user-input-result[data-state="cancelled"]').length,
+      answeredCards: document.querySelectorAll('.user-input-result[data-state="answered"]').length,
+      timedOutCards: document.querySelectorAll('.user-input-result[data-state="timed-out"]').length,
+      cardTexts: [...document.querySelectorAll(".user-input-card, .user-input-result")].map(
         (card) => (card.textContent ?? "").replace(/\\s+/gu, " ").trim(),
       ),
     }))()`)) as SmokeUserInputTransportDomState;

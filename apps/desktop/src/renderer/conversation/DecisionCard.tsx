@@ -161,14 +161,21 @@ export function DecisionResult({
   answer,
   children,
   approved = false,
+  className,
+  state,
 }: {
   label: string;
   answer?: string | undefined;
   children: ReactNode;
   approved?: boolean;
+  className?: string;
+  state?: string;
 }) {
   return (
-    <details className={`decision-result${approved ? " approved" : ""}`}>
+    <details
+      className={`decision-result${approved ? " approved" : ""}${className ? ` ${className}` : ""}`}
+      data-state={state}
+    >
       <summary>
         <ArtemisIcon
           name={approved ? "check" : "message"}

@@ -379,6 +379,8 @@ export function MultiQuestionUserInputCard({
     });
     return (
       <DecisionResult
+        className="user-input-result"
+        state={input.status}
         label={
           input.status === "cancelled"
             ? t.inputCancelled
