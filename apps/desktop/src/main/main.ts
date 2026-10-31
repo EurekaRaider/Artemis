@@ -18393,6 +18393,13 @@ function createMainWindow(): BrowserWindow {
   const smokeScale = [1, 1.25, 1.5, 2].includes(requestedScale)
     ? requestedScale
     : 1;
+  // Environment intentionally stays closed below 980 CSS pixels. Open the
+  // real Review flow first, then exercise the requested zoom on that panel.
+  const smokePreparationScale =
+    smokeMode &&
+    process.env.ARTEMIS_SMOKE_VIEW === "nocturne-review-comment-zoom"
+      ? 1
+      : smokeScale;
   let smokePreloadSecurity: {
     contextIsolated: boolean;
     sandboxed: boolean;
@@ -18528,7 +18535,7 @@ function createMainWindow(): BrowserWindow {
     });
   }
   if (smokeMode) {
-    window.webContents.setZoomFactor(smokeScale);
+    window.webContents.setZoomFactor(smokePreparationScale);
   }
   if (smokeArtifacts) {
     window.once("ready-to-show", () => {
@@ -18745,7 +18752,7 @@ function createMainWindow(): BrowserWindow {
         app.exit(1);
         return;
       }
-      window.webContents.setZoomFactor(smokeScale);
+      window.webContents.setZoomFactor(smokePreparationScale);
       // Windows virtual displays can clamp the size at construction time, and
       // the native frame otherwise reduces the requested content viewport.
       if (process.platform === "win32" && smokeArtifacts) {
@@ -21207,6 +21214,9 @@ function createMainWindow(): BrowserWindow {
           : 500;
       void Promise.all([prepareSmokeView, nativeWorkspaceSelection])
         .then(async () => {
+          if (smokePreparationScale !== smokeScale) {
+            window.webContents.setZoomFactor(smokeScale);
+          }
           if (
             !Number.isFinite(requestedSettleDelay) &&
             requestedSmokeView?.startsWith("environment")
@@ -21229,6 +21239,20 @@ function createMainWindow(): BrowserWindow {
             return;
           }
           await new Promise((resolve) => setTimeout(resolve, settleDelay));
+          if (smokePreparationScale !== smokeScale) {
+            const commentVisible = await window.webContents.executeJavaScript(`(() => {
+              const input = document.querySelector('.review-comment-editor textarea');
+              if (!(input instanceof HTMLTextAreaElement) || !input.checkVisibility({ visibilityProperty: true })) return false;
+              const bounds = input.getBoundingClientRect();
+              return bounds.width > 0 && bounds.height > 0 && bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0 && bounds.bottom <= window.innerHeight;
+            })()`);
+            if (
+              window.webContents.getZoomFactor() !== smokeScale ||
+              !commentVisible
+            ) {
+              throw new Error("Review comment was not visible at the requested zoom.");
+            }
+          }
         })
         .then(async () => {
           // PR9B card-heatmap smoke: view routing has settled, so the Token
