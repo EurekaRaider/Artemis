@@ -1,7 +1,6 @@
 import { GOAL_RESOURCES } from "../../shared/i18n/goal-resources.js";
 import { useEffect, useState } from "react";
 import { Tooltip } from "@artemis/ui/feedback";
-import { PauseIcon, PlayIcon } from "@phosphor-icons/react";
 import type { AppLocale, ThreadGoal } from "@artemis/protocol";
 import {
   Badge,
@@ -162,7 +161,7 @@ export function GoalBar({
         {goal.status === "active" && (
           <IconButton
             disabled={disabled}
-            icon={<PauseIcon weight="regular" />}
+            icon={<ArtemisIcon name="pause" />}
             iconSize="sm"
             label={copy.pause}
             onClick={onPause}
@@ -172,7 +171,7 @@ export function GoalBar({
         {resumable && (
           <IconButton
             disabled={disabled}
-            icon={<PlayIcon weight="regular" />}
+            icon={<ArtemisIcon name="play" />}
             iconSize="sm"
             label={copy.resume}
             onClick={onResume}
