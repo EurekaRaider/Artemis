@@ -189,6 +189,19 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(getReviewDiff.mock.calls.map(([query]) => query.scope)).toEqual([
     "turn",
   ]);
+  await act(async () => {
+    receiveEvents([
+      {
+        protocolVersion: PROTOCOL_VERSION,
+        eventId: "live-start",
+        threadId: "thread",
+        turnId: "live-turn",
+        seq: 5,
+        timestamp: now,
+        payload: { type: "turn.started", mode: "work" },
+      },
+    ]);
+  });
   for (let index = 0; index < 3; index += 1) {
     await act(async () => {
       receiveEvents([
@@ -197,7 +210,7 @@ it("keeps historical review stable during live output while preserving refresh a
           eventId: `live-${index}`,
           threadId: "thread",
           turnId: "live-turn",
-          seq: 5 + index,
+          seq: 6 + index,
           timestamp: now,
           payload: {
             type: "message.part.delta",
@@ -223,7 +236,7 @@ it("keeps historical review stable during live output while preserving refresh a
         eventId: "live-file",
         threadId: "thread",
         turnId: "live-turn",
-        seq: 8,
+        seq: 9,
         timestamp: now,
         payload: { type: "file.changed", path: "live.ts", operation: "update" },
       },
@@ -253,7 +266,7 @@ it("keeps historical review stable during live output while preserving refresh a
         eventId: "live-unstaged",
         threadId: "thread",
         turnId: "live-turn",
-        seq: 9,
+        seq: 10,
         timestamp: now,
         payload: { type: "file.changed", path: "live.ts", operation: "update" },
       },
@@ -270,7 +283,10 @@ it("keeps historical review stable during live output while preserving refresh a
     scope: "unstaged",
   });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Add inline comment", exact: true }),
+    await screen.findByRole("button", {
+      name: "Add inline comment",
+      exact: true,
+    }),
   );
   fireEvent.change(screen.getByPlaceholderText("Write a review comment…"), {
     target: { value: "Explain this change" },
