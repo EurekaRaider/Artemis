@@ -1,7 +1,7 @@
 import postcss from "postcss";
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -73,6 +73,11 @@ if (target === "theme-contract") {
     pathToFileURL(join(root, "packages/theme-artemis/dist/index.js")).href
   );
   const dist = join(root, "packages/theme-artemis/dist");
+  await cp(
+    join(root, "packages/theme-artemis/assets/fonts"),
+    join(dist, "fonts"),
+    { recursive: true },
+  );
   await rm(join(dist, "tokens"), { recursive: true, force: true });
   const dataArtifacts = {
     "manifest.json": theme.artemisThemeManifest,

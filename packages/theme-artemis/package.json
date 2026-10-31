@@ -17,15 +17,14 @@
     "./integrity.json": "./dist/integrity.json",
     "./theme.css": "./dist/theme.css",
     "./package.json": "./package.json",
-    "./fonts.css": "./assets/fonts/fonts.css"
+    "./fonts.css": "./dist/fonts/fonts.css"
   },
   "files": [
-    "dist",
-    "assets"
+    "dist"
   ],
   "sideEffects": [
     "./dist/theme.css",
-    "./assets/fonts/fonts.css"
+    "./dist/fonts/fonts.css"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node ../../scripts/build/build-ui-package-assets.mjs theme-artemis",
