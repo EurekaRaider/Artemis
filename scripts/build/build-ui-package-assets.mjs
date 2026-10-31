@@ -78,6 +78,10 @@ if (target === "theme-contract") {
     join(dist, "fonts"),
     { recursive: true },
   );
+  await cp(
+    join(root, "third-party/geist-OFL.txt"),
+    join(dist, "fonts/OFL.txt"),
+  );
   await rm(join(dist, "tokens"), { recursive: true, force: true });
   const dataArtifacts = {
     "manifest.json": theme.artemisThemeManifest,

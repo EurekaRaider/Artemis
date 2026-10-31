@@ -1,36 +1,36 @@
 {
   "schemaVersion": 1,
   "repository": "slackapi/slack-cli",
-  "version": "4.11.0",
-  "releaseId": 421259320,
+  "version": "4.12.0",
+  "releaseId": 429500838,
   "licenseSha256": "a65d087cf010a52f8736da6b387df1feb7089e2c0636ef21cb86bef05940e0a4",
   "targets": {
     "darwin-arm64": {
-      "url": "https://github.com/slackapi/slack-cli/releases/download/v4.11.0/slack_cli_4.11.0_macOS_arm64.zip",
-      "sha256": "7eb4169d2b5c6c106980639146f0f2ede49898d2cfc6af33ace356365a7a3e3e",
-      "archiveBytes": 7624023,
+      "url": "https://github.com/slackapi/slack-cli/releases/download/v4.12.0/slack_cli_4.12.0_macOS_arm64.zip",
+      "sha256": "40baa4c639f5b48d716c38eed8fbeb4af8e3c8df2e6ce43cc4944c6f5bee0864",
+      "archiveBytes": 7631488,
       "executable": "slack",
-      "binaryBytes": 20561248,
-      "binarySha256": "efcd65d361610bd01d94b6ed647ce828a6b8eef8cc5c0bb33ce8ec6c99276ec5",
-      "contentSha256": "e917b2c5c1731068a1bc212ebd387614f969ed500415dcf72fc0e3e389049dd7"
+      "binaryBytes": 20577888,
+      "binarySha256": "fd8701c0728252ebae3056fb90cc1cad46cdf5aa2e23e6445cb46f5f36a091fa",
+      "contentSha256": "1c9f1f00bf252cc327fb45df5fbd4d34301ea7a32efe652456f47a579f3028c9"
     },
     "darwin-x64": {
-      "url": "https://github.com/slackapi/slack-cli/releases/download/v4.11.0/slack_cli_4.11.0_macOS_amd64.zip",
-      "sha256": "dbd5274db58daf12d0e534639ed363296e9460a90bfaa41773b096bf22fc3648",
-      "archiveBytes": 8512429,
+      "url": "https://github.com/slackapi/slack-cli/releases/download/v4.12.0/slack_cli_4.12.0_macOS_amd64.zip",
+      "sha256": "0cc359cf7f835718c57ff267ecf96e0df461b84c041a1264e6972a60c0c5157b",
+      "archiveBytes": 8520164,
       "executable": "slack",
-      "binaryBytes": 22522928,
-      "binarySha256": "723cc44809917234389c5da75fa651d3f6b35387b06156c5d2f69eed75289f42",
-      "contentSha256": "15e21ca0fe122ea0dee8540952766c9564269c39867c9cb5f64d94d703d9fc34"
+      "binaryBytes": 22543712,
+      "binarySha256": "cea3e55eea6c50a18b3537469a4673366e43d1a2c0c3a0709f7eac7eebc965fb",
+      "contentSha256": "0d19874bcb3f37ab65813049ae3688690f1f6753c5da2e169131a3cd4852d348"
     },
     "win32-x64": {
-      "url": "https://github.com/slackapi/slack-cli/releases/download/v4.11.0/slack_cli_4.11.0_windows_64-bit.zip",
-      "sha256": "3eb58cc9cd7210a1ca0ad6a0e701f2ef3c3c4f92f58e2ee5e52b21f96ab26e66",
-      "archiveBytes": 8477307,
+      "url": "https://github.com/slackapi/slack-cli/releases/download/v4.12.0/slack_cli_4.12.0_windows_64-bit.zip",
+      "sha256": "b1ca5e13e7c90cc7a9dfcb2af055f91d9a1e22db20790caa50ab530c07d4e914",
+      "archiveBytes": 8482309,
       "executable": "bin/slack.exe",
-      "binaryBytes": 22284800,
-      "binarySha256": "828018188fa7c68e36b12f1445b8f3b9d423198931b621f845458c37af889150",
-      "contentSha256": "8aa6a4e058762b771786441a94114eec49c647789166bc460d027586576e8e61"
+      "binaryBytes": 22306304,
+      "binarySha256": "392be8fb55e83767416da44300a447286aa48345296386e76383d61a16ffba5a",
+      "contentSha256": "0ae7c06160eb478c2ee3fb1a4503280e6dd30beea88b69c5260a3b3302471f4f"
     }
   }
 }
