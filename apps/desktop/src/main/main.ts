@@ -17226,7 +17226,7 @@ async function driveSmokeUserInputTransportEvidence(
 
     const multiRendered = await waitForDomState(
       "multi card advances into the decision composer",
-      (state) => state.pendingCards === 2,
+      (state) => state.pendingCards === 1 && state.cardTexts.some((text) => text.includes("Ship on Friday?")),
     );
     assert(
       "multi-card-translated-pending",
