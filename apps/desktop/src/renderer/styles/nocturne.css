@@ -3380,6 +3380,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   color: var(--artemis-color-text-tertiary);
   font: 11.5px/1.65 var(--mono-font);
   direction: ltr;
+  white-space: nowrap;
 }
 .app-shell .agent-team-message p {
   margin: 0;
@@ -3468,4 +3469,43 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   background: var(--artemis-color-canvas);
   color: var(--artemis-color-text-tertiary);
   font: 11.5px/1.5 var(--font);
+}
+
+[dir="rtl"] .app-shell .agent-team-message header time {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+.app-shell .office-sheet-grid {
+  font-size: 12px;
+}
+.app-shell .office-sheet-grid :is(th, td) {
+  block-size: 28px;
+  min-inline-size: 88px;
+  padding: 0 8px;
+}
+.app-shell .office-sheet-grid th {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11px;
+}
+.app-shell .office-sheet-grid th:first-child {
+  min-inline-size: 36px;
+}
+.app-shell .office-sheet-grid td[aria-selected="true"] {
+  background: transparent;
+}
+.app-shell .office-sheet-grid td[data-edge-top] {
+  border-block-start: 2px solid var(--artemis-color-text-primary);
+}
+.app-shell .office-sheet-grid td[data-edge-bottom] {
+  border-block-end: 2px solid var(--artemis-color-text-primary);
+}
+.app-shell .office-sheet-grid td[data-edge-left] {
+  border-inline-start: 2px solid var(--artemis-color-text-primary);
+}
+.app-shell .office-sheet-grid td[data-edge-right] {
+  border-inline-end: 2px solid var(--artemis-color-text-primary);
+}
+.app-shell .office-sheet-grid input {
+  padding: 2px 4px;
+  font: inherit;
 }
