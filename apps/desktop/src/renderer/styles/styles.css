@@ -3250,21 +3250,6 @@ button.environment-row:disabled {
 
 /* Multi-question cards retain mounted drafts without reserving empty slide space. */
 
-.user-question-progress-bar {
-  background: color-mix(in srgb, var(--panel-3) 82%, var(--border));
-  border-radius: 999px;
-  flex: 1 1 auto;
-  height: 4px;
-  overflow: hidden;
-}
-
-.user-question-progress-bar > i {
-  background: var(--blue);
-  display: block;
-  height: 100%;
-  transition: width 200ms ease;
-}
-
 .user-question-progress-text {
   color: var(--muted);
   flex: 0 0 auto;
@@ -6013,19 +5998,6 @@ button.environment-row:disabled {
   font-weight: 400;
   padding: 0;
   font-size: 11px;
-}
-.user-input-card .user-question-progress {
-  align-items: center;
-  display: flex;
-  padding: 0 14px 8px;
-  gap: 8px;
-}
-.user-input-card .user-question-progress-bar {
-  max-width: 64px;
-  height: 3px;
-}
-.user-question-progress-bar > i {
-  background: var(--muted);
 }
 .user-input-card .user-question-nav {
   display: flex;

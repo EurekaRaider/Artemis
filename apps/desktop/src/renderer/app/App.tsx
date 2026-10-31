@@ -73,6 +73,7 @@ import {
   type WorkspaceTabMenuEntry,
 } from "../workspace/workspace-tab-menu-html.js";
 import { ThreadStatusIndicator } from "../conversation/ThreadStatusIndicator.js";
+import { useAutomationCount } from "../automation/useAutomationCount.js";
 import { useTaskNotificationRead } from "../conversation/task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "../conversation/turn-failure.js";
@@ -933,6 +934,7 @@ function synchronizeTurnIndicator(event: ReactAnimationEvent<HTMLElement>) {
 
 export function App() {
   const imThreadStatus = useImThreadStatus();
+  const automationCount = useAutomationCount();
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [windowMaterial, setWindowMaterial] = useState<WindowMaterial>();
@@ -6269,6 +6271,11 @@ export function App() {
                 >
                   {icon}
                   <span>{label}</span>
+                  {view === "automations" && automationCount !== undefined && (
+                    <span className="sidebar-nav-count" aria-hidden="true">
+                      {automationCount}
+                    </span>
+                  )}
                 </button>
               ))}
             </nav>
