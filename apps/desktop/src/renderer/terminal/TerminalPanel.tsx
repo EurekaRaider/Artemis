@@ -125,6 +125,7 @@ export function TerminalPanel({
   const themeRef = useRef(theme);
   const localeRef = useRef(locale);
   const [detail, setDetail] = useState("");
+  const [desktopUserAccess, setDesktopUserAccess] = useState(false);
   const [exitCode, setExitCode] = useState(0);
   const [state, setState] = useState<TerminalPanelState>(
     threadId ? "connecting" : "empty",
@@ -140,6 +141,7 @@ export function TerminalPanel({
     }
 
     setState("connecting");
+    setDesktopUserAccess(false);
     let disposed = false;
     let terminalId: string | undefined;
     const terminal = new Terminal({
@@ -152,7 +154,7 @@ export function TerminalPanel({
           .getPropertyValue("--artemis-typography-mono-family")
           .trim() || "ui-monospace, Menlo, Consolas, monospace",
       fontSize: 12,
-      lineHeight: 1.15,
+      lineHeight: 20 / 12,
       minimumContrastRatio: 4.5,
       scrollback: 10_000,
       theme: resolveTerminalElementTheme(
@@ -297,7 +299,12 @@ export function TerminalPanel({
           return window.artemis.closeTerminal(descriptor.terminalId);
         }
         terminalId = descriptor.terminalId;
-        setDetail(`${descriptor.shell} · ${descriptor.sandboxImplementation}`);
+        setDesktopUserAccess(descriptor.sandboxImplementation === "desktop-user");
+        setDetail(
+          descriptor.sandboxImplementation === "desktop-user"
+            ? descriptor.shell
+            : `${descriptor.shell} · ${descriptor.sandboxImplementation}`,
+        );
         setState("ready");
         terminal.focus();
       })
@@ -382,6 +389,11 @@ export function TerminalPanel({
           <TerminalState state={state}>{displayDetail}</TerminalState>
         )}
       </TerminalViewport>
+      {desktopUserAccess && (state === "ready" || state === "exited") && (
+        <footer className="terminal-permission-note">
+          {uiText(locale, "TerminalPanel.desktopUserAccess")}
+        </footer>
+      )}
     </TerminalSurface>
   );
 }

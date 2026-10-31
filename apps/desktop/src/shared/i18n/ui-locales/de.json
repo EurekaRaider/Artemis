@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "Bereit",
   "ImSettingsPanel.serviceDisconnected": "Getrennt",
   "ImSettingsPanel.powerConnected": "Verbunden",
+  "TerminalPanel.desktopUserAccess": "Läuft als dein Desktop-Benutzer, ohne automatische Rechteerhöhung.",
   "TerminalPanel.processExited": "Prozess mit Code {{code}} beendet",
   "ImLegacyImport.tenantKey": "Mandantenschlüssel",
   "ImLegacyImport.botOpenId": "Open ID des Bots",

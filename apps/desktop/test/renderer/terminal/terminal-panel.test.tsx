@@ -86,6 +86,12 @@ it("uses a complete light palette with contrast protection and preserves the liv
   };
   const view = render(<TerminalPanel {...props} theme="light" />);
   await act(async () => {});
+  expect(
+    screen.getByText(
+      "Runs as your desktop user without automatic privilege elevation.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByText("zsh · desktop-user")).toBeNull();
   const terminal = terminals[0]!;
   expect(terminal.options.minimumContrastRatio).toBe(4.5);
   act(() => window.dispatchEvent(new Event("artemis:appearance-applied")));

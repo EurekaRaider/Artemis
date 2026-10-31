@@ -1470,6 +1470,7 @@
   "ImSettingsPanel.serviceReady": "準備完了",
   "ImSettingsPanel.serviceDisconnected": "切断",
   "ImSettingsPanel.powerConnected": "接続中",
+  "TerminalPanel.desktopUserAccess": "デスクトップユーザーとして実行し、権限を自動昇格しません。",
   "TerminalPanel.processExited": "プロセスが終了しました（終了コード：{{code}}）",
   "ImLegacyImport.tenantKey": "テナントキー",
   "ImLegacyImport.botOpenId": "ボットの Open ID",

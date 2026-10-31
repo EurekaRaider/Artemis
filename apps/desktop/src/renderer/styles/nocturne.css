@@ -2805,3 +2805,71 @@
   block-size: 30px;
   max-inline-size: 30px;
 }
+
+@container (max-width: 600px) {
+  .app-shell .review-comparison-toolbar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .app-shell .review-comparison-primary {
+    flex: 1 1 100%;
+    min-inline-size: 0;
+    gap: 6px;
+  }
+  .app-shell .review-scope-select {
+    flex: 1;
+    overflow: hidden;
+  }
+  .app-shell .review-toolbar-action {
+    flex: none;
+  }
+  .app-shell .review-diff-file-header {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
+    padding-block: 8px;
+    gap: 6px;
+  }
+  .app-shell .review-diff-file-header .review-file-path {
+    grid-column: 2 / -1;
+  }
+  .app-shell .review-diff-file-header .review-file-stats {
+    grid-column: 2;
+  }
+  .app-shell .review-diff-file-header .review-actions {
+    grid-column: 1 / -1;
+  }
+  .app-shell .review-hunk {
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding-block: 6px;
+  }
+  .app-shell .review-hunk code {
+    flex-basis: 100%;
+  }
+  .app-shell .review-actions {
+    flex-wrap: wrap;
+  }
+  .app-shell .review-comment-editor button {
+    white-space: nowrap;
+    padding-inline: 5px;
+  }
+}
+
+.app-shell .terminal-header {
+  min-block-size: 42px;
+  padding-inline: 14px;
+  background: var(--artemis-color-canvas);
+  font-size: 12px;
+}
+.app-shell .terminal-body {
+  padding: 12px 14px;
+}
+.app-shell .terminal-permission-note {
+  flex: none;
+  min-block-size: 36px;
+  padding: 8px 14px;
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
+  background: var(--artemis-color-canvas);
+  color: var(--artemis-color-text-tertiary);
+  font: 11.5px/1.5 var(--font);
+}
