@@ -16077,6 +16077,22 @@ async function driveSmokeFormControlsEvidence(
       throw new Error(
         `Review scope did not activate from the keyboard: ${JSON.stringify(interaction)}.`,
       );
+    // Restore the historical review after proving keyboard scope selection,
+    // so the subsequent geometry capture still includes the populated diff.
+    await evaluate(
+      `document.querySelector('.turn-change-actions button:last-child')?.click()`,
+    );
+    await wait(500);
+    for (let presses = 0; presses < 200; presses += 1) {
+      if (
+        await evaluate<boolean>(
+          `document.activeElement === document.querySelector(${JSON.stringify(target.selector)})`,
+        )
+      )
+        break;
+      await pressKey("Tab", 9);
+      await wait(15);
+    }
     return;
   }
 
@@ -22990,12 +23006,12 @@ function createMainWindow(): BrowserWindow {
                           '[data-artemis-component="search-field"], ' +
                           '[data-artemis-component="select"], ' +
                           '[data-artemis-component="checkbox"], ' +
-                          '[data-artemis-component="switch"], [data-artemis-component="run-mode-control"]',
+                          '[data-artemis-component="switch"], [data-artemis-component="run-mode-control"], [data-artemis-component="segmented-control"]',
                       ),
                     ];
                     const describe = (root) => {
                       const control = root.querySelector(
-                        '[data-part="control"], [data-part="trigger"], [role="radio"][aria-checked="true"]',
+                        '[data-part="control"], [data-part="trigger"], [role="radio"][aria-checked="true"], [data-part="segment"][aria-pressed="true"]',
                       );
                       const visual =
                         root.querySelector(
