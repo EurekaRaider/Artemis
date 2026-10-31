@@ -2190,6 +2190,10 @@
     var(--artemis-shadow-overlay);
 }
 .app-shell .computer-control {
+  container-type: normal;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   color-scheme: dark;
   --artemis-color-text-primary: #ecedef;
   --artemis-color-text-secondary: #a9adb6;
@@ -2207,6 +2211,12 @@
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.2);
   backdrop-filter: none;
 }
+.app-shell .computer-control-status {
+  flex: 1 1 auto;
+}
+.app-shell .computer-control-name {
+  max-inline-size: 240px;
+}
 .app-shell .computer-control-summary {
   gap: 6px;
 }
@@ -2217,15 +2227,20 @@
   color: #e8b65a;
 }
 .app-shell .computer-control-timer {
+  flex: 0 0 auto;
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: #a9adb6;
   order: 2;
 }
+.app-shell .computer-control-actions {
+  flex: 0 0 auto;
+}
 .app-shell .computer-control-actions > button {
   padding-inline: 8px;
   border-radius: 999px;
   color: #ecedef;
+  white-space: nowrap;
 }
 .app-shell .computer-control-actions > .computer-control-stop {
   color: #1a0b0a;
@@ -2236,6 +2251,9 @@
   block-size: 14px;
 }
 .app-shell .computer-control-reason {
+  flex-basis: 100%;
+  order: 3;
+  text-align: center;
   padding-inline: 8px;
   font-size: 11px;
 }
@@ -2248,6 +2266,9 @@
   flex-basis: 100%;
   padding-block-start: 6px;
   min-inline-size: 0;
+}
+.app-shell .sidebar-update:empty {
+  display: none;
 }
 .app-shell .sidebar-update .update-btn {
   display: inline-flex;
@@ -2340,8 +2361,37 @@
   font-size: 11.5px;
   line-height: 1.5;
 }
-.app-shell .update-task-notice span:last-of-type {
+.app-shell .update-task-notice-copy > span:last-child {
   color: var(--muted);
+}
+.app-shell .update-notice-slot {
+  flex: 0 0 auto;
+}
+.app-shell .update-notice-slot:empty {
+  display: none;
+}
+.app-shell .update-notice-slot .update-task-notice {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 44px;
+  padding: 8px 16px;
+  border-block-end: 1px solid var(--border-soft);
+  border-radius: 0;
+}
+.app-shell .update-task-notice-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+body:has(.environment-popover) .app-shell .update-notice-slot {
+  margin-inline-end: var(--environment-panel-inline-size);
+}
+@media (max-width: 979px) {
+  body:has(.environment-popover) .app-shell .update-notice-slot {
+    margin-inline-end: 0;
+  }
 }
 .app-shell .update-error {
   color: var(--artemis-color-status-danger-text);

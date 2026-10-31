@@ -148,7 +148,12 @@ it("opens only the newly installed plugin connection, then reopens it from that 
   // Loading a marketplace does not open authorization or expose a separate page.
   expect(screen.queryByRole("dialog")).toBeNull();
   expect(screen.queryByRole("tab", { name: "Connectors" })).toBeNull();
-  await user.click(await screen.findByRole("button", { name: "Install" }));
+  const pluginCard = (await screen.findByText("QQ Mail")).closest(
+    ".plugin-market-card",
+  ) as HTMLElement;
+  await user.click(
+    within(pluginCard).getByRole("button", { name: "Install", exact: true }),
+  );
   const confirmation = await screen.findByRole("alertdialog", {
     name: "Install QQ Mail",
   });
@@ -165,7 +170,7 @@ it("opens only the newly installed plugin connection, then reopens it from that 
   expect(screen.queryByRole("alertdialog")).toBeNull();
   expect(install).not.toHaveBeenCalled();
   await user.click(
-    screen.getByRole("button", { name: "Install", exact: true }),
+    within(pluginCard).getByRole("button", { name: "Install", exact: true }),
   );
   fireEvent(
     screen.getByRole("alertdialog"),
@@ -174,7 +179,7 @@ it("opens only the newly installed plugin connection, then reopens it from that 
   expect(screen.queryByRole("alertdialog")).toBeNull();
   expect(install).not.toHaveBeenCalled();
   await user.click(
-    screen.getByRole("button", { name: "Install", exact: true }),
+    within(pluginCard).getByRole("button", { name: "Install", exact: true }),
   );
   await user.click(
     within(screen.getByRole("alertdialog")).getByRole("button", {

@@ -14,7 +14,7 @@ const pageSource = source(
 const apiSource = source("../../../src/shared/api.ts");
 const preloadSource = source("../../../src/preload/preload.ts");
 const mainSource = source("../../../src/main/main.ts");
-const stylesSource = source("../../../src/renderer/styles/styles.css");
+const stylesSource = source("../../../src/renderer/styles/nocturne.css");
 
 describe("current user profile integration", () => {
   it("keeps the OS username private in smoke screenshots", () => {
@@ -67,7 +67,7 @@ describe("current user profile integration", () => {
     expect(appSource).toContain("runtimeSettings?.profileAvatar");
   });
 
-  it("renders a centered local avatar with initials fallback above the token summary", () => {
+  it("renders the usage heading and a compact real-user account with initials fallback", () => {
     const profileStart = pageSource.indexOf(
       '<header className="token-usage-profile">',
     );
@@ -85,17 +85,17 @@ describe("current user profile integration", () => {
     expect(profile).toContain("profileAvatar ? (");
     expect(profile).toContain('className="token-usage-avatar-image"');
     expect(profile).toContain("userInitials(username)");
-    expect(profile).toContain("<h1>{username}</h1>");
-    expect(profile).toContain('className="token-usage-handle"');
-    expect(profile).toContain("@{username}");
-    expect(profile).toContain('className="token-usage-profile-badge"');
+    expect(profile).toContain("<h1>{t.title}</h1>");
+    expect(profile).toContain('className="token-usage-account"');
+    expect(profile).toContain("{username}");
+    expect(profile).not.toContain('className="token-usage-profile-badge"');
     expect(pageSource).toContain('className="token-usage-details"');
     expect(pageSource).toContain("usageTotals.input");
     expect(stylesSource).toMatch(
-      /\.token-usage-profile\s*\{(?=[^}]*align-items:\s*center)(?=[^}]*flex-direction:\s*column)(?=[^}]*text-align:\s*center)[^}]*\}/u,
+      /\.token-usage-profile\s*\{(?=[^}]*justify-content:\s*space-between)(?=[^}]*flex-direction:\s*row)(?=[^}]*text-align:\s*start)[^}]*\}/u,
     );
     expect(stylesSource).toMatch(
-      /\.token-usage-avatar\s*\{(?=[^}]*border-radius:\s*50%)(?=[^}]*display:\s*grid)[^}]*\}/u,
+      /\.token-usage-avatar\s*\{(?=[^}]*border-radius:\s*8px)(?=[^}]*inline-size:\s*28px)[^}]*\}/u,
     );
   });
 });

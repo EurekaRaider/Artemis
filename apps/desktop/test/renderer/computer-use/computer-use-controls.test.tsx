@@ -28,6 +28,11 @@ it.each(APP_LOCALES)(
     expect(
       await screen.findByText(uiText(locale, "ComputerUse.reasonTakeover")),
     ).toBeVisible();
+    expect(
+      screen.getByRole("button", {
+        name: uiText(locale, "ComputerUse.returnControl"),
+      }),
+    ).toBeEnabled();
     act(() => notify({ ...state, reason: "toString" }));
     expect(screen.getByText("toString")).toBeVisible();
   },

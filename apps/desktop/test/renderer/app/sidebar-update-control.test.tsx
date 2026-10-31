@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { SidebarUpdateControl } from "../../../src/renderer/updates/SidebarUpdateControl.js";
@@ -60,6 +61,33 @@ it("cancels a deferred restart when Later is selected", async () => {
   await act(async () => rendered.rerender(view(0)));
   expect(installUpdate).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Install update" })).toBeEnabled();
+});
+
+it("places the ready notice under the header and lets Later dismiss it before scheduling", () => {
+  const installUpdate = vi.fn(async () => {});
+  stubWindowArtemis({ installUpdate });
+  const target = document.createElement("div");
+  document.body.append(target);
+  const rendered = render(
+    <SidebarUpdateControl
+      status={ready}
+      locale="en"
+      activeTaskCount={1}
+      noticeTarget={target}
+      onStatus={() => {}}
+      onError={() => {}}
+    />,
+  );
+  expect(within(target).getByRole("status")).toHaveTextContent("1.7.21");
+  expect(within(rendered.container).queryByRole("button")).toBeNull();
+  fireEvent.click(within(target).getByRole("button", { name: "Later" }));
+  expect(target).toBeEmptyDOMElement();
+  expect(
+    within(rendered.container).getByRole("button", { name: "Install update" }),
+  ).toBeEnabled();
+  expect(installUpdate).not.toHaveBeenCalled();
+  rendered.unmount();
+  target.remove();
 });
 
 it("shows byte progress only when the updater supplies it", () => {

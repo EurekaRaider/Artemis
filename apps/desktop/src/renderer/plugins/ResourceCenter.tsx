@@ -2254,6 +2254,9 @@ export function ResourceCenter({
     const installedVersion = computer
       ? computerRuntime?.activeVersion
       : installedPlugin?.version;
+    const displayVersion =
+      installedVersion ??
+      (!installed && !computer ? plugin.version : undefined);
     const conflict = installed ? undefined : pluginSkillConflict(plugin);
     const displayName = pluginDisplayName(plugin);
     const description = pluginDescription(plugin);
@@ -2288,13 +2291,12 @@ export function ResourceCenter({
           />
           <div className="plugin-market-card-titles">
             <strong
-              title={`${displayName}${installedVersion ? ` v${installedVersion}` : installed ? "" : ` v${plugin.version}`}`}
+              title={`${displayName}${displayVersion ? ` v${displayVersion}` : ""}`}
             >
               {displayName}
-              {/* 已安装的插件在名称后跟小号 v+版本号。 */}
-              <span className="plugin-market-card-vn">
-                v{installedVersion ?? plugin.version}
-              </span>
+              {displayVersion && (
+                <span className="plugin-market-card-vn">v{displayVersion}</span>
+              )}
             </strong>
             <small
               className="plugin-market-card-source"

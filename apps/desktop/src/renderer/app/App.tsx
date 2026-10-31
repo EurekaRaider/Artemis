@@ -953,6 +953,8 @@ export function App() {
   const [attachmentDragActive, setAttachmentDragActive] = useState(false);
   const [approvalPolicy, setApprovalPolicy] = useState<ApprovalPolicy>("agent");
   const [runtimeSettings, setRuntimeSettings] = useState<SettingsSnapshot>();
+  const [updateNoticeTarget, setUpdateNoticeTarget] =
+    useState<HTMLDivElement | null>(null);
   const effectiveMaterial =
     runtimeSettings?.material === "solid" || windowMaterial === "solid"
       ? "solid"
@@ -6165,6 +6167,7 @@ export function App() {
               <SidebarUpdateControl
                 status={runtimeSettings.update}
                 locale={locale}
+                noticeTarget={updateNoticeTarget}
                 activeTaskCount={
                   snapshot?.threads.filter(
                     (thread) =>
@@ -7417,6 +7420,8 @@ export function App() {
                 </div>
               </div>
             </Toolbar>
+
+            <div className="update-notice-slot" ref={setUpdateNoticeTarget} />
 
             <div
               className="workspace-content"

@@ -59,6 +59,10 @@ export function ComputerUseControls({
       : undefined;
   const [elapsed, setElapsed] = useState(0);
   const [takenOver, setTakenOver] = useState(false);
+  const userTookControl =
+    takenOver ||
+    (state.reason?.startsWith("User ") &&
+      state.reason !== "User paused control");
   useEffect(() => {
     setElapsed(0);
     setTakenOver(false);
@@ -201,7 +205,7 @@ export function ComputerUseControls({
                   })
                 }
               >
-                {takenOver
+                {userTookControl
                   ? uiText(locale, "ComputerUse.returnControl")
                   : copy.resume}
               </Button>

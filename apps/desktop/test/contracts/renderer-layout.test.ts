@@ -2490,7 +2490,7 @@ describe("renderer layout contract", () => {
     expect(icon).not.toContain('name="source"');
   });
 
-  it("keeps the Codex-style marketplace and manager on one centered grid", () => {
+  it("keeps the Nocturne marketplace and manager on the shared resource surface", () => {
     const resourceSurface = publicUiCssRule(
       '[data-artemis-component="resource-surface"]',
     );
@@ -2506,9 +2506,7 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain(
       "value={activeMarketplaceTabOption.value}",
     );
-    expect(resourceCenterSource).toContain(
-      "options={managementTabOptions.map((option) => ({",
-    );
+    expect(resourceCenterSource).toContain("options={managementTabOptions}");
     expect(resourceSurface).toMatch(/\bdisplay:\s*flex/u);
     expect(publicUiStylesSource).toContain("inline-size: min(100%, 72rem)");
     expect(toolbar).toMatch(/\bdisplay:\s*flex/u);
