@@ -1742,6 +1742,25 @@ async function driveCancelArm(driver, testCase, artifactsFor) {
     resolved,
     "exactly one kind-less resolved event with source cancelled",
   );
+  // Stopped turns collapse and lazily unmount their execution history. Open
+  // the real disclosure before looking for its retained decision result.
+  const cancelledHistory =
+    "document.querySelector('.timeline-turn[data-state=\"cancelled\"] .work-record')";
+  await driver.waitForElement(
+    `${cancelledHistory}?.checkVisibility()`,
+    "cancelled turn work record",
+  );
+  const historyOpen = await driver.evaluate(`${cancelledHistory}?.open`);
+  assert(
+    "6-cancel-history-initially-collapsed",
+    historyOpen === false,
+    historyOpen,
+    false,
+  );
+  await driver.clickElement(
+    `${cancelledHistory}?.querySelector(":scope > summary")`,
+    "cancelled turn work record summary",
+  );
   snapshot = await driver.waitForCard(
     "card cancelled",
     (state) => state.cancelled && !state.pending,
@@ -1751,6 +1770,34 @@ async function driveCancelArm(driver, testCase, artifactsFor) {
     snapshot.cancelled === true && snapshot.pending === false,
     snapshot.status,
     "whole card renders cancelled",
+  );
+  assert(
+    "6-cancel-keeps-both-question-results",
+    snapshot.resultStrips.length === 2 &&
+      snapshot.resultStrips[0] === "Roll out to everyone?Cancelled" &&
+      snapshot.resultStrips[1] === "Announce the release?Cancelled" &&
+      snapshot.resultOpen === false,
+    { results: snapshot.resultStrips, open: snapshot.resultOpen },
+    "collapsed result retains both unanswered questions as Cancelled",
+  );
+  const cancelledResult =
+    "document.querySelector('.user-input-result[data-state=\"cancelled\"]')";
+  await driver.clickElement(
+    `${cancelledResult}?.querySelector(":scope > summary")`,
+    "cancelled decision result summary",
+  );
+  snapshot = await driver.waitForCard(
+    "cancelled result expanded",
+    (state) => state.cancelled && state.resultOpen === true,
+  );
+  assert(
+    "6-cancel-result-details-visible",
+    await driver.evaluate(`(() => {
+      const details = [...(${cancelledResult}?.querySelectorAll(".decision-result-detail > div") ?? [])];
+      return details.length === 2 && details.every((detail) => detail.checkVisibility());
+    })()`),
+    { results: snapshot.resultStrips, open: snapshot.resultOpen },
+    "both cancelled question details visible after a real disclosure click",
   );
   const drainedProbe = await driver.evaluate(
     `window.artemis.resolveUserInput(${JSON.stringify({
@@ -1769,6 +1816,16 @@ async function driveCancelArm(driver, testCase, artifactsFor) {
     drainedProbe.rejected === true,
     drainedProbe,
     { rejected: true },
+  );
+  const resolvedAfterDuplicate = await driver.storeEvents(
+    cancelRequestId,
+    "user-input.resolved",
+  );
+  assert(
+    "6-cancel-no-duplicate-resolution-event",
+    resolvedAfterDuplicate.length === resolved.length,
+    resolvedAfterDuplicate.length,
+    resolved.length,
   );
   screenshots.push({
     name: `${testCase.caseId}-01-cancelled.png`,
