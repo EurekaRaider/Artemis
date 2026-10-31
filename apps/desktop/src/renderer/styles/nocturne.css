@@ -158,6 +158,10 @@
   font-size: 11.5px;
 }
 .app-shell .sidebar .sidebar-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  height: auto;
+  min-block-size: 56px;
   border-block-start: 1px solid var(--artemis-color-border-subtle);
   padding: 10px 6px 0;
 }
@@ -1326,9 +1330,16 @@
   align-items: start;
   gap: 10px;
 }
-.app-shell .automation-master-row > button > svg {
+.app-shell .automation-master-row > button > [data-part="icon"] {
   flex: 0 0 16px;
   margin-block-start: 3px;
+}
+.app-shell .automation-master-row > button > [data-part="label"] {
+  flex: 1;
+  min-inline-size: 0;
+}
+.app-shell .automation-master-row > button > [data-part="state-indicator"] {
+  display: none;
 }
 .app-shell .automation-master-row [data-artemis-component="switch"] {
   flex: 0 0 auto;
@@ -1450,16 +1461,20 @@
   margin: 24px 0 8px;
 }
 .app-shell .archive-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 4px;
+  padding: 0;
   border: 0;
   border-block-end: 1px solid var(--border-soft);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+.app-shell .archive-card > [data-part="content"] {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-block-size: 52px;
+  padding: 8px 14px;
 }
 .app-shell .archive-thread-icon {
   inline-size: 18px;
@@ -1472,7 +1487,11 @@
   min-inline-size: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
+  margin: 0;
+  color: var(--text);
+  letter-spacing: normal;
+  text-transform: none;
 }
 .app-shell .archive-card-copy h2 {
   order: -1;
@@ -1490,7 +1509,8 @@
 }
 .app-shell .archive-card-actions {
   flex-shrink: 0;
-  gap: 4px;
+  flex-wrap: nowrap;
+  gap: 2px;
 }
 .app-shell .archive-goal {
   margin: 0;
@@ -1963,6 +1983,7 @@
 
 /* Menus and utility overlays form the light chrome above opaque content. */
 .app-shell [role="menu"],
+.app-shell .project-menu,
 [data-artemis-component="popover"][role="menu"],
 .environment-workspace-menu {
   border-radius: 11px;
@@ -1973,16 +1994,33 @@
 }
 :is(
     .app-shell [role="menu"],
+    .app-shell .project-menu,
     [data-artemis-component="popover"][role="menu"],
     .environment-workspace-menu
   )
-  :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]) {
+  :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]),
+.app-shell .project-menu > button {
   min-block-size: 32px;
   border-radius: 6px;
   padding: 5px 8px;
   gap: 8px;
   font-size: 13px;
   font-weight: 400;
+}
+.app-shell .project-menu {
+  inset-inline: auto 2px;
+}
+.app-shell .project-menu > button {
+  text-align: start;
+}
+.app-shell .project-menu > .danger {
+  color: var(--artemis-color-status-danger-text);
+}
+.app-shell .project-menu > :not(.danger) + .danger {
+  border-block-start: 1px solid var(--border-soft);
+  margin-block-start: 5px;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
 }
 :is(.app-shell [role="menu"], [data-artemis-component="popover"][role="menu"])
   .danger {
@@ -1995,6 +2033,7 @@
 :root[data-material="glass"]
   :is(
     [role="menu"],
+    .project-menu,
     .environment-workspace-menu,
     [data-artemis-component="select"] [data-part="menu"]
   ) {
@@ -2043,8 +2082,8 @@
   color: #ecedef;
 }
 .app-shell .computer-control-actions > .computer-control-stop {
-  color: #f2736b;
-  background: rgb(242 115 107 / 0.1);
+  color: #1a0b0a;
+  background: #f2736b;
 }
 .app-shell .computer-control-actions svg {
   inline-size: 14px;
@@ -2055,12 +2094,14 @@
   font-size: 11px;
 }
 .app-shell .sidebar-update {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
   flex-basis: 100%;
   padding-block-start: 6px;
+  min-inline-size: 0;
 }
 .app-shell .sidebar-update .update-btn {
   display: inline-flex;
@@ -2091,6 +2132,26 @@
 .app-shell .sidebar-update[data-state="checking"] .update-btn {
   color: var(--muted);
   background: transparent;
+}
+.app-shell .update-checking-icon {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 1.5px solid var(--artemis-color-border-default);
+  border-block-start-color: currentColor;
+  border-radius: 50%;
+}
+.app-shell .sidebar-update[data-state="available"] [data-part="icon"] {
+  position: relative;
+}
+.app-shell .sidebar-update[data-state="available"] [data-part="icon"]::after {
+  content: "";
+  position: absolute;
+  inline-size: 5px;
+  block-size: 5px;
+  inset-block-start: -2px;
+  inset-inline-end: -2px;
+  border-radius: 50%;
+  background: var(--artemis-color-status-info);
 }
 .app-shell .sidebar-update[data-state="error"] .update-btn {
   color: var(--artemis-color-status-danger-text);

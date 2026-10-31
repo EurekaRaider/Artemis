@@ -117,10 +117,14 @@ export function SidebarUpdateControl({
               </svg>
               <ArtemisIcon name="arrow-down" />
             </span>
+          ) : status.state === "checking" ? (
+            <span className="update-checking-icon" aria-hidden="true" />
           ) : (
             <ArtemisIcon
               className={
-                status.state === "checking" ? "update-checking-icon" : undefined
+                status.state === "available"
+                  ? "update-available-icon"
+                  : undefined
               }
               name={
                 status.state === "downloaded"
