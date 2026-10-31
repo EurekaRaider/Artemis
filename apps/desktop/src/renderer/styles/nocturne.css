@@ -176,7 +176,7 @@
   height: auto;
   min-block-size: 56px;
   border-block-start: 1px solid var(--artemis-color-border-subtle);
-  padding: 10px 6px 0;
+  padding: 10px 6px;
 }
 .app-shell .sidebar .app-version {
   color: var(--artemis-color-text-tertiary);
@@ -1843,7 +1843,16 @@
   margin: 0 0 12px;
 }
 .app-shell .token-usage-chart {
-  min-inline-size: 640px;
+  inline-size: max-content;
+  min-inline-size: 0;
+}
+.app-shell .token-usage-chart [data-part="grid"] {
+  grid-template-rows: repeat(var(--data-rows), 13px);
+  gap: 3px;
+}
+.app-shell .token-usage-chart :is([data-part="row"], [data-part="column-labels"]) {
+  grid-template-columns: repeat(var(--data-columns), 13px);
+  gap: 3px;
 }
 .app-shell .token-usage-activity-controls {
   gap: 12px;
