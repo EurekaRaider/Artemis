@@ -15978,7 +15978,8 @@ async function driveSmokeFormControlsEvidence(
     "turn-changes-form-controls": {
       selector:
         '.review-scope-select [data-artemis-component="segmented-control"] [aria-pressed="true"]',
-      rootSelector: '.review-scope-select [data-artemis-component="segmented-control"]',
+      rootSelector:
+        '.review-scope-select [data-artemis-component="segmented-control"]',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
@@ -15995,7 +15996,7 @@ async function driveSmokeFormControlsEvidence(
     }
     const parameters = {
       key,
-      code: key,
+      code: key === " " ? "Space" : key,
       windowsVirtualKeyCode: virtualKeyCode,
       nativeVirtualKeyCode: virtualKeyCode,
     };
@@ -16058,16 +16059,24 @@ async function driveSmokeFormControlsEvidence(
   }
 
   if (view === "turn-changes-form-controls") {
-    await evaluate(`window.__reviewScopeRoot = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]'); window.__reviewScopeBefore = window.__reviewScopeRoot.querySelector('[aria-pressed="true"]').textContent.trim();`);
+    await evaluate(
+      `window.__reviewScopeRoot = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]'); window.__reviewScopeBefore = window.__reviewScopeRoot.querySelector('[aria-pressed="true"]').textContent.trim();`,
+    );
     await pressKey("Tab", 9);
-    await pressKey("Enter", 13);
+    await pressKey(" ", 32);
     await wait(350);
-    const interaction = await evaluate<{keyboardActivated: boolean; rootStable: boolean}>(`(() => {
+    const interaction = await evaluate<{
+      keyboardActivated: boolean;
+      rootStable: boolean;
+    }>(`(() => {
       const root = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]');
-      window.__formControlsInteraction = { keyboardActivated: root?.querySelector('[aria-pressed="true"]')?.textContent.trim() !== window.__reviewScopeBefore, rootStable: root === window.__reviewScopeRoot };
+      window.__formControlsInteraction = { keyboardActivated: root?.querySelector('[aria-pressed="true"]')?.textContent.trim() !== window.__reviewScopeBefore, rootStable: root === window.__reviewScopeRoot, before: window.__reviewScopeBefore, after: root?.querySelector('[aria-pressed="true"]')?.textContent.trim(), active: document.activeElement?.outerHTML };
       return window.__formControlsInteraction;
     })()`);
-    if (!interaction.keyboardActivated || !interaction.rootStable) throw new Error("Review scope did not activate from the keyboard.");
+    if (!interaction.keyboardActivated || !interaction.rootStable)
+      throw new Error(
+        `Review scope did not activate from the keyboard: ${JSON.stringify(interaction)}.`,
+      );
     return;
   }
 
@@ -17240,7 +17249,9 @@ async function driveSmokeUserInputTransportEvidence(
 
     const multiRendered = await waitForDomState(
       "multi card advances into the decision composer",
-      (state) => state.pendingCards === 1 && state.cardTexts.some((text) => text.includes("Ship on Friday?")),
+      (state) =>
+        state.pendingCards === 1 &&
+        state.cardTexts.some((text) => text.includes("Ship on Friday?")),
     );
     assert(
       "multi-card-translated-pending",
