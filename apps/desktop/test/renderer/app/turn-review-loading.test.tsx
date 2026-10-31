@@ -194,6 +194,12 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(file.querySelector(".review-file-path")).toHaveTextContent(
     /^audit\.md$/,
   );
+  const addedLine = document.querySelector('[data-line-id="line"]')!;
+  expect(addedLine.querySelector('[data-side="old"]')).toBeEmptyDOMElement();
+  expect(addedLine.querySelector('[data-side="new"]')).toHaveTextContent("1");
+  expect(addedLine.querySelector('[data-part="marker"]')).toHaveTextContent(
+    "+",
+  );
 
   await act(async () => {
     receiveEvents([

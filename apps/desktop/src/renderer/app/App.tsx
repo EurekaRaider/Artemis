@@ -9644,11 +9644,17 @@ ${model.providerId} · ${model.modelId}`}
                                                             +
                                                           </button>
                                                         )}
-                                                        <span className="review-line-number">
-                                                          {line.kind ===
-                                                          "deletion"
-                                                            ? line.oldLine
-                                                            : line.newLine}
+                                                        <span
+                                                          className="review-line-number"
+                                                          data-side="old"
+                                                        >
+                                                          {line.oldLine}
+                                                        </span>
+                                                        <span
+                                                          className="review-line-number"
+                                                          data-side="new"
+                                                        >
+                                                          {line.newLine}
                                                         </span>
                                                         <code>
                                                           <HighlightedCodeLine
