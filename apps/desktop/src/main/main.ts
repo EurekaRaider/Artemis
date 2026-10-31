@@ -15977,8 +15977,8 @@ async function driveSmokeFormControlsEvidence(
     },
     "turn-changes-form-controls": {
       selector:
-        '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
-      rootSelector: '.review-scope-select [data-artemis-component="select"]',
+        '.review-scope-select [data-artemis-component="segmented-control"] [aria-pressed="true"]',
+      rootSelector: '.review-scope-select [data-artemis-component="segmented-control"]',
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
@@ -16054,6 +16054,20 @@ async function driveSmokeFormControlsEvidence(
         tabIndex: button.tabIndex, width: button.getBoundingClientRect().width,
       })),
     }`);
+    return;
+  }
+
+  if (view === "turn-changes-form-controls") {
+    await evaluate(`window.__reviewScopeRoot = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]'); window.__reviewScopeBefore = window.__reviewScopeRoot.querySelector('[aria-pressed="true"]').textContent.trim();`);
+    await pressKey("Tab", 9);
+    await pressKey("Enter", 13);
+    await wait(350);
+    const interaction = await evaluate<{keyboardActivated: boolean; rootStable: boolean}>(`(() => {
+      const root = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]');
+      window.__formControlsInteraction = { keyboardActivated: root?.querySelector('[aria-pressed="true"]')?.textContent.trim() !== window.__reviewScopeBefore, rootStable: root === window.__reviewScopeRoot };
+      return window.__formControlsInteraction;
+    })()`);
+    if (!interaction.keyboardActivated || !interaction.rootStable) throw new Error("Review scope did not activate from the keyboard.");
     return;
   }
 
@@ -20385,21 +20399,13 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Review action did not become available.');
                     }
                     reviewAction.click();
-                    let trigger = null;
-                    while (Date.now() < deadline && trigger === null) {
-                      trigger = document.querySelector(
-                        '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
-                      );
-                      if (trigger === null) await wait(100);
+                    let scope = null;
+                    while (Date.now() < deadline && scope === null) {
+                      scope = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]');
+                      if (scope === null) await wait(100);
                     }
-                    const selectRoot = trigger?.closest(
-                      '[data-artemis-component="select"]',
-                    );
-                    if (
-                      !(trigger instanceof HTMLButtonElement) ||
-                      !selectRoot
-                    ) {
-                      throw new Error('Public Review Select missing.');
+                    if (!scope || scope.querySelectorAll('[data-part="segment"]').length < 4) {
+                      throw new Error('Public Review SegmentedControl missing.');
                     }
                     return;
                   }
