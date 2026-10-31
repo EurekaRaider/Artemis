@@ -24279,6 +24279,36 @@ app
       join(app.getPath("userData"), "AGENTS.md"),
     );
     nativeTheme.on("updated", syncWindowBackgroundColors);
+    if (
+      smokeMode &&
+      process.env.ARTEMIS_SMOKE_VIEW === "nocturne-settings-providers"
+    ) {
+      // An isolated local definition exercises model rows and the saved default
+      // without importing credentials or claiming a successful connection.
+      const providerId = "nocturne-local-fixture";
+      const modelId = "fixture-model";
+      const contextWindow = 64_000;
+      await settingsStore.saveProviderConnection({
+        id: providerId,
+        name: "Local UI fixture",
+        baseUrl: "http://127.0.0.1:65535/v1",
+        models: [
+          {
+            id: modelId,
+            name: "Fixture model",
+            reasoning: false,
+            input: ["text"],
+            contextWindow,
+            maxTokens: 8_000,
+          },
+        ],
+      });
+      await settingsStore.addModel({ providerId, modelId, contextWindow });
+      await settingsStore.setModel(
+        { providerId, modelId, thinkingLevel: "off" },
+        contextWindow,
+      );
+    }
     if (smokeMode && process.env.ARTEMIS_SMOKE_MATERIAL) {
       await settingsStore.setMaterialPreference(
         parseMaterialPreference(process.env.ARTEMIS_SMOKE_MATERIAL),
