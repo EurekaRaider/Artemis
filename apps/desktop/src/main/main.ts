@@ -20385,21 +20385,13 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Review action did not become available.');
                     }
                     reviewAction.click();
-                    let trigger = null;
-                    while (Date.now() < deadline && trigger === null) {
-                      trigger = document.querySelector(
-                        '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
-                      );
-                      if (trigger === null) await wait(100);
+                    let scope = null;
+                    while (Date.now() < deadline && scope === null) {
+                      scope = document.querySelector('.review-scope-select [data-artemis-component="segmented-control"]');
+                      if (scope === null) await wait(100);
                     }
-                    const selectRoot = trigger?.closest(
-                      '[data-artemis-component="select"]',
-                    );
-                    if (
-                      !(trigger instanceof HTMLButtonElement) ||
-                      !selectRoot
-                    ) {
-                      throw new Error('Public Review Select missing.');
+                    if (!scope || scope.querySelectorAll('[role="radio"]').length < 4) {
+                      throw new Error('Public Review SegmentedControl missing.');
                     }
                     return;
                   }
