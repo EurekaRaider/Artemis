@@ -92,14 +92,14 @@ describe("automation desktop integration", () => {
     expect(page).toContain("intervalUnit");
   });
 
-  it("gives the header create action a decorative icon and interaction states", () => {
+  it("gives the primary header create action a decorative icon and interaction states", () => {
     expect(page).toContain("<ManagementHeader");
     expect(page).toContain('className="automation-create-button"');
     expect(page).toContain('className="automation-create-icon"');
-    expect(page).toContain('variant="secondary"');
+    expect(page).toContain('variant="primary"');
     expect(page).toContain("<Button");
     expect(publicStyles).toMatch(
-      /\[data-artemis-component="button"\]\[data-variant="secondary"\]:hover:not\(\s*:disabled\s*\)/u,
+      /\[data-artemis-component="button"\]\[data-variant="primary"\]:hover:not\(\s*:disabled\s*\)/u,
     );
     expect(styles).toMatch(
       /\.automation-create-button:disabled\s*\{\s*[^}]+\}/u,

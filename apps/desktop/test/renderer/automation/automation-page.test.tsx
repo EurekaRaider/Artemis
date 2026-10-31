@@ -313,11 +313,11 @@ describe("automation management controls", () => {
     document.body.append(headerActionTarget);
     try {
       await setup({ headerActionTarget });
-      await userEvent.click(
-        within(headerActionTarget).getByRole("button", {
-          name: "New automation",
-        }),
-      );
+      const createAction = within(headerActionTarget).getByRole("button", {
+        name: "New automation",
+      });
+      expect(createAction).toHaveAttribute("data-variant", "primary");
+      await userEvent.click(createAction);
       expect(
         screen.getByRole("dialog", { name: "New automation" }),
       ).toBeInTheDocument();
