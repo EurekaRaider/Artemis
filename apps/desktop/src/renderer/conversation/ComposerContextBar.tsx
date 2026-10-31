@@ -14,7 +14,7 @@ import type { AppLocale, Project, RunMode } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 
 import type { ProjectGitInfo } from "../../shared/api.js";
-import { CodexSelect } from "../components/CodexSelect.js";
+import { RunModeControl } from "@artemis/ui/patterns";
 
 type Locale = AppLocale;
 
@@ -25,6 +25,7 @@ interface ComposerContextBarProps {
   projectActionsDisabled?: boolean;
   locale: Locale;
   mode: RunMode;
+  showMode?: boolean;
   modeActionsDisabled: boolean;
   onClearProject(): void;
   onError(message: string): void;
@@ -59,9 +60,38 @@ function CloseIcon() {
   return <ArtemisIcon className="icon" height={18} name="close" width={18} />;
 }
 
-function ModeIcon() {
+export function ComposerRunModeControl({
+  locale,
+  mode,
+  disabled,
+  onModeChange,
+}: {
+  locale: Locale;
+  mode: RunMode;
+  disabled: boolean;
+  onModeChange(mode: RunMode): void;
+}) {
+  const t = labels[locale];
   return (
-    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
+    <RunModeControl
+      className="composer-run-modes"
+      label={t.taskMode}
+      statusLabel={t[mode]}
+      state={disabled ? "disabled" : "ready"}
+      value={mode}
+      onValueChange={onModeChange}
+      options={(
+        [
+          ["plan", "plan"],
+          ["work", "work"],
+          ["codemode", "code"],
+        ] as const
+      ).map(([value, icon]) => ({
+        value,
+        label: uiText(locale, `ComposerMode.${value}`),
+        icon: <ArtemisIcon name={icon} width={14} height={14} />,
+      }))}
+    />
   );
 }
 
@@ -99,6 +129,7 @@ export function ComposerContextBar({
   projectActionsDisabled = false,
   locale,
   mode,
+  showMode = true,
   modeActionsDisabled,
   onClearProject,
   onError,
@@ -626,33 +657,14 @@ export function ComposerContextBar({
           </div>
         ) : null)}
 
-      <div className="composer-context-picker" title={t.taskMode}>
-        <ModeIcon />
-        <CodexSelect<RunMode>
-          ariaLabel={t.taskMode}
+      {showMode && (
+        <ComposerRunModeControl
+          locale={locale}
+          mode={mode}
           disabled={modeActionsDisabled}
-          onChange={onModeChange}
-          options={[
-            {
-              value: "plan",
-              label: t.plan,
-              description: uiText(locale, "Mode.planDescription"),
-            },
-            {
-              value: "work",
-              label: t.work,
-              description: uiText(locale, "Mode.workDescription"),
-            },
-            {
-              value: "codemode",
-              label: t.codemode,
-              description: uiText(locale, "Mode.codemodeDescription"),
-            },
-          ]}
-          size="compact"
-          value={mode}
+          onModeChange={onModeChange}
         />
-      </div>
+      )}
     </div>
   );
 }

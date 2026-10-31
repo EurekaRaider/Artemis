@@ -146,14 +146,17 @@ describe("reported screenshot regressions", () => {
     expect(
       container.querySelectorAll('[data-artemis-component="tool-activity"]'),
     ).toHaveLength(1);
-    expect(container.querySelector(".tool-group-count")).toHaveTextContent("2");
-    expect(container.querySelector(".tool-summary-label")).toHaveTextContent(
-      "工具调用",
+    expect(container.querySelector(".tool-step-verb")).toHaveTextContent(
+      "运行",
+    );
+    expect(container.querySelector(".tool-step-target")).toHaveTextContent(
+      "npm test",
     );
     const disclosure = container.querySelector<HTMLButtonElement>(
       '[data-part="disclosure"]',
     )!;
-    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(disclosure).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(disclosure);
     rerender(
       <ToolActivityGroupCard
         {...props}
@@ -211,8 +214,11 @@ describe("reported screenshot regressions", () => {
         ]}
       />,
     );
-    expect(container.querySelector(".tool-summary-label")).toHaveTextContent(
-      "读取文件",
+    expect(container.querySelector(".tool-step-verb")).toHaveTextContent(
+      "搜索",
+    );
+    expect(container.querySelector(".tool-step-target")).toHaveTextContent(
+      "layout",
     );
     expect(
       container.querySelector('.tool-item-status[data-state="running"]'),
@@ -240,9 +246,10 @@ describe("reported screenshot regressions", () => {
           pluginForTool={() => plugin}
         />,
       );
-      expect(
-        container.querySelector(".tool-activity-icon img"),
-      ).toHaveAttribute("src", plugin.iconDataUrl);
+      expect(container.querySelector(".tool-step-kind img")).toHaveAttribute(
+        "src",
+        plugin.iconDataUrl,
+      );
       expect(
         container.querySelector(".tool-card-plugin [data-part=status]"),
       ).toHaveTextContent(/running|completed|failed/i);

@@ -15966,10 +15966,9 @@ async function driveSmokeFormControlsEvidence(
         '.provider-form [data-artemis-component="checkbox"] [data-part="control"]',
     },
     "form-controls-composer": {
-      selector:
-        '.composer-context-picker [data-artemis-component="select"] [data-part="trigger"]',
+      selector: '.composer-run-modes [role="radio"][aria-checked="true"]',
       rootSelector:
-        '.composer-context-picker [data-artemis-component="select"]',
+        '.composer-run-modes[data-artemis-component="run-mode-control"]',
     },
     "mcp-editor-form-controls": {
       selector:
@@ -16030,6 +16029,32 @@ async function driveSmokeFormControlsEvidence(
     throw new Error(
       `Form-control Tab traversal did not reach ${target.selector}.`,
     );
+  }
+
+  if (view === "form-controls-composer") {
+    const before = await evaluate<string>(
+      `document.querySelector('.composer-run-modes [aria-checked="true"]')?.textContent?.trim()`,
+    );
+    await evaluate(
+      `window.__modeControlRoot = document.querySelector('.composer-run-modes')`,
+    );
+    await pressKey("ArrowRight", 39);
+    await wait(350);
+    const after = await evaluate<string>(
+      `document.querySelector('.composer-run-modes [aria-checked="true"]')?.textContent?.trim()`,
+    );
+    await pressKey("ArrowLeft", 37);
+    await wait(350);
+    await evaluate(`window.__formControlsInteraction = {
+      before: ${JSON.stringify(before)}, after: ${JSON.stringify(after)},
+      restored: document.querySelector('.composer-run-modes [aria-checked="true"]')?.textContent?.trim(),
+      rootStable: window.__modeControlRoot === document.querySelector('.composer-run-modes'),
+      modes: [...document.querySelectorAll('.composer-run-modes [role="radio"]')].map(button => ({
+        label: button.textContent.trim(), checked: button.getAttribute('aria-checked'),
+        tabIndex: button.tabIndex, width: button.getBoundingClientRect().width,
+      })),
+    }`);
+    return;
   }
 
   if ("rootSelector" in target) {
@@ -19494,18 +19519,7 @@ function createMainWindow(): BrowserWindow {
                   }
                   if (view === 'form-controls-composer') {
                     document.querySelector('.thread-select')?.click();
-                    const trigger = await waitForElement(
-                      '.composer-context-picker [data-artemis-component="select"] [data-part="trigger"]:not(:disabled)',
-                    );
-                    const selectRoot = trigger?.closest(
-                      '[data-artemis-component="select"]',
-                    );
-                    if (
-                      !(trigger instanceof HTMLButtonElement) ||
-                      !selectRoot
-                    ) {
-                      throw new Error('Public Composer Select missing.');
-                    }
+                    await waitForElement('.composer-run-modes [role="radio"]:not(:disabled)');
                     return;
                   }
                   throw new Error('Unknown form-controls smoke view: ' + view);
@@ -22953,12 +22967,12 @@ function createMainWindow(): BrowserWindow {
                           '[data-artemis-component="search-field"], ' +
                           '[data-artemis-component="select"], ' +
                           '[data-artemis-component="checkbox"], ' +
-                          '[data-artemis-component="switch"]',
+                          '[data-artemis-component="switch"], [data-artemis-component="run-mode-control"]',
                       ),
                     ];
                     const describe = (root) => {
                       const control = root.querySelector(
-                        '[data-part="control"], [data-part="trigger"]',
+                        '[data-part="control"], [data-part="trigger"], [role="radio"][aria-checked="true"]',
                       );
                       const visual =
                         root.querySelector(
@@ -22976,7 +22990,7 @@ function createMainWindow(): BrowserWindow {
                         component: root.getAttribute(
                           'data-artemis-component',
                         ),
-                        context: root.closest('.composer-context-picker')
+                        context: root.closest('.composer-run-modes')
                           ? 'composer'
                           : root.closest('.review-scope-select')
                             ? 'review'

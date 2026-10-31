@@ -78,10 +78,15 @@ export function DecisionOptions({
               }}
             >
               <span className="decision-option-number" aria-hidden="true">
-                {index + 1}.
+                {index + 1}
               </span>
               <span className="decision-option-copy">
                 <strong>{option.label}</strong>
+                {option.recommended && (
+                  <span className="decision-recommended">
+                    {uiText(locale, "WorkRecord.recommended")}
+                  </span>
+                )}
                 {option.description && <small>{option.description}</small>}
               </span>
             </button>
@@ -144,6 +149,9 @@ export function DecisionOptions({
           {uiText(locale, "DecisionCard.submit")}
         </button>
       </form>
+      <small className="decision-keyboard-hint">
+        {uiText(locale, "ComposerMode.decisionHint")}
+      </small>
     </>
   );
 }

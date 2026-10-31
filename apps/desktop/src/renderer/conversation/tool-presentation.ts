@@ -1,5 +1,6 @@
 import type { AppLocale } from "@artemis/protocol";
 
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { I18N_RESOURCES } from "../../shared/i18n/i18n-resources.js";
 
 function stripTerminalSequences(value: string): string {
@@ -513,4 +514,140 @@ function fillToolText(
     (result, [key, value]) => result.replaceAll(`{{${key}}}`, value),
     template,
   );
+}
+
+/** Five-column work record values, derived only from observed tool data. */
+export function toolStepPresentation(
+  tools: readonly (ToolPresentationState & {
+    startedAt?: string;
+    lastActivityAt?: string;
+  })[],
+  locale: AppLocale,
+): {
+  icon: "eye" | "search" | "web" | "edit" | "terminal" | "mcp" | "tool";
+  verb: string;
+  target: string;
+  metadata: string;
+  added?: number;
+  deleted?: number;
+} {
+  const tool =
+    tools.findLast((item) => item.status === "running") ?? tools.at(-1);
+  if (!tool)
+    return {
+      icon: "tool",
+      verb: toolCopy(locale).tool,
+      target: "",
+      metadata: "",
+    };
+  const kind = toolActivityKind(tool.name, tool.input);
+  const web = normalizedToolName(tool.name) === "web_search";
+  const mcp = /^mcp(?:__|_)/u.test(tool.name);
+  const paths = [
+    ...new Set(
+      tools.flatMap((item) => {
+        const path = toolActivityPath(item.input);
+        return path ? [path] : [];
+      }),
+    ),
+  ];
+  const command = inputText(tool.input, "command") ?? "";
+  const search = searchCommandDetails(command);
+  const pattern =
+    inputText(tool.input, "query") ??
+    inputText(tool.input, "pattern") ??
+    search?.pattern;
+  const output = sanitizeToolOutput(tool.output ?? "");
+  let data: Record<string, unknown> = {};
+  try {
+    const value: unknown = JSON.parse(output);
+    if (value && typeof value === "object" && !Array.isArray(value))
+      data = value as Record<string, unknown>;
+  } catch {
+    /* Plain tool output is also supported. */
+  }
+  const count = (key: string) =>
+    Array.isArray(data[key])
+      ? data[key].length
+      : typeof data[key] === "number"
+        ? data[key]
+        : undefined;
+  const pathsLabel =
+    paths.slice(0, 2).join(" · ") +
+    (paths.length > 2 ? ` · +${paths.length - 2}` : "");
+  let target = summarizeToolDetail(tool, locale);
+  let metadata = "";
+  if (tool.status !== "running" && tool.startedAt && tool.lastActivityAt) {
+    const duration =
+      Date.parse(tool.lastActivityAt) - Date.parse(tool.startedAt);
+    if (Number.isFinite(duration) && duration >= 0)
+      metadata = `${(duration / 1000).toFixed(1)}s`;
+  }
+  if (kind === "read") target = pathsLabel || target;
+  if (kind === "write")
+    target =
+      paths.length > 1
+        ? uiText(locale, "WorkRecord.files", { count: paths.length })
+        : pathsLabel || target;
+  if (kind === "search" && pattern) {
+    const scope = toolActivityPath(tool.input) ?? search?.scope;
+    target = web ? pattern : `“${pattern}”${scope ? ` · ${scope}` : ""}`;
+    const matches = count(web ? "results" : "matches") ?? count("count");
+    if (matches !== undefined)
+      metadata = uiText(
+        locale,
+        web ? "WorkRecord.results" : "WorkRecord.matches",
+        { count: matches },
+      );
+  }
+  if (kind === "bash") {
+    target = command.split(/\r?\n/u)[0] || target;
+    const passed = output.match(/(?:Tests\s+)?(\d+)\s+(?:passed|passing)\b/iu);
+    const exit = output.match(
+      /(?:exit(?:ed with)?(?: code)?|exitCode)[":\s]+(-?\d+)/iu,
+    );
+    if (passed)
+      metadata = uiText(locale, "WorkRecord.passed", {
+        count: Number(passed[1]),
+      });
+    else if (exit && Number(exit[1]) !== 0) metadata = `exit ${exit[1]}`;
+  }
+  if (mcp)
+    target = tool.name
+      .replace(/^mcp__?/u, "")
+      .split(/__/u)
+      .join(" · ");
+  const diff = typeof data.diff === "string" ? data.diff : output;
+  const lines = diff.split("\n");
+  const added = lines.filter(
+    (line) => line.startsWith("+") && !line.startsWith("+++"),
+  ).length;
+  const deleted = lines.filter(
+    (line) => line.startsWith("-") && !line.startsWith("---"),
+  ).length;
+  return {
+    icon: web
+      ? "web"
+      : mcp
+        ? "mcp"
+        : (
+            {
+              read: "eye",
+              search: "search",
+              write: "edit",
+              bash: "terminal",
+              generic: "tool",
+            } as const
+          )[kind],
+    verb:
+      kind === "generic" && !mcp
+        ? toolCopy(locale).used
+        : uiText(
+            locale,
+            `WorkRecord.${web ? "web" : mcp || kind === "generic" ? "call" : kind}`,
+          ),
+    target: isolateDynamicText(locale, target),
+    metadata,
+    ...(kind === "write" && (added || deleted) ? { added, deleted } : {}),
+  };
 }

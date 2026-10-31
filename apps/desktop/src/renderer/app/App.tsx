@@ -111,7 +111,6 @@ import {
   TimelineTurn,
   TimelineViewport,
   TurnChangeSummary,
-  TurnExecutionDisclosure,
 } from "@artemis/ui/conversation";
 import {
   Dialog,
@@ -229,7 +228,10 @@ import {
   ImThreadConnection,
   useImThreadStatus,
 } from "../im/ImThreadConnection.js";
-import { ComposerContextBar } from "../conversation/ComposerContextBar.js";
+import {
+  ComposerContextBar,
+  ComposerRunModeControl,
+} from "../conversation/ComposerContextBar.js";
 import { ContextUsageIndicator } from "../conversation/ContextUsageIndicator.js";
 import { GoalBar } from "../conversation/GoalBar.js";
 import { GoalEditorPanel } from "../conversation/GoalEditorPanel.js";
@@ -245,6 +247,7 @@ import {
 } from "./project-thread-tree.js";
 import { SourcesIcon, SourcesPanel } from "../conversation/SourcesPanel.js";
 import { TaskPlanProgress } from "../conversation/TaskPlanProgress.js";
+import { WorkRecord, AgentElapsed } from "../conversation/WorkRecord.js";
 import { toolActivityPatternView } from "../conversation/agent-pattern-adapters.js";
 import {
   prepareTimelineRestore,
@@ -252,10 +255,7 @@ import {
   resolveTimelineScrollTarget,
   type TimelineScrollSnapshot,
 } from "../conversation/timeline-scroll.js";
-import {
-  formatWorkedDuration,
-  userMessageAttachments,
-} from "../conversation/turn-timeline.js";
+import { userMessageAttachments } from "../conversation/turn-timeline.js";
 import { HighlightedCodeLine } from "../workspace/WorkspaceFileEditor.js";
 import {
   DesignIcon,
@@ -293,12 +293,12 @@ import {
   parseRunModeCommand,
 } from "../conversation/run-mode-controls.js";
 import {
+  toolStepPresentation,
   formatToolInput,
   formatToolOutput,
   summarizeToolDetail,
   toolActivityKind,
   toolActivityPath,
-  type ToolActivityKind,
 } from "../conversation/tool-presentation.js";
 import {
   groupTimelineActivities,
@@ -656,14 +656,6 @@ function TerminalIcon() {
   return (
     <ArtemisIcon className="icon" height={18} name="terminal" width={18} />
   );
-}
-
-function ToolActivityIcon({ kind }: { kind: ToolActivityKind }) {
-  if (kind === "bash") return <TerminalIcon />;
-  if (kind === "search") return <SearchIcon />;
-  if (kind === "generic") return <ResourceIcon />;
-  if (kind === "write") return <EditIcon />;
-  return <ArtemisIcon className="icon" height={18} name="file" width={18} />;
 }
 
 function BrowserIcon() {
@@ -7868,6 +7860,18 @@ export function App() {
                           })}
                         </QueuedMessageGroup>
                       )}
+                      {activeThread?.goal && (
+                        <GoalBar
+                          clockMs={clockMs}
+                          disabled={goalMutationPending}
+                          goal={activeThread.goal}
+                          locale={locale}
+                          onClear={() => void updateActiveGoal("clear")}
+                          onEdit={openGoalEditor}
+                          onPause={() => void updateActiveGoal("pause")}
+                          onResume={() => void updateActiveGoal("resume")}
+                        />
+                      )}
                       <DecisionComposer
                         decision={pendingComposerDecision}
                         locale={locale}
@@ -7921,6 +7925,7 @@ export function App() {
                               }
                               locale={locale}
                               mode={mode}
+                              showMode={Boolean(pendingComposerDecision)}
                               modeActionsDisabled={
                                 turnActive ||
                                 busy ||
@@ -7943,17 +7948,10 @@ export function App() {
                               }}
                               projects={projects}
                             />
-                            {activeThread?.goal && (
-                              <GoalBar
-                                clockMs={clockMs}
-                                disabled={goalMutationPending}
-                                goal={activeThread.goal}
-                                locale={locale}
-                                onClear={() => void updateActiveGoal("clear")}
-                                onEdit={openGoalEditor}
-                                onPause={() => void updateActiveGoal("pause")}
-                                onResume={() => void updateActiveGoal("resume")}
-                              />
+                            {!pendingComposerDecision && (
+                              <small className="composer-send-hint">
+                                {uiText(locale, "ComposerMode.sendHint")}
+                              </small>
                             )}
                             {pendingComposerDecision &&
                               pendingComposerDecision.kind !== "plan" && (
@@ -8459,6 +8457,18 @@ export function App() {
                             >
                               <PlusIcon />
                             </button>
+                            <ComposerRunModeControl
+                              locale={locale}
+                              mode={mode}
+                              disabled={
+                                turnActive ||
+                                busy ||
+                                pendingComposerDecision?.kind === "plan"
+                              }
+                              onModeChange={(nextMode) =>
+                                void selectMode(nextMode)
+                              }
+                            />
                             <div
                               className="approval-policy-control"
                               ref={approvalPolicyRoot}
@@ -10900,7 +10910,12 @@ export function ToolActivityGroupCard({
   tools: readonly ToolState[];
   pluginForTool?: (tool: ToolState) => ToolPlugin | undefined;
 }) {
-  const [open, setExpanded] = useState(false);
+  const failed = tools.some((tool) => tool.status === "failed");
+  const [open, setExpanded] = useState(failed);
+  useEffect(() => {
+    if (failed) setExpanded(true);
+  }, [failed]);
+  const step = toolStepPresentation(tools, locale);
   const view = toolActivityPatternView(tools, active, locale);
   const firstPlugin = tools[0] && pluginForTool?.(tools[0]);
   const plugin =
@@ -10930,21 +10945,15 @@ export function ToolActivityGroupCard({
       expandLabel={disclosureLabels.expand}
       expanded={open}
       icon={
-        <span className="tool-activity-icon">
-          {plugin ? (
-            <ResourceAvatar
-              kind="plugin"
-              name={plugin.displayName}
-              pluginName={plugin.name}
-              iconDataUrl={plugin.iconDataUrl}
-              brandColor={plugin.brandColor}
-            />
-          ) : view.actualStatus === "completed" ? (
-            <ArtemisIcon name="check" />
-          ) : view.actualStatus === "failed" ? (
-            <ArtemisIcon name="warning" />
+        <span className="tool-step-status" data-status={view.actualStatus}>
+          {view.actualStatus === "running" ? (
+            <RunningArc size={14} />
           ) : (
-            <ToolActivityIcon kind={view.kind} />
+            <ArtemisIcon
+              name={view.actualStatus === "failed" ? "x-circle" : "check"}
+              width={14}
+              height={14}
+            />
           )}
         </span>
       }
@@ -10953,11 +10962,34 @@ export function ToolActivityGroupCard({
       state={view.state}
       statusLabel={view.statusLabel}
       summary={
-        <span className="tool-summary-label" title={summary}>
-          {summary}
-          {tools.length > 1 && (
-            <span className="tool-group-count">{tools.length}</span>
-          )}
+        <span className="tool-step-columns">
+          <span className="tool-step-kind">
+            {plugin ? (
+              <ResourceAvatar
+                kind="plugin"
+                name={plugin.displayName}
+                pluginName={plugin.name}
+                iconDataUrl={plugin.iconDataUrl}
+                brandColor={plugin.brandColor}
+              />
+            ) : (
+              <ArtemisIcon name={step.icon} width={14} height={14} />
+            )}
+          </span>
+          <span className="tool-step-verb">{step.verb}</span>
+          <span className="tool-step-target" title={step.target}>
+            {step.target}
+          </span>
+          <span className="tool-step-metadata">
+            {step.added !== undefined ? (
+              <>
+                <span className="diff-added">+{step.added}</span>{" "}
+                <span className="diff-deleted">−{step.deleted}</span>
+              </>
+            ) : (
+              step.metadata
+            )}
+          </span>
         </span>
       }
     >
@@ -11549,29 +11581,42 @@ export function Timeline({
       }
       return child ? (
         <AgentActivity
-          indicator={
-            <span aria-hidden="true" className="child-agent-open-icon">
-              <ArtemisIcon
-                className="icon"
-                height={14}
-                name="chev-right"
-                width={14}
-              />
-            </span>
-          }
-          className={`child-agent-card ${child.status} ${child.health ?? "healthy"}`}
+          indicator={<AgentElapsed child={child} />}
+          className={`child-agent-card work-record-agent ${child.status} ${child.health ?? "healthy"}`}
           icon={
-            <ChildAgentIcon
-              className="child-agent-icon"
-              identity={child.agentId}
-            />
+            child.status === "running" ? (
+              <RunningArc size={14} />
+            ) : (
+              <ArtemisIcon
+                width={14}
+                height={14}
+                name={
+                  child.status === "completed"
+                    ? "check"
+                    : child.status === "failed"
+                      ? "x-circle"
+                      : "clock"
+                }
+              />
+            )
           }
           key={entry}
           label={`${child.label}, ${childStatusLabels[child.status]}`}
           onActivate={() => onOpenChildAgent(child)}
           state={child.status}
           statusLabel={childStatusLabels[child.status]}
-          title={child.label}
+          title={
+            <>
+              <ArtemisIcon name="agents" width={14} height={14} />
+              <span className="tool-step-verb">
+                {uiText(locale, "WorkRecord.agent")}
+              </span>
+              <span className="tool-step-target">
+                {child.label}
+                {child.activity ? ` · ${child.activity}` : ""}
+              </span>
+            </>
+          }
         />
       ) : null;
     }
@@ -11589,13 +11634,27 @@ export function Timeline({
         >
           {() => {
             if (turn.status !== "completed") {
+              const firstExecution = entries.findIndex(
+                (entry) =>
+                  entry.kind !== "entry" || !entry.entry.startsWith("user:"),
+              );
+              const leadingUserCount =
+                firstExecution < 0 ? entries.length : firstExecution;
               return (
                 <TimelineTurn
                   className="timeline-turn"
                   key={turn.id}
                   state={turn.status}
                 >
-                  {entries.map(renderTimelineEntry)}
+                  {entries.slice(0, leadingUserCount).map(renderTimelineEntry)}
+                  <WorkRecord
+                    turn={turn}
+                    locale={locale}
+                    entries={entries}
+                    childAgents={state.childAgents}
+                  >
+                    {entries.slice(leadingUserCount).map(renderTimelineEntry)}
+                  </WorkRecord>
                   <TurnChangeSetCard
                     locale={locale}
                     onReview={onOpenTurnReview}
@@ -11641,29 +11700,14 @@ export function Timeline({
                 state="completed"
               >
                 {userEntries.map(renderTimelineEntry)}
-                <TurnExecutionDisclosure
-                  className="turn-execution-details"
-                  label={`${t.workedFor} ${formatWorkedDuration(turn.durationMs)}`}
-                  summary={
-                    <>
-                      <span>
-                        {t.workedFor} {formatWorkedDuration(turn.durationMs)}
-                      </span>
-                      <ArtemisIcon
-                        className="icon"
-                        height={14}
-                        name="chev-right"
-                        width={14}
-                      />
-                    </>
-                  }
+                <WorkRecord
+                  turn={turn}
+                  locale={locale}
+                  entries={executionEntries}
+                  childAgents={state.childAgents}
                 >
-                  {() => (
-                    <div className="turn-execution-entries">
-                      {executionEntries.map(renderTimelineEntry)}
-                    </div>
-                  )}
-                </TurnExecutionDisclosure>
+                  {() => executionEntries.map(renderTimelineEntry)}
+                </WorkRecord>
                 {finalEntry ? renderTimelineEntry(finalEntry) : null}
                 {planEntries.map(renderTimelineEntry)}
                 <TurnChangeSetCard

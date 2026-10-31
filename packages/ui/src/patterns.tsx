@@ -570,8 +570,16 @@ export function RunModeControl<T extends string>({
       event.key === "ArrowLeft" ||
       event.key === "ArrowUp"
     ) {
+      const rtl =
+        event.currentTarget.ownerDocument.defaultView?.getComputedStyle(
+          event.currentTarget,
+        ).direction === "rtl";
       const delta =
-        event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
+        event.key === "ArrowDown"
+          ? 1
+          : event.key === "ArrowUp"
+            ? -1
+            : (event.key === "ArrowRight" ? 1 : -1) * (rtl ? -1 : 1);
       const base = position < 0 ? 0 : position;
       targetIndex =
         enabledIndices[

@@ -172,6 +172,7 @@ export function ContextUsageIndicator({
     <div
       aria-label={`${labels.title} ${summary}. ${detail}${providerDetail ? `. ${providerDetail}` : ""}${breakdownDescription ? `. ${labels.breakdown}. ${breakdownDescription}` : ""}`}
       className="context-usage-indicator"
+      data-usage-level={ringPercent > 80 ? "high" : "normal"}
       role="img"
       tabIndex={0}
     >
@@ -192,6 +193,9 @@ export function ContextUsageIndicator({
           />
         )}
       </svg>
+      {percent !== null && (
+        <span className="context-usage-percent">{percent}%</span>
+      )}
       <div className="context-usage-popover" role="tooltip">
         <strong>{labels.title}</strong>
         <span>{summary}</span>

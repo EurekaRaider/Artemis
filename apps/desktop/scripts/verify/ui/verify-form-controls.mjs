@@ -57,7 +57,7 @@ const steps = [
     id: "composer",
     view: "form-controls-composer",
     scenario:
-      "Composer renders its compact public Select and keyboard-opens an in-viewport, right-aligned menu without remounting.",
+      "Composer keeps all three modes visible, changes selection with real arrow keys and restores it without remounting.",
   },
   {
     id: "mcp-editor",
@@ -454,6 +454,43 @@ try {
         toggle.control,
         { tagName: "input", type: "checkbox", role: "switch" },
       );
+    } else if (id === "composer") {
+      const modes = verifyComponent(
+        "run-mode-control",
+        ["root", "option", "icon", "label"],
+        "composer-run-modes",
+        "composer",
+      );
+      const interaction = formControls.interaction;
+      assert(
+        "three-visible-modes",
+        interaction?.modes?.length === 3 &&
+          interaction.modes.every((mode) => mode.width > 0 && mode.label),
+        interaction,
+        "three visible and named mode buttons",
+      );
+      assert(
+        "single-selected-mode",
+        interaction?.modes?.filter((mode) => mode.checked === "true").length ===
+          1,
+        interaction,
+        "one checked radio",
+      );
+      assert(
+        "roving-mode-tabindex",
+        interaction?.modes?.filter((mode) => mode.tabIndex === 0).length === 1,
+        interaction,
+        "one keyboard entry point",
+      );
+      assert(
+        "keyboard-changes-and-restores-mode",
+        interaction?.before !== interaction?.after &&
+          interaction?.restored === interaction?.before &&
+          interaction?.rootStable === true,
+        interaction,
+        "arrow navigation changes and restores selection on the same root",
+      );
+      verifyFocusEvidence("composer-mode", modes);
     } else {
       const context =
         id === "composer"

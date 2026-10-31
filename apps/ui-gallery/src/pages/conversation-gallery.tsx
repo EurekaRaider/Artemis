@@ -20,6 +20,9 @@ import { Icon } from "@artemis/ui/actions";
 import { ComposerSurface } from "@artemis/ui/surfaces";
 import { TextAreaField } from "@artemis/ui/forms";
 
+import { useState } from "react";
+import { RunModeControl } from "@artemis/ui/patterns";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { GalleryActionIcon } from "../components/gallery-action-icon.js";
 
 const LONG_RESULT = Array.from(
@@ -28,12 +31,28 @@ const LONG_RESULT = Array.from(
 ).join("\n");
 
 export function ConversationGallery() {
+  const [mode, setMode] = useState("work");
   return (
     <div className="gallery-conversation-grid">
       <ComposerSurface
         label="Composer context and input reference"
-        context={<span>Artemis · main · Execute</span>}
+        context={<span>Artemis · main</span>}
       >
+        <RunModeControl
+          label="Run mode"
+          statusLabel={mode}
+          value={mode}
+          onValueChange={setMode}
+          options={[
+            { value: "plan", label: "Plan", icon: <ArtemisIcon name="plan" /> },
+            { value: "work", label: "Work", icon: <ArtemisIcon name="work" /> },
+            {
+              value: "codemode",
+              label: "Codemode",
+              icon: <ArtemisIcon name="code" />,
+            },
+          ]}
+        />
         <TextAreaField
           label="Reference prompt"
           defaultValue="Review the selected project"

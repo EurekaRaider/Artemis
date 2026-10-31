@@ -366,8 +366,8 @@ describe("tool presentation", () => {
       'active && actualStatus === "completed" ? "running" : actualStatus',
     );
     expect(adapterSource).toContain("summarizeToolGroup(tools, locale)");
-    expect(toolCard).toContain('className="tool-activity-icon"');
-    expect(toolCard).toContain('className="tool-summary-label"');
+    expect(toolCard).toContain('className="tool-step-status"');
+    expect(toolCard).toContain('className="tool-step-target"');
     expect(toolCard).toContain("onExpandedChange={setExpanded}");
     expect(toolCard).toContain("{(view.fileActivity || mixedActivity) && (");
     expect(toolCard).toContain(
@@ -384,24 +384,17 @@ describe("tool presentation", () => {
     expect(toolCard).not.toContain("<strong>{tool.name}</strong>");
     expect(toolCard).not.toContain("<span>{tool.status}</span>");
     expect(toolCard).not.toContain("defaultOpen");
-    expect(stylesSource).toMatch(
-      /\.tool-card\[data-artemis-component="tool-activity"\]\s*\{[\s\S]*?display: grid;[\s\S]*?gap: 9px;/u,
+    const nocturne = readFileSync(
+      new URL("../../../src/renderer/styles/nocturne.css", import.meta.url),
+      "utf8",
     );
-    expect(stylesSource).toMatch(
-      /\.tool-card \[data-part="disclosure"\]\s*\{[\s\S]*?flex: 0 0 24px;/u,
+    expect(nocturne).toContain(
+      "grid-template-columns: 18px 18px 44px minmax(0, 1fr) auto",
     );
-    expect(stylesSource).toContain(
-      "grid-template-columns: 20px minmax(0, 1fr) auto auto",
-    );
-    expect(stylesSource).toMatch(
-      /\.tool-card\.running \.tool-summary-label\s*\{[\s\S]*?animation: tool-summary-shimmer/u,
-    );
-    expect(stylesSource).toContain("@keyframes tool-summary-shimmer");
-    expect(stylesSource).toMatch(
-      /@keyframes tool-summary-shimmer\s*\{[\s\S]*?background-position: 100% 50%[\s\S]*?background-position: 0% 50%/u,
-    );
-    expect(stylesSource).toMatch(
-      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation: none/u,
+    expect(nocturne).toContain("border-inline-start: 1px solid");
+    expect(nocturne).toMatch(/\.tool-step-target[\s\S]*?white-space: nowrap/u);
+    expect(nocturne).toMatch(
+      /prefers-reduced-motion: reduce[\s\S]*?animation: none/u,
     );
   });
 

@@ -21,17 +21,17 @@ it.each([
   {
     locale: "zh-CN",
     label: "任务模式",
-    options: ["计划模式", "工作模式", "代码模式"],
+    options: ["计划", "执行", "代码"],
   },
   {
     locale: "zh-TW",
     label: "任務模式",
-    options: ["計畫模式", "工作模式", "程式碼模式"],
+    options: ["計畫", "執行", "程式碼"],
   },
   {
     locale: "en",
     label: "Task mode",
-    options: ["Plan mode", "Work mode", "Code mode"],
+    options: ["Plan", "Work", "Code"],
   },
 ] as const)(
   "localizes and selects every mode in $locale",
@@ -52,20 +52,14 @@ it.each([
         projects={[]}
       />,
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: `${label} ${options[1]}` }),
-    );
+    expect(screen.getByRole("radiogroup", { name: label })).toBeVisible();
     expect(
-      screen
-        .getAllByRole("option")
-        .map((option) => option.getAttribute("aria-label")),
+      screen.getAllByRole("radio").map((option) => option.textContent),
     ).toEqual(options);
-    expect(
-      screen
-        .getAllByRole("option")
-        .every((option) => option.querySelector("small")?.textContent),
-    ).toBe(true);
-    fireEvent.click(screen.getByRole("option", { name: options[2] }));
+    screen
+      .getAllByRole("radio")
+      .forEach((option) => expect(option).toBeVisible());
+    fireEvent.click(screen.getByRole("radio", { name: options[2] }));
     expect(onModeChange).toHaveBeenCalledExactlyOnceWith("codemode");
   },
 );

@@ -269,3 +269,513 @@
     transition: none;
   }
 }
+
+/* Conversation controls and work records. */
+.composer-wrap {
+  container: composer / inline-size;
+}
+.app-shell .composer {
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+}
+.app-shell .composer > [data-part="context"] {
+  order: 5;
+  background: var(--artemis-color-canvas);
+  border: 0;
+  border-radius: 0;
+  margin-block-end: -9px;
+  padding-block: 8px 0;
+}
+.app-shell .composer-context-row {
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+}
+.app-shell .composer-context {
+  min-inline-size: 0;
+}
+.app-shell .composer-toolbar {
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.app-shell .composer-leading,
+.app-shell .composer-trailing {
+  flex-wrap: nowrap;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.app-shell .composer-leading {
+  flex: 0 0 auto;
+}
+.app-shell .composer-trailing {
+  margin-inline-start: auto;
+}
+.composer-run-modes {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--artemis-color-surface-sunken);
+}
+.composer-run-modes > [data-part="option"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-block-size: 26px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--artemis-color-text-secondary);
+  background: transparent;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.composer-run-modes [data-part="icon"] {
+  display: flex;
+}
+.composer-run-modes [aria-checked="true"] {
+  color: var(--artemis-color-text-primary);
+  background: var(--artemis-color-surface-raised);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+.composer-run-modes button:focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: 1px;
+}
+.composer-run-modes button:disabled {
+  opacity: 0.5;
+}
+.app-shell .composer-toolbar button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.app-shell .send-button {
+  inline-size: 32px;
+  block-size: 32px;
+  min-inline-size: 32px;
+  min-block-size: 32px;
+  border-radius: 50%;
+  padding: 0;
+}
+.app-shell .send-button svg {
+  inline-size: 16px;
+  block-size: 16px;
+  stroke-width: 2;
+}
+.app-shell .send-button.stop {
+  color: var(--artemis-color-text-primary);
+  background: var(--artemis-color-surface-sunken);
+  position: relative;
+}
+.app-shell .send-button.stop > span {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.app-shell .send-button.stop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid transparent;
+  border-block-start-color: var(--artemis-color-brand);
+  border-radius: 50%;
+  animation: nocturne-stop 1.2s linear infinite;
+}
+@keyframes nocturne-stop {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@container composer (max-width: 680px) {
+  .composer-run-modes [aria-checked="false"] [data-part="label"],
+  .approval-policy-trigger > span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .app-shell .approval-policy-trigger {
+    padding-inline: 5px;
+    gap: 3px;
+  }
+  .app-shell .composer-trailing .model-button {
+    max-inline-size: 145px;
+  }
+}
+@container composer (max-width: 460px) {
+  .composer-run-modes [data-part="label"] {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .app-shell .composer-toolbar,
+  .app-shell .composer-leading,
+  .app-shell .composer-trailing {
+    gap: 3px;
+  }
+  .app-shell .composer-trailing .model-button {
+    max-inline-size: 105px;
+  }
+}
+:root[data-material="glass"] .app-shell .composer {
+  border-radius: 24px;
+  background: var(--nocturne-glass-tint);
+  backdrop-filter: blur(24px) saturate(1.9);
+  box-shadow:
+    inset 0 1px 0 var(--nocturne-glass-highlight),
+    var(--nocturne-glass-shadow);
+}
+:root[data-material="glass"] .composer-run-modes {
+  border-radius: 999px;
+  background: var(--artemis-color-interaction-hover);
+}
+:root[data-material="glass"] .composer-run-modes [data-part="option"] {
+  border-radius: 999px;
+}
+:root[data-material="glass"] .composer-run-modes [aria-checked="true"] {
+  background: var(--nocturne-lens);
+  box-shadow: inset 0 1px 0 var(--nocturne-lens-edge);
+}
+.app-shell .assistant-message {
+  font-size: 14.5px;
+  line-height: 1.72;
+  background: var(--artemis-color-canvas);
+}
+.app-shell .user-message {
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+  max-inline-size: 85%;
+  border-radius: 16px 16px 4px 16px;
+  background: var(--artemis-color-surface-user);
+}
+[dir="rtl"] .app-shell .user-message {
+  border-radius: 16px 16px 16px 4px;
+}
+.app-shell .assistant-message table {
+  background: var(--artemis-color-surface-base);
+}
+.app-shell .work-record {
+  margin-block: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.app-shell .work-record.completed {
+  border-block-end: 1px solid var(--artemis-color-border-subtle);
+  padding-block-end: 6px;
+}
+.app-shell .work-record > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 30px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  color: var(--artemis-color-text-secondary);
+}
+.work-record > summary > svg:first-child {
+  color: var(--artemis-color-status-success);
+}
+.work-record.failed > summary > svg:first-child {
+  color: var(--artemis-color-status-danger);
+}
+.work-record > summary small {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.work-record .work-record-chevron {
+  margin-inline-start: 0;
+  flex-shrink: 0;
+}
+.work-record[open] .work-record-chevron {
+  transform: rotate(-90deg);
+}
+[dir="rtl"] .work-record:not([open]) .work-record-chevron {
+  transform: rotate(180deg);
+}
+.app-shell .work-record .turn-execution-entries {
+  margin-inline-start: 7px;
+  padding-inline-start: 15px;
+  border-inline-start: 1px solid var(--artemis-color-border-default);
+  gap: 0;
+}
+.app-shell .tool-card {
+  display: grid;
+  grid-template-columns: 18px 18px 44px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+  position: relative;
+  min-block-size: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+  animation: nocturne-step-in 180ms ease-out;
+}
+.tool-card > [data-part="icon"] {
+  display: flex;
+  grid-column: 1;
+  inline-size: 18px;
+  block-size: 30px;
+  align-items: center;
+  justify-content: center;
+}
+.tool-card > [data-part="summary"],
+.tool-step-columns {
+  display: contents;
+}
+.tool-step-kind {
+  grid-column: 2;
+  color: var(--artemis-color-text-tertiary);
+}
+.tool-step-verb {
+  grid-column: 3;
+  color: var(--artemis-color-text-secondary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tool-step-target {
+  grid-column: 4;
+  min-inline-size: 0;
+  font: 12px var(--artemis-typography-mono-family);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tool-step-metadata {
+  grid-column: 5;
+  white-space: nowrap;
+  text-align: end;
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.tool-step-status {
+  display: flex;
+  color: var(--artemis-color-status-success);
+}
+.tool-step-status[data-status="failed"] {
+  color: var(--artemis-color-status-danger);
+}
+.tool-card > [data-part="status"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.app-shell .tool-card > [data-part="disclosure"] {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  inline-size: 100%;
+  block-size: 30px;
+  max-inline-size: none;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  z-index: 1;
+}
+.tool-card > [data-part="disclosure"]:hover {
+  background: var(--artemis-color-interaction-hover);
+}
+.tool-card > [data-part="disclosure"]:focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: -2px;
+}
+.app-shell .tool-card > [data-part="content"] {
+  grid-column: 4 / -1;
+  min-inline-size: 0;
+  padding-block: 4px 8px;
+}
+.tool-card .diff-added {
+  color: var(--artemis-color-status-success);
+}
+.tool-card .diff-deleted {
+  color: var(--artemis-color-status-danger);
+}
+@keyframes nocturne-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.app-shell .decision-card,
+.app-shell .composer-awaiting-decision {
+  background: var(--artemis-color-surface-base);
+  border: 0;
+  box-shadow:
+    0 0 0 1px var(--nocturne-gold-line),
+    0 0 0 4px var(--nocturne-gold-halo);
+}
+.app-shell .decision-card {
+  border-radius: 12px;
+}
+.app-shell .composer-decision > .decision-card {
+  box-shadow: none;
+}
+.decision-card > header strong::before {
+  content: "";
+  display: inline-block;
+  inline-size: 6px;
+  block-size: 6px;
+  margin-inline-end: 8px;
+  border-radius: 50%;
+  background: var(--artemis-color-brand);
+  vertical-align: middle;
+}
+.decision-card .decision-option-number {
+  display: grid;
+  place-items: center;
+  flex: 0 0 20px;
+  block-size: 20px;
+  border: 1px solid var(--artemis-color-border-default);
+  border-radius: 5px;
+  font: 11px var(--artemis-typography-mono-family);
+}
+.decision-recommended {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--nocturne-gold-halo);
+  color: var(--artemis-color-focus-ring);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.decision-card.multi-question .user-question-progress {
+  display: flex;
+}
+.app-shell .thread-waiting-badge {
+  color: var(--artemis-color-focus-ring);
+  background: var(--nocturne-gold-halo);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .tool-card,
+  .app-shell .send-button.stop::after {
+    animation: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce),
+  (prefers-contrast: more),
+  (forced-colors: active) {
+  :root .app-shell .composer {
+    background: var(--artemis-color-surface-composer);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+:root[data-artemis-contrast="high"] .app-shell .composer {
+  background: var(--artemis-color-surface-composer);
+  backdrop-filter: none;
+}
+.app-shell .work-record-agent {
+  display: grid;
+  grid-template-columns: 18px 18px 44px minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: center;
+  min-block-size: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.work-record-agent > [data-part="icon"] {
+  display: flex;
+  justify-content: center;
+  inline-size: 18px;
+  color: var(--artemis-color-status-success);
+}
+.work-record-agent.failed > [data-part="icon"] {
+  color: var(--artemis-color-status-danger);
+}
+.work-record-agent > [data-part="title"] {
+  display: contents;
+}
+.work-record-agent [data-part="title"] > svg {
+  grid-column: 2;
+  color: var(--artemis-color-text-tertiary);
+}
+.work-record-agent.running :is(.tool-step-verb, [data-part="title"] > svg) {
+  color: var(--artemis-color-focus-ring);
+}
+.work-record-agent .tool-step-target {
+  font: 13px var(--artemis-typography-body-family);
+  font-weight: 400;
+  text-align: start;
+}
+.work-record-agent > [data-part="status"] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.work-record-agent > [data-part="indicator"] {
+  grid-column: 5;
+  font-size: 11.5px;
+  color: var(--artemis-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.tool-step-kind {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tool-step-kind .resource-avatar {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 4px;
+}
+.tool-step-kind .resource-avatar :is(img, svg) {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.composer-send-hint {
+  margin-inline-start: auto;
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.decision-keyboard-hint {
+  display: block;
+  padding-block-start: 8px;
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11px;
+}
+.app-shell .context-usage-indicator {
+  inline-size: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.context-usage-percent {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--artemis-color-text-tertiary);
+}
+.context-usage-indicator[data-usage-level="high"] .context-usage-progress {
+  stroke: var(--artemis-color-brand);
+}
+@container composer (max-width: 460px) {
+  .composer-send-hint {
+    display: none;
+  }
+}
