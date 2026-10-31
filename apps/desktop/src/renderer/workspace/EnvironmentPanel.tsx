@@ -49,6 +49,8 @@ import { customAgentInstanceIdentity } from "../settings/custom-agent-identity.j
 import { EnvironmentWorkspaceMenu } from "./EnvironmentWorkspaceMenu.js";
 import { EnvironmentPullRequestError } from "./EnvironmentPullRequestError.js";
 import { ImGroupMembers } from "../im/ImGroupMembers.js";
+import { ImGroupContextSummary } from "../im/ImGroupContextSummary.js";
+import type { ThreadConnection } from "../im/ImThreadConnection.js";
 import {
   EnvironmentAddIcon,
   EnvironmentAgentsIcon,
@@ -649,6 +651,8 @@ export function EnvironmentPanel({
   defaultOpen,
   dockOpen,
   imGroup,
+  imConnection,
+  onManageGroupAuthorization,
   onMentionMember,
   onRemoveMember,
   memberRemovalDisabled,
@@ -681,6 +685,9 @@ export function EnvironmentPanel({
   defaultOpen: boolean;
   dockOpen: boolean;
   imGroup?: ImGroupContext | undefined;
+  imConnection?: ThreadConnection | undefined;
+  onManageGroupAuthorization?:
+    ((trigger: HTMLButtonElement) => void) | undefined;
   onMentionMember?: ((token: string) => void) | undefined;
   onRemoveMember?: ((deviceId: string) => Promise<boolean>) | undefined;
   memberRemovalDisabled?: boolean | undefined;
@@ -757,15 +764,25 @@ export function EnvironmentPanel({
   const [showAllAgents, setShowAllAgents] = useState(false);
 
   const displayAgents = useEnvironmentActivityAgents(agents, teams);
-  const attachmentCount =
-    attachments.length +
-    sources.filter(
-      (source) => source.kind === "file" || source.kind === "image",
-    ).length;
-  const sourceCallCount =
-    mcpUsages.length +
-    sources.filter((source) => source.kind === "web-search").length;
-  const hasSourcePanelDetails = attachmentCount + sourceCallCount > 0;
+  const contextAttachments = [
+    ...attachments.map((attachment, index) => ({
+      id: `draft:${index}`,
+      name:
+        "name" in attachment
+          ? attachment.name
+          : uiText(locale, "SourcesPanel_labels.openImage"),
+    })),
+    ...sources.flatMap((source) =>
+      source.kind === "file" || source.kind === "image"
+        ? [{ id: source.sourceId, name: source.name }]
+        : [],
+    ),
+  ];
+  const webSearchCount = sources.filter(
+    (source) => source.kind === "web-search",
+  ).length;
+  const hasSourcePanelDetails =
+    contextAttachments.length + webSearchCount + mcpUsages.length > 0;
 
   const hasPanelContent =
     gitInfo?.managed === true ||
@@ -1794,7 +1811,6 @@ export function EnvironmentPanel({
       )}
       <div className="environment-git-actions">
         <button
-          className="primary"
           disabled={Boolean(commitDisabledReason) || Boolean(gitBusy)}
           title={commitDisabledReason}
           type="submit"
@@ -1810,6 +1826,7 @@ export function EnvironmentPanel({
           <kbd>⌘↵</kbd>
         </button>
         <button
+          className="primary"
           disabled={Boolean(commitAndPushDisabledReason) || Boolean(gitBusy)}
           onClick={() => void commitAndPush()}
           title={commitAndPushDisabledReason}
@@ -1825,6 +1842,7 @@ export function EnvironmentPanel({
           </strong>
         </button>
         <button
+          className="environment-push-only"
           disabled={Boolean(pushDisabledReason) || Boolean(gitBusy)}
           onClick={() => void push()}
           title={pushDisabledReason}
@@ -1900,14 +1918,23 @@ export function EnvironmentPanel({
           ) : (
             <>
               {imGroup && (
-                <ImGroupMembers
-                  managePermissions
-                  group={imGroup}
-                  locale={locale}
-                  onMention={onMentionMember}
-                  onRemove={onRemoveMember}
-                  removalDisabled={memberRemovalDisabled}
-                />
+                <>
+                  <ImGroupMembers
+                    managePermissions
+                    group={imGroup}
+                    locale={locale}
+                    onMention={onMentionMember}
+                    onRemove={onRemoveMember}
+                    removalDisabled={memberRemovalDisabled}
+                  />
+                  <ImGroupContextSummary
+                    group={imGroup}
+                    connection={imConnection}
+                    project={project}
+                    locale={locale}
+                    onManageAuthorization={onManageGroupAuthorization}
+                  />
+                </>
               )}
               {!gitInfo?.managed && (gitError || manuallyOpened.current) && (
                 <EnvironmentSection
@@ -2303,17 +2330,54 @@ export function EnvironmentPanel({
                   title={
                     <>
                       <EnvironmentSourcesIcon />
-                      {t.sources}
+                      {t.taskContext}
                     </>
                   }
                 >
-                  <div className="environment-setting-row">
-                    <EnvironmentSourcesIcon />
-                    <span className="environment-setting-copy">
-                      <strong>
-                        {t.sourceSummary(attachmentCount, sourceCallCount)}
-                      </strong>
-                    </span>
+                  <div className="environment-context-list">
+                    {contextAttachments.slice(0, 3).map((attachment) => (
+                      <button
+                        className="environment-context-row"
+                        key={attachment.id}
+                        onClick={viewAllSources}
+                        title={attachment.name}
+                        type="button"
+                      >
+                        <WorkspaceFileIcon
+                          path={attachment.name}
+                          presentation={filePresentation(attachment.name)}
+                          symlink={false}
+                        />
+                        <span>{attachment.name}</span>
+                      </button>
+                    ))}
+                    {webSearchCount > 0 && (
+                      <button
+                        className="environment-context-row"
+                        onClick={viewAllSources}
+                        type="button"
+                      >
+                        <EnvironmentSearchIcon />
+                        <span>{t.webSearch}</span>
+                        <small>{webSearchCount}</small>
+                      </button>
+                    )}
+                    {mcpUsages.length > 0 && (
+                      <button
+                        className="environment-context-row"
+                        onClick={viewAllSources}
+                        type="button"
+                      >
+                        <ArtemisIcon name="tool" />
+                        <span>
+                          {uiText(
+                            locale,
+                            "App_disclosureLabels.toolGroupCalls",
+                          )}
+                        </span>
+                        <small>{mcpUsages.length}</small>
+                      </button>
+                    )}
                     <button
                       className="environment-view-all environment-text-action"
                       onClick={viewAllSources}

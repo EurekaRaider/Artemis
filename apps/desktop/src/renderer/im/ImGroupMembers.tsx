@@ -286,39 +286,43 @@ export function ImGroupMembers({
                           />
                         </span>
                       </Tooltip>
-                      <span>{member.name}</span>
-                      {member.kind === "bot" &&
-                        !member.self &&
-                        proof === "unverified" && (
-                          <Tooltip label={proofLabel}>
-                            <span
-                              className="im-member-device"
-                              aria-live="polite"
-                              tabIndex={0}
-                            >
-                              {proofLabel}
-                            </span>
-                          </Tooltip>
-                        )}
-                      {isFeishuBot(member) &&
-                        !member.self &&
-                        !canAssign(member) && (
-                          <Tooltip label={permissionLabel}>
-                            <span
-                              className="im-member-device"
-                              aria-live="polite"
-                              tabIndex={0}
-                            >
-                              {permissionLabel}
-                            </span>
-                          </Tooltip>
-                        )}
+                      <span className="im-member-identity">
+                        <span className="im-member-name">{member.name}</span>
+                        <span className="im-member-meta">
+                          {member.kind === "bot" &&
+                            !member.self &&
+                            proof === "unverified" && (
+                              <Tooltip label={proofLabel}>
+                                <span
+                                  className="im-member-device"
+                                  aria-live="polite"
+                                  tabIndex={0}
+                                >
+                                  {proofLabel}
+                                </span>
+                              </Tooltip>
+                            )}
+                          {isFeishuBot(member) &&
+                            !member.self &&
+                            !canAssign(member) && (
+                              <Tooltip label={permissionLabel}>
+                                <span
+                                  className="im-member-device"
+                                  aria-live="polite"
+                                  tabIndex={0}
+                                >
+                                  {permissionLabel}
+                                </span>
+                              </Tooltip>
+                            )}
 
-                      {member.self && (
-                        <span className="im-member-executor">
-                          {t("ImGroupMembers.message18")}
+                          {member.self && (
+                            <span className="im-member-executor">
+                              {t("ImGroupMembers.message18")}
+                            </span>
+                          )}
                         </span>
-                      )}
+                      </span>
                     </strong>
                   </span>
                   {canManage &&
@@ -457,15 +461,19 @@ export function ImGroupMembers({
                         <ArtemisIcon name="monitor" width={14} height={14} />
                       </span>
                     </Tooltip>
-                    <span>{member.name}</span>
-                    <span className="im-member-device">
-                      {member.deviceName || member.deviceId}
-                    </span>
-                    {member.deviceId === group.executingDeviceId && (
-                      <span className="im-member-executor">
-                        {t("ImGroupMembers.message18")}
+                    <span className="im-member-identity">
+                      <span className="im-member-name">{member.name}</span>
+                      <span className="im-member-meta">
+                        <span className="im-member-device">
+                          {member.deviceName || member.deviceId}
+                        </span>
+                        {member.deviceId === group.executingDeviceId && (
+                          <span className="im-member-executor">
+                            {t("ImGroupMembers.message18")}
+                          </span>
+                        )}
                       </span>
-                    )}
+                    </span>
                   </strong>
                 </span>
                 {onRemove && (

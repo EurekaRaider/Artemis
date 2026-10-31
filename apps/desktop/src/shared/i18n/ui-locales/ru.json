@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "Пауза",
   "ComputerUse.takeOver": "Взять управление",
   "ComputerUse.returnControl": "Вернуть управление Artemis",
-  "Review.sendToArtemis": "Отправить Artemis"
+  "Review.sendToArtemis": "Отправить Artemis",
+  "GroupContext.channel": "Канал",
+  "GroupContext.authorization": "Доступ к проекту",
+  "GroupContext.visibleScope": "Данные группы"
 }

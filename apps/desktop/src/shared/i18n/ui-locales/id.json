@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "Jeda",
   "ComputerUse.takeOver": "Ambil alih",
   "ComputerUse.returnControl": "Kembalikan kendali ke Artemis",
-  "Review.sendToArtemis": "Kirim ke Artemis"
+  "Review.sendToArtemis": "Kirim ke Artemis",
+  "GroupContext.channel": "Kanal",
+  "GroupContext.authorization": "Otorisasi proyek",
+  "GroupContext.visibleScope": "Cakupan data grup"
 }

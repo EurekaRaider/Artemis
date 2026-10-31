@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "一時停止",
   "ComputerUse.takeOver": "操作を引き継ぐ",
   "ComputerUse.returnControl": "Artemis に操作を戻す",
-  "Review.sendToArtemis": "Artemis に送信"
+  "Review.sendToArtemis": "Artemis に送信",
+  "GroupContext.channel": "チャンネル",
+  "GroupContext.authorization": "プロジェクトの権限",
+  "GroupContext.visibleScope": "グループのデータ範囲"
 }

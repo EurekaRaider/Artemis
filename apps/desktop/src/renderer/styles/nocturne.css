@@ -511,6 +511,12 @@
   border-inline-start: 1px solid var(--artemis-color-border-default);
   gap: 0;
 }
+@media (max-width: 820px) {
+  .app-shell [data-artemis-component="workspace-dock"] {
+    z-index: 21;
+  }
+}
+
 .app-shell .tool-card {
   display: grid;
   grid-template-columns: 18px 18px 44px minmax(0, 1fr) auto;
@@ -995,13 +1001,21 @@
   font-weight: 600;
   color: var(--artemis-color-text-secondary);
 }
+.app-shell .environment-git-message {
+  min-block-size: 0;
+  padding: 0;
+}
 .app-shell .environment-git-message textarea {
   min-block-size: 110px;
+  padding: 10px;
+  border: 1px solid var(--artemis-color-border-default);
   font-size: 13px;
   border-radius: 10px;
   background: var(--artemis-color-surface-base);
 }
 .app-shell .environment-git-include {
+  min-block-size: 28px;
+  padding: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1019,14 +1033,42 @@
   min-block-size: 32px;
 }
 .app-shell .environment-git-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 8px;
+}
+.app-shell .environment-git-actions .environment-push-only {
+  grid-column: 1 / -1;
+  justify-self: start;
+  border-color: transparent;
+  background: transparent;
+  color: var(--artemis-color-text-secondary);
+}
+.app-shell .environment-git-actions button strong {
+  font-size: 12px;
+  font-weight: 500;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.app-shell .environment-git-actions kbd {
+  display: none;
 }
 .app-shell .environment-git-actions button {
+  display: flex;
+  gap: 6px;
   min-block-size: 32px;
   justify-content: center;
+  padding: 6px 8px;
+  border: 1px solid var(--artemis-color-border-default);
+  border-radius: 8px;
   font-size: 12px;
+}
+.app-shell .environment-git-actions button.primary:not(:disabled) {
+  background: var(--artemis-color-accent-primary);
+  color: var(--artemis-color-text-inverse);
+}
+.app-shell .environment-git-actions button.primary > svg {
+  color: inherit;
 }
 .environment-git-progress {
   display: flex;
@@ -1053,6 +1095,9 @@
   block-size: 46px;
   padding: 7px 8px;
   gap: 4px;
+}
+.app-shell [data-artemis-component="workspace-tab-bar"] [data-part="scroll"] {
+  block-size: 32px;
 }
 .app-shell [data-artemis-component="workspace-tab"] {
   min-block-size: 32px;
@@ -1081,6 +1126,7 @@
 }
 .app-shell .review-workspace {
   grid-template-columns: 184px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 .app-shell .review-file-entry {
   text-align: start;
@@ -1097,6 +1143,10 @@
 }
 .app-shell .review-file-stats {
   font-size: 11px;
+}
+.app-shell :is(.review-file-stats, .environment-diff-total) {
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 .app-shell .review-scope-select {
   min-inline-size: 0;
@@ -1129,6 +1179,8 @@
 }
 
 .app-shell .review-file-sidebar {
+  max-block-size: none;
+  border-block-start: 0;
   border-inline-start: 0;
   border-inline-end: 1px solid var(--artemis-color-border-subtle);
 }
@@ -1142,7 +1194,7 @@
   justify-content: space-between;
   gap: 8px;
   flex: none;
-  min-block-size: 46px;
+  min-block-size: 52px;
   padding: 8px 12px;
   border-block-start: 1px solid var(--artemis-color-border-subtle);
   background: var(--artemis-color-canvas);
@@ -2209,15 +2261,33 @@
   margin-inline: 0;
   max-inline-size: 100%;
   inline-size: 100%;
-  padding-inline-start: 44px;
+  padding-block: 0;
+  padding-inline: 44px 0;
   background: transparent;
+  border: 0;
   border-radius: 0;
+  box-shadow: none;
 }
 .app-shell .group-message-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
   font-size: 11.5px;
   color: var(--muted);
   margin-block-end: 6px;
   text-transform: capitalize;
+}
+.app-shell .group-message-heading strong {
+  color: var(--artemis-color-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.app-shell .group-message-heading time {
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .timeline[data-group="true"] .message-attachments {
+  justify-content: flex-start;
 }
 .app-shell .group-message-avatar {
   position: absolute;
@@ -2280,4 +2350,196 @@
   ) {
   background: var(--artemis-color-surface-popover);
   backdrop-filter: none;
+}
+
+/* Task context and group summaries use compact rows backed by current data. */
+.app-shell .environment-context-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.app-shell .environment-context-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 30px;
+  min-inline-size: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  font-size: 12px;
+}
+.app-shell .environment-context-row > :is(svg, .workspace-file-kind) {
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .environment-context-row > span:not(.workspace-file-kind) {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-shell .environment-context-row small {
+  color: var(--artemis-color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.app-shell .environment-context-list > .environment-view-all {
+  align-self: flex-start;
+  min-block-size: 28px;
+}
+.app-shell .im-member-heading > .im-member-identity {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  flex: 1;
+  gap: 2px;
+  white-space: normal;
+}
+.app-shell .im-member-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.app-shell .im-member-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .im-member-meta > span {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-shell .im-group-channel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-block-size: 28px;
+  font-size: 12px;
+}
+.app-shell .im-group-channel > svg {
+  flex: none;
+  inline-size: 14px;
+  block-size: 14px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .im-group-channel > span {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-shell .im-group-channel small {
+  font-size: 11px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .im-group-channel small[data-state="connected"] {
+  color: var(--artemis-color-status-success);
+}
+.app-shell .im-group-project {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.app-shell .im-group-context-note {
+  margin: 4px 0 8px;
+  color: var(--artemis-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.app-shell .im-group-context-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.app-shell .im-group-context-details > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-block-size: 28px;
+}
+.app-shell .im-group-context-details dt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+.app-shell .im-group-context-details dt svg {
+  flex: none;
+  inline-size: 14px;
+  block-size: 14px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .im-group-context-details dd {
+  margin: 0;
+  min-inline-size: 0;
+  max-inline-size: 55%;
+  text-align: end;
+  color: var(--artemis-color-text-secondary);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+.app-shell .im-group-context-scope > div {
+  flex-direction: column;
+  gap: 4px;
+  margin-block-end: 6px;
+}
+.app-shell .im-group-context-scope dd {
+  max-inline-size: 100%;
+  text-align: start;
+  padding-inline-start: 20px;
+}
+.app-shell .im-group-manage {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 28px;
+  margin-block-start: 6px;
+  font-size: 11.5px;
+}
+.app-shell .im-group-manage svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.app-shell .composer-context > .environment-workspace-trigger {
+  display: flex;
+  flex: 0 1 auto;
+  inline-size: auto;
+  max-inline-size: 160px;
+  min-inline-size: 0;
+  min-block-size: 26px;
+  block-size: 26px;
+  margin-inline: 0;
+  padding: 0 6px;
+  gap: 5px;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 11.5px;
+  font-weight: 400;
+}
+.app-shell .composer-context > .environment-workspace-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-shell .composer-context > .environment-workspace-trigger svg {
+  flex: none;
+  inline-size: 14px;
+  block-size: 14px;
 }

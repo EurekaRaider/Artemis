@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "إيقاف مؤقت",
   "ComputerUse.takeOver": "تولّي التحكم",
   "ComputerUse.returnControl": "إعادة التحكم إلى Artemis",
-  "Review.sendToArtemis": "إرسال إلى Artemis"
+  "Review.sendToArtemis": "إرسال إلى Artemis",
+  "GroupContext.channel": "القناة",
+  "GroupContext.authorization": "تفويض المشروع",
+  "GroupContext.visibleScope": "نطاق بيانات المجموعة"
 }

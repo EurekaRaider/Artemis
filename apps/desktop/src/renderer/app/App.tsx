@@ -238,6 +238,7 @@ import { ContextUsageIndicator } from "../conversation/ContextUsageIndicator.js"
 import { GoalBar } from "../conversation/GoalBar.js";
 import { GoalEditorPanel } from "../conversation/GoalEditorPanel.js";
 import { EnvironmentPanel } from "../workspace/EnvironmentPanel.js";
+import { EnvironmentWorkspaceMenu } from "../workspace/EnvironmentWorkspaceMenu.js";
 import {
   desktopSkinHost,
   desktopSkinReady,
@@ -408,7 +409,7 @@ type Locale = AppLocale;
 type ModelPickerSection = "model" | "thinking";
 type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
-type SettingsEntryTab = "general" | "maintenance" | "hooks";
+type SettingsEntryTab = "general" | "maintenance" | "hooks" | "im";
 type ConfirmationTone = "default" | "danger";
 type ToastContent = string | { error: true; message: string };
 
@@ -3999,6 +4000,17 @@ export function App() {
     environmentWorktree?.id,
     environmentWorktree?.path,
   ]);
+  const refreshWorkspaceSnapshot = async () => {
+    const refreshed = await window.artemis.getSnapshot();
+    setSnapshot((current) => preserveLoadedEvents(refreshed, current));
+  };
+  const handoffActiveWorkspace = activeThread
+    ? async (destination: "local" | "managed-worktree") => {
+        await window.artemis.handoffWorkspace(activeThread.id, destination);
+        await refreshWorkspaceSnapshot();
+      }
+    : undefined;
+
   const environmentRefreshKey = useMemo(() => {
     for (let index = activeEvents.length - 1; index >= 0; index -= 1) {
       const event = activeEvents[index];
@@ -7259,27 +7271,8 @@ export function App() {
                       workspaceIsWorktree={Boolean(
                         activeThread && activeThread.target !== "local",
                       )}
-                      onWorktreesChanged={async () => {
-                        const refreshed = await window.artemis.getSnapshot();
-                        setSnapshot((current) =>
-                          preserveLoadedEvents(refreshed, current),
-                        );
-                      }}
-                      onWorkspaceHandoff={
-                        activeThread
-                          ? async (destination) => {
-                              await window.artemis.handoffWorkspace(
-                                activeThread.id,
-                                destination,
-                              );
-                              const refreshed =
-                                await window.artemis.getSnapshot();
-                              setSnapshot((current) =>
-                                preserveLoadedEvents(refreshed, current),
-                              );
-                            }
-                          : undefined
-                      }
+                      onWorktreesChanged={refreshWorkspaceSnapshot}
+                      onWorkspaceHandoff={handoffActiveWorkspace}
                       agents={environmentAgents}
                       onMentionMember={groupMentions.insert}
                       memberRemovalDisabled={turnActive || busy}
@@ -7304,6 +7297,14 @@ export function App() {
                           return false;
                         }
                       }}
+                      imConnection={
+                        activeThread
+                          ? imThreadStatus[activeThread.id]
+                          : undefined
+                      }
+                      onManageGroupAuthorization={(trigger) =>
+                        openSettings("im", trigger)
+                      }
                       imGroup={
                         activeThread
                           ? imThreadStatus[activeThread.id]?.group
@@ -7515,6 +7516,12 @@ export function App() {
                         </button>
                       ) : null}
                       <Timeline
+                        events={activeEvents}
+                        imChannel={
+                          activeThread
+                            ? imThreadStatus[activeThread.id]?.channel
+                            : undefined
+                        }
                         imGroup={
                           activeThread
                             ? imThreadStatus[activeThread.id]?.group
@@ -7912,6 +7919,40 @@ export function App() {
                               locale={locale}
                               mode={mode}
                               showMode={Boolean(pendingComposerDecision)}
+                              workspaceControl={
+                                activeProject ? (
+                                  <EnvironmentWorkspaceMenu
+                                    locale={locale}
+                                    path={
+                                      environmentWorktree?.path ??
+                                      activeProject.path
+                                    }
+                                    worktree={Boolean(
+                                      activeThread &&
+                                      activeThread.target !== "local",
+                                    )}
+                                    disabled={
+                                      projectBranchActionsDisabled ||
+                                      Boolean(activeThread?.archived)
+                                    }
+                                    placement="block-start"
+                                    onHandoff={handoffActiveWorkspace}
+                                    onWorktreesChanged={
+                                      refreshWorkspaceSnapshot
+                                    }
+                                    onOpenUsage={() =>
+                                      setActiveView("token-usage")
+                                    }
+                                    onMessage={(message, error) =>
+                                      setToast(
+                                        error
+                                          ? { error: true, message }
+                                          : message,
+                                      )
+                                    }
+                                  />
+                                ) : undefined
+                              }
                               modeActionsDisabled={
                                 turnActive ||
                                 busy ||
@@ -9286,7 +9327,7 @@ ${model.providerId} · ${model.modelId}`}
                                           symlink={false}
                                         />
                                         <span className="review-file-path">
-                                          {file.path}
+                                          {file.path.split(/[\\/]/).at(-1)}
                                         </span>
                                         <span className="review-file-stats">
                                           <span className="addition">
@@ -11355,6 +11396,8 @@ export function TurnChangeSetCard({
 }
 
 export function Timeline({
+  events,
+  imChannel,
   imGroup,
   installedPlugins,
   installedSkills,
@@ -11372,6 +11415,8 @@ export function Timeline({
   onResolveUserInput,
   onUndoTurnChanges,
 }: {
+  events?: readonly AgentEvent[] | undefined;
+  imChannel?: string | undefined;
   imGroup?: ImGroupContext | undefined;
   installedPlugins: readonly InstalledArtemisPlugin[];
   installedSkills: readonly InstalledSkill[];
@@ -11393,6 +11438,36 @@ export function Timeline({
   onUndoTurnChanges: (turnId: string) => void;
 }) {
   const t = appCopy(locale);
+  const messageTimestamps = useMemo(() => {
+    const timestamps = new Map<string, string>();
+    if (!imGroup) return timestamps;
+    for (const event of events ?? []) {
+      const payload = event.payload;
+      const key =
+        payload.type === "user.message"
+          ? `user:${payload.messageId}`
+          : payload.type === "message.part.delta"
+            ? `part:${payload.partId}`
+            : undefined;
+      if (key && !timestamps.has(key)) timestamps.set(key, event.timestamp);
+    }
+    return timestamps;
+  }, [events, imGroup]);
+  const renderMessageTime = (entry: string) => {
+    const timestamp = messageTimestamps.get(entry);
+    return timestamp ? (
+      <time
+        dateTime={timestamp}
+        title={new Date(timestamp).toLocaleString(locale)}
+      >
+        {new Date(timestamp).toLocaleTimeString(locale, {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </time>
+    ) : null;
+  };
+
   const resolvePlugin = useMemo(
     () =>
       createToolPluginResolver(
@@ -11581,7 +11656,9 @@ export function Timeline({
                 <span className="group-message-avatar">
                   <ArtemisIcon name="user" />
                 </span>
-                <span>{imGroup.members[0]?.identity.channel}</span>
+                <strong>{uiText(locale, "ImGroupMembers.message13")}</strong>
+                {imChannel && <span>{imChannel}</span>}
+                {renderMessageTime(entry)}
               </div>
             )}
             {files.length > 0 && (
@@ -11644,7 +11721,8 @@ export function Timeline({
               <span className="group-message-avatar">
                 <ArtemisLogo size={20} />
               </span>
-              <span>Artemis</span>
+              <strong>Artemis</strong>
+              {renderMessageTime(entry)}
             </div>
           )}
           <MarkdownContent

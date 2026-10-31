@@ -144,7 +144,6 @@ describe("task environment panel state", () => {
   it("links the trigger to the named Environment dialog", () => {
     expect(panelSource).toContain("const panelId = useId()");
     expect(panelSource).toContain("controls={panelId}");
-    expect(panelSource).toMatch(/<EnvironmentPanelSurface\s+id=\{panelId\}/u);
     expect(mainSource).toContain(
       'rule: "environment-trigger-dialog-relationship"',
     );
@@ -181,7 +180,6 @@ describe("task environment panel state", () => {
       "(displayAgents.length > 0 || teams.length > 0) &&",
     );
     expect(panelSource).toContain("hasSourcePanelDetails &&");
-    expect(panelSource).toContain("const sourceCallCount =");
     expect(panelSource).not.toContain("mcpGroups.length > 0 &&");
   });
 
@@ -332,9 +330,6 @@ describe("task environment panel state", () => {
     expect(mainSource).toContain('type: "task.source.added"');
     expect(panelSource).toContain('source.kind === "web-search"');
     expect(panelSource).toContain("onViewAllSources()");
-    expect(panelSource).toContain(
-      "t.sourceSummary(attachmentCount, sourceCallCount)",
-    );
     expect(panelSource).toContain("const activityPreviewLimit = 2");
     expect(panelSource).not.toContain("environment-web-source-links");
     expect(appSource).toContain('tab.kind === "sources"');

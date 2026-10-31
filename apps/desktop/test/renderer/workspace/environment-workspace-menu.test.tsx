@@ -6,37 +6,41 @@ import { afterEach, expect, it, vi } from "vitest";
 import { EnvironmentWorkspaceMenu } from "../../../src/renderer/workspace/EnvironmentWorkspaceMenu.js";
 
 afterEach(cleanup);
-it("hands off to a worktree, returns to Local and restores focus on Escape", async () => {
-  const handoff = vi.fn().mockResolvedValue(undefined);
-  const message = vi.fn();
-  const props = {
-    locale: "zh-CN" as const,
-    path: "/fixture",
-    disabled: false,
-    onHandoff: handoff,
-    onMessage: message,
-  };
-  const { rerender } = render(<EnvironmentWorkspaceMenu {...props} />);
-  const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "本地" }));
-  expect(screen.getByRole("menuitemradio", { name: "本地" })).toHaveAttribute(
-    "aria-checked",
-    "true",
-  );
-  await user.click(screen.getByRole("menuitem", { name: "新建本地工作树" }));
-  expect(handoff).toHaveBeenCalledWith("managed-worktree");
-  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  rerender(<EnvironmentWorkspaceMenu {...props} worktree />);
-  await user.click(screen.getByRole("button", { name: "本地工作树" }));
-  await user.click(screen.getByRole("menuitemradio", { name: "本地" }));
-  expect(handoff).toHaveBeenLastCalledWith("local");
-  await user.click(screen.getByRole("button", { name: "本地工作树" }));
-  await user.keyboard("{Escape}");
-  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "本地工作树" })).toHaveFocus(),
-  );
-});
+it.each(["inline-start", "block-start"] as const)(
+  "hands off to a worktree, returns to Local and restores focus on Escape from %s",
+  async (placement) => {
+    const handoff = vi.fn().mockResolvedValue(undefined);
+    const message = vi.fn();
+    const props = {
+      locale: "zh-CN" as const,
+      path: "/fixture",
+      placement,
+      disabled: false,
+      onHandoff: handoff,
+      onMessage: message,
+    };
+    const { rerender } = render(<EnvironmentWorkspaceMenu {...props} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "本地" }));
+    expect(screen.getByRole("menuitemradio", { name: "本地" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await user.click(screen.getByRole("menuitem", { name: "新建本地工作树" }));
+    expect(handoff).toHaveBeenCalledWith("managed-worktree");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    rerender(<EnvironmentWorkspaceMenu {...props} worktree />);
+    await user.click(screen.getByRole("button", { name: "本地工作树" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "本地" }));
+    expect(handoff).toHaveBeenLastCalledWith("local");
+    await user.click(screen.getByRole("button", { name: "本地工作树" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "本地工作树" })).toHaveFocus(),
+    );
+  },
+);
 it("blocks running tasks and preserves the menu after a failed handoff", async () => {
   const handoff = vi.fn().mockRejectedValue(new Error("Handoff failed"));
   const message = vi.fn();

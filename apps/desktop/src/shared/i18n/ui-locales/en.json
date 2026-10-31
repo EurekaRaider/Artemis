@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "Pause",
   "ComputerUse.takeOver": "Take over",
   "ComputerUse.returnControl": "Return to Artemis",
-  "Review.sendToArtemis": "Send to Artemis"
+  "Review.sendToArtemis": "Send to Artemis",
+  "GroupContext.channel": "Channel",
+  "GroupContext.authorization": "Project authorization",
+  "GroupContext.visibleScope": "Group data scope"
 }

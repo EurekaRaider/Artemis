@@ -9,6 +9,7 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import type { AppLocale, Project, RunMode } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
@@ -26,6 +27,7 @@ interface ComposerContextBarProps {
   locale: Locale;
   mode: RunMode;
   showMode?: boolean;
+  workspaceControl?: ReactNode;
   modeActionsDisabled: boolean;
   onClearProject(): void;
   onError(message: string): void;
@@ -130,6 +132,7 @@ export function ComposerContextBar({
   locale,
   mode,
   showMode = true,
+  workspaceControl,
   modeActionsDisabled,
   onClearProject,
   onError,
@@ -657,6 +660,7 @@ export function ComposerContextBar({
           </div>
         ) : null)}
 
+      {workspaceControl}
       {showMode && (
         <ComposerRunModeControl
           locale={locale}

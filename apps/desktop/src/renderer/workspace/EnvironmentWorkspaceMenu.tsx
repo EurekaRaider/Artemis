@@ -15,6 +15,7 @@ export function EnvironmentWorkspaceMenu({
   locale,
   path,
   worktree = false,
+  placement = "inline-start",
   disabled,
   onHandoff,
   onMessage,
@@ -24,6 +25,7 @@ export function EnvironmentWorkspaceMenu({
   locale: AppLocale;
   path: string;
   worktree?: boolean | undefined;
+  placement?: "inline-start" | "block-start";
   disabled: boolean;
   onHandoff?:
     ((destination: "local" | "managed-worktree") => Promise<void>) | undefined;
@@ -83,7 +85,7 @@ export function EnvironmentWorkspaceMenu({
         onOpenChange={setOpen}
         label={t("EnvironmentWorkspaceMenu.message5")}
         role="menu"
-        placement="inline-start"
+        placement={placement}
         className="environment-workspace-menu"
         id={id}
       >

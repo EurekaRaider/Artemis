@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "रोकें",
   "ComputerUse.takeOver": "नियंत्रण लें",
   "ComputerUse.returnControl": "Artemis को नियंत्रण लौटाएँ",
-  "Review.sendToArtemis": "Artemis को भेजें"
+  "Review.sendToArtemis": "Artemis को भेजें",
+  "GroupContext.channel": "चैनल",
+  "GroupContext.authorization": "प्रोजेक्ट अनुमति",
+  "GroupContext.visibleScope": "समूह डेटा का दायरा"
 }

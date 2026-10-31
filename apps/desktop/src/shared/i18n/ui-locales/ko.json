@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "일시 중지",
   "ComputerUse.takeOver": "직접 제어",
   "ComputerUse.returnControl": "Artemis에 제어 반환",
-  "Review.sendToArtemis": "Artemis로 보내기"
+  "Review.sendToArtemis": "Artemis로 보내기",
+  "GroupContext.channel": "채널",
+  "GroupContext.authorization": "프로젝트 권한",
+  "GroupContext.visibleScope": "그룹 데이터 범위"
 }

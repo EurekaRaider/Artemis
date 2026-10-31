@@ -2069,5 +2069,8 @@
   "ComputerUse.pause": "暂停",
   "ComputerUse.takeOver": "接管",
   "ComputerUse.returnControl": "交还给 Artemis",
-  "Review.sendToArtemis": "发送给 Artemis"
+  "Review.sendToArtemis": "发送给 Artemis",
+  "GroupContext.channel": "频道",
+  "GroupContext.authorization": "项目授权",
+  "GroupContext.visibleScope": "群内数据范围"
 }
