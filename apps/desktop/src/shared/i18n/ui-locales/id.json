@@ -2072,5 +2072,8 @@
   "Review.sendToArtemis": "Kirim ke Artemis",
   "DecisionCard.previousQuestion": "Pertanyaan sebelumnya",
   "DecisionCard.nextQuestion": "Pertanyaan berikutnya",
-  "DecisionCard.changeModel": "Ganti model"
+  "DecisionCard.changeModel": "Ganti model",
+  "GroupContext.channel": "Kanal",
+  "GroupContext.authorization": "Otorisasi proyek",
+  "GroupContext.visibleScope": "Cakupan data grup"
 }

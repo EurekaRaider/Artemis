@@ -2072,5 +2072,8 @@
   "Review.sendToArtemis": "Отправить Artemis",
   "DecisionCard.previousQuestion": "Предыдущий вопрос",
   "DecisionCard.nextQuestion": "Следующий вопрос",
-  "DecisionCard.changeModel": "Сменить модель"
+  "DecisionCard.changeModel": "Сменить модель",
+  "GroupContext.channel": "Канал",
+  "GroupContext.authorization": "Доступ к проекту",
+  "GroupContext.visibleScope": "Данные группы"
 }

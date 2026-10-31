@@ -2072,5 +2072,8 @@
   "Review.sendToArtemis": "Artemis로 보내기",
   "DecisionCard.previousQuestion": "이전 질문",
   "DecisionCard.nextQuestion": "다음 질문",
-  "DecisionCard.changeModel": "모델 변경"
+  "DecisionCard.changeModel": "모델 변경",
+  "GroupContext.channel": "채널",
+  "GroupContext.authorization": "프로젝트 권한",
+  "GroupContext.visibleScope": "그룹 데이터 범위"
 }

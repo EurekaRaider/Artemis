@@ -254,6 +254,7 @@ describe("group collaboration UI", () => {
     vi.useFakeTimers();
     let current = group;
     const getImStatus = vi.fn(async () => ({
+      settings: imSettingsSchema.parse({}),
       remoteTasks: [
         { threadId: "group", kind: "group", channel: "slack", group: current },
         {
@@ -664,6 +665,7 @@ it("refreshes visible native members and bots while open, on return, and stops o
     current = next;
   });
   const getImStatus = vi.fn(async () => ({
+    settings: imSettingsSchema.parse({}),
     remoteTasks: [
       { threadId: "room", kind: "group", channel: "feishu", group: current },
     ],
@@ -740,7 +742,7 @@ it("offers Feishu/Lark bot permission and communication retry in the task member
   );
   const pending = screen.getByText("通信待验证");
   fireEvent.mouseEnter(pending);
-  expect(screen.getByRole("tooltip")).toHaveTextContent("通信待验证");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent("通信待验证");
   fireEvent.mouseLeave(pending);
   fireEvent.focus(pending);
   expect(screen.getByRole("tooltip")).toHaveTextContent("通信待验证");
@@ -763,7 +765,7 @@ it("offers Feishu/Lark bot permission and communication retry in the task member
 
 it.each(["feishu", "slack"] as const)(
   "keeps %s task controls scoped and shows communication timeout separately",
-  (channel) => {
+  async (channel) => {
     stubWindowArtemis({ manageIm: vi.fn().mockResolvedValue({}) });
     render(
       <ImGroupMembers
@@ -789,7 +791,9 @@ it.each(["feishu", "slack"] as const)(
     if (channel === "feishu") {
       const timeout = screen.getByText("通信验证超时");
       fireEvent.mouseEnter(timeout);
-      expect(screen.getByRole("tooltip")).toHaveTextContent("通信验证超时");
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(
+        "通信验证超时",
+      );
       fireEvent.mouseLeave(timeout);
       expect(screen.getByRole("button", { name: "重新验证" })).toBeEnabled();
       expect(

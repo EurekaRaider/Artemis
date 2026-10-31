@@ -2072,5 +2072,8 @@
   "Review.sendToArtemis": "An Artemis senden",
   "DecisionCard.previousQuestion": "Vorherige Frage",
   "DecisionCard.nextQuestion": "Nächste Frage",
-  "DecisionCard.changeModel": "Modell wechseln"
+  "DecisionCard.changeModel": "Modell wechseln",
+  "GroupContext.channel": "Kanal",
+  "GroupContext.authorization": "Projektberechtigung",
+  "GroupContext.visibleScope": "Datenumfang der Gruppe"
 }

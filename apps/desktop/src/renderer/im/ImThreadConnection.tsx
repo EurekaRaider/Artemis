@@ -2,6 +2,7 @@ import { uiText } from "../../shared/i18n/ui-text.js";
 import { useEffect, useState, type ReactNode } from "react";
 import type {
   AppLocale,
+  ExecutionGrant,
   ImConnectionStatus,
   ImGroupContext,
   ImStatus,
@@ -9,7 +10,7 @@ import type {
 import { imGroupMentionTargets } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
 
-type ThreadConnection = {
+export type ThreadConnection = {
   permissionBlock?: string;
   delegationWaits?: NonNullable<
     ImStatus["remoteTasks"]
@@ -18,6 +19,8 @@ type ThreadConnection = {
   channel?: string;
   connectionState: ImConnectionStatus["state"] | "unknown" | "removed";
   group?: ImGroupContext;
+  groupGrants?: ExecutionGrant[];
+  serviceEnabled?: boolean;
 };
 const unknownConnection: ThreadConnection = { connectionState: "unknown" };
 
@@ -48,7 +51,15 @@ export function useImThreadStatus() {
                   : {}),
                 connectionState: task.connectionState ?? "unknown",
                 ...(task.kind === "group" && task.group
-                  ? { group: task.group }
+                  ? {
+                      group: task.group,
+                      serviceEnabled: status.settings.enabled,
+                      groupGrants: status.settings.grants.filter(
+                        (grant) =>
+                          grant.expiresAt > Date.now() &&
+                          grant.groups.includes(`space:${task.group!.spaceId}`),
+                      ),
+                    }
                   : {}),
               },
             ]),
@@ -64,7 +75,10 @@ export function useImThreadStatus() {
                   JSON.stringify(value.delegationWaits) &&
                 current[id]?.connectionState === value.connectionState &&
                 JSON.stringify(current[id]?.group) ===
-                  JSON.stringify(value.group),
+                  JSON.stringify(value.group) &&
+                current[id]?.serviceEnabled === value.serviceEnabled &&
+                JSON.stringify(current[id]?.groupGrants) ===
+                  JSON.stringify(value.groupGrants),
             )
               ? current
               : next,

@@ -2072,5 +2072,8 @@
   "Review.sendToArtemis": "傳送給 Artemis",
   "DecisionCard.previousQuestion": "上一題",
   "DecisionCard.nextQuestion": "下一題",
-  "DecisionCard.changeModel": "換個模型"
+  "DecisionCard.changeModel": "換個模型",
+  "GroupContext.channel": "頻道",
+  "GroupContext.authorization": "專案授權",
+  "GroupContext.visibleScope": "群組資料範圍"
 }

@@ -2072,5 +2072,8 @@
   "Review.sendToArtemis": "发送给 Artemis",
   "DecisionCard.previousQuestion": "上一题",
   "DecisionCard.nextQuestion": "下一题",
-  "DecisionCard.changeModel": "换个模型"
+  "DecisionCard.changeModel": "换个模型",
+  "GroupContext.channel": "频道",
+  "GroupContext.authorization": "项目授权",
+  "GroupContext.visibleScope": "群内数据范围"
 }

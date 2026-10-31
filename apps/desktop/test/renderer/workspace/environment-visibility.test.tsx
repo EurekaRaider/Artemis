@@ -550,7 +550,9 @@ describe("environment panel automatic visibility", () => {
           screen.getByRole("button", { name: /Document review/ }),
         ).toBeVisible();
       if (content !== "agents")
-        expect(screen.getByRole("heading", { name: "Sources" })).toBeVisible();
+        expect(
+          screen.getByRole("heading", { name: "Context used in this task" }),
+        ).toBeVisible();
       rerender(fixture());
       expect(dialog()).toBeNull();
       expect(
@@ -884,14 +886,12 @@ it("merges staged and unstaged file statistics and opens their existing Review s
     untracked: false,
     hunks: [],
   };
-  const getReviewDiff = vi
-    .fn()
-    .mockImplementation(async ({ scope }) => ({
-      scope,
-      available: true,
-      text: "",
-      files: [{ ...file, additions: scope === "staged" ? 3 : 2 }],
-    }));
+  const getReviewDiff = vi.fn().mockImplementation(async ({ scope }) => ({
+    scope,
+    available: true,
+    text: "",
+    files: [{ ...file, additions: scope === "staged" ? 3 : 2 }],
+  }));
   stubWindowArtemis({ ...window.artemis, getReviewDiff });
   vi.mocked(window.artemis.getProjectGitInfo).mockResolvedValue({
     managed: true,
@@ -920,4 +920,85 @@ it("merges staged and unstaged file statistics and opens their existing Review s
   });
   await userEvent.click(row);
   expect(onOpenReview).toHaveBeenCalledWith("unstaged");
+});
+
+it("links the environment trigger to its named live dialog", async () => {
+  await renderReady(fixture());
+  const panel = dialog()!;
+  const trigger = screen.getByRole("button", {
+    name: "Task environment",
+    exact: true,
+  });
+  expect(trigger).toHaveAttribute("aria-controls", panel.id);
+  expect(trigger).toHaveAttribute("aria-expanded", "true");
+});
+
+it("shows actual attachment names and separates web searches from tool calls", async () => {
+  const onViewAllSources = vi.fn();
+  await renderReady(
+    fixture({
+      onViewAllSources,
+      attachments: [
+        {
+          type: "file",
+          name: "draft-notes.md",
+          mimeType: "text/markdown",
+          content: "notes",
+        },
+      ],
+      sources: [
+        {
+          type: "task.source.added",
+          sourceId: "file",
+          kind: "file",
+          name: "findings.pdf",
+          mimeType: "application/pdf",
+          timestamp: "2026-10-31T10:00:00Z",
+        },
+        {
+          type: "task.source.added",
+          sourceId: "search",
+          kind: "web-search",
+          query: "sources",
+          engine: "test",
+          resultCount: 2,
+          searchUrl: "https://example.com/search",
+          links: [],
+          timestamp: "2026-10-31T10:00:00Z",
+        },
+      ],
+      mcpUsages: [
+        {
+          type: "mcp.tool.used",
+          toolCallId: "call1",
+          serverId: "test",
+          serverName: "Test",
+          toolName: "read",
+          agentId: "main",
+          timestamp: "2026-10-31T10:00:00Z",
+        },
+        {
+          type: "mcp.tool.used",
+          toolCallId: "call2",
+          serverId: "test",
+          serverName: "Test",
+          toolName: "read",
+          agentId: "main",
+          timestamp: "2026-10-31T10:00:00Z",
+        },
+      ],
+    }),
+  );
+  expect(screen.getByRole("button", { name: "draft-notes.md" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "findings.pdf" })).toBeVisible();
+  expect(
+    within(screen.getByRole("button", { name: /Web search/ })).getByText("1"),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole("button", { name: /Tool calls/ })).getByText("2"),
+  ).toBeVisible();
+  await userEvent
+    .setup()
+    .click(screen.getByRole("button", { name: "findings.pdf" }));
+  expect(onViewAllSources).toHaveBeenCalledOnce();
 });
