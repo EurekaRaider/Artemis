@@ -39,6 +39,7 @@
   background: var(--artemis-color-canvas);
 }
 .app-shell .workspace-header {
+  flex-basis: 46px;
   min-block-size: 46px;
   block-size: 46px;
   padding-block: 0;
@@ -98,6 +99,7 @@
   block-size: 28px;
 }
 .app-shell .sidebar .sidebar-header {
+  display: flex;
   padding: 4px 10px;
 }
 .app-shell .sidebar .sidebar-header [data-part="copy"] {
@@ -138,7 +140,7 @@
   min-block-size: 34px;
   padding: 0 12px;
   border-radius: 9px;
-  color: var(--artemis-color-accent-onPrimary);
+  color: var(--artemis-color-text-inverse);
   background: var(--artemis-color-accent-primary);
   font-weight: 550;
 }
