@@ -18920,8 +18920,19 @@ function createMainWindow(): BrowserWindow {
                       if (!document.querySelector('.terminal-panel[data-state="ready"] .xterm-screen')) throw new Error('Native terminal did not become ready');
                     }
                     if (view.startsWith('nocturne-review-comment')) {
+                      const environmentTrigger = document.querySelector('.environment-trigger');
+                      if (!(environmentTrigger instanceof HTMLButtonElement)) throw new Error('Environment trigger missing for Review capture');
+                      if (environmentTrigger.getAttribute('aria-expanded') !== 'true') environmentTrigger.click();
                       const label = ${JSON.stringify(uiText(currentLocale(), "App_copy.reviewChanges"))};
-                      [...document.querySelectorAll('.environment-popover button')].find((button) => button.textContent.trim() === label)?.click();
+                      const deadline = Date.now() + 5_000;
+                      let reviewAction;
+                      while (Date.now() < deadline) {
+                        reviewAction = [...document.querySelectorAll('.environment-popover button')].find((button) => button.textContent.trim() === label && button.checkVisibility({ visibilityProperty: true }));
+                        if (reviewAction) break;
+                        await wait(50);
+                      }
+                      if (!(reviewAction instanceof HTMLButtonElement)) throw new Error('Visible Review action missing from Environment');
+                      reviewAction.click();
                       await wait(800);
                       document.querySelector('.review-comment-trigger')?.click();
                       await wait(200);
