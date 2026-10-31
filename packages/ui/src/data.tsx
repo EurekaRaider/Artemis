@@ -46,7 +46,7 @@ export const DATA_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-border-subtle",
   "--artemis-color-border-strong",
   "--artemis-color-accent-primary",
-  "--artemis-color-brand",
+  "--artemis-color-status-info",
   "--artemis-color-context-1",
   "--artemis-color-context-2",
   "--artemis-color-context-4",

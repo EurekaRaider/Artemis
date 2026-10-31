@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import "@artemis/theme-artemis/fonts.css";
 import "@artemis/ui/styles.css";
 import "@artemis/theme-artemis/theme.css";
 import "./styles/gallery.css";

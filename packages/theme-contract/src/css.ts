@@ -2,6 +2,10 @@ import { SEMANTIC_TOKEN_REGISTRY } from "./registry.js";
 import type { ResolvedThemeMode, ThemeTokenValue } from "./types.js";
 import type { SkinMotion, ValidatedVisualSkinPackage } from "./visual-skin.js";
 export const SKIN_FONT_STACKS = {
+  geist:
+    '"Geist", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Noto Sans SC", system-ui, sans-serif',
+  "geist-mono":
+    '"Geist Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace',
   "system-ui":
     'ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"',
   "system-mono":

@@ -4328,7 +4328,7 @@
   [data-artemis-component="data-heatmap"] [data-part="cell"][data-level="4"] {
     background: color-mix(
       in oklab,
-      var(--artemis-color-brand) 82%,
+      var(--artemis-color-status-info) 82%,
       var(--artemis-color-surface-base)
     );
   }
