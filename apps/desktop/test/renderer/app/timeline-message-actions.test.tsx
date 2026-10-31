@@ -6,6 +6,7 @@ import {
   createThreadViewState,
   reduceAgentEvent,
   PROTOCOL_VERSION,
+  type AgentEvent,
 } from "@artemis/protocol";
 import { Timeline } from "../../../src/renderer/app/App.js";
 import "../../fixtures/renderer-test-utils.js";
@@ -128,3 +129,89 @@ it.each(["completed", "cancelled", "failed"] as const)(
     ).toHaveLength(2);
   },
 );
+
+it("retains both cancelled questions inside the stopped work record", async () => {
+  const user = userEvent.setup();
+  const questions = ["Roll out to everyone?", "Announce the release?"];
+  const payloads: AgentEvent["payload"][] = [
+    { type: "turn.started", mode: "work" },
+    {
+      type: "user-input.requested",
+      kind: "multi-question",
+      requestId: "cancel-request",
+      nonce: "cancel-request-nonce",
+      header: "Release",
+      questions: questions.map((question, index) => ({
+        questionId: `c${index + 1}`,
+        question,
+        expiresAt: "2026-11-01T00:10:00Z",
+        options: [
+          { label: "Continue", description: "", recommended: true },
+          { label: "Hold", description: "", recommended: false },
+        ],
+      })),
+    },
+    {
+      type: "user-input.resolved",
+      requestId: "cancel-request",
+      nonce: "cancel-request-nonce",
+      source: "cancelled",
+    },
+    { type: "turn.completed", reason: "cancelled" },
+  ];
+  const state = payloads.reduce(
+    (current, payload, index) =>
+      reduceAgentEvent(current, {
+        protocolVersion: PROTOCOL_VERSION,
+        eventId: `event-${index}`,
+        threadId: "thread",
+        turnId: "turn",
+        seq: index + 1,
+        timestamp: "2026-11-01T00:00:00Z",
+        payload,
+      }),
+    createThreadViewState("thread"),
+  );
+  expect(state.userInputs["cancel-request"]?.status).toBe("cancelled");
+  const onResolveUserInput = vi.fn();
+  const { container } = render(
+    <Timeline
+      installedPlugins={[]}
+      installedSkills={[]}
+      state={state}
+      locale="en"
+      onExternalLink={vi.fn()}
+      onFileLink={vi.fn()}
+      onFileLinkContextMenu={vi.fn()}
+      onOpenChildAgent={vi.fn()}
+      onOpenTurnReview={vi.fn()}
+      onCopyText={vi.fn()}
+      onEditUserMessage={undefined}
+      onResolve={vi.fn()}
+      onResolveUserInput={onResolveUserInput}
+      onUndoTurnChanges={vi.fn()}
+    />,
+  );
+  const record = container.querySelector<HTMLDetailsElement>(".work-record")!;
+  expect(record.open).toBe(false);
+  expect(container.querySelector(".user-input-result")).toBeNull();
+  await user.click(record.querySelector("summary")!);
+  const result = container.querySelector<HTMLDetailsElement>(
+    '.user-input-result[data-state="cancelled"]',
+  )!;
+  expect(record.open).toBe(true);
+  expect(result).not.toBeNull();
+  expect(result.open).toBe(false);
+  await user.click(result.querySelector("summary")!);
+  expect(result.open).toBe(true);
+  for (const question of questions) {
+    expect(screen.getByText(question)).toBeVisible();
+  }
+  expect(
+    [...result.querySelectorAll(".decision-result-detail p")].map(
+      (element) => element.textContent,
+    ),
+  ).toEqual(["Cancelled", "Cancelled"]);
+  expect(result.querySelector("button, input, textarea")).toBeNull();
+  expect(onResolveUserInput).not.toHaveBeenCalled();
+});
