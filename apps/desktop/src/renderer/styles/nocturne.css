@@ -39,6 +39,7 @@
   background: var(--artemis-color-canvas);
 }
 .app-shell .workspace-header {
+  flex-basis: 46px;
   min-block-size: 46px;
   block-size: 46px;
   padding-block: 0;
