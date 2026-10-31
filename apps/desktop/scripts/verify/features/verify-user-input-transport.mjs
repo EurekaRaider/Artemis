@@ -31,18 +31,14 @@ const temporaryDirectory = await mkdtemp(
 const windowWidth = 1_440;
 const locale = "en";
 
-// PR10B keeps the request_user_input producer dormant (single-question tool
-// parameters only), so the only legal smoke driver is the direct
-// broker-request path: the Electron main process injects synthetic legacy
-// and multi-question requests through the real handlers, drives the
-// per-question timeout arm via the timer's own resolution function, and
-// drives cancellation through the real thread-cancel path.
+// Exercise the persisted legacy transport and current multi-question transport
+// through their real broker handlers, timers, and cancellation path.
 const steps = [
   {
     id: "user-input-transport",
     view: "user-input-transport",
     scenario:
-      "Transport contract with a dormant producer: injected single- and multi-question broker requests persist replayable events, never auto-answer before the timeout window, time out per question with the recommended label, reject duplicate injection and duplicate resolution, settle one aggregated broker backfill per card, close every pending question on thread cancellation with an approved:false receipt, and keep the legacy card path intact while the agent-host tool stays single-question.",
+      "Transport contract: injected single- and multi-question broker requests persist replayable events, never auto-answer before the timeout window, time out per question with the recommended label, reject duplicate injection and duplicate resolution, settle one aggregated broker backfill per card, close every pending question on thread cancellation with an approved:false receipt, and keep the legacy card path intact with the current one-to-three-question producer contract.",
   },
 ];
 const themes = ["light", "dark"];
@@ -116,12 +112,16 @@ const checkGroups = {
   ],
 };
 
-// Dormancy (§6-6): the agent-host tool must still expose exactly the legacy
-// single-question parameters — zero multi-question fields in the schema and
-// a single-question description. The multi-question tool surface arrives
-// with PR10C's producer activation.
+// Verify the current producer schema in addition to legacy replay compatibility.
 const runtimeSource = await readFile(
-  join(repositoryRoot, "packages", "agent-host", "src", "runtime", "runtime.ts"),
+  join(
+    repositoryRoot,
+    "packages",
+    "agent-host",
+    "src",
+    "runtime",
+    "runtime.ts",
+  ),
   "utf8",
 );
 const toolDefinitionStart = runtimeSource.indexOf('name: "request_user_input"');
@@ -133,15 +133,29 @@ const toolDefinition =
   toolDefinitionStart === -1 || toolDefinitionEnd === -1
     ? null
     : runtimeSource.slice(toolDefinitionStart, toolDefinitionEnd);
-const dormancy = {
+const parametersStart = runtimeSource.indexOf(
+  "const userInputParameters = Type.Object(",
+);
+const parametersEnd = runtimeSource.indexOf(
+  "const requestUserInputTool =",
+  parametersStart,
+);
+const parameters =
+  parametersStart < 0 || parametersEnd < 0
+    ? ""
+    : runtimeSource.slice(parametersStart, parametersEnd);
+const producer = {
   toolDefinitionFound: toolDefinition !== null,
-  parametersSingleQuestionOnly:
-    toolDefinition !== null &&
-    !/\bquestions\b/u.test(toolDefinition) &&
-    toolDefinition.includes("question:") &&
-    toolDefinition.includes("options:"),
-  descriptionSingleQuestionOnly:
-    toolDefinition !== null && toolDefinition.includes("exactly one question"),
+  parametersBoundedQuestions:
+    toolDefinition?.includes("parameters: userInputParameters") === true &&
+    parameters.includes("questions: Type.Array(") &&
+    parameters.includes("minItems: 1") &&
+    parameters.includes("maxItems: MAX_USER_INPUT_QUESTIONS") &&
+    parameters.includes("minItems: 2, maxItems: 3") &&
+    parameters.includes("additionalProperties: false"),
+  descriptionRequiresSingleChoice:
+    toolDefinition?.includes("one single-choice question at a time") === true &&
+    toolDefinition.includes("never for execution approval"),
 };
 
 const results = [];
@@ -431,25 +445,23 @@ try {
       0,
     );
 
-    // §6-6 dormancy: source-level proof that the tool surface stayed
-    // single-question in this PR.
     assert(
-      "dormancy-tool-definition-found",
-      dormancy.toolDefinitionFound,
-      dormancy.toolDefinitionFound,
+      "producer-tool-definition-found",
+      producer.toolDefinitionFound,
+      producer,
       true,
     );
     assert(
-      "dormancy-tool-parameters-single-question-only",
-      dormancy.parametersSingleQuestionOnly,
-      dormancy,
-      "no multi-question fields in the request_user_input parameters",
+      "producer-tool-parameters-bounded-questions",
+      producer.parametersBoundedQuestions,
+      producer,
+      "one-to-three questions, two-to-three choices, closed object schema",
     );
     assert(
-      "dormancy-tool-description-single-question-only",
-      dormancy.descriptionSingleQuestionOnly,
-      dormancy,
-      "description still promises exactly one question",
+      "producer-single-choice-not-execution-approval",
+      producer.descriptionRequiresSingleChoice,
+      producer,
+      "one single-choice question at a time, never execution approval",
     );
 
     results.push({
@@ -494,7 +506,7 @@ try {
         "No provider, endpoint, or network resource is dialed; every identity (project, thread, request/nonces, worker ids) is synthetic and reserved.",
     },
     checkGroups,
-    dormancy,
+    producer,
     userDataIsolation: {
       directory:
         "user-data/user-input-transport/<caseId>-attempt-<attempt> under the throwaway run root",
