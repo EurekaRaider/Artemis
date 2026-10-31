@@ -53,7 +53,7 @@ it("keeps historical review stable during live output while preserving refresh a
       deletions: 0,
       files: [
         {
-          path: "audit.md",
+          path: "docs/audit.md",
           status: "added",
           additions: 1,
           deletions: 0,
@@ -79,7 +79,7 @@ it("keeps historical review stable during live output while preserving refresh a
     files: [
       {
         id: "file",
-        path: "audit.md",
+        path: "docs/audit.md",
         status: "modified",
         additions: 1,
         deletions: 0,
@@ -108,7 +108,7 @@ it("keeps historical review stable during live output while preserving refresh a
     }) => ({
       ...input,
       id: "comment",
-      path: "audit.md",
+      path: "docs/audit.md",
       kind: "addition",
       text: "Review this",
       newLine: 1,
@@ -177,7 +177,7 @@ it("keeps historical review stable during live output while preserving refresh a
   await screen.findAllByText("Review fixture");
   fireEvent.click(document.querySelector(".thread-title-copy")!);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Review audit.md" }),
+    await screen.findByRole("button", { name: "Review docs/audit.md" }),
   );
   await waitFor(() =>
     expect(getReviewDiff).toHaveBeenCalledWith({
@@ -189,6 +189,12 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(getReviewDiff.mock.calls.map(([query]) => query.scope)).toEqual([
     "turn",
   ]);
+  const file = await screen.findByRole("button", { name: /^audit\.md/ });
+  expect(file).toHaveAttribute("title", "docs/audit.md");
+  expect(file.querySelector(".review-file-path")).toHaveTextContent(
+    /^audit\.md$/,
+  );
+
   await act(async () => {
     receiveEvents([
       {
@@ -303,7 +309,7 @@ it("keeps historical review stable during live output while preserving refresh a
   await waitFor(() =>
     expect(followUpTurn).toHaveBeenCalledWith({
       threadId: "thread",
-      text: "audit.md:1\n\nExplain this change",
+      text: "docs/audit.md:1\n\nExplain this change",
     }),
   );
   expect(addReviewComment).toHaveBeenCalledOnce();

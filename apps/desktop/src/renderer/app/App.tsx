@@ -11572,25 +11572,26 @@ export function Timeline({
       const visibleText = promptWithoutSelectedSkills(
         stripDesignAnnotationBlock(imUserMessageText(message.text, imGroup)),
       );
+      const imageAttachments = images.length > 0 && (
+        <div className="message-attachments">
+          {images.map((source) => (
+            <MessageImageAttachment
+              key={`${state.threadId}:${source.sourceId}`}
+              threadId={state.threadId}
+              sourceId={source.sourceId}
+              name={source.name}
+              thumbnail={source.attachment?.thumbnail}
+              locale={locale}
+            />
+          ))}
+        </div>
+      );
       const editable =
         onEditUserMessage !== undefined &&
         (turn?.status === "cancelled" || turn?.status === "failed");
       return (
         <Fragment key={entry}>
-          {images.length > 0 && (
-            <div className="message-attachments">
-              {images.map((source) => (
-                <MessageImageAttachment
-                  key={`${state.threadId}:${source.sourceId}`}
-                  threadId={state.threadId}
-                  sourceId={source.sourceId}
-                  name={source.name}
-                  thumbnail={source.attachment?.thumbnail}
-                  locale={locale}
-                />
-              ))}
-            </div>
-          )}
+          {!imGroup && imageAttachments}
           <ConversationMessage
             actions={
               <>
@@ -11661,6 +11662,7 @@ export function Timeline({
                 {renderMessageTime(entry)}
               </div>
             )}
+            {imGroup && imageAttachments}
             {files.length > 0 && (
               <div className="message-attachments">
                 {files.map((source) => (
