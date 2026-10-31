@@ -1954,6 +1954,9 @@
 }
 .app-shell .plugin-market-card {
   border-radius: 12px;
+  padding: 0;
+}
+.app-shell .plugin-market-card > [data-part="content"] {
   padding: 16px;
   gap: 12px;
 }
@@ -2521,16 +2524,19 @@
   font-size: 13px;
   font-weight: 400;
 }
-.app-shell .project-menu {
-  inset-inline: auto 2px;
+.project-menu[data-artemis-component="popover"] {
+  position: fixed;
+  inset-inline-end: auto;
+  min-inline-size: 160px;
+  z-index: 80;
 }
-.app-shell .project-menu > button {
+.project-menu [role="menuitem"] {
   text-align: start;
 }
-.app-shell .project-menu > .danger {
+.project-menu [role="menuitem"].danger {
   color: var(--artemis-color-status-danger-text);
 }
-.app-shell .project-menu > :not(.danger) + .danger {
+.project-menu [role="menuitem"]:not(.danger) + .danger {
   border-block-start: 1px solid var(--border-soft);
   margin-block-start: 5px;
   border-start-start-radius: 0;
