@@ -1226,3 +1226,32 @@
   border-end-start-radius: inherit;
   border-end-end-radius: inherit;
 }
+
+/* A separate goal row sits above the composer, never over its context controls. */
+.app-shell .composer-wrap > .goal-bar {
+  margin: 0 0 8px;
+  min-block-size: 36px;
+  block-size: 36px;
+  padding: 0 12px;
+  gap: 10px;
+  border-radius: 9px;
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .goal-bar-main {
+  text-align: start;
+}
+.app-shell
+  .goal-bar[data-goal-state="active"]
+  :is(.goal-bar-icon, .goal-bar-status) {
+  color: var(--artemis-color-focus-ring);
+}
+.app-shell .task-plan-progress [data-part="marker"][data-status="in_progress"] {
+  color: var(--artemis-color-focus-ring);
+  border-color: var(--nocturne-gold-line);
+  background: var(--nocturne-gold-halo);
+}
+.app-shell
+  .task-plan-progress
+  [data-part="marker"][data-status="in_progress"]::after {
+  background: var(--artemis-color-brand);
+}

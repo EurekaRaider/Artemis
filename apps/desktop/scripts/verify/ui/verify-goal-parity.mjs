@@ -285,17 +285,15 @@ try {
       !contextRow ||
       leftInset < 0 ||
       rightInset < 0 ||
-      audit.goalBar.left < contextRow.left - 1 ||
-      audit.goalBar.right > contextRow.right + 1 ||
-      audit.goalBar.top < contextRow.top - 1 ||
-      audit.goalBar.bottom > contextRow.bottom + 1 ||
-      audit.goalBar.width < Math.min(300, contextRow.width) - 1 ||
-      audit.goalBar.width > contextRow.width + 1 ||
-      audit.goalBar.height < 28 ||
+      Math.abs(leftInset) > 1 ||
+      Math.abs(rightInset) > 1 ||
+      overlap > -7 ||
+      overlap < -9 ||
+      Math.abs(audit.goalBar.height - 36) > 1 ||
       contextRow.top < audit.goalComposer.top
     ) {
       throw new Error(
-        `${id} inline Goal capsule geometry drifted: ${JSON.stringify({ goalBar: audit.goalBar, contextRow, leftInset, rightInset, overlap })}`,
+        `${id} Goal row above composer geometry drifted: ${JSON.stringify({ goalBar: audit.goalBar, contextRow, leftInset, rightInset, overlap })}`,
       );
     }
     if (
