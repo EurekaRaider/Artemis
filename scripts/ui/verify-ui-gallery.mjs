@@ -934,7 +934,30 @@ function verifyGalleryLayerOrder(
   expectedThemeSignature,
 ) {
   const parsed = postcss.parse(css, { from: source });
+  const bundledFonts = new Set();
   for (const node of parsed.nodes ?? []) {
+    if (node.type === "atrule" && node.name === "font-face") {
+      const declarations = Object.fromEntries(
+        (node.nodes ?? []).map((entry) => [entry.prop, entry.value]),
+      );
+      const family = declarations["font-family"]?.replaceAll('"', "");
+      const identity = `${family}:${declarations["font-style"]}`;
+      if (
+        !["Geist:normal", "Geist:italic", "Geist Mono:normal"].includes(
+          identity,
+        ) ||
+        bundledFonts.has(identity) ||
+        Object.keys(declarations).length !== 5 ||
+        declarations["font-weight"] !== "100 900" ||
+        declarations["font-display"] !== "swap" ||
+        !/^url\(["']?(?:\.\/|\/assets\/)?Geist(?:Mono|-Italic)?-[a-zA-Z0-9_-]+\.woff2["']?\)\s*format\(["']?woff2["']?\)$/.test(
+          declarations.src ?? "",
+        )
+      )
+        throw new Error(`${source}: invalid or remote bundled font face`);
+      bundledFonts.add(identity);
+      continue;
+    }
     if (node.type !== "atrule" || node.name !== "layer") {
       throw new Error(
         `${source}: unlayered root node is forbidden in final Gallery CSS`,
@@ -1084,6 +1107,8 @@ function verifyGalleryLayerOrder(
     );
   }
   verifyGalleryScaffoldBlock(uiBlocks[1], source);
+  if (bundledFonts.size !== 3)
+    throw new Error(`${source}: bundled fonts are incomplete`);
 }
 
 async function filesBelow(directory) {
@@ -1322,6 +1347,19 @@ function mutateTheme(css, mutate) {
 }
 
 const layerNegativeFixtures = [
+  {
+    name: "remote-font",
+    css: galleryCss.replace(
+      /url\("\.\/Geist-[^"]+"\)/,
+      'url("https://example.com/font.woff2")',
+    ),
+    error: "invalid or remote bundled font face",
+  },
+  {
+    name: "missing-font",
+    css: galleryCss.replace(/@font-face\s*\{[^}]*\}/, ""),
+    error: "bundled fonts are incomplete",
+  },
   {
     name: "legacy-theme-first",
     css: "@layer artemis.theme{:root{--fixture:1}}@layer artemis.reset, artemis.theme, artemis.ui;@layer artemis.ui{.fixture{display:block}}@layer artemis.ui{.gallery{display:grid}}",
