@@ -154,7 +154,8 @@ export function TerminalPanel({
           .getPropertyValue("--artemis-typography-mono-family")
           .trim() || "ui-monospace, Menlo, Consolas, monospace",
       fontSize: 12,
-      lineHeight: 20 / 12,
+      // xterm scales the measured 16px font cell, not the 12px font size.
+      lineHeight: 1.25,
       minimumContrastRatio: 4.5,
       scrollback: 10_000,
       theme: resolveTerminalElementTheme(
