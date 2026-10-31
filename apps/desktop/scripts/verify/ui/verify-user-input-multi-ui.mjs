@@ -40,7 +40,7 @@ const steps = [
     themes: ["light", "dark"],
     zoomArm: true,
     scenario:
-      "Full interactive round: pending 3-question card renders with roving dots and per-question countdowns, Q1 answered by selecting the recommended option and clicking Submit selection, Q2 reached by real keyboard (dot ArrowRight, option entry past Submit selection with Shift+Tab) and answered by a real keyboard selection followed by Tab and Enter submission, Q3 answered through the other-inline custom form with an IME-safe Enter, then duplicate resolutions rejected, the legacy single-question card answered end to end, and a 200% zoom layout pass.",
+      "Full interactive round: the earlier legacy question resolves through the Composer before the queued multi-question card appears; the 3-question card retains segmented keyboard navigation, per-question countdowns and independent reply drafts. Q1 resolves on a real option click, Q2 on keyboard Enter, and Q3 through the reply input with an IME-safe Enter. Duplicate resolutions, collapsed result disclosures and a pending-card 200% CSS zoom layout pass are verified.",
   },
   {
     id: "multi-ui-expired",
@@ -72,18 +72,23 @@ const results = [];
 const portBase = 24_000 + Math.floor(Math.random() * 20_000);
 
 const cardSnapshotExpression = `(() => {
-  const card = document.querySelector(".user-input-card.multi-question");
+  const liveCard = document.querySelector(".user-input-card.multi-question");
+  const results = [...document.querySelectorAll(".user-input-result")];
+  const result = results.find((entry) => entry.querySelector(".decision-result-detail > div"));
+  const card = liveCard ?? result;
   const legacyCards = [
     ...document.querySelectorAll(".user-input-card:not(.multi-question)"),
+    ...results.filter((entry) => entry.querySelector(".decision-result-detail > strong")),
   ];
   if (!card) return { present: false };
   const slides = [...card.querySelectorAll(".user-question-slide")];
   const dots = [...card.querySelectorAll(".user-question-dot")];
-  const progress = card.querySelector(".user-question-progress-bar");
+  const progress = card.querySelector('[role="progressbar"]');
   const time = card.querySelector(".user-input-timeout");
-  const otherForm = card.querySelector(".user-input-other-inline");
+  const replyForm = card.querySelector(".user-question-slide.active .decision-reply");
   const active = document.activeElement;
   const rect = (element) => {
+    if (!element) return null;
     const bounds = element.getBoundingClientRect();
     return {
       left: bounds.left,
@@ -96,12 +101,14 @@ const cardSnapshotExpression = `(() => {
   };
   return {
     present: true,
-    status: card.getAttribute("class"),
-    pending: card.classList.contains("pending"),
-    answered: card.classList.contains("answered"),
-    timedOut: card.classList.contains("timed-out"),
-    cancelled: card.classList.contains("cancelled"),
-    eyebrow: card.querySelector(".user-input-eyebrow")?.textContent ?? null,
+    status: card.getAttribute("data-state"),
+    pending: Boolean(liveCard),
+    answered: card.getAttribute("data-state") === "answered",
+    timedOut: card.getAttribute("data-state") === "timed-out",
+    cancelled: card.getAttribute("data-state") === "cancelled",
+    label: card.getAttribute("aria-label"),
+    question: card.querySelector('header > [data-part="question"]')?.textContent ?? null,
+    resultOpen: card instanceof HTMLDetailsElement ? card.open : null,
     progressText:
       card.querySelector(".user-question-progress-text")?.textContent ?? null,
     progressNow: progress?.getAttribute("aria-valuenow") ?? null,
@@ -118,6 +125,7 @@ const cardSnapshotExpression = `(() => {
     dotTabIndexes: dots.map((dot) => dot.tabIndex),
     dotSelected: dots.map((dot) => dot.getAttribute("aria-selected")),
     dotClasses: dots.map((dot) => dot.getAttribute("class")),
+    dotLabels: dots.map((dot) => dot.getAttribute("aria-label")),
     tablistRole:
       card.querySelector(".user-question-dots")?.getAttribute("role") ?? null,
     timeDateTime: time?.getAttribute("datetime") ?? null,
@@ -126,22 +134,17 @@ const cardSnapshotExpression = `(() => {
       ...card.querySelectorAll(".user-question-slide.active .user-input-option"),
     ].map((button) => ({
       label:
-        button.querySelector(".user-input-option-title strong")?.textContent ??
+        button.querySelector(".decision-option-copy strong")?.textContent ??
         null,
-      other: button.classList.contains("other"),
-      recommended: button.classList.contains("recommended"),
+      recommended: Boolean(button.querySelector(".decision-recommended")),
       disabled: button.disabled,
       tabIndex: button.tabIndex,
       rect: rect(button),
     })),
-    otherFormPresent: otherForm !== null,
-    otherInputValue:
-      otherForm?.querySelector("input")?.value ??
-      card
-        ?.querySelector(".user-question-slide.active .user-input-other-inline input")
-        ?.value ??
-      null,
-    resultStrips: [...card.querySelectorAll(".user-question-result")].map(
+    replyFormPresent: replyForm !== null,
+    replyInputValue: replyForm?.querySelector("input")?.value ?? null,
+    replyDrafts: slides.map((slide) => slide.querySelector(".decision-reply input")?.value ?? null),
+    resultStrips: [...card.querySelectorAll(liveCard ? ".user-question-slide .decision-result" : ".decision-result-detail > div")].map(
       (strip) => (strip.textContent ?? "").replace(/\\s+/gu, " ").trim(),
     ),
     cardRect: rect(card),
@@ -155,10 +158,10 @@ const cardSnapshotExpression = `(() => {
         }
       : null,
     legacyCards: legacyCards.map((legacy) => ({
-      status: legacy.getAttribute("class"),
-      pending: legacy.classList.contains("pending"),
-      answered: legacy.classList.contains("answered"),
-      question: legacy.querySelector(".user-input-question")?.textContent ?? null,
+      status: legacy.getAttribute("data-state"),
+      pending: ["pending", "busy"].includes(legacy.getAttribute("data-state")),
+      answered: legacy.getAttribute("data-state") === "answered",
+      question: legacy.querySelector("header > strong, .decision-result-detail > strong")?.textContent ?? null,
     })),
     innerWidth: window.innerWidth,
     scrollWidth: document.documentElement.scrollWidth,
@@ -360,7 +363,7 @@ class Driver {
 
   async clickActiveOptionByLabel(label) {
     await this.clickElement(
-      `[...document.querySelectorAll(".user-question-slide.active .user-input-option")].find((button) => button.querySelector(".user-input-option-title strong")?.textContent === ${JSON.stringify(label)})`,
+      `[...document.querySelectorAll(".user-question-slide.active .user-input-option")].find((button) => button.querySelector(".decision-option-copy strong")?.textContent === ${JSON.stringify(label)})`,
       `active option "${label}"`,
     );
   }
@@ -663,6 +666,66 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     "thread select",
   );
 
+  // The Composer presents the first pending request. The legacy request was
+  // enqueued before the multi request and must finish before that card appears.
+  await driver.waitForElement(
+    'document.querySelector(".composer .user-input-card:not(.multi-question)[data-state=pending]")',
+    "first queued legacy question",
+    20_000,
+  );
+  const legacyRequested = await driver.storeEvents(
+    legacyRequestId,
+    "user-input.requested",
+  );
+  assert(
+    "0-legacy-request-persisted",
+    legacyRequested.length === 1,
+    legacyRequested.length,
+    1,
+  );
+  const queued = await driver.evaluate(`({
+    question: document.querySelector('.composer .user-input-card header > strong')?.textContent,
+    multiVisible: Boolean(document.querySelector('.user-input-card.multi-question')),
+    pendingCount: document.querySelectorAll('.user-input-card[data-state="pending"]').length,
+  })`);
+  assert(
+    "0-first-pending-question-owns-composer",
+    queued.question === "Run the legacy release checklist?" &&
+      !queued.multiVisible &&
+      queued.pendingCount === 1,
+    queued,
+    "one visible legacy question while the multi request waits in the queue",
+  );
+  assert(
+    "0-queued-multi-not-resolved",
+    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length ===
+      0,
+    await driver.storeEvents(multiRequestId, "user-input.resolved"),
+    [],
+  );
+  await driver.clickElement(
+    `[...document.querySelectorAll(".composer .user-input-card:not(.multi-question) .decision-option")].find(
+      (button) => button.querySelector(".decision-option-copy strong")?.textContent === "Yes, run the checklist",
+    )`,
+    "legacy recommended option resolves on click",
+  );
+  await driver.waitForElement(
+    'document.querySelector(".user-input-result[data-state=answered] .decision-result-detail > strong")',
+    "settled legacy question in history",
+  );
+  const legacyResolved = await driver.storeEvents(
+    legacyRequestId,
+    "user-input.resolved",
+  );
+  assert(
+    "0-legacy-resolved-once-by-direct-choice",
+    legacyResolved.length === 1 &&
+      legacyResolved[0]?.answer === "Yes, run the checklist" &&
+      legacyResolved[0]?.source === "user",
+    legacyResolved,
+    "one legacy user resolution with the chosen label",
+  );
+
   // (1) Pending render assertions.
   await driver.waitForCard(
     "pending 3-question card",
@@ -719,16 +782,17 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     true,
   );
   assert(
-    "1-legacy-card-pending-beside-multi",
+    "1-legacy-result-retained-beside-active-multi",
     snapshot.legacyCards.length === 1 &&
-      snapshot.legacyCards[0]?.pending === true,
+      snapshot.legacyCards[0]?.answered === true &&
+      snapshot.legacyCards[0]?.pending === false,
     snapshot.legacyCards,
-    "one pending legacy card",
+    "one answered legacy result while the next request owns the Composer",
   );
   assert(
-    "1-card-eyebrow",
-    snapshot.eyebrow === "Plan check",
-    snapshot.eyebrow,
+    "1-card-accessible-label",
+    snapshot.label === "Plan check",
+    snapshot.label,
     "Plan check",
   );
   assert(
@@ -745,14 +809,14 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
   );
   assert(
     "1-slide-1-shows-q1",
-    snapshot.slideTexts[0]?.includes("Ship the release on Friday?") === true,
-    snapshot.slideTexts[0],
+    snapshot.question === "Ship the release on Friday?",
+    snapshot.question,
     "contains 'Ship the release on Friday?'",
   );
   assert(
     "1-slide-3-shows-q3",
-    snapshot.slideTexts[2]?.includes("Add anything to the notes?") === true,
-    snapshot.slideTexts[2],
+    snapshot.dotLabels[2]?.includes("Add anything to the notes?") === true,
+    snapshot.dotLabels[2],
     "contains 'Add anything to the notes?'",
   );
   assert(
@@ -872,431 +936,70 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     snapshot.activeSlideIndex,
     2,
   );
+  const firstDraft = "Hold until validation completes.";
+  const secondDraft = "Notify the release reviewers.";
+  await driver.clickElement(
+    'document.querySelectorAll(".user-question-dot")[0]',
+    "question 1 for independent draft",
+  );
+  await driver.clickElement(
+    'document.querySelector(".user-question-slide.active .decision-reply input")',
+    "question 1 reply",
+  );
+  await driver.insertText(firstDraft);
+  await driver.clickElement(
+    'document.querySelector(".user-question-nav > button:last-child")',
+    "next question without submitting",
+  );
+  snapshot = await driver.waitForCard(
+    "question 2 with an empty independent draft",
+    (state) => state.activeSlideIndex === 1,
+  );
+  assert(
+    "1-next-preserves-first-draft",
+    snapshot.replyDrafts[0] === firstDraft && snapshot.replyInputValue === "",
+    snapshot.replyDrafts,
+    [firstDraft, "", ""],
+  );
+  await driver.clickElement(
+    'document.querySelector(".user-question-slide.active .decision-reply input")',
+    "question 2 reply",
+  );
+  await driver.insertText(secondDraft);
+  await driver.clickElement(
+    'document.querySelector(".user-question-nav > button:first-child")',
+    "previous question without submitting",
+  );
+  snapshot = await driver.waitForCard(
+    "question 1 draft restored",
+    (state) => state.activeSlideIndex === 0,
+  );
+  assert(
+    "1-previous-restores-independent-drafts",
+    snapshot.replyInputValue === firstDraft &&
+      snapshot.replyDrafts[1] === secondDraft,
+    snapshot.replyDrafts,
+    [firstDraft, secondDraft, ""],
+  );
+  assert(
+    "1-draft-navigation-does-not-resolve",
+    snapshot.progressNow === "0" &&
+      (await driver.storeEvents(multiRequestId, "user-input.resolved"))
+        .length === 0,
+    {
+      progressNow: snapshot.progressNow,
+      events: await driver.storeEvents(multiRequestId, "user-input.resolved"),
+    },
+    { progressNow: "0", events: [] },
+  );
+  await driver.clickElement(
+    'document.querySelectorAll(".user-question-dot")[2]',
+    "question 3 tab before pending capture",
+  );
   screenshots.push({
     name: `${testCase.caseId}-01-pending.png`,
     bytes: await driver.screenshot(
       artifactsFor(`${testCase.caseId}-01-pending.png`),
-    ),
-  });
-
-  // (2) Real clicks select and submit the recommended option for Q1.
-  await driver.pressKey("Home", 36);
-  await driver.waitForCard(
-    "Home returns to q1 for answering",
-    (state) => state.activeSlideIndex === 0,
-  );
-  await driver.clickActiveOptionByLabel("Ship it");
-  await driver.clickElement(
-    'document.querySelector(".user-question-slide.active .user-input-submit")',
-    "submit selected Q1 option",
-  );
-  // The auto-advance lands one rAF after the answers update, so the wait
-  // must gate on both the progress and the advanced slide.
-  snapshot = await driver.waitForCard(
-    "progress 1/3 and slide advanced after Q1 click",
-    (state) =>
-      state.progressText === "1/3 answered" && state.activeSlideIndex === 1,
-  );
-  assert(
-    "2-progress-one-of-three",
-    snapshot.progressText === "1/3 answered" && snapshot.progressNow === "1",
-    { progressText: snapshot.progressText, progressNow: snapshot.progressNow },
-    { progressText: "1/3 answered", progressNow: "1" },
-  );
-  assert(
-    "2-q1-dot-done",
-    snapshot.dotClasses[0]?.includes("done") === true &&
-      snapshot.dotClasses[1]?.includes("active") === true,
-    snapshot.dotClasses,
-    "q1 dot done, q2 dot active",
-  );
-  assert(
-    "2-card-advances-to-q2",
-    snapshot.activeSlideIndex === 1,
-    snapshot.activeSlideIndex,
-    1,
-  );
-  let resolved = await driver.storeEvents(
-    multiRequestId,
-    "user-input.resolved",
-  );
-  assert(
-    "2-resolved-exactly-one-kind-user",
-    resolved.length === 1 &&
-      resolved[0]?.kind === "multi-question" &&
-      resolved[0]?.questionId === "q1" &&
-      resolved[0]?.source === "user" &&
-      resolved[0]?.selectedOptionLabel === "Ship it",
-    resolved,
-    "exactly one kind'd resolved event for q1 with source user and label 'Ship it'",
-  );
-  assert(
-    "2-legacy-card-untouched",
-    snapshot.legacyCards[0]?.pending === true,
-    snapshot.legacyCards,
-    "legacy card still pending (no final backfill yet)",
-  );
-  const q1ResolvedEvents = await driver.storeEvents(
-    multiRequestId,
-    "user-input.resolved",
-  );
-  assert(
-    "2-no-extra-resolution-events",
-    q1ResolvedEvents.length === 1,
-    q1ResolvedEvents.length,
-    1,
-  );
-  screenshots.push({
-    name: `${testCase.caseId}-02-q1-click-answered.png`,
-    bytes: await driver.screenshot(
-      artifactsFor(`${testCase.caseId}-02-q1-click-answered.png`),
-    ),
-  });
-
-  // (6a) Duplicate resolution of an answered question is rejected and the
-  // resolved-event count stays exactly one.
-  const duplicateMidCard = await driver.tryResolveDuplicate("q1", {
-    selectedOptionLabel: "Ship it",
-  });
-  assert(
-    "6-duplicate-q1-resolve-rejected",
-    duplicateMidCard.rejected === true,
-    duplicateMidCard,
-    { rejected: true },
-  );
-  assert(
-    "6-duplicate-q1-single-event",
-    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length ===
-      1,
-    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length,
-    1,
-  );
-
-  // (3) Keyboard switch to Q2 and a real keyboard answer.
-  await driver.clickElement(
-    `document.querySelectorAll(".user-question-dot")[0]`,
-    "question dot 1 (review)",
-  );
-  snapshot = await driver.waitForCard("dot 1 focused again", (state) =>
-    Boolean(
-      state.activeElement &&
-      state.activeElement.role === "tab" &&
-      state.activeSlideIndex === 0,
-    ),
-  );
-  await driver.pressKey("ArrowRight", 39);
-  snapshot = await driver.waitForCard(
-    "q2 active via keyboard",
-    (state) => state.activeSlideIndex === 1,
-  );
-  assert(
-    "3-arrowright-switches-to-q2",
-    snapshot.activeSlideIndex === 1 &&
-      snapshot.dotSelected[1] === "true" &&
-      snapshot.activeElement?.role === "tab",
-    {
-      activeSlideIndex: snapshot.activeSlideIndex,
-      dotSelected: snapshot.dotSelected,
-      activeElement: snapshot.activeElement,
-    },
-    "q2 active, its dot selected and focused",
-  );
-  await driver.pressKey("Tab", 9, { modifiers: 8 });
-  await driver.waitForCard(
-    "submit selection focused before option list",
-    (state) => state.activeElement?.className === "user-input-submit",
-  );
-  await driver.pressKey("Tab", 9, { modifiers: 8 });
-  snapshot = await driver.waitForCard(
-    "roving option focused after Shift+Tab",
-    (state) =>
-      Boolean(state.activeElement && state.activeElement.role === "option"),
-  );
-  // Shift+Tab lands on whichever option holds the roving tab stop — the
-  // slide's active option follows hover/focus state (a stationary pointer
-  // under a reflowing slide fires real mouseenter events), so the contract
-  // here is "the option list's single tabbable option", then Home pins the
-  // focus deterministically to the first option.
-  assert(
-    "3-shift-tab-enters-option-list",
-    snapshot.activeElement?.role === "option" &&
-      Boolean(
-        snapshot.activeOptions.find(
-          (option) => option.tabIndex === 0 && option.disabled === false,
-        ),
-      ),
-    snapshot.activeElement,
-    "focus on the option list's single roving tab stop (any option, including Other…)",
-  );
-  await driver.pressKey("Home", 36);
-  snapshot = await driver.waitForCard("Home pins first option focus", (state) =>
-    Boolean(state.activeElement?.text.includes("Email digest")),
-  );
-  assert(
-    "3-option-home-pins-first",
-    snapshot.activeElement?.text.includes("Email digest") === true,
-    snapshot.activeElement,
-    "focus pinned on 'Email digest'",
-  );
-  await driver.pressKey("ArrowDown", 40);
-  snapshot = await driver.waitForCard("focus on second option", (state) =>
-    Boolean(state.activeElement?.text.includes("In-app banner")),
-  );
-  assert(
-    "3-arrowdown-moves-option-focus",
-    snapshot.activeElement?.text.includes("In-app banner") === true,
-    snapshot.activeElement,
-    "focus on 'In-app banner'",
-  );
-  await driver.pressKey("End", 35);
-  snapshot = await driver.waitForCard("End focuses other option", (state) =>
-    Boolean(state.activeElement?.text.includes("Other")),
-  );
-  assert(
-    "3-option-end-reaches-other",
-    snapshot.activeElement?.text.includes("Other") === true,
-    snapshot.activeElement,
-    "focus on the Other… option",
-  );
-  await driver.pressKey("Home", 36);
-  snapshot = await driver.waitForCard("Home returns to first option", (state) =>
-    Boolean(state.activeElement?.text.includes("Email digest")),
-  );
-  assert(
-    "3-option-home-returns-first",
-    snapshot.activeElement?.text.includes("Email digest") === true,
-    snapshot.activeElement,
-    "focus back on 'Email digest' after End",
-  );
-  await driver.pressKey("ArrowDown", 40);
-  await driver.waitForCard("focus back on In-app banner", (state) =>
-    Boolean(state.activeElement?.text.includes("In-app banner")),
-  );
-  await driver.pressKey("Enter", 13, { text: "\r" });
-  await driver.pressKey("Tab", 9);
-  await driver.pressKey("Enter", 13, { text: "\r" });
-  snapshot = await driver.waitForCard(
-    "progress 2/3 and slide advanced after keyboard answer",
-    (state) =>
-      state.progressText === "2/3 answered" && state.activeSlideIndex === 2,
-  );
-  assert(
-    "3-progress-two-of-three",
-    snapshot.progressText === "2/3 answered" && snapshot.progressNow === "2",
-    { progressText: snapshot.progressText, progressNow: snapshot.progressNow },
-    { progressText: "2/3 answered", progressNow: "2" },
-  );
-  assert(
-    "3-card-advances-to-q3",
-    snapshot.activeSlideIndex === 2,
-    snapshot.activeSlideIndex,
-    2,
-  );
-  resolved = await driver.storeEvents(multiRequestId, "user-input.resolved");
-  assert(
-    "3-resolved-q2-keyboard-user",
-    resolved.length === 2 &&
-      resolved[1]?.questionId === "q2" &&
-      resolved[1]?.source === "user" &&
-      resolved[1]?.selectedOptionLabel === "In-app banner",
-    resolved,
-    "two resolved events; q2 closed by keyboard with source user and label 'In-app banner'",
-  );
-  screenshots.push({
-    name: `${testCase.caseId}-03-q2-keyboard-answered.png`,
-    bytes: await driver.screenshot(
-      artifactsFor(`${testCase.caseId}-03-q2-keyboard-answered.png`),
-    ),
-  });
-
-  // (4) Q3 through the other-inline custom form with an IME-safe Enter.
-  await driver.clickActiveOptionByLabel("Other…");
-  await driver.waitForCard(
-    "other-inline form open",
-    (state) => state.otherFormPresent,
-  );
-  snapshot = await driver.cardSnapshot();
-  assert(
-    "4-other-form-autofocus",
-    snapshot.activeElement?.tag === "INPUT",
-    snapshot.activeElement,
-    "the custom answer input holds focus",
-  );
-  await driver.insertText(customAnswer);
-  snapshot = await driver.cardSnapshot();
-  assert(
-    "4-custom-text-typed",
-    snapshot.otherInputValue === customAnswer,
-    snapshot.otherInputValue,
-    customAnswer,
-  );
-  await driver.evaluate(`(() => {
-    const input = document.querySelector(
-      ".user-question-slide.active .user-input-other-inline input",
-    );
-    input.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Enter", bubbles: true, isComposing: true }),
-    );
-  })()`);
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  snapshot = await driver.cardSnapshot();
-  assert(
-    "4-ime-composing-enter-blocked",
-    snapshot.otherFormPresent === true &&
-      snapshot.progressText === "2/3 answered",
-    {
-      otherFormPresent: snapshot.otherFormPresent,
-      progressText: snapshot.progressText,
-    },
-    { otherFormPresent: true, progressText: "2/3 answered" },
-  );
-  await driver.pressKey("Enter", 13, { text: "\r" });
-  snapshot = await driver.waitForCard(
-    "card answered after custom submit",
-    (state) => state.answered && !state.pending,
-  );
-  assert(
-    "4-card-answered-rendered",
-    snapshot.answered === true && snapshot.pending === false,
-    snapshot.status,
-    "user-input-card multi-question answered",
-  );
-  assert(
-    "4-progress-three-of-three",
-    snapshot.progressText === "3/3 answered" && snapshot.progressNow === "3",
-    { progressText: snapshot.progressText, progressNow: snapshot.progressNow },
-    { progressText: "3/3 answered", progressNow: "3" },
-  );
-  resolved = await driver.storeEvents(multiRequestId, "user-input.resolved");
-  assert(
-    "4-resolved-three-in-question-order",
-    resolved.length === 3 &&
-      resolved.map((event) => event.questionId).join(",") === "q1,q2,q3" &&
-      resolved.every((event) => event.kind === "multi-question") &&
-      resolved.every((event) => event.source === "user"),
-    resolved.map((event) => ({
-      questionId: event.questionId,
-      kind: event.kind,
-      source: event.source,
-    })),
-    "three kind'd resolved events in q1->q2->q3 order, each source user",
-  );
-  assert(
-    "4-q3-custom-answer-recorded",
-    resolved[2]?.customAnswer === customAnswer,
-    resolved[2]?.customAnswer ?? null,
-    customAnswer,
-  );
-  assert(
-    "4-result-strips-show-answers",
-    snapshot.resultStrips.length === 3 &&
-      snapshot.resultStrips.some((strip) => strip.includes("Ship it")) &&
-      snapshot.resultStrips.some((strip) => strip.includes("In-app banner")) &&
-      snapshot.resultStrips.some((strip) => strip.includes(customAnswer)),
-    snapshot.resultStrips,
-    "three result strips carrying the three answers",
-  );
-  screenshots.push({
-    name: `${testCase.caseId}-04-answered.png`,
-    bytes: await driver.screenshot(
-      artifactsFor(`${testCase.caseId}-04-answered.png`),
-    ),
-  });
-
-  // (6b) Registry is drained: a duplicate resolve of the finished card is
-  // rejected and the resolved-event count stays exactly three.
-  const duplicateAfterFinal = await driver.tryResolveDuplicate("q3", {
-    selectedOptionLabel: "No, keep it short",
-  });
-  assert(
-    "6-duplicate-after-final-rejected",
-    duplicateAfterFinal.rejected === true,
-    duplicateAfterFinal,
-    { rejected: true },
-  );
-  assert(
-    "6-duplicate-after-final-three-events",
-    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length ===
-      3,
-    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length,
-    3,
-  );
-
-  // (7) Legacy single-question regression arm (the #124 smoke ⑤ checks,
-  // driven through the real card UI this time).
-  const legacyRequested = await driver.storeEvents(
-    legacyRequestId,
-    "user-input.requested",
-  );
-  assert(
-    "7-legacy-request-persisted",
-    legacyRequested.length === 1,
-    legacyRequested.length,
-    1,
-  );
-  snapshot = await driver.waitForCard(
-    "legacy card still pending",
-    (state) => state.legacyCards[0]?.pending === true,
-  );
-  assert(
-    "7-legacy-card-shows-question",
-    snapshot.legacyCards[0]?.question === "Run the legacy release checklist?",
-    snapshot.legacyCards[0]?.question ?? null,
-    "Run the legacy release checklist?",
-  );
-  await driver.clickElement(
-    `[...document.querySelectorAll(".user-input-card:not(.multi-question) .user-input-option")].find(
-      (button) => button.querySelector(".user-input-option-title strong")?.textContent === "Yes, run the checklist",
-    )`,
-    "legacy recommended option",
-  );
-  await driver.clickElement(
-    'document.querySelector(".user-input-card:not(.multi-question) .user-input-submit")',
-    "submit legacy selection",
-  );
-  await driver.waitForCard(
-    "legacy card answered",
-    (state) => state.legacyCards[0]?.answered === true,
-  );
-  snapshot = await driver.cardSnapshot();
-  assert(
-    "7-legacy-card-settled-rendered",
-    snapshot.legacyCards[0]?.answered === true &&
-      snapshot.legacyCards[0]?.pending === false,
-    snapshot.legacyCards,
-    "legacy card settled as answered",
-  );
-  assert(
-    "7-no-pending-cards-at-rest",
-    (await driver.evaluate(
-      "document.querySelectorAll('.user-input-card.pending').length",
-    )) === 0,
-    await driver.evaluate(
-      "document.querySelectorAll('.user-input-card.pending').length",
-    ),
-    0,
-  );
-  const legacyResolved = await driver.storeEvents(
-    legacyRequestId,
-    "user-input.resolved",
-  );
-  assert(
-    "7-legacy-resolved-once",
-    legacyResolved.length === 1,
-    legacyResolved.length,
-    1,
-  );
-  assert(
-    "7-legacy-resolved-answer-is-label",
-    legacyResolved[0]?.answer === "Yes, run the checklist" &&
-      legacyResolved[0]?.source === "user",
-    legacyResolved[0],
-    "one legacy resolution with the label as answer and source user",
-  );
-  screenshots.push({
-    name: `${testCase.caseId}-05-legacy-answered.png`,
-    bytes: await driver.screenshot(
-      artifactsFor(`${testCase.caseId}-05-legacy-answered.png`),
     ),
   });
 
@@ -1308,13 +1011,9 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     layoutIntact: false,
   };
   if (testCase.zoomArm) {
-    // This app wires no zoom affordance the driver can reach (no zoom menu
-    // roles or shortcuts exist — probed with real Meta+=/Shift/Numpad key
-    // events — and ARTEMIS_SMOKE_SCALE requires the auto-quit smoke
-    // harness and caps at 1.5), so the 200% pass applies Chromium's CSS
-    // zoom property on the document element: the same layout scaling a
-    // zoomFactor applies, recomputed by the real layout engine, asserted
-    // through real geometry.
+    // Exercise the pending decision's layout at CSS zoom 2 before it turns
+    // into a result disclosure. This is CSS layout evidence; native zoomFactor
+    // coverage belongs to the separate Electron screenshot matrix.
     const geometryProbe = `(() => {
       const card = document.querySelector(".user-input-card.multi-question");
       const dots = card?.querySelector(".user-question-dots");
@@ -1410,6 +1109,402 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     );
   }
 
+  // (2) A real click immediately resolves the recommended option for Q1.
+  await driver.pressKey("Home", 36);
+  await driver.waitForCard(
+    "Home returns to q1 for answering",
+    (state) => state.activeSlideIndex === 0,
+  );
+  await driver.clickActiveOptionByLabel("Ship it");
+  // The auto-advance lands one rAF after the answers update, so the wait
+  // must gate on both the progress and the advanced slide.
+  snapshot = await driver.waitForCard(
+    "progress 1/3 and slide advanced after Q1 click",
+    (state) =>
+      state.progressText === "1/3 answered" && state.activeSlideIndex === 1,
+  );
+  assert(
+    "2-progress-one-of-three",
+    snapshot.progressText === "1/3 answered" && snapshot.progressNow === "1",
+    { progressText: snapshot.progressText, progressNow: snapshot.progressNow },
+    { progressText: "1/3 answered", progressNow: "1" },
+  );
+  assert(
+    "2-q1-dot-done",
+    snapshot.dotClasses[0]?.includes("done") === true &&
+      snapshot.dotClasses[1]?.includes("active") === true,
+    snapshot.dotClasses,
+    "q1 dot done, q2 dot active",
+  );
+  assert(
+    "2-card-advances-to-q2",
+    snapshot.activeSlideIndex === 1,
+    snapshot.activeSlideIndex,
+    1,
+  );
+  let resolved = await driver.storeEvents(
+    multiRequestId,
+    "user-input.resolved",
+  );
+  assert(
+    "2-resolved-exactly-one-kind-user",
+    resolved.length === 1 &&
+      resolved[0]?.kind === "multi-question" &&
+      resolved[0]?.questionId === "q1" &&
+      resolved[0]?.source === "user" &&
+      resolved[0]?.selectedOptionLabel === "Ship it",
+    resolved,
+    "exactly one kind'd resolved event for q1 with source user and label 'Ship it'",
+  );
+  assert(
+    "2-legacy-result-untouched",
+    snapshot.legacyCards[0]?.answered === true &&
+      (await driver.storeEvents(legacyRequestId, "user-input.resolved"))
+        .length === 1,
+    snapshot.legacyCards,
+    "legacy result stays answered with one persisted resolution",
+  );
+  const q1ResolvedEvents = await driver.storeEvents(
+    multiRequestId,
+    "user-input.resolved",
+  );
+  assert(
+    "2-no-extra-resolution-events",
+    q1ResolvedEvents.length === 1,
+    q1ResolvedEvents.length,
+    1,
+  );
+  screenshots.push({
+    name: `${testCase.caseId}-02-q1-click-answered.png`,
+    bytes: await driver.screenshot(
+      artifactsFor(`${testCase.caseId}-02-q1-click-answered.png`),
+    ),
+  });
+
+  // (6a) Duplicate resolution of an answered question is rejected and the
+  // resolved-event count stays exactly one.
+  const duplicateMidCard = await driver.tryResolveDuplicate("q1", {
+    selectedOptionLabel: "Ship it",
+  });
+  assert(
+    "6-duplicate-q1-resolve-rejected",
+    duplicateMidCard.rejected === true,
+    duplicateMidCard,
+    { rejected: true },
+  );
+  assert(
+    "6-duplicate-q1-single-event",
+    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length ===
+      1,
+    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length,
+    1,
+  );
+
+  // (3) Keyboard switch to Q2 and a real keyboard answer.
+  await driver.clickElement(
+    `document.querySelectorAll(".user-question-dot")[0]`,
+    "question dot 1 (review)",
+  );
+  snapshot = await driver.waitForCard("dot 1 focused again", (state) =>
+    Boolean(
+      state.activeElement &&
+      state.activeElement.role === "tab" &&
+      state.activeSlideIndex === 0,
+    ),
+  );
+  await driver.pressKey("ArrowRight", 39);
+  snapshot = await driver.waitForCard(
+    "q2 active via keyboard",
+    (state) => state.activeSlideIndex === 1,
+  );
+  assert(
+    "3-arrowright-switches-to-q2",
+    snapshot.activeSlideIndex === 1 &&
+      snapshot.dotSelected[1] === "true" &&
+      snapshot.activeElement?.role === "tab",
+    {
+      activeSlideIndex: snapshot.activeSlideIndex,
+      dotSelected: snapshot.dotSelected,
+      activeElement: snapshot.activeElement,
+    },
+    "q2 active, its dot selected and focused",
+  );
+  await driver.pressKey("Tab", 9);
+  snapshot = await driver.waitForCard(
+    "roving option focused after Tab",
+    (state) =>
+      Boolean(state.activeElement?.className?.includes("decision-option")),
+  );
+  // The segmented question tabs precede the single roving option tab stop.
+  assert(
+    "3-tab-enters-option-list",
+    snapshot.activeElement?.className?.includes("decision-option") === true &&
+      snapshot.activeOptions.filter(
+        (option) => option.tabIndex === 0 && option.disabled === false,
+      ).length === 1,
+    snapshot.activeElement,
+    "focus on the option list's single roving tab stop",
+  );
+  await driver.pressKey("Home", 36);
+  snapshot = await driver.waitForCard("Home pins first option focus", (state) =>
+    Boolean(state.activeElement?.text.includes("Email digest")),
+  );
+  assert(
+    "3-option-home-pins-first",
+    snapshot.activeElement?.text.includes("Email digest") === true,
+    snapshot.activeElement,
+    "focus pinned on 'Email digest'",
+  );
+  await driver.pressKey("ArrowDown", 40);
+  snapshot = await driver.waitForCard("focus on second option", (state) =>
+    Boolean(state.activeElement?.text.includes("In-app banner")),
+  );
+  assert(
+    "3-arrowdown-moves-option-focus",
+    snapshot.activeElement?.text.includes("In-app banner") === true,
+    snapshot.activeElement,
+    "focus on 'In-app banner'",
+  );
+  await driver.pressKey("End", 35);
+  snapshot = await driver.waitForCard("End focuses last option", (state) =>
+    Boolean(state.activeElement?.text.includes("Slack channel")),
+  );
+  assert(
+    "3-option-end-reaches-last",
+    snapshot.activeElement?.text.includes("Slack channel") === true,
+    snapshot.activeElement,
+    "focus on the last option, Slack channel",
+  );
+  await driver.pressKey("Home", 36);
+  snapshot = await driver.waitForCard("Home returns to first option", (state) =>
+    Boolean(state.activeElement?.text.includes("Email digest")),
+  );
+  assert(
+    "3-option-home-returns-first",
+    snapshot.activeElement?.text.includes("Email digest") === true,
+    snapshot.activeElement,
+    "focus back on 'Email digest' after End",
+  );
+  await driver.pressKey("ArrowDown", 40);
+  await driver.waitForCard("focus back on In-app banner", (state) =>
+    Boolean(state.activeElement?.text.includes("In-app banner")),
+  );
+  await driver.pressKey("Enter", 13, { text: "\r" });
+  snapshot = await driver.waitForCard(
+    "progress 2/3 and slide advanced after keyboard answer",
+    (state) =>
+      state.progressText === "2/3 answered" && state.activeSlideIndex === 2,
+  );
+  assert(
+    "3-progress-two-of-three",
+    snapshot.progressText === "2/3 answered" && snapshot.progressNow === "2",
+    { progressText: snapshot.progressText, progressNow: snapshot.progressNow },
+    { progressText: "2/3 answered", progressNow: "2" },
+  );
+  assert(
+    "3-card-advances-to-q3",
+    snapshot.activeSlideIndex === 2,
+    snapshot.activeSlideIndex,
+    2,
+  );
+  resolved = await driver.storeEvents(multiRequestId, "user-input.resolved");
+  assert(
+    "3-resolved-q2-keyboard-user",
+    resolved.length === 2 &&
+      resolved[1]?.questionId === "q2" &&
+      resolved[1]?.source === "user" &&
+      resolved[1]?.selectedOptionLabel === "In-app banner",
+    resolved,
+    "two resolved events; q2 closed by keyboard with source user and label 'In-app banner'",
+  );
+  screenshots.push({
+    name: `${testCase.caseId}-03-q2-keyboard-answered.png`,
+    bytes: await driver.screenshot(
+      artifactsFor(`${testCase.caseId}-03-q2-keyboard-answered.png`),
+    ),
+  });
+
+  // (4) Q3 through the always-visible reply input with an IME-safe Enter.
+  await driver.clickElement(
+    'document.querySelector(".user-question-slide.active .decision-reply input")',
+    "question 3 custom reply",
+  );
+  await driver.waitForCard(
+    "reply input ready",
+    (state) => state.replyFormPresent,
+  );
+  snapshot = await driver.cardSnapshot();
+  assert(
+    "4-reply-input-focus",
+    snapshot.activeElement?.tag === "INPUT" && snapshot.replyInputValue === "",
+    snapshot.activeElement,
+    "the custom answer input holds focus with its independent empty draft",
+  );
+  await driver.insertText(customAnswer);
+  snapshot = await driver.cardSnapshot();
+  assert(
+    "4-custom-text-typed",
+    snapshot.replyInputValue === customAnswer,
+    snapshot.replyInputValue,
+    customAnswer,
+  );
+  const composingEnterPrevented = await driver.evaluate(`(() => {
+    const input = document.querySelector(
+      ".user-question-slide.active .decision-reply input",
+    );
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter", bubbles: true, cancelable: true, isComposing: true,
+    });
+    input.dispatchEvent(event);
+    return event.defaultPrevented;
+  })()`);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  snapshot = await driver.cardSnapshot();
+  assert(
+    "4-ime-composing-enter-blocked",
+    composingEnterPrevented === true &&
+      snapshot.replyFormPresent === true &&
+      snapshot.progressText === "2/3 answered",
+    {
+      composingEnterPrevented,
+      replyFormPresent: snapshot.replyFormPresent,
+      progressText: snapshot.progressText,
+    },
+    {
+      composingEnterPrevented: true,
+      replyFormPresent: true,
+      progressText: "2/3 answered",
+    },
+  );
+  await driver.pressKey("Enter", 13, { text: "\r" });
+  snapshot = await driver.waitForCard(
+    "card answered after custom submit",
+    (state) => state.answered && !state.pending,
+  );
+  assert(
+    "4-card-answered-rendered",
+    snapshot.answered === true && snapshot.pending === false,
+    snapshot.status,
+    "answered result disclosure in the timeline",
+  );
+  assert(
+    "4-results-three-of-three",
+    snapshot.resultStrips.length === 3 &&
+      snapshot.resultOpen === false &&
+      snapshot.progressNow === null,
+    {
+      results: snapshot.resultStrips,
+      resultOpen: snapshot.resultOpen,
+      progressNow: snapshot.progressNow,
+    },
+    "three answers retained in a collapsed result, with the pending progress control removed",
+  );
+  resolved = await driver.storeEvents(multiRequestId, "user-input.resolved");
+  assert(
+    "4-resolved-three-in-question-order",
+    resolved.length === 3 &&
+      resolved.map((event) => event.questionId).join(",") === "q1,q2,q3" &&
+      resolved.every((event) => event.kind === "multi-question") &&
+      resolved.every((event) => event.source === "user"),
+    resolved.map((event) => ({
+      questionId: event.questionId,
+      kind: event.kind,
+      source: event.source,
+    })),
+    "three kind'd resolved events in q1->q2->q3 order, each source user",
+  );
+  assert(
+    "4-q3-custom-answer-recorded",
+    resolved[2]?.customAnswer === customAnswer,
+    resolved[2]?.customAnswer ?? null,
+    customAnswer,
+  );
+  assert(
+    "4-result-strips-show-answers",
+    snapshot.resultStrips.length === 3 &&
+      snapshot.resultStrips.some((strip) => strip.includes("Ship it")) &&
+      snapshot.resultStrips.some((strip) => strip.includes("In-app banner")) &&
+      snapshot.resultStrips.some((strip) => strip.includes(customAnswer)),
+    snapshot.resultStrips,
+    "three result strips carrying the three answers",
+  );
+  screenshots.push({
+    name: `${testCase.caseId}-04-answered.png`,
+    bytes: await driver.screenshot(
+      artifactsFor(`${testCase.caseId}-04-answered.png`),
+    ),
+  });
+  await driver.clickElement(
+    '[...document.querySelectorAll(".user-input-result")].find((entry) => entry.querySelector(".decision-result-detail > div"))?.querySelector("summary")',
+    "expand answered multi-question result",
+  );
+  snapshot = await driver.waitForCard(
+    "answered details expanded",
+    (state) => state.resultOpen === true,
+  );
+  assert(
+    "4-result-disclosure-reveals-all-answers",
+    snapshot.resultStrips.length === 3 &&
+      (await driver.evaluate(
+        '[...document.querySelectorAll(".user-input-result")].find((entry) => entry.querySelector(".decision-result-detail > div"))?.querySelector(".decision-result-detail")?.checkVisibility({ visibilityProperty: true })',
+      )) === true,
+    { resultOpen: snapshot.resultOpen, answers: snapshot.resultStrips },
+    "all three answer details are visible after opening the result",
+  );
+  screenshots.push({
+    name: `${testCase.caseId}-04-answered-expanded.png`,
+    bytes: await driver.screenshot(
+      artifactsFor(`${testCase.caseId}-04-answered-expanded.png`),
+    ),
+  });
+
+  // (6b) Registry is drained: a duplicate resolve of the finished card is
+  // rejected and the resolved-event count stays exactly three.
+  const duplicateAfterFinal = await driver.tryResolveDuplicate("q3", {
+    selectedOptionLabel: "No, keep it short",
+  });
+  assert(
+    "6-duplicate-after-final-rejected",
+    duplicateAfterFinal.rejected === true,
+    duplicateAfterFinal,
+    { rejected: true },
+  );
+  assert(
+    "6-duplicate-after-final-three-events",
+    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length ===
+      3,
+    (await driver.storeEvents(multiRequestId, "user-input.resolved")).length,
+    3,
+  );
+
+  // The earlier legacy result must remain settled after the multi request.
+  snapshot = await driver.cardSnapshot();
+  assert(
+    "7-legacy-result-retained",
+    snapshot.legacyCards.length === 1 &&
+      snapshot.legacyCards[0]?.answered === true &&
+      (await driver.storeEvents(legacyRequestId, "user-input.resolved"))
+        .length === 1,
+    snapshot.legacyCards,
+    "one answered legacy result and exactly one persisted resolution",
+  );
+  assert(
+    "7-no-pending-cards-at-rest",
+    (await driver.evaluate(
+      "document.querySelectorAll('.user-input-card').length",
+    )) === 0,
+    await driver.evaluate(
+      "document.querySelectorAll('.user-input-card').length",
+    ),
+    0,
+  );
+  screenshots.push({
+    name: `${testCase.caseId}-05-all-results.png`,
+    bytes: await driver.screenshot(
+      artifactsFor(`${testCase.caseId}-05-all-results.png`),
+    ),
+  });
+
   const keyboardContract = {
     questionLevel: {
       keysPressed: ["ArrowRight x2", "Home", "End"],
@@ -1419,12 +1514,12 @@ async function driveMainFlow(driver, testCase, artifactsFor) {
     },
     optionLevel: {
       entry:
-        "Two Shift+Tab presses from the focused dot pass Submit selection and enter the roving option",
+        "Tab from the focused question segment enters the active slide’s roving option",
       keysPressed: ["ArrowDown", "End", "Home"],
-      activation:
-        "Enter selects the focused option; Tab then Enter submits the selection",
+      activation: "Enter immediately resolves the focused option",
     },
-    focusIn: "real mouse click focuses a dot; Shift+Tab enters the option list",
+    focusIn:
+      "real mouse click focuses a question segment; Tab enters the option list",
     ime: {
       textEntry: "CDP Input.insertText (IME-commit equivalent)",
       composingEnterBlocked: true,
@@ -1513,7 +1608,7 @@ async function driveExpiredArm(driver, testCase, artifactsFor) {
   assert(
     "5-e2-unaffected-active",
     snapshot.activeSlideIndex === 1 &&
-      snapshot.slideTexts[1]?.includes("File the report where?") === true,
+      snapshot.question === "File the report where?",
     {
       activeSlideIndex: snapshot.activeSlideIndex,
       slideTexts: snapshot.slideTexts,
@@ -1564,10 +1659,6 @@ async function driveExpiredArm(driver, testCase, artifactsFor) {
     (state) => state.activeSlideIndex === 1,
   );
   await driver.clickActiveOptionByLabel("Email digest");
-  await driver.clickElement(
-    'document.querySelector(".user-question-slide.active .user-input-submit")',
-    "submit live question selection",
-  );
   snapshot = await driver.waitForCard(
     "mixed card settled timed-out",
     (state) => state.timedOut && !state.pending,

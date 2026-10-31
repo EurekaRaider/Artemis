@@ -18912,7 +18912,7 @@ function createMainWindow(): BrowserWindow {
                         if (trigger instanceof HTMLButtonElement && trigger.checkVisibility({ visibilityProperty: true })) break;
                         await wait(50);
                       }
-                      if (!(trigger instanceof HTMLButtonElement)) throw new Error('Composer branch trigger missing');
+                      if (!(trigger instanceof HTMLButtonElement) || !trigger.checkVisibility({ visibilityProperty: true })) throw new Error('Visible Composer branch trigger missing');
                       trigger.click();
                       while (Date.now() < deadline && !document.querySelector('.composer-context .branch-context-menu [role="menuitemradio"][aria-checked="true"]')) {
                         await wait(50);
