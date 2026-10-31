@@ -52,7 +52,7 @@ import {
   TextAreaField,
   TextField,
 } from "@artemis/ui/forms";
-import { ArtemisIcon } from "@artemis/ui/icons";
+import { ArtemisIcon, ArtemisLogo } from "@artemis/ui/icons";
 import { userInitials } from "./user-profile.js";
 import { PanelHeader } from "@artemis/ui/layout";
 import {
@@ -909,14 +909,15 @@ ${model.providerId} · ${model.modelId}`,
                 />
               }
               className="settings-header"
-              headingLevel={2}
-              title={t.title}
+              headingLevel={3}
+              title={activeTabLabel[activeTab]}
             />
           }
           label={`${t.title} · ${activeTabLabel[activeTab]}`}
           navigation={
             settings ? (
               <div className="settings-navigation-content">
+                <h2 className="settings-navigation-title">{t.title}</h2>
                 <SearchField
                   className="settings-search"
                   label={uiText(locale, "SettingsPanel.search")}
@@ -1736,13 +1737,22 @@ ${model.providerId} · ${model.modelId}`,
                     description={t.themeHint}
                   >
                     <SegmentedControl<AppTheme>
+                      className="settings-theme-options"
                       size="compact"
                       label={t.theme}
                       disabled={busy}
                       onValueChange={(theme) => void setTheme(theme)}
                       options={[
-                        { value: "light", label: t.themeLight },
-                        { value: "dark", label: t.themeDark },
+                        {
+                          value: "light",
+                          label: t.themeLight,
+                          icon: <ArtemisIcon name="sun" />,
+                        },
+                        {
+                          value: "dark",
+                          label: t.themeDark,
+                          icon: <ArtemisIcon name="moon" />,
+                        },
                         { value: "system", label: t.themeSystem },
                       ]}
                       value={settings.theme}
@@ -1825,6 +1835,46 @@ ${model.providerId} · ${model.modelId}`,
 
               {activeTab === "agents" && (
                 <>
+                  <h2 className="settings-page-title">{t.tabAgents}</h2>
+                  <ManagementSection
+                    className="settings-section settings-global-agents"
+                    title={t.globalAgents}
+                  >
+                    <p className="settings-hint">
+                      {uiText(locale, "SettingsPanel.inline3")}{" "}
+                      <code>{settings.globalAgents.path}</code>
+                    </p>
+                    <TextAreaField
+                      description={t.globalAgentsHint}
+                      disabled={busy}
+                      label={t.globalAgents}
+                      labelVisibility="hidden"
+                      onValueChange={setGlobalAgentsContent}
+                      rows={8}
+                      value={globalAgentsContent}
+                    />
+                    <Button
+                      disabled={
+                        busy ||
+                        globalAgentsContent === settings.globalAgents.content
+                      }
+                      onClick={() => void saveGlobalAgents()}
+                      variant="primary"
+                    >
+                      {t.saveGlobalAgents}
+                    </Button>
+                  </ManagementSection>
+                  <CustomAgentsSettingsSection
+                    applySettings={(updated) => {
+                      setSettings(updated);
+                      onSettingsChange(updated);
+                    }}
+                    busy={busy}
+                    locale={locale}
+                    projects={projects}
+                    setBusy={setBusy}
+                    settings={settings}
+                  />
                   <ManagementSection
                     className="settings-section"
                     title={t.agentConcurrency}
@@ -1957,34 +2007,6 @@ ${model.providerId} · ${model.modelId}`,
                       )}
                   </ManagementSection>
                   <ManagementSection
-                    className="settings-section"
-                    title={t.globalAgents}
-                  >
-                    <p className="settings-hint">
-                      {uiText(locale, "SettingsPanel.inline3")}{" "}
-                      <code>{settings.globalAgents.path}</code>
-                    </p>
-                    <TextAreaField
-                      description={t.globalAgentsHint}
-                      disabled={busy}
-                      label={t.globalAgents}
-                      labelVisibility="hidden"
-                      onValueChange={setGlobalAgentsContent}
-                      rows={8}
-                      value={globalAgentsContent}
-                    />
-                    <Button
-                      disabled={
-                        busy ||
-                        globalAgentsContent === settings.globalAgents.content
-                      }
-                      onClick={() => void saveGlobalAgents()}
-                      variant="primary"
-                    >
-                      {t.saveGlobalAgents}
-                    </Button>
-                  </ManagementSection>
-                  <ManagementSection
                     actions={
                       <Button
                         disabled={busy}
@@ -2080,17 +2102,6 @@ ${model.providerId} · ${model.modelId}`,
                       </div>
                     )}
                   </ManagementSection>
-                  <CustomAgentsSettingsSection
-                    applySettings={(updated) => {
-                      setSettings(updated);
-                      onSettingsChange(updated);
-                    }}
-                    busy={busy}
-                    locale={locale}
-                    projects={projects}
-                    setBusy={setBusy}
-                    settings={settings}
-                  />
                 </>
               )}
 
@@ -2253,112 +2264,103 @@ ${model.providerId} · ${model.modelId}`,
 
               {activeTab === "maintenance" && (
                 <>
-                  <ManagementSection
-                    className="settings-section"
-                    description={t.diagnosticsHint}
-                    title={t.diagnostics}
-                  >
-                    <Button
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async () => {
-                          const path = await window.artemis.exportDiagnostics();
-                          if (path) setMessage(t.diagnosticsExported);
-                        })
-                      }
-                    >
-                      {t.exportDiagnostics}
-                    </Button>
-                  </ManagementSection>
+                  <h2 className="settings-page-title">{t.tabMaintenance}</h2>
                   <ManagementSection
                     className="settings-section settings-updates"
                     title={t.updates}
                   >
-                    <SettingsRow
-                      label="Artemis"
-                      description={
-                        <>
-                          {settings.update.currentVersion} ·{" "}
-                          {settings.update.state === "idle" &&
-                          settings.update.upToDate
-                            ? uiText(locale, "Update.upToDate")
-                            : statusText(locale, settings.update.state)}
-                          {settings.update.availableVersion
-                            ? ` → ${settings.update.availableVersion}`
-                            : ""}
-                          {settings.update.progress === undefined
-                            ? ""
-                            : ` · ${Math.round(settings.update.progress)}%`}
-                        </>
-                      }
-                    >
-                      <span className="settings-update-actions">
-                        <Button
-                          className="settings-check-update"
-                          variant="secondary"
-                          disabled={
-                            busy ||
-                            settings.update.state === "disabled" ||
-                            settings.update.state === "checking" ||
-                            settings.update.state === "downloading"
-                          }
-                          onClick={() =>
-                            void run(async () => {
-                              const update =
-                                await window.artemis.checkForUpdates();
-                              setSettings((current) =>
-                                current ? { ...current, update } : current,
-                              );
-                            })
-                          }
-                        >
-                          <ArtemisIcon name="refresh" />
-                          {t.checkUpdates}
-                        </Button>
-                        {settings.update.availableVersion &&
-                          ["available", "error"].includes(
-                            settings.update.state,
-                          ) && (
+                    <div className="settings-release-summary">
+                      <span className="settings-release-mark">
+                        <ArtemisLogo size={36} />
+                      </span>
+                      <SettingsRow
+                        label="Artemis"
+                        description={
+                          <>
+                            {settings.update.currentVersion} ·{" "}
+                            {settings.update.state === "idle" &&
+                            settings.update.upToDate
+                              ? uiText(locale, "Update.upToDate")
+                              : statusText(locale, settings.update.state)}
+                            {settings.update.availableVersion
+                              ? ` → ${settings.update.availableVersion}`
+                              : ""}
+                            {settings.update.progress === undefined
+                              ? ""
+                              : ` · ${Math.round(settings.update.progress)}%`}
+                          </>
+                        }
+                      >
+                        <span className="settings-update-actions">
+                          <Button
+                            className="settings-check-update"
+                            variant="secondary"
+                            disabled={
+                              busy ||
+                              settings.update.state === "disabled" ||
+                              settings.update.state === "checking" ||
+                              settings.update.state === "downloading"
+                            }
+                            onClick={() =>
+                              void run(async () => {
+                                const update =
+                                  await window.artemis.checkForUpdates();
+                                setSettings((current) =>
+                                  current ? { ...current, update } : current,
+                                );
+                              })
+                            }
+                          >
+                            <ArtemisIcon name="refresh" />
+                            {t.checkUpdates}
+                          </Button>
+                          {settings.update.availableVersion &&
+                            ["available", "error"].includes(
+                              settings.update.state,
+                            ) && (
+                              <Button
+                                disabled={busy}
+                                onClick={() =>
+                                  void run(async () => {
+                                    if (settings.update.manualDownloadUrl) {
+                                      window.open(
+                                        settings.update.manualDownloadUrl,
+                                        "_blank",
+                                        "noopener,noreferrer",
+                                      );
+                                      return;
+                                    }
+                                    const update =
+                                      await window.artemis.downloadUpdate();
+                                    setSettings((current) =>
+                                      current
+                                        ? { ...current, update }
+                                        : current,
+                                    );
+                                  })
+                                }
+                              >
+                                {uiText(
+                                  locale,
+                                  settings.update.manualUpdate
+                                    ? "Update.manualDownload"
+                                    : "Update.download",
+                                )}
+                              </Button>
+                            )}
+                          {settings.update.state === "downloaded" && (
                             <Button
                               disabled={busy}
                               onClick={() =>
-                                void run(async () => {
-                                  if (settings.update.manualDownloadUrl) {
-                                    window.open(
-                                      settings.update.manualDownloadUrl,
-                                      "_blank",
-                                      "noopener,noreferrer",
-                                    );
-                                    return;
-                                  }
-                                  const update =
-                                    await window.artemis.downloadUpdate();
-                                  setSettings((current) =>
-                                    current ? { ...current, update } : current,
-                                  );
-                                })
+                                void run(() => window.artemis.installUpdate())
                               }
                             >
-                              {uiText(
-                                locale,
-                                settings.update.manualUpdate
-                                  ? "Update.manualDownload"
-                                  : "Update.download",
-                              )}
+                              {uiText(locale, "Update.install")}
                             </Button>
                           )}
-                        {settings.update.state === "downloaded" && (
-                          <Button
-                            disabled={busy}
-                            onClick={() =>
-                              void run(() => window.artemis.installUpdate())
-                            }
-                          >
-                            {uiText(locale, "Update.install")}
-                          </Button>
-                        )}
-                      </span>
-                    </SettingsRow>
+                        </span>
+                      </SettingsRow>
+                    </div>
                     {settings.update.manualUpdate && (
                       <InlineNotice tone="neutral">
                         {uiText(locale, "Update.manualInstructions")}
@@ -2407,6 +2409,26 @@ ${model.providerId} · ${model.modelId}`,
                       </InlineNotice>
                     )}
                   </ManagementSection>
+                  <ManagementSection
+                    actions={
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async () => {
+                            const path =
+                              await window.artemis.exportDiagnostics();
+                            if (path) setMessage(t.diagnosticsExported);
+                          })
+                        }
+                      >
+                        {t.exportDiagnostics}
+                      </Button>
+                    }
+                    className="settings-section settings-diagnostics"
+                    children={null}
+                    description={t.diagnosticsHint}
+                    title={t.diagnostics}
+                  />
                 </>
               )}
               {message && (

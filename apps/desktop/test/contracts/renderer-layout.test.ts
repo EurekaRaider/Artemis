@@ -1781,8 +1781,12 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain(
       '{ value: "system", label: t.themeSystem }',
     );
-    expect(settingsSource).toContain('{ value: "light", label: t.themeLight }');
-    expect(settingsSource).toContain('{ value: "dark", label: t.themeDark }');
+    expect(settingsSource).toMatch(
+      /value: "light",\s+label: t\.themeLight,\s+icon: <ArtemisIcon name="sun"/u,
+    );
+    expect(settingsSource).toMatch(
+      /value: "dark",\s+label: t\.themeDark,\s+icon: <ArtemisIcon name="moon"/u,
+    );
     expect(appSource).toContain("desktopSkinHost.setTheme(theme)");
     expect(stylesSource).toContain(':root[data-theme="light"]');
     expect(stylesSource).toContain(':root[data-theme="dark"]');
