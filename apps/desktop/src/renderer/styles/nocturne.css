@@ -362,6 +362,19 @@
 .app-shell .composer-context {
   min-inline-size: 0;
 }
+.app-shell .composer-context-row:has(> .decision-approval-policy) {
+  flex-wrap: wrap;
+}
+.decision-approval-policy {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-block-size: 26px;
+  color: var(--artemis-color-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
 .app-shell .branch-context-trigger > span,
 .app-shell .branch-context-menu .branch-list > button strong {
   direction: ltr;
