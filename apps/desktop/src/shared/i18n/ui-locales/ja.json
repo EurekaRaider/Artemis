@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "実行",
   "ComposerMode.codemode": "コード",
   "ComposerMode.sendHint": "↵ 送信 · ⇧↵ 改行",
-  "ComposerMode.decisionHint": "↑↓ 選択 · ↵ 確認"
+  "ComposerMode.decisionHint": "↑↓ 選択 · ↵ 確認",
+  "EnvironmentPanel.githubNoPullRequest": "このブランチのプルリクエストはありません。",
+  "EnvironmentPanel.pushBeforePullRequest": "ブランチをプッシュするとプルリクエストを作成できます。"
 }

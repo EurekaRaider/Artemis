@@ -1,3 +1,4 @@
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { useState } from "react";
 
 import {
@@ -100,7 +101,7 @@ export function WorkflowGallery() {
             >
               <EnvironmentSection
                 action={<button type="button">Refresh</button>}
-                title="Git · Artemis"
+                title="Workspace"
               >
                 <button className="environment-row" type="button">
                   <span>main</span>
@@ -110,7 +111,7 @@ export function WorkflowGallery() {
                   HEAD has not been pushed.
                 </p>
               </EnvironmentSection>
-              <EnvironmentSection title="PR checks">
+              <EnvironmentSection title="GitHub">
                 <div className="environment-check-list">
                   <div>
                     <span>Passed</span>
@@ -121,6 +122,16 @@ export function WorkflowGallery() {
                     <strong>Native sandbox</strong>
                   </div>
                 </div>
+              </EnvironmentSection>
+              <EnvironmentSection title="Changes">
+                <div className="gallery-inspector-file">
+                  <ArtemisIcon name="document" width={16} height={16} />
+                  <span>README.md</span>
+                  <span>+2 −1</span>
+                  <small>M</small>
+                </div>
+                <button type="button">Review</button>
+                <button type="button">Commit or push…</button>
               </EnvironmentSection>
             </EnvironmentPanelSurface>
           )}

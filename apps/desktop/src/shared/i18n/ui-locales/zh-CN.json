@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "执行",
   "ComposerMode.codemode": "代码",
   "ComposerMode.sendHint": "↵ 发送 · ⇧↵ 换行",
-  "ComposerMode.decisionHint": "↑↓ 选择 · ↵ 确认"
+  "ComposerMode.decisionHint": "↑↓ 选择 · ↵ 确认",
+  "EnvironmentPanel.githubNoPullRequest": "当前分支没有拉取请求。",
+  "EnvironmentPanel.pushBeforePullRequest": "推送分支后即可创建拉取请求。"
 }

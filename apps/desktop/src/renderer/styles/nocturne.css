@@ -781,3 +781,373 @@
     display: none;
   }
 }
+
+/* The single task inspector docks against the window edge. */
+.app-shell .workspace {
+  --environment-panel-inline-size: 304px;
+}
+.app-shell .environment-popover {
+  position: fixed;
+  inset-block: 46px 0;
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+  inline-size: 304px;
+  width: 304px;
+  max-inline-size: 304px;
+  max-height: none;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-inline-start: 1px solid var(--artemis-color-border-subtle);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--artemis-color-canvas);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: none;
+  overflow: auto;
+  font-size: 13px;
+}
+.app-shell .environment-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 46px;
+  padding: 0 10px 0 16px;
+  background: var(--artemis-color-canvas);
+  border-block-end: 1px solid var(--artemis-color-border-subtle);
+}
+.environment-panel-header strong {
+  flex: 0 1 auto;
+  font-size: 13px;
+}
+.environment-panel-header .environment-header-action:last-child {
+  margin-inline-start: auto;
+}
+.environment-project-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11.5px;
+}
+.app-shell .environment-popover .environment-section {
+  padding: 14px 16px;
+  margin: 0;
+  border: 0;
+}
+.app-shell .environment-popover .environment-section + .environment-section {
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
+}
+.app-shell .environment-section > [data-part="section-header"] {
+  min-block-size: 20px;
+  margin-block-end: 8px;
+  color: var(--artemis-color-text-tertiary);
+}
+.app-shell .environment-section > [data-part="section-header"] h2 {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.app-shell .environment-row,
+.app-shell .environment-workspace-trigger {
+  min-block-size: 34px;
+  border-radius: 9px;
+  background: var(--artemis-color-surface-base);
+  box-shadow: inset 0 0 0 1px var(--artemis-color-border-default);
+  padding: 0 10px;
+}
+.app-shell .environment-setting-row {
+  min-inline-size: 0;
+  gap: 8px;
+}
+.app-shell .environment-branch-control {
+  inline-size: 100%;
+}
+.app-shell .environment-branch-control .environment-row {
+  inline-size: 100%;
+}
+.environment-branch-control .environment-row-copy {
+  flex: 1;
+}
+.environment-sync-count {
+  flex: none;
+  color: var(--artemis-color-text-secondary);
+  font: 11.5px var(--mono-font);
+  white-space: nowrap;
+}
+.environment-compare-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 28px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--artemis-color-text-tertiary);
+  text-align: start;
+  font-size: 11.5px;
+}
+.environment-compare-row > svg {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+}
+.environment-compare-row > strong {
+  margin-inline-start: auto;
+  color: var(--artemis-color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-inline-size: 150px;
+  font: 11.5px var(--mono-font);
+}
+.environment-sync-status,
+.environment-pr-empty {
+  color: var(--artemis-color-text-tertiary);
+  font-size: 11.5px;
+  line-height: 1.6;
+  margin: 0;
+}
+.environment-changed-files {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 240px;
+  overflow: auto;
+}
+.environment-file-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-block-size: 28px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  color: var(--artemis-color-text-primary);
+}
+.environment-file-row:hover {
+  background: var(--artemis-color-interaction-hover);
+}
+.environment-file-name {
+  flex: 1;
+  min-inline-size: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 12px var(--mono-font);
+}
+.environment-file-row .file-status {
+  flex: none;
+  font: 11px var(--mono-font);
+  color: var(--artemis-color-text-tertiary);
+}
+.environment-diff-total {
+  white-space: nowrap;
+  font: 11.5px var(--mono-font);
+}
+.environment-change-actions {
+  display: flex;
+  gap: 6px;
+  margin-block-start: 10px;
+}
+.app-shell .environment-change-actions button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-inline-size: 0;
+  block-size: 30px;
+  padding-inline: 6px;
+  border-radius: 8px;
+  background: var(--artemis-color-surface-sunken);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.app-shell .environment-change-actions .commit-push-row {
+  background: var(--artemis-color-accent-primary);
+  color: var(--artemis-color-text-inverse);
+}
+.app-shell .environment-change-actions svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.app-shell .environment-popover .environment-git-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  inline-size: 100%;
+  width: 100%;
+  max-width: none;
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--artemis-color-canvas);
+}
+.environment-field-label {
+  margin-block-end: -10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--artemis-color-text-secondary);
+}
+.app-shell .environment-git-message textarea {
+  min-block-size: 110px;
+  font-size: 13px;
+  border-radius: 10px;
+  background: var(--artemis-color-surface-base);
+}
+.app-shell .environment-git-include {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+}
+.environment-git-include strong {
+  font-weight: 400;
+}
+.environment-git-include .environment-diff-total {
+  margin-inline-start: auto;
+}
+.app-shell .environment-git-destination-trigger {
+  font-size: 12px;
+  min-block-size: 32px;
+}
+.app-shell .environment-git-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.app-shell .environment-git-actions button {
+  min-block-size: 32px;
+  justify-content: center;
+  font-size: 12px;
+}
+.environment-git-progress {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--artemis-color-text-secondary);
+  font-size: 11.5px;
+}
+.environment-git-progress svg {
+  flex: none;
+}
+[dir="rtl"] .environment-back svg {
+  transform: rotate(180deg);
+}
+@media (max-width: 979px) {
+  .app-shell .environment-popover {
+    display: none;
+  }
+}
+
+/* Dock controls share the main toolbar's 46px rhythm; readers stay opaque. */
+.app-shell [data-artemis-component="workspace-tab-bar"] {
+  min-block-size: 46px;
+  block-size: 46px;
+  padding: 7px 8px;
+  gap: 4px;
+}
+.app-shell [data-artemis-component="workspace-tab"] {
+  min-block-size: 32px;
+  max-block-size: 32px;
+  border-radius: 8px;
+  background: transparent;
+}
+.app-shell [data-artemis-component="workspace-tab"][data-state="active"] {
+  background: var(--artemis-color-surface-sunken);
+}
+:root[data-material="glass"]
+  .app-shell
+  [data-artemis-component="workspace-tab"] {
+  border-radius: 999px;
+}
+:root[data-material="glass"]
+  .app-shell
+  [data-artemis-component="workspace-tab"][data-state="active"] {
+  background: var(--nocturne-lens);
+  box-shadow: inset 0 1px 0 var(--nocturne-lens-edge);
+}
+.app-shell .workspace-tab-content,
+.app-shell .review-panel,
+.app-shell .review-diff-reader {
+  background: var(--artemis-color-canvas);
+}
+.app-shell .review-workspace {
+  grid-template-columns: 184px minmax(0, 1fr);
+}
+.app-shell .review-file-entry {
+  text-align: start;
+  gap: 7px;
+  min-block-size: 30px;
+  font-size: 12px;
+}
+.app-shell .review-file-entry .workspace-file-kind {
+  flex: none;
+}
+.app-shell .review-file-path {
+  min-inline-size: 0;
+  flex: 1;
+}
+.app-shell .review-file-stats {
+  font-size: 11px;
+}
+.app-shell .review-scope-select {
+  min-inline-size: 0;
+}
+.app-shell .review-scope-select [data-artemis-component="segmented-control"] {
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+  overflow: auto;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--artemis-color-surface-sunken);
+}
+.app-shell .review-scope-select [data-part="segment"] {
+  min-block-size: 26px;
+  padding-inline: 7px;
+  white-space: nowrap;
+  font-size: 11.5px;
+  border-radius: 5px;
+}
+.app-shell .review-scope-select [aria-pressed="true"] {
+  background: var(--artemis-color-surface-base);
+  color: var(--artemis-color-text-primary);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+@container (max-width: 600px) {
+  .app-shell .review-workspace {
+    grid-template-columns: 160px minmax(0, 1fr);
+  }
+}
+
+.app-shell .review-file-sidebar {
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--artemis-color-border-subtle);
+}
+.app-shell .review-diff-file-header .workspace-file-kind {
+  flex: none;
+}
+
+.review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+  min-block-size: 46px;
+  padding: 8px 12px;
+  border-block-start: 1px solid var(--artemis-color-border-subtle);
+  background: var(--artemis-color-canvas);
+}
+.review-footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 12px;
+}

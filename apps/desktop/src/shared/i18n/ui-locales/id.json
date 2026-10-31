@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "Kerja",
   "ComposerMode.codemode": "Kode",
   "ComposerMode.sendHint": "↵ Kirim · ⇧↵ Baris baru",
-  "ComposerMode.decisionHint": "↑↓ Pilih · ↵ Konfirmasi"
+  "ComposerMode.decisionHint": "↑↓ Pilih · ↵ Konfirmasi",
+  "EnvironmentPanel.githubNoPullRequest": "Tidak ada pull request untuk cabang ini.",
+  "EnvironmentPanel.pushBeforePullRequest": "Push cabang ini untuk membuat pull request."
 }

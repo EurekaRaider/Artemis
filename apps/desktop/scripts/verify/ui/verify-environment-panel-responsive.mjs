@@ -146,8 +146,8 @@ try {
     "Wide window environment panel is not visible.",
   );
   assert(
-    Math.abs(wide.environmentPanel.width - 280) <= 1,
-    "Environment panel must keep its compact 280px width.",
+    Math.abs(wide.environmentPanel.width - 304) <= 1,
+    "Environment panel must keep its docked 304px width.",
   );
   assert(
     wide.workflowComponents.includes("environment-control") &&

@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "عمل",
   "ComposerMode.codemode": "برمجة",
   "ComposerMode.sendHint": "↵ إرسال · ⇧↵ سطر جديد",
-  "ComposerMode.decisionHint": "↑↓ اختيار · ↵ تأكيد"
+  "ComposerMode.decisionHint": "↑↓ اختيار · ↵ تأكيد",
+  "EnvironmentPanel.githubNoPullRequest": "لا يوجد طلب سحب لهذا الفرع.",
+  "EnvironmentPanel.pushBeforePullRequest": "ادفع هذا الفرع لإنشاء طلب سحب."
 }

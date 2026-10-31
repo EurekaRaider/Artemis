@@ -73,12 +73,24 @@ it("keeps AI generation errors visible and lets the user retry with a manual mes
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "任务环境" }));
   const entry = await screen.findByRole("button", { name: "提交或推送" });
-  expect(screen.getByRole("button", { name: /变更.*\+1.*−0/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "审核" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "变更" })).toBeTruthy();
   expect(entry.querySelector("svg")).not.toBeNull();
   expect(screen.queryByText("当前分支")).toBeNull();
   expect(screen.getByRole("button", { name: "main" }).title).toBe("main");
   await user.click(entry);
   const dialog = within(screen.getByRole("dialog", { name: "提交或推送" }));
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBeNull();
+  const destination = dialog.getByRole("group", { name: "提交到" });
+  await user.click(
+    within(destination).getByRole("button", { name: "新分支" }),
+  );
+  expect(dialog.getByRole("textbox", { name: "新分支" })).toBeTruthy();
+  await user.click(
+    within(destination).getByRole("button", { name: "当前分支" }),
+  );
+  expect(dialog.queryByRole("textbox", { name: "新分支" })).toBeNull();
   const textarea = dialog.getByRole("textbox", { name: "提交说明" });
   expect(textarea.getAttribute("placeholder")).toContain("AI 总结本次改动");
   await user.click(dialog.getByRole("button", { name: /^提交\s*⌘/ }));

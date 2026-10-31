@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "Arbeit",
   "ComposerMode.codemode": "Code",
   "ComposerMode.sendHint": "↵ Senden · ⇧↵ Zeilenumbruch",
-  "ComposerMode.decisionHint": "↑↓ Wählen · ↵ Bestätigen"
+  "ComposerMode.decisionHint": "↑↓ Wählen · ↵ Bestätigen",
+  "EnvironmentPanel.githubNoPullRequest": "Für diesen Branch gibt es keinen Pull Request.",
+  "EnvironmentPanel.pushBeforePullRequest": "Pushen Sie diesen Branch, um einen Pull Request zu erstellen."
 }

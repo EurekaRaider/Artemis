@@ -2001,17 +2001,6 @@ button.environment-row:disabled {
   margin-top: 0;
 }
 
-.environment-git-dialog-backdrop {
-  align-items: center;
-  background: var(--artemis-color-overlay-scrim);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 20px;
-  position: fixed;
-  backdrop-filter: blur(3px);
-  z-index: 140;
-}
 
 .environment-git-dialog {
   background: var(--environment-menu-bg);

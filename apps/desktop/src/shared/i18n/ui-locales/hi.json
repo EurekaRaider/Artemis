@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "कार्य",
   "ComposerMode.codemode": "कोड",
   "ComposerMode.sendHint": "↵ भेजें · ⇧↵ नई पंक्ति",
-  "ComposerMode.decisionHint": "↑↓ चुनें · ↵ पुष्टि करें"
+  "ComposerMode.decisionHint": "↑↓ चुनें · ↵ पुष्टि करें",
+  "EnvironmentPanel.githubNoPullRequest": "इस ब्रांच के लिए कोई पुल अनुरोध नहीं है।",
+  "EnvironmentPanel.pushBeforePullRequest": "पुल अनुरोध बनाने के लिए इस ब्रांच को पुश करें।"
 }

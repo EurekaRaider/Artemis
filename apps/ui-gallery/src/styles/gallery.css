@@ -340,8 +340,24 @@
 
   .gallery-workflow-side
     [data-artemis-component="environment-panel"][data-part="root"] {
-    inset-inline-start: 0;
-    inset-inline-end: auto;
+    position: static;
+    inline-size: min(304px, 100%);
+    max-block-size: none;
+    border-radius: 0;
+    border-inline-start: 1px solid var(--artemis-color-border-subtle);
+    box-shadow: none;
+    background: var(--artemis-color-canvas);
+  }
+
+  .gallery-inspector-file {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-block-size: 28px;
+    font-size: 12px;
+  }
+  .gallery-inspector-file > span:first-of-type {
+    flex: 1;
   }
 
   .gallery-workflow-side > [data-artemis-component="goal-editor"],

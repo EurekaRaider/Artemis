@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "執行",
   "ComposerMode.codemode": "程式碼",
   "ComposerMode.sendHint": "↵ 傳送 · ⇧↵ 換行",
-  "ComposerMode.decisionHint": "↑↓ 選擇 · ↵ 確認"
+  "ComposerMode.decisionHint": "↑↓ 選擇 · ↵ 確認",
+  "EnvironmentPanel.githubNoPullRequest": "目前分支沒有提取要求。",
+  "EnvironmentPanel.pushBeforePullRequest": "推送分支後即可建立提取要求。"
 }

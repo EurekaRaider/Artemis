@@ -1865,7 +1865,7 @@ describe("renderer layout contract", () => {
     expect(appSource).toMatch(
       /selectReviewScope\s*=\s*\([^)]*scope[^)]*\)\s*=>\s*\{[\s\S]*?setReviewScope\(scope\);[\s\S]*?reviewDiffCache\.current\.get\([\s\S]*?setReviewDiff\(cached\);[\s\S]*?\}/u,
     );
-    expect(appSource).toContain("onChange={selectReviewScope}");
+    expect(appSource).toContain("onValueChange={selectReviewScope}");
     expect(appSource).toMatch(
       /startReviewTransition\(\(\)\s*=>\s*\{?[\s\S]*?setReviewDiff\(diff\);?[\s\S]*?\}?\);/u,
     );
@@ -1905,7 +1905,8 @@ describe("renderer layout contract", () => {
     expect(reviewEnd).toBeGreaterThan(reviewStart);
     expect(toolbar).toBeGreaterThan(-1);
     expect(reader).toBeGreaterThan(toolbar);
-    expect(sidebar).toBeGreaterThan(reader);
+    expect(sidebar).toBeGreaterThan(toolbar);
+    expect(reader).toBeGreaterThan(sidebar);
     expect(reviewSource).toContain('className="review-scope-select"');
     expect(reviewSource).toContain('className="review-file-filter"');
     expect(reviewSource).toContain("setReviewFileQuery");

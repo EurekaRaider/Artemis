@@ -2052,5 +2052,7 @@
   "ComposerMode.work": "Trabajo",
   "ComposerMode.codemode": "Código",
   "ComposerMode.sendHint": "↵ Enviar · ⇧↵ Nueva línea",
-  "ComposerMode.decisionHint": "↑↓ Elegir · ↵ Confirmar"
+  "ComposerMode.decisionHint": "↑↓ Elegir · ↵ Confirmar",
+  "EnvironmentPanel.githubNoPullRequest": "Esta rama no tiene ninguna solicitud de incorporación.",
+  "EnvironmentPanel.pushBeforePullRequest": "Envía esta rama para crear una solicitud de incorporación."
 }

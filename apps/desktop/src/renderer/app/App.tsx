@@ -1,3 +1,4 @@
+import { SegmentedControl } from "@artemis/ui/navigation";
 import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
 import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
 import { ConversationShareDialog } from "../conversation/ConversationShareDialog.js";
@@ -1090,6 +1091,7 @@ export function App() {
     useRef<Promise<string | undefined>>(undefined);
   const [reviewScope, setReviewScope] = useState<ReviewScope>("branch");
   const [reviewTurnId, setReviewTurnId] = useState<string>();
+  const [environmentCommitRequest, setEnvironmentCommitRequest] = useState(0);
   const [reviewBaseRef, setReviewBaseRef] = useState("");
   const [reviewFileQuery, setReviewFileQuery] = useState("");
   const [selectedReviewFilePath, setSelectedReviewFilePath] =
@@ -4016,6 +4018,15 @@ export function App() {
       ),
     }));
   }, [activeThreadId, latestAgentTeam, t.agentTeam]);
+  const latestReviewUndoTurn = threadState?.turnOrder.findLast(
+    (id) => threadState.turns[id]?.status === "completed",
+  );
+  const reviewUndoAvailable = Boolean(
+    latestReviewUndoTurn &&
+    threadState?.status === "idle" &&
+    threadState.turns[latestReviewUndoTurn]?.changeSet?.undoAvailable &&
+    (reviewScope !== "turn" || reviewTurnId === latestReviewUndoTurn),
+  );
   const pendingComposerDecision = firstPendingComposerDecision(threadState);
   const activePendingDecisionId = pendingComposerDecision?.entry;
   useEffect(() => {
@@ -7265,6 +7276,7 @@ export function App() {
                   {activeProject && (
                     <EnvironmentPanel
                       key={environmentWorkspaceKey}
+                      commitRequest={environmentCommitRequest}
                       actionsDisabled={
                         projectBranchActionsDisabled ||
                         Boolean(activeThread?.archived)
@@ -9161,9 +9173,9 @@ ${model.providerId} · ${model.modelId}`}
                               <ReviewToolbar>
                                 <div className="review-comparison-primary">
                                   <div className="review-scope-select">
-                                    <CodexSelect<ReviewScope>
-                                      ariaLabel={t.comparison}
-                                      onChange={selectReviewScope}
+                                    <SegmentedControl<ReviewScope>
+                                      label={t.comparison}
+                                      onValueChange={selectReviewScope}
                                       options={[
                                         ...(reviewScope === "turn"
                                           ? [
@@ -9174,14 +9186,14 @@ ${model.providerId} · ${model.modelId}`}
                                             ]
                                           : []),
                                         {
+                                          value: "last-turn",
+                                          label: t.lastTurn,
+                                        },
+                                        {
                                           value: "unstaged",
                                           label: t.unstaged,
                                         },
                                         { value: "staged", label: t.staged },
-                                        {
-                                          value: "last-turn",
-                                          label: t.lastTurn,
-                                        },
                                         { value: "branch", label: t.branch },
                                       ]}
                                       size="compact"
@@ -9256,6 +9268,79 @@ ${model.providerId} · ${model.modelId}`}
                                 </div>
                               </ReviewToolbar>
                               <ReviewWorkspace>
+                                <ReviewFileSidebar label={t.changedFiles}>
+                                  <label className="review-file-filter">
+                                    <SearchIcon />
+                                    <input
+                                      aria-label={t.filterFiles}
+                                      onChange={(event) =>
+                                        setReviewFileQuery(event.target.value)
+                                      }
+                                      placeholder={t.filterFiles}
+                                      value={reviewFileQuery}
+                                    />
+                                  </label>
+                                  <div className="file-summary">
+                                    <span>{t.changedFiles}</span>
+                                    <strong>
+                                      {reviewDiff?.files.length ?? 0}
+                                    </strong>
+                                  </div>
+                                  <div className="review-file-list">
+                                    {filteredReviewFiles.map((file) => (
+                                      <button
+                                        aria-pressed={
+                                          selectedReviewFile?.id === file.id
+                                        }
+                                        className={
+                                          selectedReviewFile?.id === file.id
+                                            ? "review-file-entry selected"
+                                            : "review-file-entry"
+                                        }
+                                        key={file.id}
+                                        onClick={() =>
+                                          setSelectedReviewFilePath(file.path)
+                                        }
+                                        title={file.path}
+                                        type="button"
+                                      >
+                                        <WorkspaceFileIcon
+                                          path={file.path}
+                                          presentation={filePresentation(
+                                            file.path,
+                                          )}
+                                          symlink={false}
+                                        />
+                                        <span className="review-file-path">
+                                          {file.path}
+                                        </span>
+                                        <span className="review-file-stats">
+                                          <span className="addition">
+                                            +{file.additions}
+                                          </span>
+                                          <span className="deletion">
+                                            −{file.deletions}
+                                          </span>
+                                        </span>
+                                        <span className="file-status">
+                                          {file.status === "added"
+                                            ? "A"
+                                            : file.status === "deleted"
+                                              ? "D"
+                                              : "M"}
+                                        </span>
+                                      </button>
+                                    ))}
+                                    {Boolean(
+                                      reviewDiff?.files.length &&
+                                      !filteredReviewFiles.length,
+                                    ) && (
+                                      <div className="review-file-list-empty">
+                                        {t.noMatchingFiles}
+                                      </div>
+                                    )}
+                                  </div>
+                                </ReviewFileSidebar>
                                 <ReviewDiffReader label={t.comparison}>
                                   {!reviewDiff && (
                                     <ReviewState state="loading">…</ReviewState>
@@ -9292,15 +9377,13 @@ ${model.providerId} · ${model.modelId}`}
                                         }
                                       >
                                         <ReviewDiffHeader>
-                                          <span className="file-status">
-                                            {selectedReviewFile.status ===
-                                            "added"
-                                              ? "A"
-                                              : selectedReviewFile.status ===
-                                                  "deleted"
-                                                ? "D"
-                                                : "M"}
-                                          </span>
+                                          <WorkspaceFileIcon
+                                            path={selectedReviewFile.path}
+                                            presentation={filePresentation(
+                                              selectedReviewFile.path,
+                                            )}
+                                            symlink={false}
+                                          />
                                           <span className="review-file-path">
                                             {selectedReviewFile.path}
                                           </span>
@@ -9311,6 +9394,15 @@ ${model.providerId} · ${model.modelId}`}
                                             <span className="deletion">
                                               −{selectedReviewFile.deletions}
                                             </span>
+                                          </span>
+                                          <span className="file-status">
+                                            {selectedReviewFile.status ===
+                                            "added"
+                                              ? "A"
+                                              : selectedReviewFile.status ===
+                                                  "deleted"
+                                                ? "D"
+                                                : "M"}
                                           </span>
                                           <span className="review-actions">
                                             {reviewScope === "unstaged" && (
@@ -9588,73 +9680,57 @@ ${model.providerId} · ${model.modelId}`}
                                       </ReviewDiffSurface>
                                     )}
                                 </ReviewDiffReader>
-                                <ReviewFileSidebar label={t.changedFiles}>
-                                  <label className="review-file-filter">
-                                    <SearchIcon />
-                                    <input
-                                      aria-label={t.filterFiles}
-                                      onChange={(event) =>
-                                        setReviewFileQuery(event.target.value)
-                                      }
-                                      placeholder={t.filterFiles}
-                                      value={reviewFileQuery}
-                                    />
-                                  </label>
-                                  <div className="file-summary">
-                                    <span>{t.changedFiles}</span>
-                                    <strong>
-                                      {reviewDiff?.files.length ?? 0}
-                                    </strong>
-                                  </div>
-                                  <div className="review-file-list">
-                                    {filteredReviewFiles.map((file) => (
-                                      <button
-                                        aria-pressed={
-                                          selectedReviewFile?.id === file.id
-                                        }
-                                        className={
-                                          selectedReviewFile?.id === file.id
-                                            ? "review-file-entry selected"
-                                            : "review-file-entry"
-                                        }
-                                        key={file.id}
-                                        onClick={() =>
-                                          setSelectedReviewFilePath(file.path)
-                                        }
-                                        title={file.path}
-                                        type="button"
-                                      >
-                                        <span className="file-status">
-                                          {file.status === "added"
-                                            ? "A"
-                                            : file.status === "deleted"
-                                              ? "D"
-                                              : "M"}
-                                        </span>
-                                        <span className="review-file-path">
-                                          {file.path}
-                                        </span>
-                                        <span className="review-file-stats">
-                                          <span className="addition">
-                                            +{file.additions}
-                                          </span>
-                                          <span className="deletion">
-                                            −{file.deletions}
-                                          </span>
-                                        </span>
-                                      </button>
-                                    ))}
-                                    {Boolean(
-                                      reviewDiff?.files.length &&
-                                      !filteredReviewFiles.length,
-                                    ) && (
-                                      <div className="review-file-list-empty">
-                                        {t.noMatchingFiles}
-                                      </div>
-                                    )}
-                                  </div>
-                                </ReviewFileSidebar>
                               </ReviewWorkspace>
+                              <footer className="review-footer">
+                                <button
+                                  className="secondary-button compact"
+                                  disabled={
+                                    !reviewUndoAvailable ||
+                                    reviewBusy ||
+                                    Boolean(activeThread?.archived)
+                                  }
+                                  onClick={() => {
+                                    if (latestReviewUndoTurn)
+                                      void undoTurnChanges(
+                                        latestReviewUndoTurn,
+                                      );
+                                  }}
+                                  type="button"
+                                >
+                                  <ArtemisIcon
+                                    name="undo"
+                                    width={14}
+                                    height={14}
+                                  />
+                                  {t.undoChanges}
+                                </button>
+                                <button
+                                  className="primary-button compact"
+                                  disabled={
+                                    !activeProject ||
+                                    !reviewDiff?.available ||
+                                    projectBranchActionsDisabled ||
+                                    Boolean(activeThread?.archived)
+                                  }
+                                  onClick={() => {
+                                    setWorkspaceDockOpen(false);
+                                    setEnvironmentCommitRequest(
+                                      (value) => value + 1,
+                                    );
+                                  }}
+                                  type="button"
+                                >
+                                  <ArtemisIcon
+                                    name="commit"
+                                    width={14}
+                                    height={14}
+                                  />
+                                  {uiText(
+                                    locale,
+                                    "EnvironmentPanel_labels.commitOrPush",
+                                  )}
+                                </button>
+                              </footer>
                             </ReviewSurface>
                           )}
                           {tab.kind === "sources" && activeThread && (

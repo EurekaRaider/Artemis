@@ -1,3 +1,7 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
+import { SegmentedControl } from "@artemis/ui/navigation";
+import { WorkspaceFileIcon } from "./WorkspaceFilesPanel.js";
+import { filePresentation } from "./workspace-file-presentation.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
 import {
   useCallback,
@@ -39,6 +43,7 @@ import type {
   ProjectPullRequestCheck,
   ProjectPullRequestLookup,
   ReviewScope,
+  ReviewFile,
 } from "../../shared/api.js";
 import { ChildAgentIcon } from "../components/ChildAgentIcon.js";
 import { customAgentInstanceIdentity } from "../settings/custom-agent-identity.js";
@@ -639,6 +644,7 @@ export function PullRequestChecksPopover({
 
 export function EnvironmentPanel({
   actionsDisabled,
+  commitRequest,
   agents,
   attachments,
   defaultOpen,
@@ -670,6 +676,7 @@ export function EnvironmentPanel({
   threadId,
 }: {
   actionsDisabled: boolean;
+  commitRequest?: number;
   agents: ChildAgentState[];
   attachments: PromptAttachment[];
   defaultOpen: boolean;
@@ -721,6 +728,10 @@ export function EnvironmentPanel({
   const [open, setOpen] = useState(false);
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
   const [gitError, setGitError] = useState<string>();
+  const [changedFiles, setChangedFiles] = useState<
+    Array<ReviewFile & { scope: ReviewScope }>
+  >([]);
+  const [changesError, setChangesError] = useState<string>();
   const [pullRequestLookup, setPullRequestLookup] =
     useState<ProjectPullRequestLookup>();
   const [pullRequestError, setPullRequestError] = useState<string>();
@@ -858,23 +869,32 @@ export function EnvironmentPanel({
     branchSearch.current?.focus({ preventScroll: true });
   }, [branchMenuPosition, branchOpen, creatingMenuBranch]);
 
+  const lastCommitRequest = useRef(commitRequest);
+  useEffect(() => {
+    if (lastCommitRequest.current === commitRequest) return;
+    lastCommitRequest.current = commitRequest;
+    if (!commitRequest) return;
+    manuallyOpened.current = true;
+    wantsOpen.current = true;
+    openRef.current = true;
+    setOpen(true);
+    setGitError(undefined);
+    setCommitOpen(true);
+  }, [commitRequest]);
+
   const measureContentSpace = useCallback(() => {
     const workspace = control.current?.closest(".workspace");
     const conversation = workspace?.querySelector<HTMLElement>(".conversation");
     if (!(workspace instanceof HTMLElement) || !conversation) return;
     const bounds = conversation.getBoundingClientRect();
-    const anchor = control.current?.getBoundingClientRect();
-    if (!anchor || bounds.width === 0) return;
+    const workspaceBounds = workspace.getBoundingClientRect();
+    if (bounds.width === 0) return;
     const style = window.getComputedStyle(workspace);
     const configuredWidth =
       Number.parseFloat(
         style.getPropertyValue("--environment-panel-inline-size"),
-      ) || 280;
+      ) || 304;
     const panelWidth = Math.min(configuredWidth, window.innerWidth - 62);
-    const inlineOffset =
-      Number.parseFloat(
-        style.getPropertyValue("--environment-panel-inline-offset"),
-      ) || 0;
     const panelBounds = panel.current?.getBoundingClientRect();
     const rtl = style.direction === "rtl";
     const panelStart = panelBounds?.width
@@ -882,8 +902,8 @@ export function EnvironmentPanel({
         ? panelBounds.right
         : panelBounds.left
       : rtl
-        ? anchor.left + panelWidth
-        : anchor.right - panelWidth + inlineOffset;
+        ? workspaceBounds.left + panelWidth
+        : workspaceBounds.right - panelWidth;
     // Measure against the conversation, so a panel above the tool dock
     // reserves nothing when it is already outside the reading area.
     const inset = Math.max(
@@ -894,7 +914,9 @@ export function EnvironmentPanel({
       workspace,
       conversation,
       inset,
-      enoughSpace: inset === 0 || bounds.width - inset - 24 >= 480,
+      enoughSpace:
+        window.innerWidth >= 980 &&
+        (inset === 0 || bounds.width - inset - 24 >= 320),
     };
   }, []);
 
@@ -981,11 +1003,11 @@ export function EnvironmentPanel({
         const rtl = window.getComputedStyle(next.workspace).direction === "rtl";
         next.conversation.style.setProperty(
           "--computer-preview-top",
-          `${panelBounds.bottom + 8}px`,
+          `${panelBounds.top + 12}px`,
         );
         next.conversation.style.setProperty(
           "--computer-preview-inline-end",
-          `${Math.max(12, (rtl ? panelBounds.left : window.innerWidth - panelBounds.right) - 8)}px`,
+          `${Math.max(12, rtl ? panelBounds.right + 12 : window.innerWidth - panelBounds.left + 12)}px`,
         );
       }
     };
@@ -1027,6 +1049,49 @@ export function EnvironmentPanel({
       }
     }
   }, [project.id, threadId]);
+
+  useEffect(() => {
+    setChangedFiles([]);
+    setChangesError(undefined);
+    if (!open || !gitInfo?.managed || !threadId || gitInfo.changeCount === 0)
+      return;
+    let active = true;
+    void Promise.all(
+      (["unstaged", "staged"] as const).map(async (scope) => ({
+        scope,
+        diff: await window.artemis.getReviewDiff({ threadId, scope }),
+      })),
+    )
+      .then((results) => {
+        if (!active) return;
+        const files = new Map<string, ReviewFile & { scope: ReviewScope }>();
+        for (const { scope, diff } of results) {
+          for (const file of diff.files) {
+            const previous = files.get(file.path);
+            files.set(
+              file.path,
+              previous
+                ? {
+                    ...previous,
+                    additions: previous.additions + file.additions,
+                    deletions: previous.deletions + file.deletions,
+                  }
+                : { ...file, scope },
+            );
+          }
+        }
+        setChangedFiles([...files.values()]);
+      })
+      .catch((error: unknown) => {
+        if (active)
+          setChangesError(
+            error instanceof Error ? error.message : String(error),
+          );
+      });
+    return () => {
+      active = false;
+    };
+  }, [gitInfo, open, threadId]);
 
   const loadPullRequest = useCallback(async () => {
     const id = ++pullRequestRequest.current;
@@ -1551,6 +1616,235 @@ export function EnvironmentPanel({
     </button>
   );
 
+  const commitSubview = gitInfo?.managed ? (
+    <form
+      aria-label={t.commitOrPush}
+      aria-busy={Boolean(gitBusy)}
+      className="environment-git-dialog"
+      onKeyDown={(event) => {
+        if (
+          event.key === "Enter" &&
+          (event.metaKey || event.ctrlKey) &&
+          !commitDisabledReason &&
+          !gitBusy
+        ) {
+          event.preventDefault();
+          event.currentTarget.requestSubmit();
+        }
+      }}
+      onMouseDown={(event) => event.stopPropagation()}
+      onSubmit={commit}
+    >
+      <label className="environment-git-message">
+        <textarea
+          aria-label={t.commitMessage}
+          autoFocus={!creatingCommitBranch}
+          disabled={Boolean(gitBusy)}
+          maxLength={10_000}
+          onChange={(event) => setCommitMessage(event.target.value)}
+          placeholder={t.commitMessagePlaceholder}
+          rows={4}
+          value={commitMessage}
+        />
+      </label>
+
+      <label
+        className="environment-git-include"
+        data-artemis-component="checkbox"
+        data-state={
+          gitBusy ? "disabled" : includeUnstaged ? "checked" : "ready"
+        }
+      >
+        <input
+          data-part="control"
+          checked={includeUnstaged}
+          disabled={Boolean(gitBusy)}
+          onChange={(event) => setIncludeUnstaged(event.target.checked)}
+          type="checkbox"
+        />
+        <span aria-hidden="true" data-part="indicator">
+          {includeUnstaged ? "✓" : ""}
+        </span>
+        <strong>{t.includeUnstaged}</strong>
+        <span className="environment-diff-total">
+          <i>
+            +{includeUnstaged ? gitInfo.additions : gitInfo.stagedAdditions}
+          </i>
+          <b>
+            −{includeUnstaged ? gitInfo.deletions : gitInfo.stagedDeletions}
+          </b>
+        </span>
+      </label>
+
+      <label className="environment-field-label">{t.commitDestination}</label>
+      <SegmentedControl
+        label={t.commitDestination}
+        value={creatingCommitBranch ? "new" : "current"}
+        disabled={Boolean(gitBusy) || actionsDisabled}
+        options={[
+          { value: "current", label: t.branch },
+          { value: "new", label: t.newBranch },
+        ]}
+        onValueChange={(value) => {
+          setCreatingCommitBranch(value === "new");
+          if (value === "new")
+            setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
+          setCommitBranchOpen(false);
+        }}
+      />
+      <div className="environment-git-destination">
+        <button
+          aria-expanded={commitBranchOpen}
+          aria-haspopup="menu"
+          className="environment-git-destination-trigger"
+          disabled={Boolean(gitBusy)}
+          onClick={() => setCommitBranchOpen((current) => !current)}
+          type="button"
+        >
+          <BranchIcon />
+          <strong>
+            {creatingCommitBranch
+              ? t.newBranch
+              : (gitInfo.currentBranch ?? t.detached)}
+          </strong>
+          <EnvironmentChevronIcon aria-hidden="true" />
+        </button>
+        {commitBranchOpen && (
+          <div
+            aria-label={t.commitDestination}
+            className="environment-git-destination-menu"
+            role="menu"
+          >
+            <h3>{t.commitDestination}</h3>
+            {gitInfo.branches.map((branch) => (
+              <button
+                aria-checked={!creatingCommitBranch && branch.current}
+                className={
+                  !creatingCommitBranch && branch.current ? "selected" : ""
+                }
+                disabled={Boolean(gitBusy)}
+                key={branch.name}
+                onClick={() => {
+                  if (branch.current) {
+                    setCreatingCommitBranch(false);
+                    setCommitBranchOpen(false);
+                  } else {
+                    void switchBranch(branch.name);
+                  }
+                }}
+                role="menuitemradio"
+                type="button"
+              >
+                <BranchIcon />
+                <span>{branch.name}</span>
+                <i aria-hidden="true">
+                  {!creatingCommitBranch && branch.current ? (
+                    <EnvironmentCheckIcon />
+                  ) : null}
+                </i>
+              </button>
+            ))}
+            <button
+              aria-checked={creatingCommitBranch}
+              className={creatingCommitBranch ? "selected" : ""}
+              disabled={actionsDisabled || Boolean(gitBusy)}
+              onClick={() => {
+                setCreatingCommitBranch(true);
+                setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
+                setCommitBranchOpen(false);
+              }}
+              role="menuitemradio"
+              type="button"
+            >
+              <span className="environment-git-new-branch-icon">
+                <EnvironmentAddIcon aria-hidden="true" />
+              </span>
+              <span>{t.newBranch}</span>
+              <i />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {creatingCommitBranch && (
+        <label className="environment-git-branch-name">
+          <input
+            aria-label={t.newBranch}
+            autoFocus
+            disabled={Boolean(gitBusy)}
+            maxLength={240}
+            onChange={(event) => setNewCommitBranch(event.target.value)}
+            placeholder={t.newBranchPlaceholder}
+            value={newCommitBranch}
+          />
+        </label>
+      )}
+
+      {gitBusy && (
+        <p className="environment-git-progress" role="status">
+          <ArtemisIcon name="clock" width={14} height={14} />
+          {gitBusy === "push"
+            ? t.pushing
+            : gitBusy === "commit-push"
+              ? commitMessage.trim()
+                ? t.pushing
+                : t.generatingPush
+              : commitMessage.trim()
+                ? t.committing
+                : t.generatingCommit}
+        </p>
+      )}
+      <div className="environment-git-actions">
+        <button
+          className="primary"
+          disabled={Boolean(commitDisabledReason) || Boolean(gitBusy)}
+          title={commitDisabledReason}
+          type="submit"
+        >
+          <EnvironmentCommitIcon />
+          <strong>
+            {gitBusy === "commit"
+              ? commitMessage.trim()
+                ? t.committing
+                : t.generatingCommit
+              : t.commit}
+          </strong>
+          <kbd>⌘↵</kbd>
+        </button>
+        <button
+          disabled={Boolean(commitAndPushDisabledReason) || Boolean(gitBusy)}
+          onClick={() => void commitAndPush()}
+          title={commitAndPushDisabledReason}
+          type="button"
+        >
+          <PushIcon />
+          <strong>
+            {gitBusy === "commit-push"
+              ? commitMessage.trim()
+                ? t.pushing
+                : t.generatingPush
+              : t.commitAndPush}
+          </strong>
+        </button>
+        <button
+          disabled={Boolean(pushDisabledReason) || Boolean(gitBusy)}
+          onClick={() => void push()}
+          title={pushDisabledReason}
+          type="button"
+        >
+          <PushIcon />
+          <strong>{gitBusy === "push" ? t.pushing : t.push}</strong>
+        </button>
+      </div>
+
+      {gitError && (
+        <p className="environment-git-dialog-error" role="alert">
+          {gitError}
+        </p>
+      )}
+    </form>
+  ) : null;
+
   return (
     <EnvironmentControl
       data-dock-open={dockOpen}
@@ -1567,11 +1861,31 @@ export function EnvironmentPanel({
         title={t.trigger}
       />
       {panelVisible && (
-        <EnvironmentPanelSurface id={panelId} label={t.title} ref={panel}>
+        <EnvironmentPanelSurface
+          id={panelId}
+          label={commitOpen ? t.commitOrPush : t.title}
+          ref={panel}
+        >
           <header className="environment-panel-header">
+            {commitOpen && (
+              <button
+                aria-label={t.title}
+                className="environment-header-action environment-back"
+                disabled={Boolean(gitBusy)}
+                onClick={closeCommitDialog}
+                type="button"
+              >
+                <ArtemisIcon name="chev-left" />
+              </button>
+            )}
             <strong title={project.name}>
-              {t.title} · {project.name}
+              {commitOpen ? t.commitOrPush : t.title}
             </strong>
+            {!commitOpen && (
+              <span className="environment-project-name" title={project.name}>
+                {project.name}
+              </span>
+            )}
             <button
               aria-label={t.close}
               className="environment-header-action"
@@ -1582,288 +1896,433 @@ export function EnvironmentPanel({
               <ArtemisIcon name="close" />
             </button>
           </header>
-          {imGroup && (
-            <ImGroupMembers
-              managePermissions
-              group={imGroup}
-              locale={locale}
-              onMention={onMentionMember}
-              onRemove={onRemoveMember}
-              removalDisabled={memberRemovalDisabled}
-            />
-          )}
-          {!gitInfo?.managed && (gitError || manuallyOpened.current) && (
-            <EnvironmentSection
-              className="git-environment-section"
-              title={
-                <>
-                  <EnvironmentGithubIcon />
-                  <span>Git</span>
-                </>
-              }
-            >
-              {gitError ? (
-                <div className="environment-inline-error" role="alert">
-                  <span>{gitError}</span>
-                  <button onClick={() => void loadGit()} type="button">
-                    {t.retry}
-                  </button>
-                </div>
-              ) : (
-                <div className="environment-setting-row" role="status">
-                  <span>{gitInfo ? t.notGit : t.loading}</span>
-                </div>
-              )}
-            </EnvironmentSection>
-          )}
-          {gitInfo?.managed && (
-            <EnvironmentSection
-              action={
-                <button
-                  aria-label={t.addProject}
-                  className="environment-header-action"
-                  onClick={onAddProject}
-                  title={t.addProject}
-                  type="button"
-                >
-                  <EnvironmentAddIcon aria-hidden="true" />
-                </button>
-              }
-              className="git-environment-section"
-              title={
-                <>
-                  <EnvironmentGithubIcon />
-                  <span>Git</span>
-                </>
-              }
-            >
-              <div className="environment-rows">
-                <button
-                  className="environment-text-action"
-                  onClick={() => {
-                    hidePanel();
-                    onOpenReview(
-                      gitInfo.unstagedCount > 0 || gitInfo.untrackedCount > 0
-                        ? "unstaged"
-                        : "staged",
-                    );
-                  }}
-                  type="button"
-                >
-                  <ChangesIcon />
-                  <span>{t.viewChanges}</span>
-                  <span className="environment-diff-total">
-                    <i>+{gitInfo.additions}</i>
-                    <b>−{gitInfo.deletions}</b>
-                  </span>
-                </button>
-                <EnvironmentWorkspaceMenu
+          {commitOpen ? (
+            commitSubview
+          ) : (
+            <>
+              {imGroup && (
+                <ImGroupMembers
+                  managePermissions
+                  group={imGroup}
                   locale={locale}
-                  path={gitInfo.root ?? project.path}
-                  worktree={workspaceIsWorktree}
-                  disabled={actionsDisabled || Boolean(gitBusy)}
-                  onHandoff={onWorkspaceHandoff}
-                  onWorktreesChanged={onWorktreesChanged}
-                  onOpenUsage={onOpenUsage}
-                  onMessage={onMessage}
+                  onMention={onMentionMember}
+                  onRemove={onRemoveMember}
+                  removalDisabled={memberRemovalDisabled}
                 />
-                <div className="environment-setting-row environment-branch-row">
-                  <div className="environment-branch-control">
-                    <button
-                      aria-controls="environment-branch-menu"
-                      aria-expanded={branchOpen}
-                      aria-haspopup="menu"
-                      className="environment-row"
-                      onClick={() => {
-                        if (branchOpen) closeBranchMenu();
-                        else {
-                          setCreatingMenuBranch(false);
-                          setMenuBranchName("");
-                          setBranchOpen(true);
-                        }
-                      }}
-                      ref={branchTrigger}
-                      title={gitInfo.currentBranch ?? t.detached}
-                      type="button"
-                    >
-                      <BranchIcon />
-                      <span className="environment-row-copy">
-                        <strong>{gitInfo.currentBranch ?? t.detached}</strong>
-                      </span>
-                      <span className="environment-chevron" aria-hidden="true">
-                        <EnvironmentChevronIcon />
-                      </span>
-                    </button>
-                  </div>
-                </div>
-                <button
-                  className="environment-text-action commit-push-row"
-                  disabled={
-                    Boolean(gitBusy) || Boolean(panelGitAction.disabledReason)
+              )}
+              {!gitInfo?.managed && (gitError || manuallyOpened.current) && (
+                <EnvironmentSection
+                  className="git-environment-section"
+                  title={
+                    <>
+                      <EnvironmentGithubIcon />
+                      <span>Git</span>
+                    </>
                   }
-                  onClick={() => {
-                    setGitError(undefined);
-                    setCommitOpen(true);
-                  }}
-                  title={panelGitAction.disabledReason}
-                  type="button"
                 >
-                  <EnvironmentCommitIcon />
-                  <span>{t.commitOrPush}</span>
-                </button>
-                {pullRequestLoading &&
-                  !pullRequestLookup &&
-                  !pullRequestError && (
-                    <div className="environment-pr-notice" role="status">
-                      <span className="environment-row-icon">
-                        <PullRequestIcon />
-                      </span>
-                      <span>{t.githubChecking}</span>
+                  {gitError ? (
+                    <div className="environment-inline-error" role="alert">
+                      <span>{gitError}</span>
+                      <button onClick={() => void loadGit()} type="button">
+                        {t.retry}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="environment-setting-row" role="status">
+                      <span>{gitInfo ? t.notGit : t.loading}</span>
                     </div>
                   )}
-                {pullRequest && (
-                  <PullRequestChecksSummary
-                    checkSummary={checkSummary}
-                    checksOpen={checksOpen}
-                    chevronIcon={<EnvironmentChevronIcon aria-hidden="true" />}
-                    onBlurredOut={scheduleChecksClose}
-                    onOpenUrl={onOpenUrl}
-                    onShowChecks={showChecks}
-                    onShowChecksWithFocus={showChecksWithFocus}
-                    onToggleOpen={() =>
-                      checksOpen ? closeChecks() : showChecksWithFocus()
-                    }
-                    prIcon={<PullRequestIcon />}
-                    pullRequest={pullRequest}
-                    shouldKeepOpen={(node) =>
-                      checksPopover.current?.contains(node) ?? false
-                    }
-                    staleLabel={pullRequestError ? t.githubStale : undefined}
-                    staleTitle={pullRequestError}
-                    stateLabel={pullRequestStateLabel}
-                    summaryLabel={checkSummaryLabels[checkSummary]}
-                    triggerRef={checksTrigger}
-                    warningLabel={coverageWarningLabel}
-                  />
-                )}
-                {pullRequestError && !pullRequest && (
-                  <EnvironmentPullRequestError
-                    key={`${project.id}:${threadId ?? ""}:${pullRequestError}`}
-                    error={pullRequestError}
-                    loading={pullRequestLoading}
-                    locale={locale}
-                    onRetry={() => void loadPullRequest()}
-                  />
-                )}
-                {gitError && (
-                  <div className="environment-inline-error" role="alert">
-                    <span>{gitError}</span>
-                    {pendingSwitchBranch && (
+                </EnvironmentSection>
+              )}
+              {gitInfo?.managed && (
+                <>
+                  <EnvironmentSection
+                    className="git-environment-section environment-workspace-section"
+                    title={uiText(locale, "AutomationPage_text.target")}
+                    action={
                       <button
+                        aria-label={t.addProject}
+                        className="environment-header-action"
+                        onClick={onAddProject}
+                        title={t.addProject}
+                        type="button"
+                      >
+                        <EnvironmentAddIcon aria-hidden="true" />
+                      </button>
+                    }
+                  >
+                    <div className="environment-rows">
+                      <EnvironmentWorkspaceMenu
+                        locale={locale}
+                        path={gitInfo.root ?? project.path}
+                        worktree={workspaceIsWorktree}
+                        disabled={actionsDisabled || Boolean(gitBusy)}
+                        onHandoff={onWorkspaceHandoff}
+                        onWorktreesChanged={onWorktreesChanged}
+                        onOpenUsage={onOpenUsage}
+                        onMessage={onMessage}
+                      />
+                      <div className="environment-setting-row environment-branch-row">
+                        <div className="environment-branch-control">
+                          <button
+                            aria-controls="environment-branch-menu"
+                            aria-expanded={branchOpen}
+                            aria-haspopup="menu"
+                            className="environment-row"
+                            onClick={() => {
+                              if (branchOpen) closeBranchMenu();
+                              else {
+                                setCreatingMenuBranch(false);
+                                setMenuBranchName("");
+                                setBranchOpen(true);
+                              }
+                            }}
+                            ref={branchTrigger}
+                            title={gitInfo.currentBranch ?? t.detached}
+                            type="button"
+                          >
+                            <BranchIcon />
+                            <span className="environment-row-copy">
+                              <strong>
+                                {gitInfo.currentBranch ?? t.detached}
+                              </strong>
+                            </span>
+                            <span
+                              className="environment-sync-count"
+                              title={gitInfo.upstream ?? t.noUpstream}
+                            >
+                              {gitInfo.ahead > 0 ? `↑${gitInfo.ahead}` : ""}
+                              {gitInfo.behind > 0 ? ` ↓${gitInfo.behind}` : ""}
+                            </span>
+                            <span
+                              className="environment-chevron"
+                              aria-hidden="true"
+                            >
+                              <EnvironmentChevronIcon />
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <button
+                        className="environment-compare-row"
                         onClick={() => {
-                          setBranchOpen(false);
-                          setCommitOpen(true);
+                          hidePanel();
+                          onOpenReview("branch", gitInfo.compareBase);
                         }}
                         type="button"
                       >
-                        {t.commitAndSwitch}
+                        <EnvironmentCompareIcon />
+                        <span>{t.compareBranch}</span>
+                        <strong>
+                          {gitInfo.compareBase ?? t.noCompareBase}
+                        </strong>
                       </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </EnvironmentSection>
-          )}
-
-          {(displayAgents.length > 0 || teams.length > 0) && (
-            <EnvironmentSection
-              action={
-                <div className="environment-section-actions">
-                  {latestTeam && (
-                    <button
-                      className="environment-text-action"
-                      onClick={() => {
-                        hidePanel();
-                        onOpenTeam(latestTeam);
-                      }}
-                      type="button"
-                    >
-                      {t.details}
-                    </button>
-                  )}
-                  {displayAgents.length > activityPreviewLimit && (
-                    <button
-                      className="environment-text-action"
-                      onClick={() => setShowAllAgents((current) => !current)}
-                      type="button"
-                    >
-                      {showAllAgents ? t.showLess : t.viewAll}
-                    </button>
-                  )}
-                </div>
-              }
-              title={
-                <>
-                  <EnvironmentAgentsIcon />
-                  {t.agents}
-                </>
-              }
-            >
-              <div className="environment-activity-list">
-                {teamGroups.map(({ team, agents: members }) => (
-                  <div
-                    aria-label={team.mission}
-                    className="environment-agent-group"
-                    key={team.teamId}
-                    role="group"
-                  >
-                    <div className="environment-agent-team-children">
-                      {members.map(renderAgentRow)}
+                      <small className="environment-sync-status">
+                        {!gitInfo.currentBranch
+                          ? t.detached
+                          : !gitInfo.upstream
+                            ? t.noUpstream
+                            : gitInfo.behind > 0
+                              ? t.behind
+                              : gitInfo.ahead === 0
+                                ? t.synced
+                                : gitInfo.upstream}
+                      </small>
                     </div>
-                  </div>
-                ))}
-                {standaloneAgents.map(renderAgentRow)}
-              </div>
-            </EnvironmentSection>
-          )}
+                  </EnvironmentSection>
+                  <EnvironmentSection
+                    className="environment-github-section"
+                    title="GitHub"
+                    action={
+                      <button
+                        aria-label={uiText(
+                          locale,
+                          "ResourceCenter_labels.refresh",
+                        )}
+                        className="environment-header-action"
+                        disabled={pullRequestLoading}
+                        onClick={() => void loadPullRequest()}
+                        type="button"
+                      >
+                        <ArtemisIcon name="refresh" />
+                      </button>
+                    }
+                  >
+                    {pullRequestLoading &&
+                      !pullRequestLookup &&
+                      !pullRequestError && (
+                        <div className="environment-pr-notice" role="status">
+                          <span className="environment-row-icon">
+                            <PullRequestIcon />
+                          </span>
+                          <span>{t.githubChecking}</span>
+                        </div>
+                      )}
+                    {pullRequest && (
+                      <PullRequestChecksSummary
+                        checkSummary={checkSummary}
+                        checksOpen={checksOpen}
+                        chevronIcon={
+                          <EnvironmentChevronIcon aria-hidden="true" />
+                        }
+                        onBlurredOut={scheduleChecksClose}
+                        onOpenUrl={onOpenUrl}
+                        onShowChecks={showChecks}
+                        onShowChecksWithFocus={showChecksWithFocus}
+                        onToggleOpen={() =>
+                          checksOpen ? closeChecks() : showChecksWithFocus()
+                        }
+                        prIcon={<PullRequestIcon />}
+                        pullRequest={pullRequest}
+                        shouldKeepOpen={(node) =>
+                          checksPopover.current?.contains(node) ?? false
+                        }
+                        staleLabel={
+                          pullRequestError ? t.githubStale : undefined
+                        }
+                        staleTitle={pullRequestError}
+                        stateLabel={pullRequestStateLabel}
+                        summaryLabel={checkSummaryLabels[checkSummary]}
+                        triggerRef={checksTrigger}
+                        warningLabel={coverageWarningLabel}
+                      />
+                    )}
+                    {pullRequestError && !pullRequest && (
+                      <EnvironmentPullRequestError
+                        key={`${project.id}:${threadId ?? ""}:${pullRequestError}`}
+                        error={pullRequestError}
+                        loading={pullRequestLoading}
+                        locale={locale}
+                        onRetry={() => void loadPullRequest()}
+                      />
+                    )}
 
-          {hasSourcePanelDetails && (
-            <EnvironmentSection
-              action={
-                <button
-                  aria-label={t.addSources}
-                  className="environment-header-action"
-                  onClick={onAddSources}
-                  title={t.addSources}
-                  type="button"
-                >
-                  <EnvironmentAddIcon aria-hidden="true" />
-                </button>
-              }
-              className="sources-section"
-              title={
-                <>
-                  <EnvironmentSourcesIcon />
-                  {t.sources}
+                    {!pullRequest &&
+                      !pullRequestLoading &&
+                      !pullRequestError && (
+                        <p className="environment-pr-empty">
+                          {!gitInfo.upstream
+                            ? t.noUpstream
+                            : uiText(
+                                locale,
+                                "EnvironmentPanel.githubNoPullRequest",
+                              )}
+                        </p>
+                      )}
+                    {!gitInfo.upstream && (
+                      <p className="environment-pr-empty">
+                        {uiText(
+                          locale,
+                          "EnvironmentPanel.pushBeforePullRequest",
+                        )}
+                      </p>
+                    )}
+                  </EnvironmentSection>
+                  <EnvironmentSection
+                    className="environment-changes-section"
+                    title={t.viewChanges}
+                    action={
+                      <span className="environment-diff-total">
+                        <i>+{gitInfo.additions}</i>
+                        <b>−{gitInfo.deletions}</b>
+                      </span>
+                    }
+                  >
+                    <div className="environment-changed-files">
+                      {changedFiles.map((file) => (
+                        <button
+                          className="environment-file-row"
+                          key={file.path}
+                          title={file.path}
+                          type="button"
+                          onClick={() => {
+                            hidePanel();
+                            onOpenReview(file.scope);
+                          }}
+                        >
+                          <WorkspaceFileIcon
+                            path={file.path}
+                            presentation={filePresentation(file.path)}
+                            symlink={false}
+                          />
+                          <span className="environment-file-name">
+                            {file.path}
+                          </span>
+                          <span className="environment-diff-total">
+                            <i>+{file.additions}</i>
+                            <b>−{file.deletions}</b>
+                          </span>
+                          <span
+                            className="file-status"
+                            data-status={file.status}
+                          >
+                            {file.status === "added"
+                              ? "A"
+                              : file.status === "deleted"
+                                ? "D"
+                                : "M"}
+                          </span>
+                        </button>
+                      ))}
+                      {gitInfo.changeCount === 0 && (
+                        <p className="environment-pr-empty">
+                          {UI_COPY.App_copy[locale].noChanges}
+                        </p>
+                      )}
+                      {changesError && (
+                        <p className="environment-inline-error" role="alert">
+                          {changesError}
+                        </p>
+                      )}
+                    </div>
+                    <div className="environment-change-actions">
+                      <button
+                        className="environment-text-action"
+                        onClick={() => {
+                          hidePanel();
+                          onOpenReview(
+                            gitInfo.unstagedCount > 0 ||
+                              gitInfo.untrackedCount > 0
+                              ? "unstaged"
+                              : "staged",
+                          );
+                        }}
+                        type="button"
+                      >
+                        <ChangesIcon />
+                        <span>{UI_COPY.App_copy[locale].reviewChanges}</span>
+                      </button>
+                      <button
+                        className="environment-text-action commit-push-row"
+                        disabled={
+                          Boolean(gitBusy) ||
+                          Boolean(panelGitAction.disabledReason)
+                        }
+                        onClick={() => {
+                          setGitError(undefined);
+                          setCommitOpen(true);
+                        }}
+                        title={panelGitAction.disabledReason}
+                        type="button"
+                      >
+                        <EnvironmentCommitIcon />
+                        <span>{t.commitOrPush}</span>
+                      </button>
+                    </div>
+                    {gitError && (
+                      <div className="environment-inline-error" role="alert">
+                        <span>{gitError}</span>
+                        {pendingSwitchBranch && (
+                          <button
+                            onClick={() => {
+                              setBranchOpen(false);
+                              setCommitOpen(true);
+                            }}
+                            type="button"
+                          >
+                            {t.commitAndSwitch}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </EnvironmentSection>
                 </>
-              }
-            >
-              <div className="environment-setting-row">
-                <EnvironmentSourcesIcon />
-                <span className="environment-setting-copy">
-                  <strong>
-                    {t.sourceSummary(attachmentCount, sourceCallCount)}
-                  </strong>
-                </span>
-                <button
-                  className="environment-view-all environment-text-action"
-                  onClick={viewAllSources}
-                  type="button"
+              )}
+
+              {(displayAgents.length > 0 || teams.length > 0) && (
+                <EnvironmentSection
+                  action={
+                    <div className="environment-section-actions">
+                      {latestTeam && (
+                        <button
+                          className="environment-text-action"
+                          onClick={() => {
+                            hidePanel();
+                            onOpenTeam(latestTeam);
+                          }}
+                          type="button"
+                        >
+                          {t.details}
+                        </button>
+                      )}
+                      {displayAgents.length > activityPreviewLimit && (
+                        <button
+                          className="environment-text-action"
+                          onClick={() =>
+                            setShowAllAgents((current) => !current)
+                          }
+                          type="button"
+                        >
+                          {showAllAgents ? t.showLess : t.viewAll}
+                        </button>
+                      )}
+                    </div>
+                  }
+                  title={
+                    <>
+                      <EnvironmentAgentsIcon />
+                      {t.agents}
+                    </>
+                  }
                 >
-                  {t.viewAll}
-                </button>
-              </div>
-            </EnvironmentSection>
+                  <div className="environment-activity-list">
+                    {teamGroups.map(({ team, agents: members }) => (
+                      <div
+                        aria-label={team.mission}
+                        className="environment-agent-group"
+                        key={team.teamId}
+                        role="group"
+                      >
+                        <div className="environment-agent-team-children">
+                          {members.map(renderAgentRow)}
+                        </div>
+                      </div>
+                    ))}
+                    {standaloneAgents.map(renderAgentRow)}
+                  </div>
+                </EnvironmentSection>
+              )}
+
+              {hasSourcePanelDetails && (
+                <EnvironmentSection
+                  action={
+                    <button
+                      aria-label={t.addSources}
+                      className="environment-header-action"
+                      onClick={onAddSources}
+                      title={t.addSources}
+                      type="button"
+                    >
+                      <EnvironmentAddIcon aria-hidden="true" />
+                    </button>
+                  }
+                  className="sources-section"
+                  title={
+                    <>
+                      <EnvironmentSourcesIcon />
+                      {t.sources}
+                    </>
+                  }
+                >
+                  <div className="environment-setting-row">
+                    <EnvironmentSourcesIcon />
+                    <span className="environment-setting-copy">
+                      <strong>
+                        {t.sourceSummary(attachmentCount, sourceCallCount)}
+                      </strong>
+                    </span>
+                    <button
+                      className="environment-view-all environment-text-action"
+                      onClick={viewAllSources}
+                      type="button"
+                    >
+                      {t.viewAll}
+                    </button>
+                  </div>
+                </EnvironmentSection>
+              )}
+            </>
           )}
         </EnvironmentPanelSurface>
       )}
@@ -2032,247 +2491,6 @@ export function EnvironmentPanel({
           }
         />
       )}
-      {commitOpen &&
-        gitInfo?.managed &&
-        createPortal(
-          <div
-            className="environment-git-dialog-backdrop"
-            onMouseDown={() => {
-              if (!gitBusy) closeCommitDialog();
-            }}
-          >
-            <form
-              aria-label={t.commitOrPush}
-              aria-busy={Boolean(gitBusy)}
-              aria-modal="true"
-              className="environment-git-dialog"
-              onKeyDown={(event) => {
-                if (event.key === "Tab") {
-                  const focusable = [
-                    ...event.currentTarget.querySelectorAll<HTMLElement>(
-                      "button:not([disabled]), input:not([disabled]), textarea:not([disabled])",
-                    ),
-                  ];
-                  const first = focusable[0];
-                  const last = focusable.at(-1);
-                  if (
-                    first &&
-                    last &&
-                    ((event.shiftKey && document.activeElement === first) ||
-                      (!event.shiftKey && document.activeElement === last))
-                  ) {
-                    event.preventDefault();
-                    (event.shiftKey ? last : first).focus();
-                  }
-                  return;
-                }
-                if (
-                  event.key === "Enter" &&
-                  (event.metaKey || event.ctrlKey) &&
-                  !commitDisabledReason &&
-                  !gitBusy
-                ) {
-                  event.preventDefault();
-                  event.currentTarget.requestSubmit();
-                }
-              }}
-              onMouseDown={(event) => event.stopPropagation()}
-              onSubmit={commit}
-              role="dialog"
-            >
-              <div className="environment-git-destination">
-                <button
-                  aria-expanded={commitBranchOpen}
-                  aria-haspopup="menu"
-                  className="environment-git-destination-trigger"
-                  disabled={Boolean(gitBusy)}
-                  onClick={() => setCommitBranchOpen((current) => !current)}
-                  type="button"
-                >
-                  <BranchIcon />
-                  <strong>
-                    {creatingCommitBranch
-                      ? t.newBranch
-                      : (gitInfo.currentBranch ?? t.detached)}
-                  </strong>
-                  <EnvironmentChevronIcon aria-hidden="true" />
-                </button>
-                {commitBranchOpen && (
-                  <div
-                    aria-label={t.commitDestination}
-                    className="environment-git-destination-menu"
-                    role="menu"
-                  >
-                    <h3>{t.commitDestination}</h3>
-                    {gitInfo.branches.map((branch) => (
-                      <button
-                        aria-checked={!creatingCommitBranch && branch.current}
-                        className={
-                          !creatingCommitBranch && branch.current
-                            ? "selected"
-                            : ""
-                        }
-                        disabled={Boolean(gitBusy)}
-                        key={branch.name}
-                        onClick={() => {
-                          if (branch.current) {
-                            setCreatingCommitBranch(false);
-                            setCommitBranchOpen(false);
-                          } else {
-                            void switchBranch(branch.name);
-                          }
-                        }}
-                        role="menuitemradio"
-                        type="button"
-                      >
-                        <BranchIcon />
-                        <span>{branch.name}</span>
-                        <i aria-hidden="true">
-                          {!creatingCommitBranch && branch.current ? (
-                            <EnvironmentCheckIcon />
-                          ) : null}
-                        </i>
-                      </button>
-                    ))}
-                    <button
-                      aria-checked={creatingCommitBranch}
-                      className={creatingCommitBranch ? "selected" : ""}
-                      disabled={actionsDisabled || Boolean(gitBusy)}
-                      onClick={() => {
-                        setCreatingCommitBranch(true);
-                        setNewCommitBranch(
-                          suggestedEnvironmentBranchName(taskTitle),
-                        );
-                        setCommitBranchOpen(false);
-                      }}
-                      role="menuitemradio"
-                      type="button"
-                    >
-                      <span className="environment-git-new-branch-icon">
-                        <EnvironmentAddIcon aria-hidden="true" />
-                      </span>
-                      <span>{t.newBranch}</span>
-                      <i />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {creatingCommitBranch && (
-                <label className="environment-git-branch-name">
-                  <input
-                    aria-label={t.newBranch}
-                    autoFocus
-                    disabled={Boolean(gitBusy)}
-                    maxLength={240}
-                    onChange={(event) => setNewCommitBranch(event.target.value)}
-                    placeholder={t.newBranchPlaceholder}
-                    value={newCommitBranch}
-                  />
-                </label>
-              )}
-
-              <label className="environment-git-message">
-                <textarea
-                  aria-label={t.commitMessage}
-                  autoFocus={!creatingCommitBranch}
-                  disabled={Boolean(gitBusy)}
-                  maxLength={10_000}
-                  onChange={(event) => setCommitMessage(event.target.value)}
-                  placeholder={t.commitMessagePlaceholder}
-                  rows={4}
-                  value={commitMessage}
-                />
-              </label>
-
-              <label
-                className="environment-git-include"
-                data-artemis-component="checkbox"
-                data-state={
-                  gitBusy ? "disabled" : includeUnstaged ? "checked" : "ready"
-                }
-              >
-                <input
-                  data-part="control"
-                  checked={includeUnstaged}
-                  disabled={Boolean(gitBusy)}
-                  onChange={(event) => setIncludeUnstaged(event.target.checked)}
-                  type="checkbox"
-                />
-                <span aria-hidden="true" data-part="indicator">
-                  {includeUnstaged ? "✓" : ""}
-                </span>
-                <strong>{t.includeUnstaged}</strong>
-                <span className="environment-diff-total">
-                  <i>
-                    +
-                    {includeUnstaged
-                      ? gitInfo.additions
-                      : gitInfo.stagedAdditions}
-                  </i>
-                  <b>
-                    −
-                    {includeUnstaged
-                      ? gitInfo.deletions
-                      : gitInfo.stagedDeletions}
-                  </b>
-                </span>
-              </label>
-
-              <div className="environment-git-actions">
-                <button
-                  className="primary"
-                  disabled={Boolean(commitDisabledReason) || Boolean(gitBusy)}
-                  title={commitDisabledReason}
-                  type="submit"
-                >
-                  <EnvironmentCommitIcon />
-                  <strong>
-                    {gitBusy === "commit"
-                      ? commitMessage.trim()
-                        ? t.committing
-                        : t.generatingCommit
-                      : t.commit}
-                  </strong>
-                  <kbd>⌘↵</kbd>
-                </button>
-                <button
-                  disabled={
-                    Boolean(commitAndPushDisabledReason) || Boolean(gitBusy)
-                  }
-                  onClick={() => void commitAndPush()}
-                  title={commitAndPushDisabledReason}
-                  type="button"
-                >
-                  <PushIcon />
-                  <strong>
-                    {gitBusy === "commit-push"
-                      ? commitMessage.trim()
-                        ? t.pushing
-                        : t.generatingPush
-                      : t.commitAndPush}
-                  </strong>
-                </button>
-                <button
-                  disabled={Boolean(pushDisabledReason) || Boolean(gitBusy)}
-                  onClick={() => void push()}
-                  title={pushDisabledReason}
-                  type="button"
-                >
-                  <PushIcon />
-                  <strong>{gitBusy === "push" ? t.pushing : t.push}</strong>
-                </button>
-              </div>
-
-              {gitError && (
-                <p className="environment-git-dialog-error" role="alert">
-                  {gitError}
-                </p>
-              )}
-            </form>
-          </div>,
-          document.body,
-        )}
     </EnvironmentControl>
   );
 }

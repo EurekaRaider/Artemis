@@ -45,6 +45,7 @@ let captionReserve: number;
 const resizeCallbacks = new Set<() => void>();
 beforeEach(() => {
   workspaceWidth = 1800;
+  vi.stubGlobal("innerWidth", 2060);
   conversationWidth = undefined;
   dockWidth = undefined;
   timelineWidth = 960;
@@ -124,9 +125,13 @@ afterEach(() => {
 
 function fixture(
   overrides: Partial<typeof props> = {},
-  panelWidth = 280,
+  panelWidth = 304,
   inlineOffset = 0,
 ) {
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: workspaceWidth + 260,
+  });
   return (
     <div
       className="workspace"
@@ -164,6 +169,10 @@ async function renderReady(ui: ReturnType<typeof fixture>) {
 }
 function resize(width: number) {
   workspaceWidth = width;
+  Object.defineProperty(window, "innerWidth", {
+    configurable: true,
+    value: width + 260,
+  });
   act(() => resizeCallbacks.forEach((callback) => callback()));
 }
 const dialog = () =>
@@ -502,7 +511,7 @@ describe("environment panel automatic visibility", () => {
     } as never);
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
-    expect(screen.getByRole("heading", { name: "Git" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Workspace" })).toBeVisible();
   });
 
   it.each(["agents", "sources", "both"] as const)(
@@ -569,31 +578,31 @@ describe("environment panel automatic visibility", () => {
       screen.getByRole("button", { name: "Task environment" }),
     );
     expect(dialog()).toBeVisible();
-    expect(safeSpace()).toBe("354px");
+    expect(safeSpace()).toBe("328px");
     await userEvent.keyboard("{Escape}");
     expect(dialog()).toBeNull();
     expect(safeSpace()).toBe("");
     await userEvent.click(
       screen.getByRole("button", { name: "Task environment" }),
     );
-    expect(safeSpace()).toBe("354px");
+    expect(safeSpace()).toBe("328px");
     unmount();
     expect(safeSpace()).toBe("");
   });
 
   it("opens with sufficient space and restores at the exact width threshold without moving prompt focus", async () => {
-    workspaceWidth = 857;
+    workspaceWidth = 719;
     await renderReady(fixture());
     expect(dialog()).toBeNull();
     const prompt = screen.getByRole("textbox", { name: "Prompt" });
     prompt.focus();
-    resize(858);
+    resize(720);
     expect(dialog()).toBeVisible();
     await waitFor(() =>
       expect(window.artemis.getProjectGitInfo).toHaveBeenCalled(),
     );
     expect(prompt).toHaveFocus();
-    resize(857);
+    resize(719);
     expect(dialog()).toBeNull();
     resize(1800);
     expect(dialog()).toBeVisible();
@@ -601,23 +610,23 @@ describe("environment panel automatic visibility", () => {
   });
 
   it("preserves the opening threshold when caption buttons shift the trigger inward", async () => {
-    workspaceWidth = 858;
+    workspaceWidth = 720;
     captionReserve = 138;
-    await renderReady(fixture({}, 280, captionReserve));
+    await renderReady(fixture({}, 304, captionReserve));
     expect(dialog()).toBeVisible();
-    resize(857);
+    resize(719);
     expect(dialog()).toBeNull();
-    resize(858);
+    resize(720);
     expect(dialog()).toBeVisible();
   });
 
   it("measures actual content bounds and configured panel width, including sidebar-only resizes", async () => {
-    workspaceWidth = 897;
-    await renderReady(fixture({}, 320));
+    workspaceWidth = 767;
+    await renderReady(fixture({}, 400));
     expect(dialog()).toBeNull();
-    resize(898);
+    resize(768);
     expect(dialog()).toBeVisible();
-    resize(800);
+    resize(700);
     expect(dialog()).toBeNull();
   });
 
@@ -633,7 +642,7 @@ describe("environment panel automatic visibility", () => {
       container
         .querySelector<HTMLElement>(".conversation")!
         .style.getPropertyValue("--environment-panel-content-safe-inline-size"),
-    ).toBe("354px");
+    ).toBe("328px");
   });
 
   it("reserves the same space before and after the empty state becomes a timeline", async () => {
@@ -650,7 +659,7 @@ describe("environment panel automatic visibility", () => {
       conversation.style.getPropertyValue(
         "--environment-panel-content-safe-inline-size",
       ),
-    ).toBe("354px");
+    ).toBe("328px");
     empty.className = "timeline";
     resize(1200);
     expect(dialog()).toBeVisible();
@@ -658,7 +667,7 @@ describe("environment panel automatic visibility", () => {
       conversation.style.getPropertyValue(
         "--environment-panel-content-safe-inline-size",
       ),
-    ).toBe("354px");
+    ).toBe("328px");
   });
 
   it("restores after closing the dock, including when initially mounted with the dock open", async () => {
@@ -696,9 +705,9 @@ describe("environment panel automatic visibility", () => {
     expect(duration()).toBe("0s");
 
     for (const [width, inset] of [
-      [1000, 154],
-      [1100, 254],
-      [1200, 354],
+      [1000, 128],
+      [1100, 228],
+      [1200, 328],
     ]) {
       conversationWidth = width;
       resize(1200);
@@ -712,7 +721,7 @@ describe("environment panel automatic visibility", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Task environment" }),
     );
-    expect(safeSpace()).toBe("354px");
+    expect(safeSpace()).toBe("328px");
     resize(1200);
     expect(duration()).toBe("");
     unmount();
@@ -738,7 +747,7 @@ describe("environment panel automatic visibility", () => {
       conversation.style.getPropertyValue(
         "--environment-panel-content-safe-inline-size",
       ),
-    ).toBe("54px");
+    ).toBe("28px");
 
     // A reversal must keep the environment hidden through the next collapse.
     rerender(fixture({ dockOpen: true }));
@@ -763,7 +772,7 @@ describe("environment panel automatic visibility", () => {
       conversation.style.getPropertyValue(
         "--environment-panel-content-safe-inline-size",
       ),
-    ).toBe("354px");
+    ).toBe("328px");
     expect(
       conversation.style.getPropertyValue(
         "--environment-panel-reservation-duration",
@@ -796,7 +805,7 @@ describe("environment panel automatic visibility", () => {
     resize(1800);
     expect(dialog()).toBeVisible();
     expect(document.activeElement).toBe(focused);
-    resize(800);
+    resize(700);
     expect(dialog()).toBeNull();
     rerender(fixture({ dockOpen: true }));
     expect(dialog()).toBeNull();
@@ -838,8 +847,8 @@ describe("environment panel automatic visibility", () => {
     expect(dialog()).toBeNull();
   });
 
-  it("closes even a manually opened panel when it would leave less than 480px", async () => {
-    workspaceWidth = 800;
+  it("closes even a manually opened panel when it would leave a window narrower than 980px", async () => {
+    workspaceWidth = 700;
     const { container } = await renderReady(fixture({ defaultOpen: false }));
     await userEvent.click(
       screen.getByRole("button", { name: "Task environment" }),
@@ -862,4 +871,53 @@ describe("environment panel automatic visibility", () => {
     unmount();
     expect(resizeCallbacks.size).toBe(0);
   });
+});
+
+it("merges staged and unstaged file statistics and opens their existing Review scope", async () => {
+  const file = {
+    id: "file",
+    path: "src/search.ts",
+    status: "modified" as const,
+    additions: 2,
+    deletions: 1,
+    binary: false,
+    untracked: false,
+    hunks: [],
+  };
+  const getReviewDiff = vi
+    .fn()
+    .mockImplementation(async ({ scope }) => ({
+      scope,
+      available: true,
+      text: "",
+      files: [{ ...file, additions: scope === "staged" ? 3 : 2 }],
+    }));
+  stubWindowArtemis({ ...window.artemis, getReviewDiff });
+  vi.mocked(window.artemis.getProjectGitInfo).mockResolvedValue({
+    managed: true,
+    currentBranch: "main",
+    branches: [],
+    changeCount: 1,
+    additions: 5,
+    deletions: 2,
+    ahead: 0,
+    behind: 0,
+  } as never);
+  const onOpenReview = vi.fn();
+  await renderReady(fixture({ onOpenReview }));
+  const row = await screen.findByRole("button", {
+    name: /src\/search.ts.*\+5.*−2.*M/,
+  });
+  expect(row.firstElementChild?.className).toBe("workspace-file-kind");
+  expect(row.lastElementChild?.textContent).toBe("M");
+  expect(getReviewDiff).toHaveBeenCalledWith({
+    threadId: "t",
+    scope: "unstaged",
+  });
+  expect(getReviewDiff).toHaveBeenCalledWith({
+    threadId: "t",
+    scope: "staged",
+  });
+  await userEvent.click(row);
+  expect(onOpenReview).toHaveBeenCalledWith("unstaged");
 });

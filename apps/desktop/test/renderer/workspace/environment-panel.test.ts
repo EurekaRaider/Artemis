@@ -36,6 +36,10 @@ const panelSource = source(
   "../../../src/renderer/workspace/EnvironmentPanel.tsx",
 );
 const stylesSource = source("../../../src/renderer/styles/styles.css");
+const nocturneStylesSource = source(
+  "../../../src/renderer/styles/nocturne.css",
+);
+const workflowSource = source("../../../../../packages/ui/src/workflow.tsx");
 const publicUiStylesSource = source(
   "../../../../../packages/ui/src/styles.css",
 );
@@ -140,7 +144,7 @@ describe("task environment panel state", () => {
   it("links the trigger to the named Environment dialog", () => {
     expect(panelSource).toContain("const panelId = useId()");
     expect(panelSource).toContain("controls={panelId}");
-    expect(panelSource).toContain("<EnvironmentPanelSurface id={panelId}");
+    expect(panelSource).toMatch(/<EnvironmentPanelSurface\s+id=\{panelId\}/u);
     expect(mainSource).toContain(
       'rule: "environment-trigger-dialog-relationship"',
     );
@@ -159,13 +163,16 @@ describe("task environment panel state", () => {
     );
   });
 
-  it("uses the v69 floating panel proportions", () => {
-    expect(stylesSource).toContain(
-      "width: min(var(--environment-panel-inline-size), calc(100vw - 62px))",
+  it("uses the 304px docked inspector with an opaque reading surface", () => {
+    expect(nocturneStylesSource).toContain(
+      "--environment-panel-inline-size: 304px",
     );
-    expect(stylesSource).toContain("max-height: calc(100dvh - 72px)");
-    expect(stylesSource).toContain("scrollbar-width: thin");
-    expect(stylesSource).toContain("min-height: 28px");
+    expect(nocturneStylesSource).toContain("inset-block: 46px 0");
+    expect(nocturneStylesSource).toContain(
+      "border-inline-start: 1px solid var(--artemis-color-border-subtle)",
+    );
+    expect(nocturneStylesSource).toContain("backdrop-filter: none");
+    expect(panelSource).toContain("window.innerWidth >= 980");
     expect(stylesSource).toContain(".environment-checks-popover");
   });
 
@@ -251,7 +258,8 @@ describe("task environment panel state", () => {
     expect(panelSource).toContain("closeBranchMenu()");
     expect(panelSource).toContain('event.key !== "Escape"');
     expect(panelSource).toContain("trigger.current?.focus()");
-    expect(panelSource).toContain('role="dialog"');
+    expect(workflowSource).toContain('role="dialog"');
+    expect(panelSource).not.toContain('aria-modal="true"');
     expect(stylesSource).toContain("overscroll-behavior: contain");
     expect(stylesSource).toContain("inset-inline-end:");
     expect(stylesSource).toContain("@media (max-width: 680px)");
@@ -259,7 +267,9 @@ describe("task environment panel state", () => {
   });
 
   it("keeps the compact panel styling while reserving conversation content space", () => {
-    expect(stylesSource).toContain("--environment-panel-inline-size: 280px");
+    expect(nocturneStylesSource).toContain(
+      "--environment-panel-inline-size: 304px",
+    );
     expect(stylesSource).toContain(
       "--environment-panel-content-safe-inline-size",
     );
