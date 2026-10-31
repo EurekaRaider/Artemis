@@ -491,6 +491,21 @@ try {
         "arrow navigation changes and restores selection on the same root",
       );
       verifyFocusEvidence("composer-mode", modes);
+    } else if (id === "review") {
+      const scope = verifyComponent(
+        "segmented-control",
+        ["root", "segment"],
+        undefined,
+        "review",
+      );
+      assert(
+        "review-keyboard-scope-selection",
+        formControls.interaction?.keyboardActivated === true &&
+          formControls.interaction?.rootStable === true,
+        formControls.interaction,
+        "keyboard selection on a stable segmented control",
+      );
+      verifyFocusEvidence("review-scope", scope);
     } else {
       const context =
         id === "composer"
