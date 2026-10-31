@@ -21257,6 +21257,10 @@ function createMainWindow(): BrowserWindow {
                     ":scope > button.decision-option:not(:disabled)[tabindex='0']",
                   );
                   const usesDecisionRovingTabIndex = decisionEntries?.length === 1;
+                  const modeRoot = role === "radio" ? element.closest('[data-artemis-component="run-mode-control"][role="radiogroup"]') : null;
+                  const modeEntries = modeRoot?.querySelectorAll(':scope > button[role="radio"]:not(:disabled)[tabindex="0"]');
+                  const usesModeRovingTabIndex = modeEntries?.length === 1 && modeEntries[0].getAttribute("aria-checked") === "true";
+
                   const usesRovingTabIndex = rovingRoot?.querySelector(
                     role === "option"
                       ? "[role='option'][tabindex='0']"
@@ -21275,7 +21279,8 @@ function createMainWindow(): BrowserWindow {
                     !(element instanceof HTMLButtonElement && element.disabled) &&
                     element.tabIndex < 0 &&
                     !usesRovingTabIndex &&
-                    !usesDecisionRovingTabIndex
+                    !usesDecisionRovingTabIndex &&
+                    !usesModeRovingTabIndex
                   ) {
                     issues.push({
                       rule: "keyboard-focus",
@@ -23127,6 +23132,13 @@ function createMainWindow(): BrowserWindow {
                       },
                     };
                   })(),
+                  workRecordRows: [...document.querySelectorAll('.tool-card')].map(root => ({
+                    columns: getComputedStyle(root).gridTemplateColumns.split(' '),
+                    gap: getComputedStyle(root).columnGap,
+                    rowHeight: root.querySelector(':scope > [data-part="icon"]')?.getBoundingClientRect().height,
+                    statusSize: root.querySelector('.tool-step-status svg')?.getBoundingClientRect().width,
+                    targetWrap: root.querySelector('.tool-step-target') ? getComputedStyle(root.querySelector('.tool-step-target')).whiteSpace : null,
+                  })),
                   conversationTimeline:
                     conversationTimelineView.startsWith(
                       'conversation-timeline-',

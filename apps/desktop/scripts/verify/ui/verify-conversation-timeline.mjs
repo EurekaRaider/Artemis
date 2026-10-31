@@ -253,6 +253,21 @@ try {
       [],
     );
     assert(
+      "work-record-grid",
+      Array.isArray(audit.workRecordRows) &&
+        audit.workRecordRows.every(
+          (row) =>
+            row.columns.length === 5 &&
+            row.columns.slice(0, 3).join(" ") === "18px 18px 44px" &&
+            row.gap === "8px" &&
+            row.rowHeight === 30 &&
+            row.statusSize === 14 &&
+            row.targetWrap === "nowrap",
+        ),
+      audit.workRecordRows,
+      "five columns, 18/18/44px leading columns, 8px gap, 30px row, 14px status, nowrap target",
+    );
+    assert(
       "viewport-scroll-contract",
       timeline?.viewport?.overflowY === "auto" &&
         timeline.viewport.scrollWidth <= timeline.viewport.clientWidth + 1,
