@@ -15491,7 +15491,11 @@ async function seedSmokeMcpEditorFixture(): Promise<void> {
   // The smokeMode guard matches the IPC interception gates above: seeding
   // must stay a smoke-harness-only behavior so a merely VIEW-tagged process
   // can never write a synthetic server into a real mcp.json.
-  if (!smokeMode || !mcpConfigStore || !view?.startsWith("mcp-editor")) {
+  if (
+    !smokeMode ||
+    !mcpConfigStore ||
+    (!view?.startsWith("mcp-editor") && view !== "nocturne-resources-mcp")
+  ) {
     return;
   }
   // Synthetic identity only: the URL uses the reserved .test TLD and the
@@ -18874,9 +18878,29 @@ function createMainWindow(): BrowserWindow {
                     const section = view.slice('nocturne-settings-'.length);
                     document.querySelector('#settings-tab-' + section + '-button')?.click();
                     await wait(500);
+                  } else if (view.startsWith('nocturne-resources-')) {
+                    document.querySelector('.sidebar-nav [data-nav-view=resources]')?.click();
+                    await wait(1_000);
+                    const section = view.slice('nocturne-resources-'.length);
+                    document.querySelector('#resource-management-tab-' + section)?.click();
+                    await wait(700);
                   } else {
                     document.querySelector('[data-tree-row-id="thread:artemis-smoke-environment-thread"] .thread-select')?.click();
                     await wait(800);
+                    if (view === 'nocturne-project-menu') document.querySelector('.project-action')?.click();
+                    if (view === 'nocturne-thread-menu') document.querySelector('.thread-action')?.click();
+                    if (view === 'nocturne-review-comment') {
+                      const label = ${JSON.stringify(uiText(currentLocale(), "App_copy.reviewChanges"))};
+                      [...document.querySelectorAll('.environment-popover button')].find((button) => button.textContent.trim() === label)?.click();
+                      await wait(800);
+                      document.querySelector('.review-comment-trigger')?.click();
+                      await wait(200);
+                      const input = document.querySelector('.review-comment-editor textarea');
+                      if (!(input instanceof HTMLTextAreaElement)) throw new Error('Review inline comment editor missing');
+                      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(input, 'Please explain this change.');
+                      input.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    await wait(400);
                   }
                   return;
                 }
