@@ -770,8 +770,11 @@ describe("settings management operation contract (MIG5A)", () => {
     expect(addModel).toHaveBeenCalledTimes(2);
     expect(addModel).toHaveBeenLastCalledWith(changed, undefined);
     expect(await screen.findByText("Model updated")).toBeVisible();
-    expect(document.querySelector(".added-model-row")).toHaveTextContent(
-      "123.5K token",
+    const contextCell = document.querySelector(".added-model-context");
+    expect(contextCell).toHaveTextContent("123.5K");
+    expect(contextCell).toHaveAttribute(
+      "title",
+      `Context length: ${changed.contextWindow.toLocaleString("en")} token`,
     );
     expect(screen.getByLabelText("Context length")).toHaveValue(123456);
   });

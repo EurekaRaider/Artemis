@@ -339,6 +339,12 @@ it("saves new-task model defaults without changing credentials and constrains ef
   const saveKey = vi.fn();
   stubSettingsApi(settings, { setModelSelection: save, saveApiKey: saveKey });
   await open(settings);
+  expect(
+    screen.getByRole("img", { name: "Default model: Synthetic Model" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("img", { name: "Default model: Reasoner" }),
+  ).toBeNull();
   await userEvent.click(screen.getByLabelText("Default model"));
   await userEvent.click(screen.getByRole("option", { name: /Reasoner/ }));
   await waitFor(() =>
@@ -348,6 +354,12 @@ it("saves new-task model defaults without changing credentials and constrains ef
       thinkingLevel: "high",
     }),
   );
+  expect(
+    screen.getByRole("img", { name: "Default model: Reasoner" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("img", { name: "Default model: Synthetic Model" }),
+  ).toBeNull();
   const effort = screen.getByRole("group", { name: "Reasoning effort" });
   expect(within(effort).getAllByRole("button")).toHaveLength(2);
   await userEvent.click(within(effort).getByRole("button", { name: "Low" }));
