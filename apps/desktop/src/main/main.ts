@@ -23136,7 +23136,7 @@ function createMainWindow(): BrowserWindow {
                     columns: getComputedStyle(root).gridTemplateColumns.split(' '),
                     gap: getComputedStyle(root).columnGap,
                     rowHeight: root.querySelector(':scope > [data-part="icon"]')?.getBoundingClientRect().height,
-                    statusSize: root.querySelector('.tool-step-status svg')?.getBoundingClientRect().width,
+                    statusSize: root.querySelector('.tool-step-status svg') ? Number.parseFloat(getComputedStyle(root.querySelector('.tool-step-status svg')).width) : null,
                     targetWrap: root.querySelector('.tool-step-target') ? getComputedStyle(root.querySelector('.tool-step-target')).whiteSpace : null,
                   })),
                   conversationTimeline:
