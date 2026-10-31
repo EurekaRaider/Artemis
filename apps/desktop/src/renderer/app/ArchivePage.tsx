@@ -150,12 +150,20 @@ export function ArchivePage({
                   )}
                 </div>
                 <div className="archive-card-actions">
-                  <Button onClick={() => onOpen(thread)} variant="quiet">
-                    {t.archiveOpen}
-                  </Button>
-                  <Button onClick={() => onRestore(thread)} variant="quiet">
-                    {t.archiveRestore}
-                  </Button>
+                  <IconButton
+                    icon={<ArtemisIcon name="undo" />}
+                    label={`${t.archiveRestore}: ${thread.title}`}
+                    title={t.archiveRestore}
+                    onClick={() => onRestore(thread)}
+                    variant="quiet"
+                  />
+                  <IconButton
+                    icon={<ArtemisIcon name="external" />}
+                    label={`${t.archiveOpen}: ${thread.title}`}
+                    title={t.archiveOpen}
+                    onClick={() => onOpen(thread)}
+                    variant="quiet"
+                  />
                   <IconButton
                     className="management-destructive-action"
                     icon={<ArtemisIcon name="trash" />}

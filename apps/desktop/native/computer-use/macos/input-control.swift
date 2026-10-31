@@ -30,13 +30,21 @@ import ApplicationServices
     foregroundControl = false
     windows.removeAll()
     elements.removeAll()
+    panelTimer?.invalidate()
+    panelTimer = nil
+    panelStartedAt = nil
+    panelApplicationPid = nil
     panel?.orderOut(nil)
     send(["event": "takeover", "reason": reason])
   }
-  func showControl(_ application: NSRunningApplication, stopLabel: String, darkAppearance: Bool?) {
+  func updateControlTimer() {
+    let elapsed = Int(max(0, ProcessInfo.processInfo.systemUptime - (panelStartedAt ?? ProcessInfo.processInfo.systemUptime)))
+    panelTimerLabel?.stringValue = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
+  }
+  func showControl(_ application: NSRunningApplication, stopLabel: String, darkAppearance _: Bool?) {
     if panel == nil {
       let panel = NSPanel(
-        contentRect: CGRect(x: 0, y: 0, width: 340, height: 44),
+        contentRect: CGRect(x: 0, y: 0, width: 390, height: 38),
         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
       panel.title = "Artemis · Computer Use"
       panel.isOpaque = false
@@ -46,52 +54,59 @@ import ApplicationServices
       panel.level = .floating
       panel.hidesOnDeactivate = false
       panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-      let content = NSView(frame: CGRect(x: 0, y: 0, width: 340, height: 44))
-      // Match BrowserWindow(vibrancy: "sidebar", visualEffectState: "active").
-      let glass = NSVisualEffectView(frame: content.bounds)
-      glass.material = .sidebar
-      glass.blendingMode = .behindWindow
-      glass.state = .active
-      glass.wantsLayer = true
-      glass.layer?.cornerRadius = 12
-      glass.layer?.masksToBounds = true
-      glass.addSubview(content)
-      panel.contentView = glass
-      let icon = NSImageView(frame: CGRect(x: 12, y: 13, width: 18, height: 18))
+      panel.appearance = NSAppearance(named: .darkAqua)
+      let content = NSView(frame: CGRect(x: 0, y: 0, width: 390, height: 38))
+      content.wantsLayer = true
+      content.layer?.cornerRadius = 19
+      content.layer?.masksToBounds = true
+      content.layer?.backgroundColor = NSColor(srgbRed: 22 / 255, green: 23 / 255, blue: 27 / 255, alpha: 1).cgColor
+      content.layer?.borderWidth = 0.5
+      content.layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+      panel.contentView = content
+      let icon = NSImageView(frame: CGRect(x: 12, y: 11, width: 16, height: 16))
       icon.imageScaling = .scaleProportionallyDown
       icon.setAccessibilityElement(false)
       let label = NSTextField(labelWithString: "")
-      label.frame = CGRect(x: 38, y: 14, width: 204, height: 16)
-      label.font = .systemFont(ofSize: 12, weight: .medium)
-      label.textColor = .labelColor
+      label.frame = CGRect(x: 36, y: 11, width: 210, height: 16)
+      label.font = .systemFont(ofSize: 12.5, weight: .medium)
+      label.textColor = NSColor(srgbRed: 236 / 255, green: 237 / 255, blue: 239 / 255, alpha: 1)
       label.lineBreakMode = .byTruncatingTail
+      let timer = NSTextField(labelWithString: "0:00")
+      timer.frame = CGRect(x: 250, y: 11, width: 46, height: 16)
+      timer.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+      timer.textColor = NSColor(srgbRed: 169 / 255, green: 173 / 255, blue: 182 / 255, alpha: 1)
+      timer.alignment = .right
       let stop = NSButton(title: stopLabel, target: self, action: #selector(stopControl))
-      stop.bezelStyle = .rounded
-      stop.controlSize = .small
-      stop.font = .systemFont(ofSize: 12, weight: .medium)
+      stop.isBordered = false
+      stop.wantsLayer = true
+      stop.layer?.cornerRadius = 15
+      stop.layer?.backgroundColor = NSColor(srgbRed: 242 / 255, green: 115 / 255, blue: 107 / 255, alpha: 1).cgColor
+      stop.font = .systemFont(ofSize: 12.5, weight: .medium)
       stop.alignment = .center
-      stop.frame = CGRect(x: 256, y: 9, width: 72, height: 26)
+      stop.frame = CGRect(x: 304, y: 4, width: 82, height: 30)
       content.addSubview(icon)
       content.addSubview(label)
+      content.addSubview(timer)
       content.addSubview(stop)
       if let visible = NSScreen.main?.visibleFrame {
-        panel.setFrameTopLeftPoint(CGPoint(x: visible.maxX - 356, y: visible.maxY - 16))
+        panel.setFrameTopLeftPoint(CGPoint(x: visible.maxX - 406, y: visible.maxY - 16))
       }
       self.panel = panel
-      panelContent = content
       panelLabel = label
       panelIcon = icon
       panelStop = stop
+      panelTimerLabel = timer
     }
-    if let darkAppearance {
-      panel?.appearance = NSAppearance(named: darkAppearance ? .darkAqua : .aqua)
+    if panel?.isVisible != true || panelApplicationPid != application.processIdentifier {
+      panelStartedAt = ProcessInfo.processInfo.systemUptime
+      panelApplicationPid = application.processIdentifier
     }
-    let dark = panel?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-    // Same tint as --sidebar-native-color / --sidebar-native-tint in the renderer.
-    panelContent?.wantsLayer = true
-    panelContent?.layer?.backgroundColor = (dark
-      ? NSColor(srgbRed: 29 / 255, green: 29 / 255, blue: 29 / 255, alpha: 0.12)
-      : NSColor.white.withAlphaComponent(0.8)).cgColor
+    updateControlTimer()
+    if panelTimer == nil {
+      panelTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        MainActor.assumeIsolated { self?.updateControlTimer() }
+      }
+    }
     let name = application.localizedName ?? "Application"
     panelLabel?.stringValue = "Computer Use · \(name)"
     panelLabel?.toolTip = name
@@ -101,13 +116,13 @@ import ApplicationServices
     let title = NSMutableAttributedString(
       string: "■", attributes: [
         .font: NSFont.systemFont(ofSize: 10),
-        .foregroundColor: NSColor.systemRed.withAlphaComponent(0.8),
+        .foregroundColor: NSColor(srgbRed: 26 / 255, green: 11 / 255, blue: 10 / 255, alpha: 1),
         .baselineOffset: 1,
       ])
     title.append(NSAttributedString(
       string: "  \(stopLabel)", attributes: [
-        .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-        .foregroundColor: NSColor.labelColor,
+        .font: NSFont.systemFont(ofSize: 12.5, weight: .medium),
+        .foregroundColor: NSColor(srgbRed: 26 / 255, green: 11 / 255, blue: 10 / 255, alpha: 1),
       ]))
     panelStop?.attributedTitle = title
     panelStop?.setAccessibilityLabel(stopLabel)

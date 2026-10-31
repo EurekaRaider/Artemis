@@ -21,7 +21,7 @@ JsonObject Driver::observe(JsonObject const& args) {
     Observation observation{window, bounds, std::min(1.0, 1280.0 / std::max(bounds.right - bounds.left, bounds.bottom - bounds.top)), instance(app.processId), epoch.load(), app.processId};
     controlledPid = app.processId;
     controlledWindow = window;
-    { std::lock_guard lock(labelLock); stopLabel = str(args, L"stopLabel", L"Stop"); }
+    { std::lock_guard lock(labelLock); stopLabel = str(args, L"stopLabel", L"Stop"); controlledApplicationName = app.name; }
     PostMessageW(panel, panelShow, 0, 0);
     elements.clear(); JsonArray nodes; JsonArray revisionNodes;
     ComPtr<IUIAutomationElement> root; check(automation->ElementFromHandle(window, &root));

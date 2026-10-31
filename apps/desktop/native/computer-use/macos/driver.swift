@@ -14,7 +14,10 @@ import ApplicationServices
   var panelLabel: NSTextField?
   var panelIcon: NSImageView?
   var panelStop: NSButton?
-  var panelContent: NSView?
+  var panelTimerLabel: NSTextField?
+  var panelTimer: Timer?
+  var panelStartedAt: TimeInterval?
+  var panelApplicationPid: pid_t?
   init(output: FileHandle) {
     self.output = output
     super.init()

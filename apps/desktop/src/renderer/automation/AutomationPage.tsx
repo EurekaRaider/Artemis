@@ -814,10 +814,10 @@ export function AutomationPage(props: {
                 <Button
                   variant="quiet"
                   align="start"
+                  icon={<ArtemisIcon name="automation" />}
                   selected={selectedAutomation?.id === automation.id}
                   onClick={() => setSelectedAutomationId(automation.id)}
                 >
-                  <ArtemisIcon name="automation" />
                   <span className="automation-master-copy">
                     <strong>{automation.name}</strong>
                     <span>
@@ -837,6 +837,7 @@ export function AutomationPage(props: {
                   checked={automation.enabled}
                   disabled={busy}
                   label={`${automation.enabled ? t.pauseTask : t.enableTask}: ${automation.name}`}
+                  labelVisibility="hidden"
                   onCheckedChange={(enabled) =>
                     void invoke(() =>
                       window.artemis.setAutomationEnabled(

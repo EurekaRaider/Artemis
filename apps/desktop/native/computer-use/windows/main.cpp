@@ -4,10 +4,12 @@ int main() {
   try { verifyParent(); } catch (...) { return 77; }
   try {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); init_apartment(apartment_type::single_threaded);
-    WNDCLASSW definition{}; definition.lpfnWndProc = panelProc; definition.hInstance = GetModuleHandleW(nullptr); definition.lpszClassName = L"ArtemisComputerStop"; definition.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1); RegisterClassW(&definition);
-    panel = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, definition.lpszClassName, L"Artemis Computer Use", WS_POPUP | WS_BORDER, 24, 24, 200, 54, nullptr, nullptr, definition.hInstance, nullptr);
+    WNDCLASSW definition{}; definition.lpfnWndProc = panelProc; definition.hInstance = GetModuleHandleW(nullptr); definition.lpszClassName = L"ArtemisComputerStop"; definition.style = CS_DROPSHADOW; definition.hCursor = LoadCursorW(nullptr, IDC_ARROW); RegisterClassW(&definition);
+    const auto scale = GetDpiForSystem() / 96.0;
+    RECT work{}; SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+    panel = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, definition.lpszClassName, L"Artemis Computer Use", WS_POPUP | WS_CLIPCHILDREN, work.right - static_cast<int>(406 * scale), work.top + static_cast<int>(16 * scale), static_cast<int>(390 * scale), static_cast<int>(38 * scale), nullptr, nullptr, definition.hInstance, nullptr);
     require(panel != nullptr, "Native Stop control unavailable");
-    CreateWindowW(L"BUTTON", L"Stop", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 8, 8, 184, 36, panel, reinterpret_cast<HMENU>(1), definition.hInstance, nullptr);
+    CreateWindowW(L"BUTTON", L"Stop", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, static_cast<int>(304 * scale), static_cast<int>(4 * scale), static_cast<int>(82 * scale), static_cast<int>(30 * scale), panel, reinterpret_cast<HMENU>(1), definition.hInstance, nullptr);
     auto keyboard = SetWindowsHookExW(WH_KEYBOARD_LL, keyboardHook, definition.hInstance, 0); auto mouse = SetWindowsHookExW(WH_MOUSE_LL, mouseHook, definition.hInstance, 0);
     require(keyboard && mouse, "User takeover monitoring unavailable"); SetTimer(panel, 1, 500, nullptr);
     std::thread worker([] {

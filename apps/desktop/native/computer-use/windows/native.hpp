@@ -51,7 +51,7 @@ using Clock = std::chrono::steady_clock;
 constexpr ULONG_PTR injected = 0x41525453;
 constexpr UINT panelShow = WM_APP + 1, panelHide = WM_APP + 2;
 extern std::mutex labelLock;
-extern std::wstring stopLabel;
+extern std::wstring stopLabel, controlledApplicationName;
 extern std::atomic<DWORD> controlledPid;
 extern std::atomic<bool> foregroundControl, quit;
 extern std::atomic<unsigned> epoch;
