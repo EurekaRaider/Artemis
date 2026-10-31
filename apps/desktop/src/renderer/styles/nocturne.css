@@ -2434,7 +2434,7 @@
 .app-shell .sidebar-update:empty {
   display: none;
 }
-.app-shell .sidebar-update .update-btn {
+.app-shell :is(.sidebar-update, .update-notice-slot) .update-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -2452,11 +2452,11 @@
   );
   font-size: 11.5px;
 }
-.app-shell .sidebar-update .update-btn.downloaded {
+.app-shell :is(.sidebar-update, .update-notice-slot) .update-btn.downloaded {
   color: var(--artemis-color-text-inverse);
   background: var(--artemis-color-accent-primary);
 }
-.app-shell .sidebar-update .update-btn svg {
+.app-shell :is(.sidebar-update, .update-notice-slot) .update-btn svg {
   inline-size: 16px;
   block-size: 16px;
 }
