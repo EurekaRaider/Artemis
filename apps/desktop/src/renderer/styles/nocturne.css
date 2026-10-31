@@ -2162,6 +2162,91 @@
   font-size: 13px;
   font-weight: 500;
 }
+.settings-panel[data-tab="general"]
+  [data-artemis-component="settings-surface"]
+  > [data-part="body"]
+  > [data-part="content"] {
+  gap: 0;
+}
+.settings-panel[data-tab="general"] .settings-form-row {
+  box-sizing: border-box;
+  min-block-size: 72px;
+  padding-block: 12px;
+}
+.settings-panel
+  .settings-general-profile
+  > [data-part="header"]
+  [data-part="title"] {
+  color: var(--text);
+  font-size: 18px;
+}
+.settings-panel .settings-profile-avatar {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding-block: 12px 16px;
+  border-block-end: 1px solid var(--border-soft);
+}
+.settings-panel .settings-profile-avatar-preview {
+  inline-size: 52px;
+  block-size: 52px;
+  font-size: 20px;
+  color: var(--artemis-color-status-warning-text);
+  background: var(--artemis-color-status-warning-subtle);
+}
+.settings-panel .settings-profile-avatar-copy {
+  gap: 4px;
+}
+.settings-panel .settings-profile-avatar-copy strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.settings-panel .settings-profile-avatar-actions {
+  justify-content: flex-end;
+  max-inline-size: 180px;
+}
+.settings-panel .appearance-settings {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  align-items: center;
+  gap: 12px 16px;
+  min-block-size: 72px;
+  border-block-end: 1px solid var(--border-soft);
+}
+.settings-panel .appearance-settings-copy {
+  display: grid;
+  gap: 4px;
+}
+.settings-panel .appearance-settings-hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.settings-panel .appearance-settings-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.settings-panel
+  .appearance-settings-controls
+  > [data-artemis-component="select"] {
+  inline-size: min(230px, 100%);
+}
+.settings-panel .appearance-settings-actions {
+  justify-content: flex-end;
+  gap: 4px;
+}
+.settings-panel .appearance-settings-actions [data-artemis-component="button"] {
+  min-block-size: 26px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+.settings-panel
+  .appearance-settings
+  > [data-artemis-component="inline-notice"] {
+  grid-column: 1 / -1;
+}
 .settings-panel .settings-import-shortcut {
   margin-block-start: auto;
   block-size: auto;
@@ -2233,6 +2318,23 @@
   }
 }
 @media (max-width: 720px) {
+  .settings-panel .settings-profile-avatar {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .settings-panel .settings-profile-avatar-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    max-inline-size: none;
+  }
+  .settings-panel .appearance-settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-panel .appearance-settings-controls {
+    align-items: flex-start;
+  }
+  .settings-panel .appearance-settings-actions {
+    justify-content: flex-start;
+  }
   .settings-panel
     [data-artemis-component="settings-surface"]
     > [data-part="body"] {

@@ -1603,8 +1603,8 @@ ${model.providerId} · ${model.modelId}`,
               {activeTab === "general" && (
                 <>
                   <ManagementSection
-                    className="settings-section"
-                    title={t.profileAvatar}
+                    className="settings-section settings-general-profile"
+                    title={t.tabGeneral}
                   >
                     <div className="settings-profile-avatar">
                       <div className="settings-profile-avatar-preview">
@@ -1617,48 +1617,47 @@ ${model.providerId} · ${model.modelId}`,
                         )}
                       </div>
                       <div className="settings-profile-avatar-copy">
-                        <div className="settings-profile-avatar-actions">
-                          <input
-                            accept="image/jpeg,image/png,image/webp"
-                            aria-label={
-                              settings.profileAvatar
-                                ? t.profileAvatarChange
-                                : t.profileAvatarUpload
-                            }
-                            className="profile-avatar-input"
-                            disabled={busy}
-                            onChange={(event) => {
-                              const file = event.currentTarget.files?.[0];
-                              event.currentTarget.value = "";
-                              if (file) void setProfileAvatar(file);
-                            }}
-                            ref={profileAvatarInputRef}
-                            type="file"
-                          />
-                          <Button
-                            size="compact"
-                            disabled={busy}
-                            onClick={() =>
-                              profileAvatarInputRef.current?.click()
-                            }
-                          >
-                            {settings.profileAvatar
-                              ? t.profileAvatarChange
-                              : t.profileAvatarUpload}
-                          </Button>
-                          {settings.profileAvatar && (
-                            <Button
-                              size="compact"
-                              disabled={busy}
-                              onClick={() => void setProfileAvatar(undefined)}
-                            >
-                              {t.profileAvatarRemove}
-                            </Button>
-                          )}
-                        </div>
+                        <strong>{t.profileAvatar}</strong>
                         <p className="settings-avatar-hint">
                           {t.profileAvatarHint}
                         </p>
+                      </div>
+                      <div className="settings-profile-avatar-actions">
+                        <input
+                          accept="image/jpeg,image/png,image/webp"
+                          aria-label={
+                            settings.profileAvatar
+                              ? t.profileAvatarChange
+                              : t.profileAvatarUpload
+                          }
+                          className="profile-avatar-input"
+                          disabled={busy}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+                            event.currentTarget.value = "";
+                            if (file) void setProfileAvatar(file);
+                          }}
+                          ref={profileAvatarInputRef}
+                          type="file"
+                        />
+                        <Button
+                          size="compact"
+                          disabled={busy}
+                          onClick={() => profileAvatarInputRef.current?.click()}
+                        >
+                          {settings.profileAvatar
+                            ? t.profileAvatarChange
+                            : t.profileAvatarUpload}
+                        </Button>
+                        {settings.profileAvatar && (
+                          <Button
+                            size="compact"
+                            disabled={busy}
+                            onClick={() => void setProfileAvatar(undefined)}
+                          >
+                            {t.profileAvatarRemove}
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </ManagementSection>
