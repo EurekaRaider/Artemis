@@ -812,7 +812,7 @@ describe("renderer layout contract", () => {
     expect(
       publicUiCssRule('[data-artemis-component="conversation-surface"]'),
     ).toMatch(/\bcontainer-type:\s*inline-size/u);
-    expect(cssRule(".composer-trailing")).toMatch(/\bflex:\s*0\s+0\s+auto/u);
+    expect(cssRule(".composer-trailing")).toMatch(/\bflex:\s*1\s+1\s+0/u);
     expect(cssRule(".composer-trailing")).toMatch(/\bmargin-left:\s*auto/u);
     expect(stylesSource).toMatch(
       /\.composer-icon-button,\s*\.context-usage-indicator,\s*\.send-button,\s*\.run-actions\s*\{[^}]*\bflex:\s*0\s+0\s+auto/isu,

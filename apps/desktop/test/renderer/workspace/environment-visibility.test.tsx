@@ -413,6 +413,9 @@ describe("environment agent activity", () => {
       lastActivityAt: team.updatedAt,
     });
     await userEvent.click(
+      screen.getByRole("button", { name: "Task environment" }),
+    );
+    await userEvent.click(
       screen.getByRole("button", { name: "Details", exact: true }),
     );
     expect(onOpenTeam).toHaveBeenCalledWith(team);

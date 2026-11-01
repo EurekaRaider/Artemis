@@ -251,6 +251,17 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(artemisIconsSource).toContain("strokeWidth={strokeWidth}");
   });
 
+  it("uses a muted 32px archive line icon for the empty state", () => {
+    const nocturneSource = readFileSync(
+      resolve(process.cwd(), "src/renderer/styles/nocturne.css"),
+      "utf8",
+    );
+    const block = cssRuleBlock(nocturneSource, ".app-shell .archive-empty svg");
+    expect(block).toMatch(/width:\s*32px/);
+    expect(block).toMatch(/height:\s*32px/);
+    expect(block).toContain("color: var(--muted-2)");
+  });
+
   const PROTOTYPE_RULES: Array<[string, number]> = [
     [".environment-trigger svg", 16],
     [".agent-team-member-disclosure svg", 12],
@@ -259,7 +270,6 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       16,
     ],
     [".sources-panel-icon svg", 16],
-    [".archive-empty-artwork", 64],
   ];
 
   it.each(PROTOTYPE_RULES)(

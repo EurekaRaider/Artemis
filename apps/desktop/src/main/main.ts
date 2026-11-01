@@ -23697,6 +23697,10 @@ function createMainWindow(): BrowserWindow {
                               !timeline ||
                               timeline.scrollWidth <= timeline.clientWidth + 1,
                             inlineEndGap,
+                            visibleDecisionPixels: (() => {
+                              const bounds = document.querySelector('.timeline-decision .decision-card')?.getBoundingClientRect();
+                              return bounds && viewportBounds ? Math.max(0, Math.min(bounds.bottom, viewportBounds.bottom) - Math.max(bounds.top, viewportBounds.top)) : 0;
+                            })(),
                             visibleMessageCount: viewportBounds
                               ? roots.filter((root) => {
                                   if (

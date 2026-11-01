@@ -5236,7 +5236,8 @@ button.environment-row:disabled {
 }
 
 .composer-trailing {
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  justify-content: flex-end;
   margin-left: auto;
   min-width: 0;
 }
@@ -5485,6 +5486,7 @@ button.environment-row:disabled {
 }
 
 .model-button {
+  width: 100%;
   align-items: center;
   border-radius: 7px;
   color: var(--muted);

@@ -403,20 +403,25 @@ try {
       // Compare rasterized pixels: fractional layout coordinates can differ by
       // 1/64 CSS px even when they paint the same number of device pixels.
       const visibleDevicePixels = Math.round(
-        timeline.visibleMessagePixels * devicePixelRatio,
+        Math.max(
+          timeline.visibleMessagePixels,
+          timeline.visibleDecisionPixels ?? 0,
+        ) * devicePixelRatio,
       );
       const minimumVisibleDevicePixels = Math.round(20 * devicePixelRatio) - 1;
       assert(
-        "conversation-message-visible",
-        timeline.visibleMessageCount > 0 &&
+        "conversation-content-visible",
+        (timeline.visibleMessageCount > 0 ||
+          timeline.visibleDecisionPixels > 0) &&
           visibleDevicePixels >= minimumVisibleDevicePixels,
         {
           count: timeline.visibleMessageCount,
           pixels: timeline.visibleMessagePixels,
+          decisionPixels: timeline.visibleDecisionPixels,
           visibleDevicePixels,
           minimumVisibleDevicePixels,
         },
-        "at least one message within one device pixel of 20 visible CSS px",
+        "a message or the active timeline decision has at least 20 visible CSS px (within one device pixel)",
       );
       assert(
         "user-message-inline-end-alignment",
