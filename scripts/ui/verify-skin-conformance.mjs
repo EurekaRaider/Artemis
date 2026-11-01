@@ -962,12 +962,20 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="segmented-control"] [data-part="segment"]',
     {
+      display: "inline-flex",
+      "align-items": "center",
+      "justify-content": "center",
+      gap: "var(--artemis-space-1)",
       "min-block-size": "var(--artemis-size-control-comfortable)",
       "padding-inline": "var(--artemis-space-3)",
       background: "transparent",
       border: "var(--artemis-border-width-default) solid transparent",
       "border-radius": "var(--artemis-radius-control)",
     },
+  ],
+  [
+    'normal|[data-artemis-component="segmented-control"] [data-part="segment"] > span[aria-hidden="true"]',
+    { display: "inline-flex", flex: "none" },
   ],
   [
     'normal|[data-artemis-component="segmented-control"][data-size="compact"] [data-part="segment"]',

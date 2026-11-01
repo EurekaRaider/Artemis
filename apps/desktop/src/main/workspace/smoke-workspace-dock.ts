@@ -197,10 +197,8 @@ export async function driveSmokeWorkspaceDockEvidence(
               framePresent: browserFrame !== null,
               frameSource: browserFrame?.dataset.browserUrl ?? null,
               frameUrl: browserFrame?.dataset.browserUrl ?? null,
-              goDisabled:
-                document.querySelector('.browser-go-button')?.hasAttribute(
-                  'disabled',
-                ) ?? null,
+              addressDisabled: browserAddressInput instanceof HTMLInputElement
+                ? browserAddressInput.disabled : null,
               markersComplete:
                 browserToolbar !== null &&
                 browserNavigation !== null &&
@@ -215,7 +213,7 @@ export async function driveSmokeWorkspaceDockEvidence(
                 ) instanceof HTMLButtonElement &&
                 document.querySelector(
                   '[data-artemis-component="browser-go-button"]',
-                ) !== null,
+                ) === null,
               refreshDisabled:
                 document
                   .querySelector('.browser-refresh-button')
@@ -355,7 +353,7 @@ export async function driveSmokeWorkspaceDockEvidence(
         document.querySelector('.browser-refresh-button')?.hasAttribute(
           'disabled',
         ) === false &&
-        document.querySelector('.browser-go-button')?.hasAttribute(
+        document.querySelector('.browser-address-input')?.hasAttribute(
           'disabled',
         ) === false;
       if (browserReady) break;
@@ -442,7 +440,6 @@ export async function driveSmokeWorkspaceDockEvidence(
     );
     const address = document.querySelector('.browser-address-input');
     const form = document.querySelector('.browser-address-form');
-    const go = document.querySelector('.browser-go-button');
     const back = document.querySelector('.browser-back-button');
     const forward = document.querySelector('.browser-forward-button');
     const refresh = document.querySelector('.browser-refresh-button');
@@ -451,14 +448,13 @@ export async function driveSmokeWorkspaceDockEvidence(
       !(surface instanceof HTMLElement) ||
       !(address instanceof HTMLInputElement) ||
       !(form instanceof HTMLFormElement) ||
-      !(go instanceof HTMLButtonElement) ||
       !(back instanceof HTMLButtonElement) ||
       !(forward instanceof HTMLButtonElement) ||
       !(refresh instanceof HTMLButtonElement)
     ) {
       throw new Error('Browser interaction controls are incomplete.');
     }
-    const controls = { back: 0, forward: 0, go: 0, refresh: 0, submit: 0 };
+    const controls = { back: 0, forward: 0, refresh: 0, submit: 0 };
     const events = { failures: [], navigations: [], starts: 0, stops: 0 };
     const surfaceStates = [];
     const recordSurface = () => {
@@ -499,9 +495,6 @@ export async function driveSmokeWorkspaceDockEvidence(
       if(value.url!==current.url)onNavigate({url:value.url});
       current=value;
     });
-    go.addEventListener('click', () => {
-      controls.go += 1;
-    });
     back.addEventListener('click', () => {
       controls.back += 1;
     });
@@ -524,7 +517,7 @@ export async function driveSmokeWorkspaceDockEvidence(
     address.dispatchEvent(new Event('input', { bubbles: true }));
     await waitFor(() => address.value === failureUrl, 'address input');
     const failureBaseline = events.failures.length;
-    go.click();
+    form.requestSubmit();
     await waitFor(
       () =>
         controls.submit === 1 &&

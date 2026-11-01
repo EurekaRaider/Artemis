@@ -443,7 +443,7 @@ try {
         interaction.afterClose.browser?.backDisabled === true &&
         interaction.afterClose.browser?.forwardDisabled === true &&
         interaction.afterClose.browser?.refreshDisabled === false &&
-        interaction.afterClose.browser?.goDisabled === false,
+        interaction.afterClose.browser?.addressDisabled === false,
       interaction.afterClose.browser ?? null,
       "LTR address, unavailable history, enabled reload and navigation",
     );
@@ -487,8 +487,7 @@ try {
     }
     assert(
       "browser-address-submit-loading-error",
-      interaction.browserInteraction?.controls?.go === 1 &&
-        interaction.browserInteraction?.controls?.submit === 1 &&
+      interaction.browserInteraction?.controls?.submit === 1 &&
         interaction.browserInteraction?.submission?.address ===
           browserFailureUrl &&
         interaction.browserInteraction?.submission?.state === "error" &&

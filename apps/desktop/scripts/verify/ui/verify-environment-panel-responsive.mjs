@@ -316,9 +316,10 @@ try {
   });
   assertContentSpace(rtl, "rtl");
   assert(
-    Math.abs(wide.turnStatus.left - wide.timelineContent.left) <= 1 &&
-      Math.abs(wide.turnStatus.right - wide.timelineContent.right) <= 1,
-    "Completed status row is not aligned with the centered timeline content.",
+    !rtl.turnStatus &&
+      rtl.headerStatus?.state?.includes("completed") &&
+      !rtl.headerStatus.hasTimer,
+    "RTL completed state must appear once in the header without a live timer.",
   );
 
   const dock = await runCase("dock", 1_420, "environment-dock");
@@ -352,15 +353,20 @@ try {
     `Workspace Tab Dock did not pass through an animated intermediate width: ${JSON.stringify(dock.dockTransition)}.`,
   );
   assert(
-    Math.abs(
-      dock.dockTransition.before.status.left -
-        dock.dockTransition.after.status.left,
-    ) <= 1 &&
+    dock.dockTransition.after.status.width ===
+      dock.dockTransition.before.status.width &&
+      dock.dockTransition.after.environment.width ===
+        dock.dockTransition.before.environment.width &&
       Math.abs(
-        dock.dockTransition.before.environment.left -
-          dock.dockTransition.after.environment.left,
-      ) <= 1,
-    "Opening the Workspace Tab Dock moved the status or environment controls.",
+        dock.dockTransition.after.environment.left -
+          dock.dockTransition.after.status.right -
+          (dock.dockTransition.before.environment.left -
+            dock.dockTransition.before.status.right),
+      ) <= 1 &&
+      dock.dockTransition.after.environment.right <=
+        dock.conversation.right + 1 &&
+      dock.dockTransition.after.status.left >= dock.conversation.left,
+    "Dock opening must keep the status and environment controls aligned within the conversation header.",
   );
 
   const messageActions = await runCase(
@@ -370,7 +376,13 @@ try {
   );
   assert(
     JSON.stringify(messageActions.messageActionLabels) ===
-      JSON.stringify(["复制消息", "编辑后重新发送", "复制消息"]),
+      JSON.stringify([
+        "复制消息",
+        "编辑后重新发送",
+        "复制消息",
+        "分叉",
+        "分享会话",
+      ]),
     "Completed message actions are missing or out of order.",
   );
   assert(
@@ -526,8 +538,8 @@ try {
           environmentPanelOpen: wide.environmentPanelOpen,
           environmentPanelLeft: wide.environmentPanel.left,
           timelineContentRight: wide.timelineContent.right,
-          turnStatusLeft: wide.turnStatus.left,
-          turnStatusRight: wide.turnStatus.right,
+          headerStatus: wide.headerStatus,
+          duplicateTurnStatus: wide.turnStatus,
           timelineRight: wide.timelineScroll.right,
           workspaceRight: wide.workspaceContent.right,
         },
