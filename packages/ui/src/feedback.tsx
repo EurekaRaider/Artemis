@@ -346,6 +346,21 @@ const FOCUSABLE_SELECTOR = [
   "textarea:not(:disabled)",
   '[tabindex]:not([tabindex="-1"])',
 ].join(",");
+const MENU_ITEM_SELECTOR =
+  '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]';
+
+function enabledMenuItems(menu: HTMLElement): HTMLElement[] {
+  return Array.from(
+    menu.querySelectorAll<HTMLElement>(MENU_ITEM_SELECTOR),
+  ).filter(
+    (item) =>
+      item.closest('[role="menu"]') === menu &&
+      !item.matches(":disabled") &&
+      !item.closest(
+        '[aria-disabled="true"], [hidden], [inert], [aria-hidden="true"]',
+      ),
+  );
+}
 
 export const FEEDBACK_ACCESSIBLE_NAME_ERROR =
   "Artemis feedback components require a non-empty accessible label";
@@ -725,11 +740,14 @@ export function Popover({
 
   useEffect(() => {
     if (!open || !focusOnOpen || !position.measured) return;
+    const content = contentRef.current;
+    if (!content) return;
     const target =
-      contentRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ??
-      contentRef.current;
-    target?.focus({ preventScroll: true });
-  }, [focusOnOpen, open, position.measured]);
+      (role === "menu"
+        ? enabledMenuItems(content)[0]
+        : content.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)) ?? content;
+    target.focus({ preventScroll: true });
+  }, [focusOnOpen, open, position.measured, role]);
 
   if (!open) return null;
   const target = portalTarget(portalContainer);
@@ -741,6 +759,48 @@ export function Popover({
       data-artemis-component="popover"
       data-part="root"
       data-state="visible"
+      onKeyDown={(event) => {
+        attributes.onKeyDown?.(event);
+        if (
+          role !== "menu" ||
+          event.defaultPrevented ||
+          event.nativeEvent.isComposing ||
+          event.altKey ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.shiftKey ||
+          !["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)
+        ) {
+          return;
+        }
+        const menu = event.currentTarget;
+        const target = event.target;
+        if (
+          !(target instanceof Element) ||
+          target.closest('[role="menu"]') !== menu ||
+          target.closest(
+            'input, select, textarea, [contenteditable]:not([contenteditable="false"])',
+          )
+        ) {
+          return;
+        }
+        const items = enabledMenuItems(menu);
+        if (items.length === 0) return;
+        const currentIndex = items.findIndex((item) =>
+          item.contains(menu.ownerDocument.activeElement),
+        );
+        let nextIndex = 0;
+        if (event.key === "End") {
+          nextIndex = items.length - 1;
+        } else if (event.key === "ArrowDown") {
+          nextIndex = (currentIndex + 1) % items.length;
+        } else if (event.key === "ArrowUp") {
+          nextIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        items[nextIndex]?.focus({ preventScroll: true });
+      }}
       ref={(node) => {
         contentRef.current = node;
         assignRef(forwardedRef, node);
