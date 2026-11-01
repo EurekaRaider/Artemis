@@ -1113,12 +1113,6 @@ ${model.providerId} · ${model.modelId}`,
                       setSettings(updated);
                       onSettingsChange(updated);
                     }}
-                    onEditConnection={() => {
-                      const provider = settings.providers.find(
-                        (item) => item.id === selectedProviderId,
-                      );
-                      if (provider) editProviderConnection(provider);
-                    }}
                     onDeleteConnection={() =>
                       setProviderDeleteTarget(
                         settings.providers.find(
@@ -1304,12 +1298,15 @@ ${model.providerId} · ${model.modelId}`,
                               className="added-model-table-header"
                               aria-hidden="true"
                             >
-                              <span>{t.model}</span>
-                              <span>{t.contextWindow}</span>
                               <span>
-                                {uiText(locale, "SettingsPanel.defaultModel")}
+                                {UI_COPY.AutomationPage_text[locale].name}
                               </span>
-                              <span />
+                              <span>
+                                {uiText(locale, "Review03.modelContext")}
+                              </span>
+                              <span>
+                                {uiText(locale, "Review03.modelDefault")}
+                              </span>
                             </div>
                           )}
                           {settings.addedModels
@@ -1404,7 +1401,7 @@ ${model.providerId} · ${model.modelId}`,
                                           className="added-model-context"
                                           title={`${t.contextWindow}: ${model.contextWindow.toLocaleString(locale)} token`}
                                         >
-                                          {new Intl.NumberFormat(locale, {
+                                          {new Intl.NumberFormat("en", {
                                             notation: "compact",
                                             maximumFractionDigits: 1,
                                           }).format(model.contextWindow)}
@@ -1490,7 +1487,14 @@ ${model.providerId} · ${model.modelId}`,
                                     model.providerId,
                                     model.modelId,
                                   ),
-                                  label: `${model.name} · ${model.providerId}`,
+                                  label: defaultModels.some(
+                                    (other) =>
+                                      other !== model &&
+                                      normalizedModelLabel(other.name) ===
+                                        normalizedModelLabel(model.name),
+                                  )
+                                    ? `${model.name} · ${model.providerId}/${model.modelId}`
+                                    : model.name,
                                 }))
                               : [{ value: "", label: t.noAddedModels }]
                           }
@@ -2187,7 +2191,7 @@ ${model.providerId} · ${model.modelId}`,
                     <table className="settings-mode-capabilities">
                       <thead>
                         <tr>
-                          <th />
+                          <th>{uiText(locale, "Review03.capability")}</th>
                           {(["plan", "work", "codemode"] as const).map(
                             (mode) => (
                               <th key={mode}>
@@ -2274,11 +2278,33 @@ ${model.providerId} · ${model.modelId}`,
                         }
                       />
                     </SettingsRow>
-                    <SettingsRow label={uiText(locale, "Review02.mcpSandbox")}>
+                    <SettingsRow
+                      label={uiText(locale, "Review03.localMcpSandbox")}
+                      description={uiText(locale, "Review03.mcpSandboxDetail")}
+                    >
                       <span className="settings-readonly-status">
                         <ArtemisIcon name="sandbox" width={14} height={14} />
                         {uiText(locale, "Review02.defaultEnabled")}
                       </span>
+                    </SettingsRow>
+                    <SettingsRow
+                      label={t.localFullAccess}
+                      description={t.localFullAccessDetail}
+                    >
+                      <Switch
+                        checked={settings.localFullAccess}
+                        disabled={busy}
+                        label={t.localFullAccess}
+                        labelVisibility="hidden"
+                        onCheckedChange={(checked) =>
+                          void run(async () => {
+                            const updated =
+                              await window.artemis.setLocalFullAccess(checked);
+                            setSettings(updated);
+                            onSettingsChange(updated);
+                          })
+                        }
+                      />
                     </SettingsRow>
                   </ManagementSection>
                   <ManagementSection
@@ -2344,32 +2370,6 @@ ${model.providerId} · ${model.modelId}`,
                           },
                         ]}
                         value={settings.shell.profileMode}
-                      />
-                    </SettingsRow>
-                  </ManagementSection>
-
-                  <ManagementSection
-                    className="settings-section"
-                    title={t.capabilityAccess}
-                    tone="warning"
-                  >
-                    <SettingsRow
-                      label={t.localFullAccess}
-                      description={t.localFullAccessDetail}
-                    >
-                      <Switch
-                        checked={settings.localFullAccess}
-                        disabled={busy}
-                        label={t.localFullAccess}
-                        labelVisibility="hidden"
-                        onCheckedChange={(checked) =>
-                          void run(async () => {
-                            const updated =
-                              await window.artemis.setLocalFullAccess(checked);
-                            setSettings(updated);
-                            onSettingsChange(updated);
-                          })
-                        }
                       />
                     </SettingsRow>
                   </ManagementSection>

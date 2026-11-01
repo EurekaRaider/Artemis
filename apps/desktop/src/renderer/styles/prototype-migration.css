@@ -88,14 +88,14 @@
   -webkit-app-region: no-drag;
 }
 .sidebar > [data-part="main"] > [data-part="content"]::-webkit-scrollbar {
-  width: 12px;
+  width: 10px;
 }
 .sidebar > [data-part="main"] > [data-part="content"]::-webkit-scrollbar-track {
   background: transparent;
 }
 .sidebar > [data-part="main"] > [data-part="content"]::-webkit-scrollbar-thumb {
   min-height: 36px;
-  border: 3px solid transparent;
+  border: 2px solid transparent;
   border-radius: 999px;
   background: color-mix(in srgb, var(--text) 10%, transparent);
   background-clip: padding-box;
@@ -170,7 +170,6 @@
 .project-group-select {
   flex: 1;
 }
-.project-row.project-group-row .project-new-thread,
 .project-collapse-all {
   opacity: 0;
 }
@@ -694,6 +693,19 @@
   background: var(--artemis-color-switch-on);
   border-color: var(--artemis-color-switch-on);
 }
+[data-artemis-component="switch"] [data-part="track"] {
+  background: var(--nocturne-switch-off);
+}
+[data-artemis-component="switch"] [data-part="thumb"],
+[data-artemis-component="switch"]:has([data-part="control"]:checked)
+  [data-part="thumb"] {
+  background: light-dark(#fff, rgb(255 255 255 / 0.72));
+  box-shadow: 0 1px 2px light-dark(rgb(0 0 0 / 0.2), transparent);
+}
+[data-artemis-component="switch"]:has([data-part="control"]:checked)
+  [data-part="thumb"] {
+  background: #fff;
+}
 
 .workspace-header > [data-part="leading"] {
   flex: 1;
@@ -1051,11 +1063,6 @@ body:has(.app-shell[data-platform="darwin"]),
 .environment-popover {
   animation: environment-panel-enter var(--artemis-motion-duration-fast)
     var(--sidebar-toggle-ease) both;
-  background: var(--sidebar-floating-glass);
-  backdrop-filter: url(#panelGlass);
-  border: 0;
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
   z-index: 60;
 }
 @keyframes environment-panel-enter {

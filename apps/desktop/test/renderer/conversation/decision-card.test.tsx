@@ -110,7 +110,7 @@ describe("approval and single question cards", () => {
         onResolve={vi.fn()}
       />,
     );
-    expect(screen.getByText("本会话已允许")).toBeInTheDocument();
+    expect(screen.getByText("本任务内已允许")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("button")).toBeNull();
   });

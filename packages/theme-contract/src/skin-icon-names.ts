@@ -1,4 +1,13 @@
 export const SKIN_ICON_NAMES = [
+  "agent",
+  "shield",
+  "rocket",
+  "book",
+  "wand",
+  "chart",
+  "translate",
+  "server",
+
   "message",
   "chat",
   "pr",

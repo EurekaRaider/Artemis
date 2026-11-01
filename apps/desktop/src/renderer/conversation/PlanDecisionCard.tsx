@@ -1,3 +1,4 @@
+import { MarkdownContent } from "../components/MarkdownContent.js";
 import { useId, useRef, useState } from "react";
 import type { AppLocale, SavedPlan } from "@artemis/protocol";
 import { Popover } from "@artemis/ui/feedback";
@@ -50,16 +51,11 @@ export function PlanDecisionCard({
       ? [
           {
             label: uiText(locale, "Plan.execute"),
-            description: uiText(locale, "App_copy.work"),
+            description: "",
             recommended: true,
           },
         ]
       : []),
-    {
-      label: uiText(locale, "Plan.revise"),
-      description: "",
-      recommended: false,
-    },
   ];
   return (
     <UserInputFrame
@@ -70,17 +66,23 @@ export function PlanDecisionCard({
       <header>
         <strong>{uiText(locale, "Review02.planReady")}</strong>
         <span className="decision-waiting">
-          v{plan.revision} ·{" "}
-          {uiText(locale, plan.actionable ? "Plan.waiting" : "Plan.noAction")}
+          {uiText(locale, "Review03.planReadonly")}
         </span>
       </header>
       <h3 className="decision-title">{plan.title}</h3>
+      <div className="plan-decision-content">
+        <MarkdownContent text={plan.markdown} locale={locale} />
+      </div>
+      {!plan.actionable && (
+        <p className="decision-waiting">{uiText(locale, "Plan.noAction")}</p>
+      )}
       <DecisionOptions
         options={options}
         locale={locale}
         busy={busy || !available || !onRevise || (plan.actionable && !onAccept)}
-        placeholder={uiText(locale, "Plan.revise")}
+        placeholder={uiText(locale, "Review03.refinePlan")}
         replyRef={reply}
+        replyIsLastOption
         replyMaxLength={100_000}
         onChoose={(index) => {
           if (plan.actionable && index === 0) accept("work");
@@ -102,7 +104,7 @@ export function PlanDecisionCard({
               disabled={!available || busy || !onAccept}
               onClick={() => setOptionsOpen(!optionsOpen)}
             >
-              ▾
+              {uiText(locale, "App_copy.work")}
             </button>
           ) : null
         }

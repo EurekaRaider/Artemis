@@ -13,6 +13,7 @@ import {
   buildTokenUsageByModel,
   buildTokenUsageCells,
   filterTokenUsageEvents,
+  formatTokenUsageNumber,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
   tokenUsageModelsForTable,
@@ -132,6 +133,10 @@ export function TokenUsagePage({
     () => tokenUsageModelsForTable(usageByModel),
     [usageByModel],
   );
+  const allModelsTotal = usageByModel.reduce(
+    (sum, model) => sum + model.totalTokens,
+    0,
+  );
   const visibleEvents = useMemo(
     () => filterTokenUsageEvents(events, selectedModel),
     [events, selectedModel],
@@ -179,10 +184,7 @@ export function TokenUsagePage({
     }),
     [visibleEvents],
   );
-  const number = new Intl.NumberFormat(locale, {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  });
+
   const exactNumber = new Intl.NumberFormat(locale);
   const detailDateFormatter = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
@@ -201,25 +203,50 @@ export function TokenUsagePage({
     .filter(([, count]) => Number(count) > 0)
     .map(([label, count]) => `${label} ${exactNumber.format(Number(count))}`)
     .join(" · ");
+  const shortDate = (date: string) =>
+    new Intl.DateTimeFormat(locale, {
+      month: "short",
+      day: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(`${date}T12:00:00Z`));
+  const weekNumber = (date: string) => {
+    const day = new Date(`${date}T12:00:00Z`);
+    day.setUTCDate(day.getUTCDate() + 4 - (day.getUTCDay() || 7));
+    return Math.ceil(
+      ((day.getTime() - Date.UTC(day.getUTCFullYear(), 0, 1)) / 86400000 + 1) /
+        7,
+    );
+  };
+  const peakWeekDate = allCells.find(
+    (cell) => cell.weeklyTokens === peakWeek,
+  )?.weekStart;
   const summary = [
     {
       label: t.totalTokens,
-      value: number.format(totalTokens),
-      detail: allCells.length
-        ? `${allCells[0]!.date} – ${allCells.at(-1)!.date}`
-        : undefined,
+      value: formatTokenUsageNumber(totalTokens),
+      detail: uiText(
+        locale,
+        allCells[0] && allCells[0].date < firstVisibleDate
+          ? "Review04.allRecordedUsage"
+          : "Review04.pastYear",
+      ),
     },
     {
       label: t.peakDay,
-      value: number.format(peakDay),
-      detail: peakDay > 0 ? mostActiveCell?.date : undefined,
+      value: formatTokenUsageNumber(peakDay),
+      detail:
+        peakDay > 0 && mostActiveCell
+          ? shortDate(mostActiveCell.date)
+          : undefined,
     },
     {
       label: t.peakWeek,
-      value: number.format(peakWeek),
+      value: formatTokenUsageNumber(peakWeek),
       detail:
-        peakWeek > 0
-          ? allCells.find((cell) => cell.weeklyTokens === peakWeek)?.weekStart
+        peakWeek > 0 && peakWeekDate
+          ? uiText(locale, "Review03.weekNumber", {
+              count: weekNumber(peakWeekDate),
+            })
           : undefined,
     },
     {
@@ -232,13 +259,20 @@ export function TokenUsagePage({
         ).length,
       }),
     },
-    {
-      label: t.cacheHitRate,
-      value:
-        cacheMetrics.hitRate === undefined
-          ? "—"
-          : percent.format(cacheMetrics.hitRate),
-    },
+    ...(cacheMetrics.hitRate === undefined
+      ? []
+      : [
+          {
+            label: t.cacheHitRate,
+            value: percent.format(cacheMetrics.hitRate),
+            detail:
+              cacheMetrics.cacheReadTokens > 0
+                ? uiText(locale, "Review04.savedInput", {
+                    count: formatTokenUsageNumber(cacheMetrics.cacheReadTokens),
+                  })
+                : undefined,
+          },
+        ]),
   ];
   const observations = [
     {
@@ -247,7 +281,9 @@ export function TokenUsagePage({
     },
     {
       label: t.averageActiveDay,
-      value: number.format(activeDays === 0 ? 0 : totalTokens / activeDays),
+      value: formatTokenUsageNumber(
+        activeDays === 0 ? 0 : totalTokens / activeDays,
+      ),
     },
     {
       label: t.mostActiveDay,
@@ -272,13 +308,6 @@ export function TokenUsagePage({
     {
       label: t.recordedResponses,
       value: exactNumber.format(visibleEvents.length),
-    },
-    {
-      label: t.cacheHitRate,
-      value:
-        cacheMetrics.hitRate === undefined
-          ? "—"
-          : percent.format(cacheMetrics.hitRate),
     },
     {
       label: t.cacheDataCoverage,
@@ -364,14 +393,23 @@ export function TokenUsagePage({
         </div>
       </header>
 
-      <section className="token-usage-summary" aria-label={t.title}>
+      <section
+        className="token-usage-summary"
+        aria-label={t.title}
+        data-columns={summary.length}
+      >
         {summary.map((item) => (
-          <div key={item.label}>
-            <DataStat label={item.label} value={item.value} />
-            {item.detail && (
-              <small className="token-kpi-meta">{item.detail}</small>
-            )}
-          </div>
+          <DataStat
+            key={item.label}
+            label={item.label}
+            value={item.value}
+            detail={item.detail}
+            title={
+              item.label === t.cacheHitRate
+                ? t.cacheHitRateDescription
+                : undefined
+            }
+          />
         ))}
       </section>
 
@@ -411,15 +449,24 @@ export function TokenUsagePage({
         ) : null}
       </section>
 
-      {usageModelsForTable.length > 0 && (
+      {
         <section className="token-usage-models" aria-label={t.usageByModel}>
-          <h2>{t.usageByModel}</h2>
+          <div className="token-model-heading">
+            <h2>{t.usageByModel}</h2>
+            <small>{uiText(locale, "Review03.tokenDescending")}</small>
+          </div>
+          {usageModelsForTable.length === 0 && (
+            <p className="token-model-empty">
+              {uiText(locale, "Review05.noModelUsage")}
+            </p>
+          )}
           <div className="token-usage-model-bars">
             {usageModelsForTable.map((model) => (
               <div key={model.key}>
                 <div>
                   <Button
                     variant="quiet"
+                    selected={selectedModel === model.key}
                     onClick={() => {
                       setSelectedModel(model.key);
                       setHovered(undefined);
@@ -428,72 +475,36 @@ export function TokenUsagePage({
                     <ArtemisIcon name="model" width={14} height={14} />
                     {modelLabel(model)}
                   </Button>
-                  <span>{number.format(model.totalTokens)}</span>
+                  <bdi dir="ltr" className="token-usage-model-value">
+                    {formatTokenUsageNumber(model.totalTokens)}
+                    <span>
+                      {" "}
+                      ·{" "}
+                      {percent.format(
+                        model.totalTokens / Math.max(1, allModelsTotal),
+                      )}
+                    </span>
+                  </bdi>
                 </div>
                 <div className="token-usage-model-bar" aria-hidden="true">
                   <span
                     style={{
-                      inlineSize: `${Math.max(0, Math.min(100, (model.totalTokens / Math.max(1, ...usageModelsForTable.map((item) => item.totalTokens))) * 100))}%`,
+                      inlineSize: `${Math.max(0, Math.min(100, (model.totalTokens / Math.max(1, allModelsTotal)) * 100))}%`,
                     }}
                   />
                 </div>
               </div>
             ))}
           </div>
-          <div className="token-usage-model-breakdown">
-            <div className="token-usage-models-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{t.modelColumn}</th>
-                    <th>{t.inputTokens}</th>
-                    <th>{t.outputTokens}</th>
-                    <th>{t.cacheHitTokens}</th>
-                    <th title={t.cacheHitRateDescription}>{t.cacheHitRate}</th>
-                    <th>{t.modelTotalTokens}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {usageModelsForTable.map((model) => (
-                    <tr
-                      className={selectedModel === model.key ? "selected" : ""}
-                      key={model.key}
-                    >
-                      <td>
-                        <Button
-                          className="token-usage-model-action"
-                          selected={selectedModel === model.key}
-                          onClick={() => {
-                            setSelectedModel(model.key);
-                            setHovered(undefined);
-                          }}
-                          variant="quiet"
-                        >
-                          <ArtemisIcon name="model" width={14} height={14} />
-                          {modelLabel(model)}
-                        </Button>
-                      </td>
-                      <td>{number.format(model.inputTokens)}</td>
-                      <td>{number.format(model.outputTokens)}</td>
-                      <td>{number.format(model.cacheHitTokens)}</td>
-                      <td title={t.cacheHitRateDescription}>
-                        {model.cacheHitRate === undefined
-                          ? "—"
-                          : percent.format(model.cacheHitRate)}
-                      </td>
-                      <td>{number.format(model.totalTokens)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </section>
-      )}
+      }
 
       <section className="token-usage-details" aria-label={t.insights}>
-        <div className="token-usage-detail-block">
-          <h2>{t.insights}</h2>
+        <details className="token-usage-observations">
+          <summary>
+            {uiText(locale, "Review04.moreStats")}
+            <ArtemisIcon name="chev-right" width={12} height={12} />
+          </summary>
           <dl className="token-usage-detail-list">
             {observations.map((item) => (
               <div className="token-usage-detail-row" key={item.label}>
@@ -502,13 +513,13 @@ export function TokenUsagePage({
               </div>
             ))}
           </dl>
-        </div>
+        </details>
 
         <div className="token-usage-detail-block">
-          <h2>
-            {t.tokenComposition}
-            <span>{number.format(totalTokens)}</span>
-          </h2>
+          <div className="token-composition-heading">
+            <h2>{t.tokenComposition}</h2>
+            <bdi dir="ltr">{formatTokenUsageNumber(totalTokens)}</bdi>
+          </div>
           <div className="token-usage-composition-bar" aria-hidden="true">
             {composition.map((item) => (
               <span
@@ -541,7 +552,7 @@ export function TokenUsagePage({
                         ),
                     )}
                   </span>
-                  {number.format(item.value)}
+                  <bdi dir="ltr">{formatTokenUsageNumber(item.value)}</bdi>
                 </dd>
               </div>
             ))}

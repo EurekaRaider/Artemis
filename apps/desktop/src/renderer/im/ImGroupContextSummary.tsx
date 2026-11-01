@@ -173,8 +173,7 @@ export function ImGroupContextSummary({
             type="button"
             onClick={(event) => onManageAuthorization(event.currentTarget)}
           >
-            <ArtemisIcon name="sandbox" />
-            {t("GroupAuthorization.edit")}
+            {t("Review03.manageAuthorization")}
           </button>
         )}
       </EnvironmentSection>

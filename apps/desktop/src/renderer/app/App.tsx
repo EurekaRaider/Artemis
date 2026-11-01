@@ -1,3 +1,5 @@
+import { Keycap } from "@artemis/ui/actions";
+import { threadPresentationStatus } from "../conversation/thread-presentation.js";
 import { WelcomeResume } from "../conversation/WelcomeResume.js";
 import {
   SidebarUpdateControl,
@@ -23,6 +25,7 @@ import {
   type ArtifactSnapshot,
 } from "@artemis/protocol";
 import { imUserMessageText } from "../im/im-user-message.js";
+import { memberAvatarStyle } from "../im/member-avatar.js";
 import { UserInputCard } from "../conversation/UserInputCard.js";
 import {
   DecisionComposer,
@@ -258,7 +261,7 @@ import { SourcesIcon, SourcesPanel } from "../conversation/SourcesPanel.js";
 import { TaskPlanProgress } from "../conversation/TaskPlanProgress.js";
 import {
   WorkRecord,
-  AgentElapsed,
+  AgentActivityStatus,
   turnChangedFileCount,
   turnUsageLabel,
 } from "../conversation/WorkRecord.js";
@@ -4235,6 +4238,7 @@ export function App() {
             )}
             <button
               type="button"
+              className="turn-error-secondary"
               disabled={
                 busy ||
                 turnActive ||
@@ -4411,13 +4415,13 @@ export function App() {
   const remoteWaiting = delegationWaiting || (!turnActive && !!permissionBlock);
   const statusDotStatus = remoteWaiting
     ? "waiting-approval"
-    : threadState?.status === "waiting-user-input" ||
-        threadState?.status === "waiting-approval"
-      ? threadState.status
-      : threadState?.status === "running" &&
-          threadState.activity?.phase === "queued"
-        ? "queued"
-        : runPresentation.status;
+    : activeThread
+      ? threadPresentationStatus(
+          activeThread,
+          threadState,
+          runPresentation.status,
+        )
+      : "idle";
   const taskPlan = useMemo(
     () => deriveTaskPlan(activeEvents, turnActive),
     [activeEvents, turnActive],
@@ -4780,8 +4784,6 @@ export function App() {
           (scope === "staged" || scope === "unstaged")
         ? reviewCounts?.[scope]
         : undefined;
-  const reviewScopeLabel = (scope: ReviewScope, label: string) =>
-    reviewCount(scope) === undefined ? label : `${label} ${reviewCount(scope)}`;
 
   const mutateReview = useCallback(
     async (
@@ -6168,8 +6170,10 @@ export function App() {
     ["archive", uiText(locale, "App.archiveConversations"), <ArchiveIcon />],
   ] as const;
   const managementViewLabel =
-    navigationItems.find(([view]) => view === activeView)?.[1] ??
-    activeWorkspaceLabel;
+    activeView === "token-usage"
+      ? uiText(locale, "Review04.usage")
+      : (navigationItems.find(([view]) => view === activeView)?.[1] ??
+        activeWorkspaceLabel);
 
   return (
     <ApplicationShell
@@ -6380,9 +6384,9 @@ export function App() {
             >
               <ArtemisIcon name="edit-square" width={16} height={16} />
               <span>{uiText(locale, "App.inline9")}</span>
-              <kbd aria-hidden="true">
+              <Keycap aria-hidden="true">
                 {snapshot.platform === "darwin" ? "⌘N" : "Ctrl+N"}
-              </kbd>
+              </Keycap>
             </button>
             <PanelHeader
               actions={
@@ -6400,9 +6404,9 @@ export function App() {
                       placeholder={t.search}
                       value={query}
                     />
-                    <kbd aria-hidden="true">
+                    <Keycap aria-hidden="true">
                       {snapshot.platform === "darwin" ? "⌘K" : "Ctrl+K"}
-                    </kbd>
+                    </Keycap>
                   </label>
                 </div>
               }
@@ -6523,9 +6527,12 @@ export function App() {
                   width={12}
                 />
               </button>
-              <Tooltip align="end" label={t.openProject}>
+              <Tooltip
+                align="end"
+                label={uiText(locale, "Review04.addProjectFolder")}
+              >
                 <button
-                  aria-label={t.openProject}
+                  aria-label={uiText(locale, "Review04.addProjectFolder")}
                   className="project-new-thread"
                   onClick={() => void openProject()}
                   type="button"
@@ -6723,6 +6730,22 @@ export function App() {
                         >
                           <button
                             role="menuitem"
+                            onClick={() => {
+                              setProjectMenuId(undefined);
+                              beginNewConversation(project.id);
+                            }}
+                          >
+                            <ArtemisIcon
+                              name="edit-square"
+                              width={16}
+                              height={16}
+                            />
+                            <span>
+                              {uiText(locale, "Review05.newProjectTask")}
+                            </span>
+                          </button>
+                          <button
+                            role="menuitem"
                             onClick={(event) => {
                               setHooksQuery({ projectId: project.id });
                               setProjectMenuId(undefined);
@@ -6753,6 +6776,7 @@ export function App() {
                             />
                             <span>{uiText(locale, "App.inline7")}</span>
                           </button>
+                          <div role="separator" />
                           <button
                             role="menuitem"
                             className="danger"
@@ -6777,11 +6801,13 @@ export function App() {
                             title={
                               hasActiveTask
                                 ? t.stopTasksBeforeRemove
-                                : t.removeProject
+                                : uiText(locale, "Review05.removeFromSidebar")
                             }
                           >
-                            <ArtemisIcon name="trash" width={16} height={16} />
-                            <span>{t.removeProject}</span>
+                            <ArtemisIcon name="close" width={16} height={16} />
+                            <span>
+                              {uiText(locale, "Review05.removeFromSidebar")}
+                            </span>
                           </button>
                         </Popover>
                       )}
@@ -6948,6 +6974,8 @@ export function App() {
                                 <ThreadWaitingBadge
                                   thread={thread}
                                   locale={locale}
+                                  events={snapshot.events[thread.id]}
+                                  historyState={historyPages[thread.id]?.state}
                                 />
                                 <time
                                   className="thread-time"
@@ -7014,7 +7042,7 @@ export function App() {
                                       height={16}
                                     />
                                     <span>{t.renameTask}</span>
-                                    <kbd>F2</kbd>
+                                    <Keycap>F2</Keycap>
                                   </button>
                                   <button
                                     role="menuitem"
@@ -7043,7 +7071,9 @@ export function App() {
                                       width={16}
                                       height={16}
                                     />
-                                    <span>{uiText(locale, "Share.title")}</span>
+                                    <span>
+                                      {uiText(locale, "Review05.shareTask")}
+                                    </span>
                                   </button>
 
                                   <div role="separator" />
@@ -7063,11 +7093,11 @@ export function App() {
                                       height={16}
                                     />
                                     <span>{t.archiveTask}</span>
-                                    <kbd>
+                                    <Keycap>
                                       {snapshot.platform === "darwin"
                                         ? "⌘⌫"
                                         : "Ctrl+Backspace"}
-                                    </kbd>
+                                    </Keycap>
                                   </button>
                                   <button
                                     role="menuitem"
@@ -7242,7 +7272,12 @@ export function App() {
                           locale={locale}
                         />
                       </span>
-                      <ThreadWaitingBadge thread={thread} locale={locale} />
+                      <ThreadWaitingBadge
+                        thread={thread}
+                        locale={locale}
+                        events={snapshot.events[thread.id]}
+                        historyState={historyPages[thread.id]?.state}
+                      />
                       <time
                         className="thread-time"
                         dateTime={thread.updatedAt}
@@ -7296,7 +7331,7 @@ export function App() {
                         >
                           <ArtemisIcon name="edit" width={16} height={16} />
                           <span>{t.renameTask}</span>
-                          <kbd>F2</kbd>
+                          <Keycap>F2</Keycap>
                         </button>
                         <button
                           role="menuitem"
@@ -7317,7 +7352,7 @@ export function App() {
                           }}
                         >
                           <ArtemisIcon name="share" width={16} height={16} />
-                          <span>{uiText(locale, "Share.title")}</span>
+                          <span>{uiText(locale, "Review05.shareTask")}</span>
                         </button>
 
                         <div role="separator" />
@@ -7331,11 +7366,11 @@ export function App() {
                         >
                           <ArtemisIcon name="archive" width={16} height={16} />
                           <span>{t.archiveTask}</span>
-                          <kbd>
+                          <Keycap>
                             {snapshot.platform === "darwin"
                               ? "⌘⌫"
                               : "Ctrl+Backspace"}
-                          </kbd>
+                          </Keycap>
                         </button>
                         <button
                           role="menuitem"
@@ -7509,6 +7544,7 @@ export function App() {
             >
               <ConversationSurface
                 className="conversation"
+                data-pending-decision={Boolean(pendingComposerDecision)}
                 id="conversation"
                 label={t.conversation}
                 state={conversationEmpty ? "empty" : "ready"}
@@ -7541,21 +7577,22 @@ export function App() {
                             ? uiText(locale, "ImPermission.waiting")
                             : delegationWaiting
                               ? uiText(locale, "ImDelegation.waitingShort")
-                              : runPresentation.status === "completed"
-                                ? t.completed
-                                : statusLabel(threadState, locale, clockMs)}
+                              : pendingComposerDecision
+                                ? uiText(locale, "Review02.waitingDecision")
+                                : statusDotStatus === "completed"
+                                  ? t.completed
+                                  : statusLabel(threadState, locale, clockMs)}
                         </span>
-                        {!remoteWaiting &&
-                          runPresentation.status === "running" && (
-                            <time
-                              dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                            >
-                              {formatRunDuration(
-                                runPresentation.elapsedMs,
-                                locale,
-                              )}
-                            </time>
-                          )}
+                        {!remoteWaiting && statusDotStatus === "running" && (
+                          <time
+                            dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                          >
+                            {formatRunDuration(
+                              runPresentation.elapsedMs,
+                              locale,
+                            )}
+                          </time>
+                        )}
                       </span>
                       {activeProject && activeThread && (
                         <button
@@ -7570,6 +7607,13 @@ export function App() {
                       )}
                       {activeProject && (
                         <EnvironmentPanel
+                          worktreeCount={
+                            snapshot.worktrees.filter(
+                              (tree) =>
+                                tree.target === "managed-worktree" &&
+                                tree.status === "active",
+                            ).length
+                          }
                           key={environmentWorkspaceKey}
                           commitRequest={environmentCommitRequest}
                           actionsDisabled={
@@ -7585,7 +7629,10 @@ export function App() {
                           agents={environmentAgents}
                           onMentionMember={groupMentions.insert}
                           memberRemovalDisabled={turnActive || busy}
-                          executing={turnActive}
+                          executing={
+                            threadState?.status === "running" &&
+                            !pendingComposerDecision
+                          }
                           onRemoveMember={async (deviceId) => {
                             if (!activeThread) return false;
                             try {
@@ -7621,6 +7668,26 @@ export function App() {
                               : undefined
                           }
                           attachments={attachments}
+                          contextSkills={installedSkills
+                            .filter(
+                              (skill) =>
+                                selectedSkills.some(
+                                  (selected) => selected.id === skill.id,
+                                ) ||
+                                Object.values(
+                                  threadState?.userMessages ?? {},
+                                ).some((message) =>
+                                  selectedSkillNamesForPrompt(
+                                    message.text,
+                                  ).includes(skill.name),
+                                ),
+                            )
+                            .map((skill) => ({
+                              ...skill,
+                              plugin: installedPluginBySkillName.get(
+                                skill.name,
+                              ),
+                            }))}
                           defaultOpen={Boolean(threadState?.turnOrder.length)}
                           dockOpen={workspaceDockOpen}
                           locale={locale}
@@ -8233,6 +8300,14 @@ export function App() {
                                 workspaceControl={
                                   activeProject ? (
                                     <EnvironmentWorkspaceMenu
+                                      worktreeCount={
+                                        snapshot.worktrees.filter(
+                                          (tree) =>
+                                            tree.target ===
+                                              "managed-worktree" &&
+                                            tree.status === "active",
+                                        ).length
+                                      }
                                       locale={locale}
                                       path={
                                         environmentWorktree?.path ??
@@ -8287,7 +8362,7 @@ export function App() {
                                 projects={projects}
                               />
                               <small className="composer-send-hint">
-                                <kbd>↵</kbd> {t.send}　<kbd>⇧↵</kbd>{" "}
+                                <Keycap>↵</Keycap> {t.send}　<Keycap>⇧↵</Keycap>{" "}
                                 {uiText(locale, "Review01.newline")}
                               </small>
                             </div>
@@ -8432,6 +8507,15 @@ export function App() {
                                     >
                                       <ResourceAvatar
                                         kind="skill"
+                                        id={skill.id}
+                                        description={skill.description}
+                                        pluginName={
+                                          installedPlugins.find((plugin) =>
+                                            plugin.skillNames.includes(
+                                              skill.name,
+                                            ),
+                                          )?.name
+                                        }
                                         name={skill.name}
                                       />
                                       <span>
@@ -8782,9 +8866,12 @@ export function App() {
                                   <span className="composer-placeholder">
                                     {composerPlaceholder}
                                   </span>{" "}
-                                  <span>
-                                    {uiText(locale, "Review01.composerHint")}
-                                  </span>
+                                  {!imThreadStatus[activeThreadId ?? ""]
+                                    ?.group && (
+                                    <span>
+                                      {uiText(locale, "Review01.composerHint")}
+                                    </span>
+                                  )}
                                 </small>
                               )}
                           </div>
@@ -9207,40 +9294,67 @@ ${model.providerId} · ${model.modelId}`}
                               </div>
                               {turnActive ? (
                                 <div className="run-actions">
-                                  <button
-                                    className="send-button"
-                                    disabled={
-                                      (customAgentTasks.length === 0 &&
-                                        !prompt.trim() &&
-                                        attachments.length === 0 &&
-                                        selectedSkills.length === 0) ||
-                                      busy
-                                    }
-                                    onClick={() => void sendPrompt()}
-                                    title={t.followUp}
-                                  >
-                                    <ArtemisIcon
-                                      className="icon"
-                                      height={17}
-                                      name="send"
-                                      width={17}
-                                      strokeWidth={1.8}
-                                      fallback={
-                                        <path d="m6 12 6-6 6 6m-6-6v12" />
+                                  {(prompt.trim() ||
+                                    attachments.length > 0 ||
+                                    selectedSkills.length > 0 ||
+                                    customAgentTasks.length > 0) && (
+                                    <button
+                                      className="send-button"
+                                      disabled={
+                                        (customAgentTasks.length === 0 &&
+                                          !prompt.trim() &&
+                                          attachments.length === 0 &&
+                                          selectedSkills.length === 0) ||
+                                        busy
                                       }
-                                    />
-                                  </button>
+                                      onClick={() => void sendPrompt()}
+                                      title={t.followUp}
+                                    >
+                                      <ArtemisIcon
+                                        className="icon"
+                                        height={17}
+                                        name="send"
+                                        width={17}
+                                        strokeWidth={1.8}
+                                        fallback={
+                                          <path d="m6 12 6-6 6 6m-6-6v12" />
+                                        }
+                                      />
+                                    </button>
+                                  )}
                                   <button
                                     className="send-button stop"
                                     disabled={!turnRunning}
                                     onClick={() => void cancelActiveTurn()}
-                                    title={t.stop}
+                                    title={`${uiText(locale, "Review05.stopRunning")} ${snapshot.platform === "darwin" ? "⌘." : "Ctrl+."}`}
                                   >
-                                    <ArtemisIcon
-                                      height={12}
-                                      name="stop"
-                                      width={12}
-                                    />
+                                    <svg viewBox="0 0 32 32" aria-hidden="true">
+                                      <circle
+                                        cx="16"
+                                        cy="16"
+                                        r="15"
+                                        fill="none"
+                                        stroke="var(--border)"
+                                        strokeWidth="1.5"
+                                      />
+                                      <path
+                                        className="stop-progress-arc"
+                                        d="M16 1a15 15 0 0 1 15 15"
+                                        fill="none"
+                                        stroke="var(--artemis-color-brand)"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                      />
+                                      <rect
+                                        x="12"
+                                        y="12"
+                                        width="8"
+                                        height="8"
+                                        rx="1.5"
+                                        fill="currentColor"
+                                        stroke="none"
+                                      />
+                                    </svg>
                                   </button>
                                 </div>
                               ) : (
@@ -9573,24 +9687,23 @@ ${model.providerId} · ${model.modelId}`}
                                           : []),
                                         {
                                           value: "last-turn",
-                                          label: reviewScopeLabel(
-                                            "last-turn",
-                                            t.lastTurn,
-                                          ),
+                                          label: t.lastTurn,
+                                          count:
+                                            reviewCount("last-turn") ||
+                                            undefined,
                                         },
                                         {
                                           value: "unstaged",
-                                          label: reviewScopeLabel(
-                                            "unstaged",
-                                            t.unstaged,
-                                          ),
+                                          label: t.unstaged,
+                                          count:
+                                            reviewCount("unstaged") ||
+                                            undefined,
                                         },
                                         {
                                           value: "staged",
-                                          label: reviewScopeLabel(
-                                            "staged",
-                                            t.staged,
-                                          ),
+                                          label: t.staged,
+                                          count:
+                                            reviewCount("staged") || undefined,
                                         },
                                         { value: "branch", label: t.branch },
                                       ]}
@@ -9713,12 +9826,16 @@ ${model.providerId} · ${model.modelId}`}
                                           {file.path.split(/[\\/]/).at(-1)}
                                         </span>
                                         <span className="review-file-stats">
-                                          <span className="addition">
-                                            +{file.additions}
-                                          </span>
-                                          <span className="deletion">
-                                            −{file.deletions}
-                                          </span>
+                                          {file.additions > 0 && (
+                                            <span className="addition">
+                                              +{file.additions}
+                                            </span>
+                                          )}
+                                          {file.deletions > 0 && (
+                                            <span className="deletion">
+                                              −{file.deletions}
+                                            </span>
+                                          )}
                                         </span>
                                         <span className="file-status">
                                           {file.status === "added"
@@ -10027,6 +10144,35 @@ ${model.providerId} · ${model.modelId}`}
                                                       {commentLineId ===
                                                         line.id && (
                                                         <div className="review-comment-editor">
+                                                          <header className="review-comment-heading">
+                                                            <span
+                                                              className="review-comment-avatar"
+                                                              aria-hidden="true"
+                                                            >
+                                                              {userInitials(
+                                                                username,
+                                                              )}
+                                                            </span>
+                                                            <strong>
+                                                              {username}
+                                                            </strong>
+                                                            {(line.newLine ??
+                                                              line.oldLine) !==
+                                                              undefined && (
+                                                              <span>
+                                                                {uiText(
+                                                                  locale,
+                                                                  "Review04.commentLine",
+                                                                  {
+                                                                    line:
+                                                                      line.newLine ??
+                                                                      line.oldLine ??
+                                                                      "",
+                                                                  },
+                                                                )}
+                                                              </span>
+                                                            )}
+                                                          </header>
                                                           <textarea
                                                             aria-label={
                                                               t.commentPlaceholder
@@ -11470,12 +11616,14 @@ export function ToolActivityGroupCard({
   onFileLink,
   tools,
   pluginForTool,
+  mcpForTool,
 }: {
   active: boolean;
   locale: Locale;
   onFileLink: (href: string) => void;
   tools: readonly ToolState[];
   pluginForTool?: (tool: ToolState) => ToolPlugin | undefined;
+  mcpForTool?: (tool: ToolState) => McpServerStatus["config"] | undefined;
 }) {
   const failed = tools.some((tool) => tool.status === "failed");
   const [open, setExpanded] = useState(failed);
@@ -11483,6 +11631,8 @@ export function ToolActivityGroupCard({
     if (failed) setExpanded(true);
   }, [failed]);
   const step = toolStepPresentation(tools, locale);
+  const lastTool = tools.at(-1);
+  const mcpServer = lastTool && mcpForTool?.(lastTool);
   const view = toolActivityPatternView(tools, active, locale);
   const firstPlugin = tools[0] && pluginForTool?.(tools[0]);
   const plugin =
@@ -11538,6 +11688,23 @@ export function ToolActivityGroupCard({
                 pluginName={plugin.name}
                 iconDataUrl={plugin.iconDataUrl}
                 brandColor={plugin.brandColor}
+              />
+            ) : step.icon === "mcp" || mcpServer ? (
+              <ResourceAvatar
+                kind="mcp"
+                name={
+                  mcpServer?.name ??
+                  (lastTool?.name ?? "")
+                    .replace(/^mcp__?/, "")
+                    .split("__")[0] ??
+                  ""
+                }
+                command={
+                  mcpServer?.transport === "stdio"
+                    ? [mcpServer.command, ...mcpServer.args].join(" ")
+                    : undefined
+                }
+                transport={mcpServer?.transport}
               />
             ) : (
               <ArtemisIcon name={step.icon} width={14} height={14} />
@@ -11716,12 +11883,16 @@ export function TurnChangeSetCard({
             <small>{t.binaryChange}</small>
           ) : (
             <span className="turn-change-file-stats">
-              <span className="addition" data-count={file.additions}>
-                +{file.additions}
-              </span>
-              <span className="deletion" data-count={file.deletions}>
-                −{file.deletions}
-              </span>
+              {file.additions > 0 && (
+                <span className="addition" data-count={file.additions}>
+                  +{file.additions}
+                </span>
+              )}
+              {file.deletions > 0 && (
+                <span className="deletion" data-count={file.deletions}>
+                  −{file.deletions}
+                </span>
+              )}
             </span>
           )}
         </button>
@@ -11902,6 +12073,16 @@ export function Timeline({
       state.entryTurnIds[`tool:${tool.id}`],
       state.mcpToolUses,
     );
+  const mcpForTool = (tool: ToolState) => {
+    const turnId = state.entryTurnIds[`tool:${tool.id}`];
+    const usage = state.mcpToolUses[`${turnId ?? ""}\0parent\0${tool.id}`];
+    const servers = mcpServers?.filter((server) =>
+      usage
+        ? server.config.id === usage.serverId
+        : server.tools.some((registered) => registered.piName === tool.name),
+    );
+    return servers?.length === 1 ? servers[0]?.config : undefined;
+  };
   const groupedTimeline = useMemo(() => {
     const assigned = new Set<string>();
     const turns = state.turnOrder.flatMap((turnId) => {
@@ -11947,6 +12128,7 @@ export function Timeline({
   );
   const renderTimelineEntry = (
     timelineEntry: ReturnType<typeof groupTimelineActivities>[number],
+    groupWorkRecord?: ReactNode,
   ): ReactNode => {
     if (timelineEntry.kind === "tool-group") {
       const tools = timelineEntry.toolIds.flatMap((toolId) => {
@@ -11961,6 +12143,7 @@ export function Timeline({
           onFileLink={onFileLink}
           tools={tools}
           pluginForTool={pluginForTool}
+          mcpForTool={mcpForTool}
         />
       ) : null;
     }
@@ -11972,7 +12155,9 @@ export function Timeline({
     const turn = state.turns[state.entryTurnIds[entry] ?? ""];
     if (kind === "plan") {
       const plan = state.plans?.find((p) => p.planId === id);
-      return plan ? (
+      return plan &&
+        firstPendingComposerDecision(state)?.entry !==
+          `plan:${plan.planId}:${plan.revision}` ? (
         <PlanConfirmationCard key={entry} plan={plan} locale={locale} />
       ) : null;
     }
@@ -12074,7 +12259,11 @@ export function Timeline({
           >
             {imGroup && (
               <div className="group-message-heading">
-                <span className="group-message-avatar" aria-hidden="true">
+                <span
+                  className="group-message-avatar"
+                  aria-hidden="true"
+                  style={memberAvatarStyle(imGroup.spaceId)}
+                >
                   {Array.from(uiText(locale, "ImGroupMembers.message13"))[0]}
                 </span>
                 <strong>{uiText(locale, "ImGroupMembers.message13")}</strong>
@@ -12183,6 +12372,7 @@ export function Timeline({
               {renderMessageTime(entry, part.timestamp)}
             </div>
           )}
+          {groupWorkRecord}
           <MarkdownContent
             fileLinkIcons
             videoThreadId={state.threadId}
@@ -12243,7 +12433,13 @@ export function Timeline({
       }
       return child ? (
         <AgentActivity
-          indicator={<AgentElapsed child={child} />}
+          indicator={
+            <AgentActivityStatus
+              child={child}
+              locale={locale}
+              showIcon={false}
+            />
+          }
           className={`child-agent-card work-record-agent ${child.status} ${child.health ?? "healthy"}`}
           icon={
             child.status === "running" ? (
@@ -12257,7 +12453,9 @@ export function Timeline({
                     ? "check"
                     : child.status === "failed"
                       ? "x-circle"
-                      : "clock"
+                      : child.status === "blocked"
+                        ? "alert"
+                        : "clock"
                 }
               />
             )
@@ -12269,7 +12467,7 @@ export function Timeline({
           statusLabel={childStatusLabels[child.status]}
           title={
             <>
-              <ArtemisIcon name="agents" width={14} height={14} />
+              <ArtemisIcon name="agent" width={14} height={14} />
               <span className="tool-step-verb">
                 {uiText(locale, "WorkRecord.agent")}
               </span>
@@ -12305,22 +12503,41 @@ export function Timeline({
               );
               const leadingUserCount =
                 firstExecution < 0 ? entries.length : firstExecution;
+              const runningEntries = entries.slice(leadingUserCount);
+              const groupAnswer = imGroup
+                ? runningEntries.findLast(
+                    (entry) =>
+                      entry.kind === "entry" &&
+                      entry.entry.startsWith("part:") &&
+                      state.messageParts[entry.entry.slice(5)]?.type === "text",
+                  )
+                : undefined;
+              const workEntries = runningEntries.filter(
+                (entry) => entry !== groupAnswer,
+              );
+              const workRecord = (
+                <WorkRecord
+                  turn={turn}
+                  changedFileCount={turnChangedFileCount(events ?? [], turn)}
+                  locale={locale}
+                  entries={workEntries}
+                  childAgents={state.childAgents}
+                >
+                  {workEntries.map((entry) => renderTimelineEntry(entry))}
+                </WorkRecord>
+              );
               return (
                 <TimelineTurn
                   className="timeline-turn"
                   key={turn.id}
                   state={turn.status}
                 >
-                  {entries.slice(0, leadingUserCount).map(renderTimelineEntry)}
-                  <WorkRecord
-                    turn={turn}
-                    changedFileCount={turnChangedFileCount(events ?? [], turn)}
-                    locale={locale}
-                    entries={entries}
-                    childAgents={state.childAgents}
-                  >
-                    {entries.slice(leadingUserCount).map(renderTimelineEntry)}
-                  </WorkRecord>
+                  {entries
+                    .slice(0, leadingUserCount)
+                    .map((entry) => renderTimelineEntry(entry))}
+                  {groupAnswer
+                    ? renderTimelineEntry(groupAnswer, workRecord)
+                    : workRecord}
                   <TurnChangeSetCard
                     locale={locale}
                     onReview={onOpenTurnReview}
@@ -12359,24 +12576,35 @@ export function Timeline({
                 !userEntries.includes(entry) &&
                 !planEntries.includes(entry),
             );
+            const workRecord = (
+              <WorkRecord
+                turn={turn}
+                changedFileCount={turnChangedFileCount(events ?? [], turn)}
+                locale={locale}
+                entries={executionEntries}
+                childAgents={state.childAgents}
+              >
+                {() =>
+                  executionEntries.map((entry) => renderTimelineEntry(entry))
+                }
+              </WorkRecord>
+            );
             return (
               <TimelineTurn
                 className={`timeline-turn ${turn.status}`}
                 key={turn.id}
                 state={turn.status}
               >
-                {userEntries.map(renderTimelineEntry)}
-                <WorkRecord
-                  turn={turn}
-                  changedFileCount={turnChangedFileCount(events ?? [], turn)}
-                  locale={locale}
-                  entries={executionEntries}
-                  childAgents={state.childAgents}
-                >
-                  {() => executionEntries.map(renderTimelineEntry)}
-                </WorkRecord>
-                {finalEntry ? renderTimelineEntry(finalEntry) : null}
-                {planEntries.map(renderTimelineEntry)}
+                {userEntries.map((entry) => renderTimelineEntry(entry))}
+                {imGroup && finalEntry ? (
+                  renderTimelineEntry(finalEntry, workRecord)
+                ) : (
+                  <>
+                    {workRecord}
+                    {finalEntry ? renderTimelineEntry(finalEntry) : null}
+                  </>
+                )}
+                {planEntries.map((entry) => renderTimelineEntry(entry))}
                 <TurnChangeSetCard
                   locale={locale}
                   onReview={onOpenTurnReview}
@@ -12393,7 +12621,7 @@ export function Timeline({
           }}
         </HistoryTurn>
       ))}
-      {groupedTimeline.unassigned.map(renderTimelineEntry)}
+      {groupedTimeline.unassigned.map((entry) => renderTimelineEntry(entry))}
       {state.queue.steering.map((message, index) => (
         <ConversationMessage
           className="user-message steering-message"

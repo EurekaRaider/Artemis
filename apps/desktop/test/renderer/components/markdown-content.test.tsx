@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { JSDOM } from "jsdom";
+import { findCssDeclarations } from "../../contracts/css-test-utils.js";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -287,26 +288,36 @@ describe("MarkdownContent", () => {
 
     expect(assistantMessage).toContain("fileLinkIcons");
     expect(assistantMessage).not.toContain("externalLinkIcons");
-    expect(stylesSource).toMatch(
-      /\.markdown-body a\.workspace-file-link\s*\{[\s\S]*?text-decoration:\s*none;[\s\S]*?\}/u,
+    const declarations = (selector: string) =>
+      findCssDeclarations(stylesSource, selector);
+    expect(declarations(".markdown-body a.workspace-file-link")).toContain(
+      "text-decoration: none",
     );
-    expect(stylesSource).toMatch(
-      /\.markdown-body a\.workspace-file-link\.with-icon\s*\{[\s\S]*?display:\s*inline;[\s\S]*?font-family:\s*inherit;[\s\S]*?white-space:\s*normal;[\s\S]*?\}/u,
+    const fileLink = declarations(
+      ".markdown-body a.workspace-file-link.with-icon",
     );
-    expect(stylesSource).toMatch(
-      /\.markdown-body a\[data-external-http\][\s\S]*?text-decoration:\s*underline;[\s\S]*?\}/u,
+    expect(fileLink).toContain("display: inline");
+    expect(fileLink).toContain("font-family: inherit");
+    expect(fileLink).toContain("white-space: normal");
+    expect(declarations(".markdown-body a[data-external-http]")).toContain(
+      "text-decoration: underline",
     );
-    expect(stylesSource).toMatch(
-      /\.markdown-body a\.external-http-link\.with-icon\s*\{[\s\S]*?font-weight:\s*500;[\s\S]*?text-decoration:\s*none;[\s\S]*?white-space:\s*normal;[\s\S]*?\}/u,
+    const externalLink = declarations(
+      ".markdown-body a.external-http-link.with-icon",
     );
-    expect(stylesSource).toMatch(
-      /\.markdown-body a\.external-http-link\.with-icon:hover\s*\{[\s\S]*?text-decoration-style:\s*dashed;[\s\S]*?\}/u,
-    );
-    expect(stylesSource).toMatch(
-      /\.markdown-body a\.external-http-link\.with-icon:focus-visible\s*\{[\s\S]*?outline:[\s\S]*?\}/u,
-    );
-    expect(stylesSource).toMatch(/\.workspace-file-link-icon\s*\{[\s\S]*?\}/u);
-    expect(stylesSource).toMatch(/\.external-link-icon\s*\{[\s\S]*?\}/u);
+    expect(externalLink).toContain("font-weight: 500");
+    expect(externalLink).toContain("text-decoration: none");
+    expect(externalLink).toContain("white-space: normal");
+    expect(
+      declarations(".markdown-body a.external-http-link.with-icon:hover"),
+    ).toContain("text-decoration-style: dashed");
+    expect(
+      declarations(
+        ".markdown-body a.external-http-link.with-icon:focus-visible",
+      ),
+    ).toContain("outline:");
+    expect(declarations(".workspace-file-link-icon")).toBeTruthy();
+    expect(declarations(".external-link-icon")).toBeTruthy();
   });
 
   it("is used for assistant message content in the timeline", () => {

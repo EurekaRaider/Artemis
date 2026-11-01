@@ -35,8 +35,8 @@ describe("ArtemisIcon", () => {
   });
   it("publishes the complete Nocturne icon catalog and workspace brand", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe("nocturne:Icons.dc.html");
-    expect(ARTEMIS_ICON_NAMES).toHaveLength(147);
-    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(147);
+    expect(ARTEMIS_ICON_NAMES).toHaveLength(155);
+    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(155);
     expect(ARTEMIS_ICON_NAMES).toEqual(
       expect.arrayContaining([
         "artemis",
@@ -60,6 +60,14 @@ describe("ArtemisIcon", () => {
         "slack",
         "wecom",
         "qr-code",
+        "agent",
+        "shield",
+        "rocket",
+        "book",
+        "wand",
+        "chart",
+        "translate",
+        "server",
       ]),
     );
   });

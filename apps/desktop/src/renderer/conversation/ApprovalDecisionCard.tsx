@@ -1,3 +1,4 @@
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { useRef, useState } from "react";
 import type {
   AppLocale,
@@ -126,20 +127,26 @@ export function ApprovalDecisionCard({
           <bdi>{view.detail}</bdi>
         </pre>
       )}
+      {actorLabel && <small>{actorLabel}</small>}
+      {view.reason && (
+        <div className="decision-reason">
+          <small>{uiText(locale, "Review03.agentReason")}</small>
+          <p>
+            <bdi>{view.reason}</bdi>
+          </p>
+        </div>
+      )}
       <div className="decision-metadata">
         {approval.network.map((host) => (
           <span key={host}>
             <bdi>{host}</bdi>
           </span>
         ))}
-        <span>{uiText(locale, `Review02.risk.${approval.risk}`)}</span>
+        <span>
+          <ArtemisIcon name="alert" width={12} height={12} />
+          {uiText(locale, `Review02.risk.${approval.risk}`)}
+        </span>
       </div>
-      {actorLabel && <small>{actorLabel}</small>}
-      {view.reason && (
-        <p className="decision-reason">
-          <bdi>{view.reason}</bdi>
-        </p>
-      )}
       <DecisionOptions
         options={options}
         locale={locale}

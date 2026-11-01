@@ -134,9 +134,12 @@ it("keeps installation failures visible and permits an explicit retry", async ()
       onError={onError}
     />,
   );
-  expect(screen.getByRole("alert")).toHaveTextContent("Install failed");
-  fireEvent.click(screen.getByRole("button", { name: "Install update" }));
+  const alert = screen.getByRole("alert");
+  expect(alert).toHaveTextContent("Install failed");
+  expect(within(alert).getByRole("button", { name: "Retry" })).toBeVisible();
+  expect(document.querySelector(".sidebar-update > button")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(onError).toHaveBeenCalledWith("Install failed"));
-  fireEvent.click(screen.getByRole("button", { name: "Install update" }));
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(installUpdate).toHaveBeenCalledTimes(2));
 });

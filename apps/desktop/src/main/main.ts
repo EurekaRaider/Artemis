@@ -19678,13 +19678,23 @@ function createMainWindow(): BrowserWindow {
                     }
                     providersTab.click();
                     if (view === 'form-controls-settings-custom') {
-                      const customTab = await waitForElement(
-                        '.provider-sidebar > button:not(.provider-import)',
+                      const addService = await waitForElement(
+                        '.provider-add-service',
                       );
-                      if (!(customTab instanceof HTMLButtonElement)) {
-                        throw new Error('Settings custom providers tab missing.');
+                      if (!(addService instanceof HTMLButtonElement)) {
+                        throw new Error('Settings add service button missing.');
                       }
-                      customTab.click();
+                      addService.click();
+                      const catalog = await waitForElement(
+                        '.provider-catalog-dialog',
+                      );
+                      const customService = [
+                        ...(catalog?.querySelectorAll('button') ?? []),
+                      ].find((button) => button.textContent?.trim() === ${JSON.stringify(uiText(currentLocale(), "Review03.customService"))});
+                      if (!(customService instanceof HTMLButtonElement)) {
+                        throw new Error('Settings custom service picker action missing.');
+                      }
+                      customService.click();
                       const checkboxRoot = await waitForElement(
                         '.provider-form [data-artemis-component="checkbox"]',
                       );
@@ -22837,6 +22847,11 @@ function createMainWindow(): BrowserWindow {
                             '.token-usage-summary [data-artemis-component="data-stat"]',
                           ),
                         ];
+                        const cacheHitLabel = ${JSON.stringify(uiText(currentLocale(), "token_usage_TOKEN_USAGE_COPY.cacheHitRate"))};
+                        const cacheHitDescription = ${JSON.stringify(uiText(currentLocale(), "token_usage_TOKEN_USAGE_COPY.cacheHitRateDescription"))};
+                        const cacheHitRate = [
+                          ...document.querySelectorAll('.token-usage-details dt'),
+                        ].find((label) => label.textContent?.trim() === cacheHitLabel);
                         const grid = document.querySelector(
                           '[data-artemis-component="data-heatmap"] [data-part="grid"]',
                         );
@@ -22942,6 +22957,14 @@ function createMainWindow(): BrowserWindow {
                                 item.querySelector("span")?.textContent ?? null,
                               itemClassName: item.getAttribute("class"),
                             })),
+                          },
+                          cacheInsight: {
+                            present: cacheHitRate != null,
+                            label: cacheHitRate?.textContent?.trim() ?? null,
+                            value: cacheHitRate?.nextElementSibling?.textContent?.trim() ?? null,
+                            description: cacheHitRate?.getAttribute('title') ?? null,
+                            descriptionMatches:
+                              cacheHitRate?.getAttribute('title') === cacheHitDescription,
                           },
                           heatmap: {
                             gridPresent: grid !== null,
@@ -24641,7 +24664,7 @@ app
           {
             id: modelId,
             name: "Fixture model",
-            reasoning: false,
+            reasoning: true,
             input: ["text"],
             contextWindow,
             maxTokens: 8_000,
@@ -24650,7 +24673,7 @@ app
       });
       await settingsStore.addModel({ providerId, modelId, contextWindow });
       await settingsStore.setModel(
-        { providerId, modelId, thinkingLevel: "off" },
+        { providerId, modelId, thinkingLevel: "medium" },
         contextWindow,
       );
     }

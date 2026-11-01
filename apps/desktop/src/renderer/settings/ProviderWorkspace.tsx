@@ -1,11 +1,16 @@
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { ArrowsDownUp, Plus } from "@phosphor-icons/react";
-import { ProviderIcon } from "./ProviderIcon.js";
-import { useEffect, useState, type ReactNode } from "react";
+import { Plus } from "@phosphor-icons/react";
+import { ProviderIcon, PROVIDER_BRAND_ICONS } from "./ProviderIcon.js";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { AppLocale } from "@artemis/protocol";
-import { Button } from "@artemis/ui/actions";
-import { TextField } from "@artemis/ui/forms";
-import { ConfirmationDialog, InlineNotice } from "@artemis/ui/feedback";
+import { Button, IconButton } from "@artemis/ui/actions";
+import { TextField, SearchField } from "@artemis/ui/forms";
+import {
+  ConfirmationDialog,
+  InlineNotice,
+  Dialog,
+  Popover,
+} from "@artemis/ui/feedback";
 import { Tabs } from "@artemis/ui/navigation";
 import type { SettingsSnapshot } from "../../shared/api.js";
 import type { ProviderLoginOption } from "../../shared/provider-login.js";
@@ -23,7 +28,6 @@ export function ProviderWorkspace({
   onSelect,
   onAdd,
   onChange,
-  onEditConnection,
   onDeleteConnection,
   children,
 }: {
@@ -36,7 +40,6 @@ export function ProviderWorkspace({
   onSelect(id: string): void;
   onAdd(): void;
   onChange(settings: SettingsSnapshot): void;
-  onEditConnection(): void;
   onDeleteConnection(): void;
   children: ReactNode;
 }) {
@@ -44,6 +47,12 @@ export function ProviderWorkspace({
   const [loginOptions, setLoginOptions] = useState<ProviderLoginOption[]>([]);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [draftProviders, setDraftProviders] = useState<string[]>([]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuAnchor = useRef<HTMLButtonElement>(null);
+  const navigation = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let disposed = false;
     void window.artemis
@@ -60,13 +69,19 @@ export function ProviderWorkspace({
     };
   }, []);
 
-  const providers = new Map<string, string>();
+  const catalog = new Map<string, string>();
   for (const model of settings.models)
+    catalog.set(model.providerId, model.providerId);
+  for (const option of loginOptions)
+    catalog.set(option.providerId, option.providerId);
+  const providers = new Map<string, string>();
+  for (const id of draftProviders) providers.set(id, catalog.get(id) ?? id);
+  for (const model of settings.addedModels)
+    providers.set(model.providerId, model.providerId);
+  for (const model of settings.models.filter((model) => model.configured))
     providers.set(model.providerId, model.providerId);
   for (const credential of settings.credentials)
     providers.set(credential.providerId, credential.providerId);
-  for (const option of loginOptions)
-    providers.set(option.providerId, option.providerId);
   for (const provider of settings.providers)
     providers.set(provider.id, provider.name);
   const entries = [...providers].sort(([a], [b]) => a.localeCompare(b));
@@ -75,7 +90,7 @@ export function ProviderWorkspace({
       .normalize("NFKC")
       .toLocaleLowerCase()
       .replace(/[^\p{L}\p{N}]/gu, "");
-  const query = normalize(search);
+  const query = entries.length > 8 ? normalize(search) : "";
   const visibleEntries = entries.filter(([id, name]) => {
     const candidate = normalize(`${name} ${id}`);
     let position = 0;
@@ -89,17 +104,16 @@ export function ProviderWorkspace({
   const connection = settings.providers.find(
     (provider) => provider.id === selectedProviderId,
   );
-  const status = (id: string) => {
-    const saved = settings.credentials.find((item) => item.providerId === id);
-    return uiText(
-      locale,
-      saved?.type === "api_key"
-        ? "Providers.keyConfigured"
-        : saved?.type === "oauth"
-          ? "Providers.signedIn"
-          : "Providers.notConfigured",
+  const connected = (id: string) =>
+    settings.credentials.some((item) => item.providerId === id) ||
+    settings.models.some(
+      (model) => model.providerId === id && model.configured,
     );
-  };
+  const status = (id: string) =>
+    uiText(
+      locale,
+      connected(id) ? "Review03.connected" : "Review03.disconnected",
+    );
   const locked = disabled;
   const fallbackId = entries[0]?.[0];
   const selectionExists = providers.has(selectedProviderId);
@@ -107,23 +121,31 @@ export function ProviderWorkspace({
     if (!creating && !selectionExists && fallbackId) onSelect(fallbackId);
   }, [creating, selectionExists, fallbackId, onSelect]);
 
+  useEffect(() => {
+    navigation.current
+      ?.querySelector<HTMLElement>('[data-state="selected"]')
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedProviderId, entries.length]);
+
   return (
     <div className="provider-workspace">
       <aside className="provider-sidebar" aria-label={t.configuredProviders}>
         <div className="provider-sidebar-heading">
           <strong>{t.tabProviders}</strong>
         </div>
-        <TextField
-          className="provider-search"
-          size="compact"
-          label={uiText(locale, "Providers.search")}
-          labelVisibility="hidden"
-          placeholder={uiText(locale, "Providers.search")}
-          inputMode="search"
-          value={search}
-          onValueChange={setSearch}
-        />
-        <div className="provider-navigation" tabIndex={0}>
+        {entries.length > 8 && (
+          <SearchField
+            className="provider-search"
+            size="compact"
+            label={uiText(locale, "Providers.search")}
+            labelVisibility="hidden"
+            placeholder={uiText(locale, "Providers.search")}
+
+            value={search}
+            onValueChange={setSearch}
+          />
+        )}
+        <div className="provider-navigation" ref={navigation}>
           {visibleEntries.length === 0 && (
             <p className="provider-search-empty" role="status">
               {uiText(locale, "Providers.noResults")}
@@ -138,61 +160,109 @@ export function ProviderWorkspace({
               selected={!creating && id === selectedProviderId}
               onClick={() => onSelect(id)}
             >
-              <span className="provider-icon-tile">
-                <ProviderIcon
-                  providerId={id}
-                  custom={settings.providers.some(
-                    (provider) => provider.id === id,
-                  )}
-                />
+              <span className="provider-icon-tile" aria-hidden="true">
+                {PROVIDER_BRAND_ICONS[id] ? (
+                  <ProviderIcon providerId={id} />
+                ) : (
+                  name.slice(0, 1).toLocaleUpperCase(locale)
+                )}
               </span>
               <span className="provider-navigation-copy">
                 <span className="provider-navigation-name">{name}</span>
-                <span
-                  className="provider-credential-status"
-                  data-configured={settings.credentials.some(
-                    (item) => item.providerId === id,
-                  )}
-                >
-                  <span className="sr-only">{status(id)}</span>
-                </span>
+                {connected(id) && (
+                  <span
+                    className="provider-credential-status"
+                    data-configured="true"
+                  >
+                    <span className="sr-only">{status(id)}</span>
+                  </span>
+                )}
               </span>
             </Button>
           ))}
+          <Button
+            className="provider-add-service"
+            size="compact"
+            variant="quiet"
+            disabled={locked}
+            icon={<Plus size={20} aria-hidden="true" />}
+            onClick={() => {
+              setCatalogSearch("");
+              setCatalogOpen(true);
+            }}
+          >
+            {uiText(locale, "Providers.add")}
+          </Button>
+          <Button
+            className="provider-import"
+            variant="quiet"
+            disabled={locked || !settings.encryptionAvailable}
+            onClick={() => {
+              onBusy(true);
+              setError("");
+              void window.artemis
+                .importPiCredentials()
+                .then((result) => {
+                  if (result) onChange(result.settings);
+                })
+                .catch((reason) =>
+                  setError(
+                    reason instanceof Error ? reason.message : String(reason),
+                  ),
+                )
+                .finally(() => onBusy(false));
+            }}
+          >
+            {t.importPi}
+          </Button>
+        </div>
+      </aside>
+      <Dialog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        label={uiText(locale, "Providers.add")}
+        className="provider-catalog-dialog"
+      >
+        <h2>{uiText(locale, "Providers.add")}</h2>
+        <SearchField
+          label={uiText(locale, "Providers.search")}
+          labelVisibility="hidden"
+          placeholder={uiText(locale, "Providers.search")}
+          value={catalogSearch}
+          onValueChange={setCatalogSearch}
+        />
+        <div className="provider-catalog-list">
+          {[...catalog]
+            .filter(
+              ([id, name]) =>
+                !providers.has(id) &&
+                normalize(`${id} ${name}`).includes(normalize(catalogSearch)),
+            )
+            .map(([id, name]) => (
+              <Button
+                key={id}
+                variant="quiet"
+                onClick={() => {
+                  setDraftProviders((current) => [...current, id]);
+                  onSelect(id);
+                  setCatalogOpen(false);
+                }}
+              >
+                <ProviderIcon providerId={id} />
+                {name}
+              </Button>
+            ))}
         </div>
         <Button
-          size="compact"
-          variant="quiet"
-          disabled={locked}
-          icon={<Plus size={20} aria-hidden="true" />}
-          onClick={onAdd}
-        >
-          {uiText(locale, "Providers.add")}
-        </Button>
-        <Button
-          className="provider-import"
-          icon={<ArrowsDownUp size={22} aria-hidden="true" />}
-          variant="quiet"
-          disabled={locked || !settings.encryptionAvailable}
           onClick={() => {
-            onBusy(true);
-            setError("");
-            void window.artemis
-              .importPiCredentials()
-              .then((result) => {
-                if (result) onChange(result.settings);
-              })
-              .catch((reason) =>
-                setError(
-                  reason instanceof Error ? reason.message : String(reason),
-                ),
-              )
-              .finally(() => onBusy(false));
+            setCatalogOpen(false);
+            onAdd();
           }}
         >
-          {t.importPi}
+          <Plus size={14} />
+          {uiText(locale, "Review03.customService")}
         </Button>
-      </aside>
+      </Dialog>
       <div className="provider-detail">
         {error && <InlineNotice tone="danger">{error}</InlineNotice>}
         {selectedProviderId && !creating && (
@@ -223,15 +293,45 @@ export function ProviderWorkspace({
               </div>
               <span
                 className="provider-credential-status"
-                data-configured={settings.credentials.some(
-                  (item) => item.providerId === selectedProviderId,
-                )}
+                data-configured={connected(selectedProviderId)}
               >
                 {status(selectedProviderId)}
               </span>
+              {connection && (
+                <>
+                  <IconButton
+                    variant="quiet"
+                    label={uiText(locale, "Review03.serviceActions")}
+                    icon={<ArtemisIcon name="more" />}
+                    onClick={(event) => {
+                      menuAnchor.current = event.currentTarget;
+                      setMenuOpen(!menuOpen);
+                    }}
+                    aria-expanded={menuOpen}
+                  />
+                  <Popover
+                    anchorRef={menuAnchor}
+                    open={menuOpen}
+                    onOpenChange={setMenuOpen}
+                    role="menu"
+                    label={uiText(locale, "Review03.serviceActions")}
+                  >
+                    <button
+                      role="menuitem"
+                      className="danger"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDeleteConnection();
+                      }}
+                    >
+                      {uiText(locale, "Review03.removeService")}
+                    </button>
+                  </Popover>
+                </>
+              )}
             </header>
             <ProviderCredentials
-              key={selectedProviderId}
+              key={`credentials:${selectedProviderId}`}
               providerId={selectedProviderId}
               settings={settings}
               locale={locale}
@@ -243,32 +343,14 @@ export function ProviderWorkspace({
               onChange={onChange}
             />
             {connection && (
-              <div className="provider-connection-summary">
-                <div>
-                  <TextField
-                    label="Base URL"
-                    value={connection.baseUrl}
-                    onValueChange={() => {}}
-                    readOnly
-                    size="compact"
-                  />
-                </div>
-                <Button
-                  variant="quiet"
-                  disabled={locked}
-                  onClick={onEditConnection}
-                >
-                  {t.edit}
-                </Button>
-                <Button
-                  variant="quiet"
-                  disabled={locked}
-                  label={`${t.delete}: ${selectedProviderId}`}
-                  onClick={onDeleteConnection}
-                >
-                  {t.delete}
-                </Button>
-              </div>
+              <ProviderBaseUrl
+                key={`base-url:${connection.id}`}
+                connection={connection}
+                disabled={locked}
+                locale={locale}
+                onBusy={onBusy}
+                onChange={onChange}
+              />
             )}
           </>
         )}
@@ -419,7 +501,7 @@ function ProviderCredentials({
                 </span>
               )}
               <TextField
-                className="provider-api-key"
+                className={`provider-api-key${credential?.type === "api_key" ? " is-configured" : ""}`}
                 size="compact"
                 label={`${t.apiKey} · ${providerId}`}
                 labelVisibility="hidden"
@@ -432,7 +514,7 @@ function ProviderCredentials({
                 }}
                 disabled={disabled || !settings.encryptionAvailable}
                 placeholder={
-                  credential?.type === "api_key" ? "••••••••••••••••" : t.apiKey
+                  credential?.type === "api_key" ? "••••••••••••" : t.apiKey
                 }
                 description={
                   settings.encryptionAvailable ? undefined : t.unavailable
@@ -551,5 +633,65 @@ function ProviderCredentials({
         />
       )}
     </section>
+  );
+}
+
+function ProviderBaseUrl({
+  connection,
+  disabled,
+  locale,
+  onBusy,
+  onChange,
+}: {
+  connection: SettingsSnapshot["providers"][number];
+  disabled: boolean;
+  locale: AppLocale;
+  onBusy(busy: boolean): void;
+  onChange(settings: SettingsSnapshot): void;
+}) {
+  const [value, setValue] = useState(connection.baseUrl);
+  const [error, setError] = useState("");
+  useEffect(() => setValue(connection.baseUrl), [connection.baseUrl]);
+  return (
+    <form
+      className="provider-base-url"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (disabled || !value.trim() || value.trim() === connection.baseUrl)
+          return;
+        onBusy(true);
+        setError("");
+        try {
+          onChange(
+            await window.artemis.saveProviderConnection({
+              ...connection,
+              baseUrl: value.trim(),
+            }),
+          );
+        } catch (reason) {
+          setError(reason instanceof Error ? reason.message : String(reason));
+        } finally {
+          onBusy(false);
+        }
+      }}
+    >
+      <TextField
+        size="compact"
+        label="Base URL"
+        value={value}
+        onValueChange={setValue}
+        disabled={disabled}
+      />
+      {value.trim() !== connection.baseUrl && (
+        <Button
+          type="submit"
+          size="compact"
+          disabled={disabled || !value.trim()}
+        >
+          {UI_COPY.SettingsPanel_labels[locale].saveChanges}
+        </Button>
+      )}
+      {error && <InlineNotice tone="danger">{error}</InlineNotice>}
+    </form>
   );
 }

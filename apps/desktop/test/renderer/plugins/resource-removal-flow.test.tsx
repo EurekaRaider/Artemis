@@ -9,6 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { ResourceCenter } from "../../../src/renderer/plugins/ResourceCenter.js";
+import type { McpServerStatus } from "../../../src/shared/api.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 
 afterEach(() => {
@@ -29,13 +30,18 @@ it("confirms the named MCP or Skill before removing it and preserves cancellatio
       disconnect() {}
     },
   );
-  const server = {
+  const server: McpServerStatus = {
     config: {
       id: "context7",
       name: "Context7",
       enabled: true,
       transport: "stdio",
       command: "synthetic",
+      args: [],
+      env: {},
+      envVars: [],
+      workspacePath: "/synthetic",
+      allowNetwork: false,
     },
     state: "connected",
     tools: [],

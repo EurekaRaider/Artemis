@@ -1,3 +1,7 @@
+import {
+  captureVerifierSource,
+  assertVerifierSourceUnchanged,
+} from "./verifier-source.mjs";
 import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -46,12 +50,8 @@ if (!/^[0-9a-f]{40}$/u.test(candidateHead) || expectedHead !== candidateHead) {
     `Conversation verifier expected HEAD ${expectedHead} does not match candidate ${candidateHead}.`,
   );
 }
-const initialStatus = runGit(["status", "--porcelain"]);
-if (initialStatus !== "") {
-  throw new Error(
-    `Conversation verification requires a clean exact-head worktree:\n${initialStatus}`,
-  );
-}
+const sourceSnapshot = captureVerifierSource(repositoryRoot);
+const initialStatus = sourceSnapshot.status;
 
 const cases = [
   {
@@ -235,14 +235,14 @@ try {
     );
     assert(
       "conversation-landmarks",
-      components("conversation-surface")[0]?.ariaLabel === "Conversation" &&
+      components("conversation-surface")[0]?.ariaLabel === "Task" &&
         components("timeline-viewport")[0]?.ariaLabel ===
-          "Conversation history",
+          "Task history",
       {
         conversation: components("conversation-surface")[0]?.ariaLabel,
         timeline: components("timeline-viewport")[0]?.ariaLabel,
       },
-      { conversation: "Conversation", timeline: "Conversation history" },
+      { conversation: "Task", timeline: "Task history" },
     );
     assert(
       "timeline-inline-fit",
@@ -547,6 +547,7 @@ try {
     });
   }
 
+  assertVerifierSourceUnchanged(repositoryRoot, sourceSnapshot);
   const finalStatus = runGit(["status", "--porcelain"]);
   if (finalStatus !== initialStatus) {
     throw new Error(
@@ -555,11 +556,11 @@ try {
   }
   await writeFile(
     join(outputDirectory, "verification.json"),
-    `${JSON.stringify({ head: candidateHead, cases: results }, null, 2)}\n`,
+    `${JSON.stringify({ head: candidateHead, sourceSnapshot, cases: results }, null, 2)}\n`,
     "utf8",
   );
   console.log(
-    `Conversation timeline verification passed (${cases.length} Electron cases; exact HEAD ${candidateHead}).`,
+    `Conversation timeline verification passed (${cases.length} Electron cases; ${sourceSnapshot.mode} ${candidateHead}; source ${sourceSnapshot.sha256}).`,
   );
 } finally {
   await rm(temporaryDirectory, { recursive: true, force: true });

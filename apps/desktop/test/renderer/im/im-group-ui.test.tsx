@@ -170,7 +170,7 @@ describe("group collaboration UI", () => {
       />,
     );
     const button = screen.getByRole("button", {
-      name: "从本对话移除：Bob · Bob desktop",
+      name: "从本任务移除：Bob · Bob desktop",
     });
     expect(button).toHaveAttribute("data-artemis-component", "icon-button");
     expect(screen.getByRole("button", { name: "@ Bob" })).toHaveAttribute(
@@ -179,10 +179,10 @@ describe("group collaboration UI", () => {
     );
     await userEvent.hover(button);
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "从本对话移除：Bob · Bob desktop",
+      "从本任务移除：Bob · Bob desktop",
     );
     expect(button).toHaveAccessibleDescription(
-      "从本对话移除：Bob · Bob desktop",
+      "从本任务移除：Bob · Bob desktop",
     );
     await userEvent.unhover(button);
     const mentionButton = screen.getByRole("button", { name: "@ Bob" });
@@ -201,7 +201,7 @@ describe("group collaboration UI", () => {
     await userEvent.click(screen.getByRole("button", { name: "取消" }));
     expect(remove).not.toHaveBeenCalled();
     await userEvent.click(
-      screen.getByRole("button", { name: "从本对话移除：Bob · Bob desktop" }),
+      screen.getByRole("button", { name: "从本任务移除：Bob · Bob desktop" }),
     );
     await userEvent.click(screen.getByRole("button", { name: "确认移除成员" }));
     expect(remove).toHaveBeenCalledWith("bob-device");
@@ -226,7 +226,7 @@ describe("group collaboration UI", () => {
     expect(
       screen.queryByText("已加入此 Artemis 空间的成员"),
     ).not.toBeInTheDocument();
-    expect(within(rows[1]!).getByText("执行此任务")).toBeVisible();
+    expect(within(rows[1]!).getByText("空闲")).toBeVisible();
     rerender(
       <ImGroupMembers
         managePermissions
@@ -279,7 +279,7 @@ describe("group collaboration UI", () => {
   });
 });
 
-it("shows all four native members with robot icons only for bots", async () => {
+it("shows all four native members with Artemis for this bot and an agent for other bots", async () => {
   const manage = vi.fn(async () => ({ allowed: false }));
   stubWindowArtemis({ manageIm: manage });
   const roster: NonNullable<ImGroupContext["roster"]> = {
@@ -313,15 +313,24 @@ it("shows all four native members with robot icons only for bots", async () => {
   );
   expect(screen.getAllByRole("listitem")).toHaveLength(4);
   expect(screen.getAllByRole("img", { name: "机器人" })).toHaveLength(2);
-  for (const icon of screen.getAllByRole("img", { name: "机器人" })) {
+  for (const [name, glyph] of [
+    ["Artemis", "artemis"],
+    ["Solar", "agent"],
+  ] as const) {
+    const row = screen
+      .getByText(name)
+      .closest<HTMLElement>('[role="listitem"]')!;
+    const icon = within(row).getByRole("img", { name: "机器人" });
     expect(icon.querySelector("svg")).toHaveAttribute(
       "data-artemis-icon",
-      "bot",
+      glyph,
     );
     expect(icon.closest("strong")?.textContent).toMatch(/Artemis|Solar/);
   }
   expect(screen.getAllByRole("img", { name: "成员" })).toHaveLength(2);
-  expect(screen.getByText("群协作成员 · 4")).toBeVisible();
+  expect(screen.getByText("成员 4")).toBeVisible();
+  expect(screen.getByText("空闲")).toHaveAttribute("data-working", "false");
+  expect(screen.queryByText("工作中")).not.toBeInTheDocument();
   const bots = screen.getAllByRole("img", { name: "机器人" });
   expect(bots[0]).toHaveAttribute("data-state", "online");
   expect(bots[1]).toHaveAttribute("data-state", "online");
@@ -482,7 +491,7 @@ it("shows all four native members with robot icons only for bots", async () => {
     />,
   );
   expect(screen.getByRole("status")).toHaveTextContent("im:chat.members:read");
-  expect(screen.queryByText("群协作成员 · 4")).not.toBeInTheDocument();
+  expect(screen.queryByText("成员 4")).not.toBeInTheDocument();
 });
 
 it("shows Slack active and away presence, and makes stale presence unknown", () => {

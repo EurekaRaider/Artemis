@@ -1,3 +1,4 @@
+import { Keycap } from "@artemis/ui/actions";
 import { useRef, useState, type ReactNode, type Ref } from "react";
 import type { AppLocale, UserInputOption } from "@artemis/protocol";
 import { ArtemisIcon } from "@artemis/ui/icons";
@@ -17,6 +18,7 @@ export function DecisionOptions({
   registerButton,
   replyRef,
   replyMaxLength = 2000,
+  replyIsLastOption = false,
   optionAccessory,
   numbered = true,
 }: {
@@ -32,6 +34,7 @@ export function DecisionOptions({
   placeholder?: string;
   replyRef?: Ref<HTMLInputElement> | undefined;
   replyMaxLength?: number | undefined;
+  replyIsLastOption?: boolean;
   optionAccessory?: ((index: number) => ReactNode) | undefined;
   numbered?: boolean;
   registerButton?: (index: number, button: HTMLButtonElement | null) => void;
@@ -45,9 +48,10 @@ export function DecisionOptions({
   const [draft, setDraft] = useState("");
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
   const composing = useRef(false);
+  const replyInput = useRef<HTMLInputElement>(null);
   const other = placeholder ?? uiText(locale, "DecisionCard.other");
   return (
-    <>
+    <div className="decision-option-area">
       <div className="decision-options" role="group">
         {options.map((option, index) => {
           const button = (
@@ -61,6 +65,15 @@ export function DecisionOptions({
               onFocus={() => setFocused(index)}
               onClick={() => onChoose(index)}
               onKeyDown={(event) => {
+                if (
+                  replyIsLastOption &&
+                  event.key === String(options.length + 1)
+                ) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  replyInput.current?.focus();
+                  return;
+                }
                 if (
                   /^[1-9]$/.test(event.key) &&
                   Number(event.key) <= options.length
@@ -78,10 +91,11 @@ export function DecisionOptions({
                 event.stopPropagation();
                 const next = moveUserInputOptionFocus(
                   index,
-                  options.length,
+                  options.length + (replyIsLastOption ? 1 : 0),
                   event.key as "ArrowUp" | "ArrowDown" | "Home" | "End",
                 );
-                buttons.current[next]?.focus();
+                if (next === options.length) replyInput.current?.focus();
+                else buttons.current[next]?.focus();
               }}
               ref={(button) => {
                 buttons.current[index] = button;
@@ -108,7 +122,7 @@ export function DecisionOptions({
                 </span>
               )}
               {!numbered && (
-                <kbd className="decision-option-number">{index + 1}</kbd>
+                <Keycap className="decision-option-number">{index + 1}</Keycap>
               )}
             </button>
           );
@@ -131,7 +145,11 @@ export function DecisionOptions({
         }}
       >
         <input
-          ref={replyRef}
+          ref={(input) => {
+            replyInput.current = input;
+            if (typeof replyRef === "function") replyRef(input);
+            else if (replyRef) replyRef.current = input;
+          }}
           aria-label={other}
           placeholder={other}
           value={draft}
@@ -173,7 +191,7 @@ export function DecisionOptions({
       <small className="decision-keyboard-hint">
         {uiText(locale, "ComposerMode.decisionHint")}
       </small>
-    </>
+    </div>
   );
 }
 

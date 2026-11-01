@@ -1,4 +1,10 @@
-import { formatDate, scheduleLabel, weekLabels } from "./schedule-label.js";
+import { nextRunLabel } from "./schedule-label.js";
+import {
+  formatDate,
+  scheduleLabel,
+  scheduleTimeZone,
+  weekLabels,
+} from "./schedule-label.js";
 import { SegmentedControl } from "@artemis/ui/navigation";
 import { isExecutionMode } from "@artemis/protocol";
 import { statusText } from "../../shared/i18n/status-text.js";
@@ -804,11 +810,14 @@ export function AutomationPage(props: {
                         {uiText(props.locale, `App_copy.${automation.mode}`)}
                       </span>
                       <small data-state={latestRun?.state}>
-                        {latestRun?.state === "failed"
-                          ? `${statusText(props.locale, latestRun.state)} · ${formatDate(latestRun.createdAt, props.locale)}`
-                          : automation.enabled
-                            ? `${scheduleLabel(automation, props.locale)} · ${t.nextRun}: ${formatDate(automation.nextRunAt, props.locale)}`
-                            : t.pausedUntilEnabled}
+                        <ArtemisIcon
+                          name={automation.enabled ? "calendar" : "pause"}
+                          width={12}
+                          height={12}
+                        />
+                        {automation.enabled
+                          ? `${scheduleLabel(automation, props.locale)} · ${nextRunLabel(automation, props.locale)}`
+                          : t.pausedUntilEnabled}
                       </small>
                     </span>
                   </Button>
@@ -881,8 +890,9 @@ export function AutomationPage(props: {
                         </h2>
                       </div>
                       <span>
-                        {t.lastRun}:{" "}
-                        {formatDate(automation.lastRunAt, props.locale)}
+                        {automation.lastRunAt
+                          ? `${t.lastRun}${props.locale.startsWith("zh") ? "：" : ": "}${formatDate(automation.lastRunAt, props.locale)}`
+                          : uiText(props.locale, "Review03.notRun")}
                       </span>
                     </div>
                     <div className="automation-actions">
@@ -944,7 +954,7 @@ export function AutomationPage(props: {
                       </dt>
                       <dd>
                         <ArtemisIcon name="folder" />
-                        <span>
+                        <span title={project?.name ?? t.unavailableProject}>
                           {project?.name ?? t.unavailableProject} ·{" "}
                           {automation.target === "local" ? t.local : t.managed}
                         </span>
@@ -972,7 +982,7 @@ export function AutomationPage(props: {
                         <span>
                           {taskModel?.name ??
                             taskSelection?.modelId ??
-                            t.chooseModel}
+                            uiText(props.locale, "Review03.followDefault")}
                           {taskSelection && (
                             <>
                               {" "}
@@ -989,14 +999,20 @@ export function AutomationPage(props: {
                       </dd>
                     </div>
                   </dl>
+                  <div className="automation-schedule-heading">
+                    {uiText(props.locale, "Review03.schedule")}
+                    {scheduleTimeZone(automation)
+                      ? ` · ${scheduleTimeZone(automation)}`
+                      : ""}
+                  </div>
                   <div className="automation-meta">
                     <span className="automation-schedule-label">
-                      <ArtemisIcon name="clock" />
+                      <ArtemisIcon name="calendar" />
                       {scheduleLabel(automation, props.locale)}
                     </span>
                     <span>
                       {automation.enabled
-                        ? `${t.nextRun}: ${formatDate(automation.nextRunAt, props.locale)}`
+                        ? `${nextRunLabel(automation, props.locale)}`
                         : t.pausedUntilEnabled}
                     </span>
                   </div>
@@ -1013,14 +1029,24 @@ export function AutomationPage(props: {
                           <div key={index} data-scheduled={scheduled}>
                             <span>{day}</span>
                             <small>
-                              {scheduled
-                                ? automation.schedule.kind ===
-                                  "windowed-interval"
-                                  ? automation.schedule.startTime
-                                  : automation.schedule.kind === "weekly"
-                                    ? automation.schedule.localTime
-                                    : "·"
-                                : "·"}
+                              {scheduled ? (
+                                automation.schedule.kind ===
+                                "windowed-interval" ? (
+                                  automation.schedule.startTime
+                                ) : automation.schedule.kind === "weekly" ? (
+                                  automation.schedule.localTime
+                                ) : (
+                                  <i
+                                    className="automation-unscheduled-dot"
+                                    aria-hidden="true"
+                                  />
+                                )
+                              ) : (
+                                <i
+                                  className="automation-unscheduled-dot"
+                                  aria-hidden="true"
+                                />
+                              )}
                             </small>
                           </div>
                         );

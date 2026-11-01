@@ -1,3 +1,7 @@
+import {
+  captureVerifierSource,
+  assertVerifierSourceUnchanged,
+} from "./verifier-source.mjs";
 import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -41,12 +45,9 @@ if (!/^[0-9a-f]{40}$/u.test(expectedHead) || expectedHead !== candidateHead) {
     `Navigation controls expected HEAD ${expectedHead} does not match candidate ${candidateHead}.`,
   );
 }
-const initialStatus = runGit(["status", "--porcelain"]);
-if (initialStatus !== "") {
-  throw new Error(
-    `Navigation controls verification requires a clean exact-head worktree:\n${initialStatus}`,
-  );
-}
+const sourceSnapshot = captureVerifierSource(repositoryRoot);
+const initialStatus = sourceSnapshot.status;
+
 const outputDirectory = resolve(
   process.argv.slice(2).find((argument) => !argument.startsWith("--")) ??
     verificationOutput("navigation-controls"),
@@ -500,9 +501,10 @@ try {
     (sum, result) => sum + result.assertions.length,
     0,
   );
+  assertVerifierSourceUnchanged(repositoryRoot, sourceSnapshot);
   const completedHead = runGit(["rev-parse", "HEAD"]);
   const completedStatus = runGit(["status", "--porcelain"]);
-  if (completedHead !== candidateHead || completedStatus !== "") {
+  if (completedHead !== candidateHead || completedStatus !== initialStatus) {
     throw new Error(
       `Navigation controls source changed during verification: start=${candidateHead} end=${completedHead} status=${JSON.stringify(completedStatus)}.`,
     );
@@ -511,6 +513,7 @@ try {
     format: "artemis-navigation-controls-smoke",
     version: 1,
     generatedAt: new Date().toISOString(),
+    sourceSnapshot,
     candidateHead,
     completedHead,
     expectedHead,

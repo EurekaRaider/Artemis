@@ -1,3 +1,4 @@
+import { Keycap } from "./actions.js";
 import {
   forwardRef,
   useRef,
@@ -684,7 +685,7 @@ export function WorkspaceLauncherAction({
         {icon}
       </span>
       <span>{label}</span>
-      {shortcut ? <kbd data-part="shortcut">{shortcut}</kbd> : null}
+      {shortcut ? <Keycap data-part="shortcut">{shortcut}</Keycap> : null}
     </button>
   );
 }

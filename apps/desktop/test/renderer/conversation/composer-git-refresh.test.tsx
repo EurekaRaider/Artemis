@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ComposerContextBar } from "../../../src/renderer/conversation/ComposerContextBar.js";
@@ -136,4 +137,88 @@ it("closes the project picker when conversation context becomes locked", async (
   rerender(<ComposerContextBar {...props} projectActionsDisabled={false} />);
   expect(screen.getByRole("button", { name: "Demo" })).toBeEnabled();
   expect(screen.queryByRole("menu")).toBeNull();
+});
+
+it("groups local and remote branches and preserves complete branch names and switching", async () => {
+  const longName = "codex/fix-issue-with-a-very-long-model-stream-layout";
+  const branches = [
+    { name: "origin/z", current: false, remote: true },
+    { name: longName, current: false },
+    { name: "main", current: true },
+    { name: "origin/a", current: false, remote: true },
+  ];
+  const info = {
+    managed: true,
+    currentBranch: "main",
+    branches,
+    changeCount: 0,
+  };
+  const switchBranch = vi.fn().mockResolvedValue(info);
+  stubWindowArtemis({
+    getProjectGitInfo: vi.fn().mockResolvedValue(info),
+    onProjectGitChanged: () => () => {},
+    switchProjectBranch: switchBranch,
+  });
+  render(
+    <ComposerContextBar
+      activeProject={project}
+      threadId="task"
+      branchActionsDisabled={false}
+      locale="zh-CN"
+      mode="work"
+      modeActionsDisabled={false}
+      onClearProject={vi.fn()}
+      onError={vi.fn()}
+      onModeChange={vi.fn()}
+      onOpenProject={async () => {}}
+      onSelectProject={vi.fn()}
+      projects={[project]}
+    />,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "main" }));
+  const menu = screen.getByRole("menu");
+  const rows = [
+    ...menu.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
+  ];
+  expect(rows.map((row) => row.querySelector("strong")?.title)).toEqual([
+    "main",
+    longName,
+    "origin/a",
+    "origin/z",
+  ]);
+  expect(
+    [
+      ...menu.querySelectorAll(".branch-list .composer-context-menu-heading"),
+    ].map((heading) => heading.textContent),
+  ).toEqual(["本地", "远程"]);
+  expect(menu).toHaveTextContent("有未提交改动时，切换前会先询问是否暂存。");
+  const name = rows[1]!.querySelector("strong")!;
+  expect(name.textContent).toBe(longName);
+  expect(name.childElementCount).toBe(0);
+  expect(name.title).toBe(longName);
+  expect(branches.map((branch) => branch.name)).toEqual([
+    "origin/z",
+    longName,
+    "main",
+    "origin/a",
+  ]);
+  fireEvent.click(rows[3]!);
+  expect(switchBranch).toHaveBeenCalledExactlyOnceWith("p", "origin/z", "task");
+  await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+  fireEvent.click(screen.getByRole("button", { name: "main" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "搜索分支" }), {
+    target: { value: "codex/from-search" },
+  });
+  const create = screen.getByRole("menuitem", {
+    name: "新建分支 codex/from-search · 基于当前",
+  });
+  expect(
+    create
+      .closest(".branch-menu-actions")
+      ?.nextElementSibling?.classList.contains("branch-list"),
+  ).toBe(true);
+  fireEvent.click(create);
+  expect(document.querySelector(".branch-create-form input")).toHaveValue(
+    "codex/from-search",
+  );
 });

@@ -270,7 +270,9 @@ describe("prototype-aligned agent panels", () => {
     expect(details).not.toHaveAttribute("open");
     await userEvent.click(screen.getByText("运行详情"));
     expect(details).toHaveAttribute("open");
-    await userEvent.click(screen.getByRole("button", { name: "停止此子代理" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "停止此子智能体" }),
+    );
     expect(onControl).toHaveBeenCalledWith(child, "cancel");
   });
 });

@@ -1784,7 +1784,7 @@ export function ImSettingsPanel({
       const configured =
         platformConnections.length > 0 || !!savedPending[platform];
       const summary = !configured
-        ? imConnectionLabel("unconfigured", t)
+        ? `${imConnectionLabel("unconfigured", t)} · ${t(platform === "feishu" ? "Review03.scanConnect" : "Review03.appConnect")}`
         : state === "connected"
           ? imConnectionLabel("connected", t)
           : imConnectionLabel(state, t);

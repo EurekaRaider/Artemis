@@ -72,18 +72,24 @@ describe("reported issue regressions #70-#72", () => {
     expect(taskPlanSource).toContain('className="task-plan-progress"');
   });
 
-  it("replaces model response counts with a documented cache hit rate", () => {
-    const header = sourceBetween(tokenUsagePageSource, "<thead>", "</thead>");
-    const row = sourceBetween(
+  it("keeps documented cache hit metrics alongside model token bars", () => {
+    const summary = sourceBetween(
       tokenUsagePageSource,
-      "{usageModelsForTable.map((model) => (",
-      "</tbody>",
+      "const summary =",
+      "const observations =",
     );
-
-    expect(header).not.toContain("responsesColumn");
-    expect(header).toContain("cacheHitRateDescription");
-    expect(row).not.toContain("model.usageEvents");
-    expect(row).toContain("model.cacheHitRate");
-    expect(row).toContain("percent.format");
+    const rows = sourceBetween(
+      tokenUsagePageSource,
+      'className="token-usage-model-bars"',
+      'className="token-usage-details"',
+    );
+    expect(tokenUsagePageSource).not.toContain("<table");
+    expect(rows).not.toContain("model.usageEvents");
+    expect(rows).toContain("model.totalTokens");
+    expect(summary).toContain("label: t.cacheHitRate");
+    expect(summary).toContain("percent.format(cacheMetrics.hitRate)");
+    expect(tokenUsagePageSource).toMatch(
+      /title=\{\s*item.label === t.cacheHitRate\s*\? t.cacheHitRateDescription\s*: undefined\s*\}/u,
+    );
   });
 });

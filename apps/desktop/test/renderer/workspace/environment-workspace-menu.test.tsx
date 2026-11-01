@@ -18,25 +18,34 @@ it.each(["inline-start", "block-start"] as const)(
       disabled: false,
       onHandoff: handoff,
       onMessage: message,
+      onOpenUsage: vi.fn(),
     };
     const { rerender } = render(<EnvironmentWorkspaceMenu {...props} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "本地" }));
-    expect(screen.getByRole("menuitemradio", { name: "本地" })).toHaveAttribute(
+    await user.click(screen.getByRole("button", { name: "本地检出" }));
+    expect(screen.getByRole("menuitemradio", { name: "本地检出" })).toHaveAttribute(
       "aria-checked",
       "true",
     );
-    expect(screen.getByRole("menuitemradio", { name: "本地" })).toHaveAttribute(
+    expect(screen.getByRole("menuitemradio", { name: "本地检出" })).toHaveAttribute(
       "aria-description",
       "/fixture",
     );
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
     expect(screen.getByRole("separator")).toBeVisible();
-    await user.click(screen.getByRole("menuitem", { name: "新建本地工作树" }));
+    expect(screen.getByRole("separator").nextElementSibling).toBe(
+      screen.getByRole("menuitem", { name: "Token 用量" }),
+    );
+    await user.click(
+      screen.getByRole("menuitem", {
+        name: "交接到托管工作树…独立目录，互不干扰",
+      }),
+    );
     expect(handoff).toHaveBeenCalledWith("managed-worktree");
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     rerender(<EnvironmentWorkspaceMenu {...props} worktree />);
     await user.click(screen.getByRole("button", { name: "本地工作树" }));
-    await user.click(screen.getByRole("menuitemradio", { name: "本地" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "本地检出" }));
     expect(handoff).toHaveBeenLastCalledWith("local");
     await user.click(screen.getByRole("button", { name: "本地工作树" }));
     await user.keyboard("{Escape}");
@@ -57,16 +66,24 @@ it("blocks running tasks and preserves the menu after a failed handoff", async (
   };
   const { rerender } = render(<EnvironmentWorkspaceMenu {...props} disabled />);
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "本地" }));
+  await user.click(screen.getByRole("button", { name: "本地检出" }));
   expect(
-    screen.getByRole("menuitem", { name: "新建本地工作树" }),
+    screen.getByRole("menuitem", {
+      name: "交接到托管工作树…独立目录，互不干扰",
+    }),
   ).toBeDisabled();
   expect(handoff).not.toHaveBeenCalled();
   rerender(<EnvironmentWorkspaceMenu {...props} disabled={false} />);
-  await user.click(screen.getByRole("menuitem", { name: "新建本地工作树" }));
+  await user.click(
+    screen.getByRole("menuitem", {
+      name: "交接到托管工作树…独立目录，互不干扰",
+    }),
+  );
   expect(message).toHaveBeenCalledWith("Handoff failed", true);
   expect(
-    screen.getByRole("menuitem", { name: "新建本地工作树" }),
+    screen.getByRole("menuitem", {
+      name: "交接到托管工作树…独立目录，互不干扰",
+    }),
   ).toBeEnabled();
 });
 
@@ -82,7 +99,7 @@ it("opens Artemis token usage from the workspace menu", async () => {
     />,
   );
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "本地" }));
+  await user.click(screen.getByRole("button", { name: "本地检出" }));
   await user.click(screen.getByRole("menuitem", { name: "Token 用量" }));
   expect(usage).toHaveBeenCalledOnce();
   expect(screen.queryByRole("menu")).not.toBeInTheDocument();

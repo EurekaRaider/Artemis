@@ -1,6 +1,7 @@
 import { uiText } from "../../shared/i18n/ui-text.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -234,11 +235,16 @@ export function ComposerContextBar({
     if (!root || !anchor) return;
     const rootRect = root.getBoundingClientRect();
     const anchorRect = anchor.getBoundingClientRect();
+    const availableWidth = Math.max(0, window.innerWidth - 16);
+    const rtl = getComputedStyle(root).direction === "rtl";
     const next = contextMenuLayout(
-      rootRect.width,
-      anchorRect.left - rootRect.left,
+      availableWidth,
+      rtl
+        ? anchorRect.right - 8 - Math.min(280, availableWidth)
+        : anchorRect.left - 8,
       rootRect.top,
     );
+    next.left += rtl ? anchorRect.width - next.width : 0;
     setMenuLayout((current) =>
       current?.left === next.left &&
       current.maxHeight === next.maxHeight &&
@@ -324,11 +330,15 @@ export function ComposerContextBar({
         )
       : branches;
     return [...filtered].sort((left, right) =>
-      left.current === right.current
-        ? left.name.localeCompare(right.name)
-        : left.current
-          ? -1
-          : 1,
+      Boolean(left.remote) !== Boolean(right.remote)
+        ? left.remote
+          ? 1
+          : -1
+        : left.current === right.current
+          ? left.name.localeCompare(right.name)
+          : left.current
+            ? -1
+            : 1,
     );
   }, [branchQuery, gitInfo?.branches]);
 
@@ -573,8 +583,28 @@ export function ComposerContextBar({
                         value={branchQuery}
                       />
                     </label>
-                    <div className="composer-context-menu-heading">
-                      {t.branches}
+                    <div className="composer-context-menu-actions branch-menu-actions">
+                      <button
+                        disabled={branchActionsDisabled || Boolean(branchBusy)}
+                        onClick={() => {
+                          setCreatingBranch(true);
+                          setNewBranchName(branchQuery.trim());
+                          setBranchError(undefined);
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <PlusIcon />
+                        <span>
+                          {branchQuery.trim()
+                            ? uiText(
+                                locale,
+                                "Review04.createBranchFromCurrent",
+                                { name: branchQuery.trim() },
+                              )
+                            : t.createBranch}
+                        </span>
+                      </button>
                     </div>
                     {gitLoading && !gitInfo ? (
                       <div
@@ -603,39 +633,56 @@ export function ComposerContextBar({
                             {t.noBranches}
                           </p>
                         ) : (
-                          filteredBranches.map((branch) => (
-                            <button
-                              aria-checked={branch.current}
-                              className={branch.current ? "selected" : ""}
-                              disabled={
-                                Boolean(branchBusy) ||
-                                (branchActionsDisabled && !branch.current)
-                              }
-                              key={branch.name}
-                              onClick={() => {
-                                if (branch.current) setBranchMenuOpen(false);
-                                else void switchBranch(branch.name);
-                              }}
-                              role="menuitemradio"
-                              type="button"
-                            >
-                              <BranchIcon />
-                              <span>
-                                <strong title={branch.name}>
-                                  {branch.name.length > 32
-                                    ? `${branch.name.slice(0, 15)}…${branch.name.slice(-15)}`
-                                    : branch.name}
-                                </strong>
-                                {branch.current && (
-                                  <small>
-                                    {t.uncommitted(gitInfo?.changeCount ?? 0)}
-                                  </small>
-                                )}
-                              </span>
-                              <i aria-hidden="true">
-                                {branch.current ? <CheckIcon /> : null}
-                              </i>
-                            </button>
+                          filteredBranches.map((branch, index) => (
+                            <Fragment key={branch.name}>
+                              {(index === 0 ||
+                                Boolean(branch.remote) !==
+                                  Boolean(
+                                    filteredBranches[index - 1]?.remote,
+                                  )) && (
+                                <div className="composer-context-menu-heading">
+                                  {uiText(
+                                    locale,
+                                    branch.remote
+                                      ? "Review03.remoteBranches"
+                                      : "Review03.localBranches",
+                                  )}
+                                </div>
+                              )}
+                              <button
+                                aria-checked={branch.current}
+                                className={branch.current ? "selected" : ""}
+                                disabled={
+                                  Boolean(branchBusy) ||
+                                  (branchActionsDisabled && !branch.current)
+                                }
+                                onClick={() => {
+                                  if (branch.current) setBranchMenuOpen(false);
+                                  else void switchBranch(branch.name);
+                                }}
+                                role="menuitemradio"
+                                type="button"
+                              >
+                                <BranchIcon />
+                                <span>
+                                  <strong title={branch.name}>
+                                    {branch.name}
+                                  </strong>
+                                </span>
+                                <i>
+                                  {branch.current &&
+                                    (gitInfo?.changeCount ?? 0) > 0 && (
+                                      <small className="branch-change-count">
+                                        {uiText(locale, "Review05.changes", {
+                                          count: gitInfo!.changeCount,
+                                        })}
+                                      </small>
+                                    )}
+
+                                  {branch.current ? <CheckIcon /> : null}
+                                </i>
+                              </button>
+                            </Fragment>
                           ))
                         )}
                       </div>
@@ -648,20 +695,9 @@ export function ComposerContextBar({
                     {branchActionsDisabled && (
                       <p className="composer-context-hint">{t.stopTasks}</p>
                     )}
-                    <div className="composer-context-menu-actions branch-menu-actions">
-                      <button
-                        disabled={branchActionsDisabled || Boolean(branchBusy)}
-                        onClick={() => {
-                          setCreatingBranch(true);
-                          setBranchError(undefined);
-                        }}
-                        role="menuitem"
-                        type="button"
-                      >
-                        <PlusIcon />
-                        <span>{t.createBranch}</span>
-                      </button>
-                    </div>
+                    <p className="composer-context-hint">
+                      {uiText(locale, "Review03.branchStash")}
+                    </p>
                   </>
                 )}
               </div>

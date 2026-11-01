@@ -429,9 +429,11 @@ export function CustomAgentsSettingsSection({
       <ManagementSection
         actions={
           <>
-            <span className="custom-agent-count">
-              {t.count.replace("{count}", String(definitions.length))}
-            </span>
+            {definitions.length > 0 && (
+              <span className="custom-agent-count">
+                {t.count.replace("{count}", String(definitions.length))}
+              </span>
+            )}
             <Button disabled={busy} onClick={openCreate}>
               <ArtemisIcon name="plus" />
               {t.add}

@@ -98,7 +98,7 @@ describe("Codex-style queued message composer", () => {
 
   it("localizes queued-message titles and aria labels in English and zh-CN", () => {
     expect(uiText("en", "App_copy.queuedMessages")).toBe(
-      "{{count}} queued after the current task",
+      "{{count}} messages queued",
     );
     expect(uiText("en", "App_copy.queueSteer")).toBe("Steer");
     expect(uiText("en", "App_copy.queueSteerHint")).toBe(
@@ -109,7 +109,7 @@ describe("Codex-style queued message composer", () => {
     expect(uiText("en", "App_copy.queueEdit")).toBe("Edit queued message");
     expect(uiText("en", "App_copy.queueSave")).toBe("Save queued message");
     expect(uiText("zh-CN", "App_copy.queuedMessages")).toBe(
-      "当前任务后等待 {{count}} 条",
+      "{{count}} 条消息排队中",
     );
     expect(uiText("zh-CN", "App_copy.queueSteer")).toBe("引导");
     expect(uiText("zh-CN", "App_copy.queueSteerHint")).toBe(

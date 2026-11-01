@@ -547,7 +547,7 @@ export function Tooltip({
   const [focused, setFocused] = useState(false);
   const pointerDown = useRef(false);
   const overlayId = useRef(Symbol("artemis-tooltip")).current;
-  const open = hovered || focused;
+  const open = (hovered || focused) && children.props["aria-expanded"] !== true;
   const position = useAnchoredPosition(
     open,
     anchorRef,
@@ -598,7 +598,6 @@ export function Tooltip({
       onFocus={() => setFocused(!pointerDown.current)}
       onPointerDownCapture={() => {
         pointerDown.current = true;
-        setFocused(false);
       }}
       onPointerUpCapture={() => {
         pointerDown.current = false;

@@ -381,7 +381,7 @@ try {
         "编辑后重新发送",
         "复制消息",
         "分叉",
-        "分享会话",
+        "分享任务",
       ]),
     "Completed message actions are missing or out of order.",
   );

@@ -14,6 +14,7 @@ import {
 export function EnvironmentWorkspaceMenu({
   locale,
   path,
+  worktreeCount,
   worktree = false,
   placement = "inline-start",
   disabled,
@@ -24,6 +25,7 @@ export function EnvironmentWorkspaceMenu({
 }: {
   locale: AppLocale;
   path: string;
+  worktreeCount?: number | undefined;
   worktree?: boolean | undefined;
   placement?: "inline-start" | "block-start";
   disabled: boolean;
@@ -39,9 +41,10 @@ export function EnvironmentWorkspaceMenu({
   const [managerOpen, setManagerOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const displayPath = path.replace(/^(?:\/Users\/[^/]+|\/home\/[^/]+)/, "~");
   const label = worktree
     ? t("EnvironmentWorkspaceMenu.message2")
-    : t("App_copy.local");
+    : t("Review03.localCheckout");
   const change = async (destination: "local" | "managed-worktree") => {
     if (!onHandoff || disabled || pending) return;
     setPending(true);
@@ -79,7 +82,7 @@ export function EnvironmentWorkspaceMenu({
         {worktree ? <EnvironmentWorktreeIcon /> : <EnvironmentLocalIcon />}
         <span>{label}</span>
         <small className="environment-workspace-path" title={path}>
-          {path.length > 38 ? `${path.slice(0, 18)}…${path.slice(-18)}` : path}
+          {displayPath}
         </small>
         <EnvironmentChevronIcon />
       </button>
@@ -93,13 +96,10 @@ export function EnvironmentWorkspaceMenu({
         className="environment-workspace-menu"
         id={id}
       >
-        <div className="environment-branch-heading">
-          {t("EnvironmentWorkspaceMenu.message5")}
-        </div>
         <button
           type="button"
           role="menuitemradio"
-          aria-label={t("App_copy.local")}
+          aria-label={t("Review03.localCheckout")}
           aria-description={!worktree ? path : undefined}
           aria-checked={!worktree}
           disabled={pending || (worktree && (disabled || !onHandoff))}
@@ -107,8 +107,8 @@ export function EnvironmentWorkspaceMenu({
         >
           <EnvironmentLocalIcon />
           <span className="environment-workspace-copy">
-            <span>{t("App_copy.local")}</span>
-            {!worktree && <small title={path}>{path}</small>}
+            <span>{t("Review03.localCheckout")}</span>
+            {!worktree && <small title={path}>{displayPath}</small>}
           </span>
           {!worktree && <EnvironmentCheckIcon />}
         </button>
@@ -124,7 +124,7 @@ export function EnvironmentWorkspaceMenu({
             <EnvironmentWorktreeIcon />
             <span className="environment-workspace-copy">
               <span>{label}</span>
-              <small title={path}>{path}</small>
+              <small title={path}>{displayPath}</small>
             </span>
             <EnvironmentCheckIcon />
           </button>
@@ -136,15 +136,17 @@ export function EnvironmentWorkspaceMenu({
             disabled={disabled || pending || !onHandoff}
             onClick={() => void change("managed-worktree")}
           >
-            <EnvironmentWorktreeIcon />
-            <span>
-              {pending
-                ? t("EnvironmentWorkspaceMenu.message8")
-                : t("EnvironmentWorkspaceMenu.message7")}
+            <ArtemisIcon name="fork" />
+            <span className="environment-workspace-copy">
+              <span>
+                {pending
+                  ? t("EnvironmentWorkspaceMenu.message8")
+                  : t("EnvironmentWorkspaceMenu.message7")}
+              </span>
+              <small>{t("Review03.worktreeDetail")}</small>
             </span>
           </button>
         )}
-        <div role="separator" />
         <button
           type="button"
           role="menuitem"
@@ -153,8 +155,9 @@ export function EnvironmentWorkspaceMenu({
             setManagerOpen(true);
           }}
         >
-          <EnvironmentWorktreeIcon />
+          <ArtemisIcon name="layers" />
           <span>{t("EnvironmentWorkspaceMenu.message9")}</span>
+          {worktreeCount !== undefined && <small>{worktreeCount} / 10</small>}
         </button>
         {onOpenUsage && (
           <>

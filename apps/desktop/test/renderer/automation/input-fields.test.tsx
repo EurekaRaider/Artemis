@@ -485,10 +485,27 @@ describe("settings management operation contract (MIG5A)", () => {
     const initial = settingsSnapshot({ models });
     stubSettingsApi(initial);
     await renderSettingsPanel(initial);
+    await userEvent.click(screen.getByRole("tab", { name: "Model services" }));
+    const sidebar = document.querySelector(".provider-sidebar") as HTMLElement;
+    expect(
+      within(sidebar).queryByRole("button", { name: /^mistral/ }),
+    ).toBeNull();
     await userEvent.click(
-      screen.getByRole("tab", { name: "Model services" }),
+      within(sidebar).getByRole("button", { name: "Add provider" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: /^mistral/ }));
+    const picker = screen.getByRole("dialog", { name: "Add provider" });
+    expect(
+      [...picker.querySelectorAll(".provider-catalog-list button")]
+        .map((button) => button.textContent?.trim())
+        .sort(),
+    ).toEqual([...new Set(models.map((model) => model.providerId))].sort());
+    await userEvent.click(
+      within(picker).getByRole("button", { name: "mistral", exact: true }),
+    );
+    expect(screen.queryByRole("dialog", { name: "Add provider" })).toBeNull();
+    expect(
+      within(sidebar).getByRole("button", { name: "mistral", exact: true }),
+    ).toHaveAttribute("data-state", "selected");
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
     await userEvent.click(
       screen.getByRole("menuitem", { name: "From catalog" }),
@@ -843,30 +860,50 @@ describe("settings management operation contract (MIG5A)", () => {
       })),
     });
     const saveProviderConnection = vi.fn().mockResolvedValue(initial);
-    stubSettingsApi(initial, { saveProviderConnection });
-    await renderSettingsPanel(initial, "providers");
-    await userEvent.click(screen.getByRole("button", { name: "Edit: second" }));
-    expect(screen.getByLabelText("Model ID, e.g. deepseek-r1:8b")).toHaveValue(
-      "second",
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "Save provider connection" }),
-    );
-    expect(saveProviderConnection).toHaveBeenCalledExactlyOnceWith(
-      provider,
-      undefined,
-    );
-    await userEvent.click(
-      screen.getByRole("button", { name: "Delete: synthetic-provider" }),
-    );
-    const dialog = screen.getByRole("alertdialog");
-    expect(
-      within(dialog).getByRole("button", { name: "Confirm deletion" }),
-    ).toHaveAttribute("data-variant", "danger");
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Cancel" }),
-    );
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    const deleteProviderConnection = vi.fn();
+    stubSettingsApi(initial, {
+      saveProviderConnection,
+      deleteProviderConnection,
+    });
+    const consoleError = vi.spyOn(console, "error");
+    try {
+      await renderSettingsPanel(initial, "providers");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Edit: second" }),
+      );
+      expect(
+        screen.getByLabelText("Model ID, e.g. deepseek-r1:8b"),
+      ).toHaveValue("second");
+      await userEvent.click(
+        screen.getByRole("button", { name: "Save provider connection" }),
+      );
+      expect(saveProviderConnection).toHaveBeenCalledExactlyOnceWith(
+        provider,
+        undefined,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Service actions" }),
+      );
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "Remove service…" }),
+      );
+      const dialog = screen.getByRole("alertdialog");
+      expect(
+        within(dialog).getByRole("button", { name: "Confirm deletion" }),
+      ).toHaveAttribute("data-variant", "danger");
+      await userEvent.click(
+        within(dialog).getByRole("button", { name: "Cancel" }),
+      );
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      expect(deleteProviderConnection).not.toHaveBeenCalled();
+      for (const name of ["first", "second"])
+        expect(
+          screen.getByRole("button", { name: `Edit: ${name}` }),
+        ).toBeVisible();
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it.each(["disabled", "idle", "error"] as const)(
@@ -1010,7 +1047,7 @@ describe("settings management operation contract (MIG5A)", () => {
       "API key · synthetic-provider",
     ) as HTMLInputElement;
     expect(credential.type).toBe("password");
-    expect(credential).toHaveAttribute("placeholder", "••••••••••••••••");
+    expect(credential).toHaveAttribute("placeholder", "••••••••••••");
 
     await userEvent.click(
       within(

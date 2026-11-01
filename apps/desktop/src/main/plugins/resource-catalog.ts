@@ -1,3 +1,4 @@
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import { createHash, randomUUID } from "node:crypto";
 import {
   access,
@@ -579,16 +580,17 @@ export function parseSkillFrontmatter(contents: string): {
   name: string;
   description: string;
 } {
-  const frontmatter = /^---\s*\r?\n([\s\S]*?)\r?\n---/u.exec(contents)?.[1];
-  const name = /^name:\s*["']?([^"' \r\n][^"'\r\n]*)["']?\s*$/imu.exec(
-    frontmatter ?? "",
-  )?.[1];
-  const description = /^description:\s*["']?(.+?)["']?\s*$/imu.exec(
-    frontmatter ?? "",
-  )?.[1];
+  let name: unknown;
+  let description: unknown;
+  try {
+    ({ name, description } = parseFrontmatter(contents).frontmatter);
+  } catch {
+    throw new Error("Skill has invalid SKILL.md frontmatter.");
+  }
   if (
-    !name ||
-    !description ||
+    typeof name !== "string" ||
+    typeof description !== "string" ||
+    !description.trim() ||
     !/^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/u.test(name.trim()) ||
     name.trim().length > 64 ||
     description.trim().length > 1_024

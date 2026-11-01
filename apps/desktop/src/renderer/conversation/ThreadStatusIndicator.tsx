@@ -1,3 +1,9 @@
+import { useMemo } from "react";
+import {
+  createThreadViewState,
+  reduceAgentEventBatch,
+} from "@artemis/protocol";
+import { threadPresentationStatus } from "./thread-presentation.js";
 import { RunningArc, ArtemisIcon } from "@artemis/ui/icons";
 import { uiText } from "../../shared/i18n/ui-text.js";
 import type {
@@ -11,7 +17,7 @@ import { statusText } from "../../shared/i18n/status-text.js";
 export function ThreadStatusIndicator({
   thread,
   locale,
-  events = [],
+  events,
   historyState,
 }: {
   thread: Thread;
@@ -19,38 +25,12 @@ export function ThreadStatusIndicator({
   events?: readonly AgentEvent[] | undefined;
   historyState?: ThreadViewState | undefined;
 }) {
-  let status: string | undefined;
-  if (thread.status === "running") {
-    status = historyState?.activity?.phase === "queued" ? "queued" : "running";
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      const event = events[index]!;
-      if (historyState && event.seq <= historyState.lastSeq) break;
-      if (event.payload.type === "turn.activity") {
-        status = event.payload.phase === "queued" ? "queued" : "running";
-        break;
-      }
-      if (
-        ["turn.started", "turn.completed", "turn.failed"].includes(
-          event.payload.type,
-        )
-      ) {
-        status = "running";
-        break;
-      }
-    }
-  } else if (thread.status === "waiting-approval") {
-    status =
-      thread.notification?.kind === "input-required"
-        ? "waiting-user-input"
-        : "waiting-approval";
-  } else if (thread.status === "failed") {
-    status = "failed";
-  } else if (
-    thread.notification?.unread &&
-    thread.notification.kind === "completed"
-  ) {
-    status = "completed";
-  }
+  const presentation = useThreadPresentation(thread, events, historyState);
+  const status =
+    presentation === "idle" ||
+    (presentation === "completed" && !thread.notification?.unread)
+      ? undefined
+      : presentation;
   const label = status ? statusText(locale, status) : undefined;
   return (
     <span
@@ -80,15 +60,46 @@ export function ThreadStatusIndicator({
 export function ThreadWaitingBadge({
   thread,
   locale,
+  events,
+  historyState,
 }: {
   thread: Thread;
   locale: AppLocale;
+  events?: readonly AgentEvent[] | undefined;
+  historyState?: ThreadViewState | undefined;
 }) {
-  if (thread.status !== "waiting-approval") return null;
+  const status = useThreadPresentation(thread, events, historyState);
+  if (status !== "waiting-approval" && status !== "waiting-user-input")
+    return null;
   const label = uiText(locale, "Review02.waitingDecision");
   return (
     <span className="thread-waiting-badge" title={label}>
       {label}
     </span>
   );
+}
+
+const NO_EVENTS: readonly AgentEvent[] = [];
+function useThreadPresentation(
+  thread: Thread,
+  events = NO_EVENTS,
+  historyState?: ThreadViewState,
+) {
+  return useMemo(() => {
+    const state = historyState
+      ? reduceAgentEventBatch(
+          historyState,
+          events.filter((event) => event.seq > historyState.lastSeq),
+        )
+      : events.length
+        ? reduceAgentEventBatch(
+            {
+              ...createThreadViewState(thread.id, thread.mode),
+              status: thread.status,
+            },
+            [...events],
+          )
+        : undefined;
+    return threadPresentationStatus(thread, state);
+  }, [thread, events, historyState]);
 }

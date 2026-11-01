@@ -37,6 +37,21 @@ afterEach(() => {
 });
 
 describe("reported screenshot regressions", () => {
+  it("preserves both chart cards when model usage is empty", async () => {
+    stubWindowArtemis({
+      onAgentEvent: () => () => {},
+      getTokenUsageEvents: async () => [],
+    });
+    const { container } = render(
+      <TokenUsagePage locale="zh-CN" username="Artemis" />,
+    );
+    const models = await screen.findByRole("region", { name: "按模型" });
+    expect(within(models).getByText("还没有模型用量")).toBeVisible();
+    expect(
+      container.querySelector(".token-usage-composition-bar"),
+    ).toBeTruthy();
+    expect(container.querySelector(".token-usage-detail-block")).toBeTruthy();
+  });
   it("opens the compact plan capsule from the keyboard and preserves each step's accessible status", async () => {
     const { container } = render(
       <TaskPlanProgress
@@ -305,7 +320,7 @@ describe("reported screenshot regressions", () => {
     },
   );
 
-  it("lets a plain model name filter usage while highlighting its complete row", async () => {
+  it("filters usage from the descending model bars and preserves the selected model feedback", async () => {
     stubWindowArtemis({
       onAgentEvent: () => () => {},
       getTokenUsageEvents: async () => [
@@ -323,37 +338,86 @@ describe("reported screenshot regressions", () => {
             totalTokens: 230,
           },
         },
+        {
+          eventId: "usage-two",
+          timestamp: new Date().toISOString(),
+          payload: {
+            type: "assistant.usage",
+            providerId: "openai",
+            modelId: "gpt-5",
+            inputTokens: 300,
+            outputTokens: 60,
+            cacheReadTokens: 240,
+            cacheWriteTokens: 90,
+            totalTokens: 690,
+          },
+        },
       ],
     });
     render(<TokenUsagePage locale="zh-CN" username="Artemis" />);
-    const table = await screen.findByRole("table");
-    expect(table.closest("details")).toBeNull();
-    const button = await within(table).findByRole("button", {
+    const models = await screen.findByRole("region", { name: "按模型" });
+    expect(models.closest("details")).toBeNull();
+    expect(within(models).queryByRole("table")).toBeNull();
+    expect(
+      within(models)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["openai · gpt-5", "zai · glm-5.3"]);
+    const button = within(models).getByRole("button", {
       name: "zai · glm-5.3",
     });
-    expect(button).toHaveClass("token-usage-model-action");
-    await userEvent.click(button);
-    expect(button.closest("tr")).toHaveClass("selected");
-    expect(button.closest("tr")!.querySelectorAll("td")).toHaveLength(6);
+    expect(button.parentElement).toHaveTextContent("230 · 25%");
     expect(
-      screen.getByRole("columnheader", { name: "总 Token" }),
-    ).toBeVisible();
+      [
+        ...models.querySelectorAll<HTMLElement>(
+          ".token-usage-model-bar > span",
+        ),
+      ].map((bar) => bar.style.inlineSize),
+    ).toEqual(["75%", "25%"]);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    const total = screen.getByText("总 Token").parentElement!;
+    expect(total).toHaveTextContent("920");
+    expect(
+      document.querySelectorAll(
+        '.token-usage-summary [data-artemis-component="data-stat"]',
+      ),
+    ).toHaveLength(5);
+    expect(screen.getByText("缓存命中").parentElement).toHaveAttribute("title");
+    expect(
+      document.querySelector(".token-usage-observations"),
+    ).not.toHaveAttribute("open");
+    await userEvent.click(button);
     expect(button).toHaveAttribute("aria-pressed", "true");
-    const composition = screen.getByRole("heading", {
-      name: /^Token 构成/,
-    }).parentElement!;
+    expect(total).toHaveTextContent("230");
+    expect(
+      screen.getByRole("button", { name: "模型 zai · glm-5.3" }),
+    ).toBeVisible();
+    expect(
+      within(models).getByRole("button", { name: "openai · gpt-5" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    const composition = screen
+      .getByRole("heading", {
+        name: /^Token 构成/,
+      })
+      .closest(".token-usage-detail-block")!;
     expect(composition.querySelectorAll("dt")).toHaveLength(4);
     expect(
       within(composition)
-        .getByText("缓存读取 Token")
+        .getByText("缓存读取")
         .closest(".token-usage-detail-row"),
     ).toHaveTextContent("80");
     expect(composition).toHaveTextContent("缓存读取");
     expect(
       within(composition)
-        .getByText("缓存写入 Token")
+        .getByText("缓存写入")
         .closest(".token-usage-detail-row"),
     ).toHaveTextContent("30");
+    await userEvent.click(
+      screen.getByRole("button", { name: "模型 zai · glm-5.3" }),
+    );
+    await userEvent.click(screen.getByRole("option", { name: "全部模型" }));
+    expect(total).toHaveTextContent("920");
+    expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
   it("keeps MCP resources in the MCP category with working configuration and toggles", async () => {

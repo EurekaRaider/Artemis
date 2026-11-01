@@ -327,7 +327,7 @@ describe("environment agent activity", () => {
     );
     expect(screen.queryByRole("button", { name: /Layout check 3/ })).toBeNull();
     await userEvent.click(
-      screen.getByRole("button", { name: /Layout check\s*Running/ }),
+      screen.getByRole("button", { name: /Layout check\s*Active/ }),
     );
     expect(onOpenAgent).toHaveBeenCalledWith(child);
   });
@@ -1012,4 +1012,39 @@ it("shows actual attachment names and separates web searches from tool calls", a
     .setup()
     .click(screen.getByRole("button", { name: "findings.pdf" }));
   expect(onViewAllSources).toHaveBeenCalledOnce();
+});
+
+it("keeps owning plugin artwork in context skills before matching their purpose", async () => {
+  await renderReady(
+    fixture({
+      contextSkills: [
+        {
+          id: "office",
+          name: "test-doc",
+          description: "Test documents.",
+          plugin: { name: "office" },
+        },
+        {
+          id: "custom",
+          name: "test-art",
+          description: "Test artwork.",
+          plugin: { name: "design", iconDataUrl: "/custom-design.svg" },
+        },
+        { id: "standalone", name: "test", description: "Test the build." },
+      ],
+    }),
+  );
+  expect(
+    screen
+      .getByRole("button", { name: "test-doc" })
+      .querySelector(".resource-avatar"),
+  ).toHaveAttribute("data-icon", "document");
+  expect(
+    screen.getByRole("button", { name: "test-art" }).querySelector("img"),
+  ).toHaveAttribute("src", "/custom-design.svg");
+  expect(
+    screen
+      .getByRole("button", { name: "test" })
+      .querySelector(".resource-avatar"),
+  ).toHaveAttribute("data-icon", "test");
 });

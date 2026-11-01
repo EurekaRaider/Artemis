@@ -38,7 +38,9 @@ function surface(
   const state = { ...createThreadViewState("thread"), plans: [value] };
   return (
     <>
-      <PlanConfirmationCard plan={value} locale="en" />
+      {!firstPendingComposerDecision(state) && (
+        <PlanConfirmationCard plan={value} locale="en" />
+      )}
       <DecisionComposer
         className="composer"
         label="Message"
@@ -73,14 +75,11 @@ it("keeps the full plan in history and waits alongside the visible composer with
   await act(async () => vi.advanceTimersByTime(24 * 60 * 60 * 1000));
   expect(accept).not.toHaveBeenCalled();
   expect(revise).not.toHaveBeenCalled();
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: "Add requirements",
-      exact: true,
-    }),
-  );
+  const executeOption = screen.getByRole("button", { name: /^Execute plan/ });
+  executeOption.focus();
+  fireEvent.keyDown(executeOption, { key: "2" });
   expect(document.activeElement).toBe(
-    screen.getByRole("textbox", { name: "Add requirements" }),
+    screen.getByRole("textbox", { name: "Continue refining the plan…" }),
   );
   expect(revise).not.toHaveBeenCalled();
   const execute = screen.getByRole("button", {
@@ -95,7 +94,9 @@ it("submits typed requirements directly and offers Codemode only through the dro
   const accept = vi.fn(async () => {});
   const revise = vi.fn(async (_text: string) => {});
   render(surface(plan, accept, revise));
-  const input = screen.getByRole("textbox", { name: "Add requirements" });
+  const input = screen.getByRole("textbox", {
+    name: "Continue refining the plan…",
+  });
   fireEvent.change(input, { target: { value: "Include rollback checks" } });
   fireEvent.submit(input.closest("form")!);
   await act(async () => {});
@@ -134,7 +135,7 @@ it("shows a no-action plan without execution controls and keeps the requirements
   render(surface({ ...plan, actionable: false }));
   expect(screen.queryByRole("button", { name: /^Execute plan/ })).toBeNull();
   expect(
-    screen.getByRole("textbox", { name: "Add requirements" }),
+    screen.getByRole("textbox", { name: "Continue refining the plan…" }),
   ).toBeTruthy();
-  expect(screen.getAllByText(/No action needed/)).toHaveLength(2);
+  expect(screen.getAllByText(/No action needed/)).toHaveLength(1);
 });

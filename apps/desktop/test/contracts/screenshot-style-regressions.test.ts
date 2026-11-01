@@ -21,27 +21,61 @@ const nocturneSource = readFileSync(
   new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
   "utf8",
 );
-function declarations(sheet: postcss.Root, selector: string) {
+const providerStyles = readFileSync(
+  new URL("../../src/renderer/settings/provider-settings.css", import.meta.url),
+  "utf8",
+);
+function declarations(sheet: postcss.Root | string, selector: string) {
   const result: Record<string, string> = {};
-  sheet.walkRules((rule) => {
-    if (
-      rule.parent?.type === "atrule" &&
-      (rule.parent as postcss.AtRule).name === "media"
-    )
-      return;
-    if (
-      rule.selectors.some(
-        (value) => value.replace(/\s+/g, " ").trim() === selector,
-      )
-    )
-      rule.walkDecls((decl) => {
-        result[decl.prop] = decl.value;
-      });
+  const source = findCssDeclarations(sheet.toString(), selector) ?? "";
+  postcss.parse(source).walkDecls((decl) => {
+    result[decl.prop] = decl.value;
   });
   return result;
 }
 
 describe("screenshot visual contracts", () => {
+  it("keeps settings page headings above section labels and model icons secondary", () => {
+    for (const selector of [
+      '.settings-panel[data-tab="general"] .settings-general-profile > [data-part="header"] [data-part="title"]',
+      '.settings-panel[data-tab="hooks"] .hooks-section > [data-part="header"] [data-part="title"]',
+      '.settings-panel[data-tab="providers"] .provider-sidebar-heading > strong',
+    ]) {
+      expect(declarations(nocturneSource, selector)).toMatchObject({
+        "font-size": "18px",
+        "font-weight": "600",
+        "line-height": "26px",
+        color: "var(--text)",
+      });
+    }
+    expect(
+      declarations(
+        nocturneSource,
+        '.settings-panel :is( .provider-credentials h3, .provider-base-url [data-part="label"], .settings-section > [data-part="header"] [data-part="title"], .plugin-market-group h2 )',
+      ),
+    ).toMatchObject({
+      "font-size": "11.5px",
+      "font-weight": "600",
+      color: "var(--muted-2)",
+    });
+    const modelHeading = declarations(
+      providerStyles,
+      '.settings-panel .provider-models > [data-part="header"] [data-part="title"]',
+    );
+    expect(modelHeading).not.toHaveProperty("font-size");
+    expect(modelHeading).not.toHaveProperty("font-weight");
+    expect(
+      declarations(
+        nocturneSource,
+        '.settings-panel[data-tab="providers"] .provider-models .added-model-row > [data-part="leading"] svg',
+      ),
+    ).toMatchObject({
+      width: "14px",
+      height: "14px",
+      color: "var(--muted-2)",
+    });
+  });
+
   it("keeps Markdown selectable and wraps code and tables within the message", () => {
     expect(declarations(desktop, ".markdown-body")).toMatchObject({
       "min-width": "0",
@@ -405,11 +439,13 @@ describe("screenshot visual contracts", () => {
   });
   it("uses plain model labels, flat added-model rows, and neutral destructive actions", () => {
     expect(
-      declarations(desktop, ".token-usage-models .token-usage-model-action"),
+      declarations(nocturneSource, ".app-shell .token-usage-model-bars button"),
     ).toMatchObject({
       background: "transparent",
       border: "0",
-      "box-shadow": "none",
+      padding: "0",
+      "border-radius": "0",
+      "font-weight": "400",
     });
     expect(
       declarations(
@@ -506,11 +542,8 @@ describe("control text readability", () => {
     [".project-group-select", "color.background.sidebar"],
     [".sources-panel-mcp-summary > span", "color.surface.sunken"],
     [".file-status", "color.surface.sunken"],
-    ["kbd", "#dedede"],
-    [
-      '.workspace-tab-content [data-artemis-component="workspace-launcher"] [data-part="shortcut"]',
-      "#dedede",
-    ],
+    [".environment-git-actions kbd", "#dedede"],
+    [":root [data-artemis-keycap]", "color.surface.raised"],
     [".thread-time", "#e5e5e5"],
   ] as const;
   const aliases = declarations(desktop, ":root");
@@ -555,7 +588,12 @@ describe("control text readability", () => {
                 ? '[data-artemis-theme="dark"] .project-thread-row .thread-time'
                 : selector,
             )
-          : declarations(desktop, selector)
+          : declarations(
+              selector === ":root [data-artemis-keycap]"
+                ? nocturneSource
+                : desktop,
+              selector,
+            )
         ).color ?? "#757575",
       );
       const surface = background.startsWith("#")

@@ -1,3 +1,7 @@
+import {
+  captureVerifierSource,
+  assertVerifierSourceUnchanged,
+} from "./verifier-source.mjs";
 import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -159,11 +163,8 @@ assert(
   /^[0-9a-f]{40}$/u.test(candidateHead) && expectedHead === candidateHead,
   `Screenshot matrix expected HEAD ${expectedHead} does not match candidate ${candidateHead}.`,
 );
-const initialStatus = runGit(["status", "--porcelain"]);
-assert(
-  initialStatus === "",
-  `Screenshot matrix requires a clean exact-head worktree:\n${initialStatus}`,
-);
+const sourceSnapshot = captureVerifierSource(repositoryRoot);
+const initialStatus = sourceSnapshot.status;
 
 await mkdir(outputDirectory, { recursive: true });
 const temporaryDirectory = await mkdtemp(
@@ -173,6 +174,7 @@ const manifest = {
   format: "artemis-screenshot-matrix",
   version: 4,
   generatedAt: new Date().toISOString(),
+  sourceSnapshot,
   candidateHead,
   expectedHead,
   platform: process.platform,
@@ -389,6 +391,7 @@ try {
     visualEvidence.violations.length === 0,
     `Screenshot matrix required visual differences failed:\n${visualEvidence.violations.join("\n")}`,
   );
+  assertVerifierSourceUnchanged(repositoryRoot, sourceSnapshot);
   const finalHead = runGit(["rev-parse", "HEAD"]);
   const finalStatus = runGit(["status", "--porcelain"]);
   assert(

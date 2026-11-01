@@ -32,7 +32,7 @@ export function ContextUsageIndicator({
   usage,
 }: ContextUsageIndicatorProps) {
   const effectiveContextWindow = usage?.contextWindow ?? contextWindow;
-  if (!effectiveContextWindow) {
+  if (!effectiveContextWindow || typeof usage?.tokens !== "number") {
     return null;
   }
 

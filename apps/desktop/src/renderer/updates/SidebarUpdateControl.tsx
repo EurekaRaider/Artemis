@@ -50,9 +50,13 @@ export function SidebarUpdateControl({
     if (waiting && activeTaskCount === 0) void install();
   }, [waiting, activeTaskCount, status.state, install]);
   if (["idle", "disabled"].includes(status.state)) return null;
+  const failed =
+    status.state === "error" ||
+    (status.state === "downloaded" && Boolean(status.message));
   const progress = Math.max(0, Math.min(100, status.progress ?? 0));
-  const label =
-    status.state === "checking"
+  const label = failed
+    ? uiText(locale, "App_copy.queueRetry")
+    : status.state === "checking"
       ? uiText(locale, "Update.checking")
       : status.state === "downloading"
         ? `${Math.round(progress)}%`
@@ -65,6 +69,32 @@ export function SidebarUpdateControl({
               : uiText(locale, "Update.toVersion", {
                   version: status.availableVersion ?? status.currentVersion,
                 });
+  const handleUpdate = async () => {
+    if (inFlight.current) return;
+    if (status.manualDownloadUrl) {
+      window.open(status.manualDownloadUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (status.state === "downloaded") {
+      if (activeTaskCount > 0) {
+        setDismissedVersion(undefined);
+        setWaiting(true);
+      } else await install();
+      return;
+    }
+    inFlight.current = true;
+    try {
+      onStatus(
+        await (status.availableVersion
+          ? window.artemis.downloadUpdate()
+          : window.artemis.checkForUpdates()),
+      );
+    } catch (error) {
+      onError(error instanceof Error ? error.message : String(error));
+    } finally {
+      inFlight.current = false;
+    }
+  };
   const updateButton = (
     <Button
       className={`update-btn${status.state === "downloaded" ? " downloaded" : ""}`}
@@ -74,37 +104,15 @@ export function SidebarUpdateControl({
         status.state === "checking" ||
         status.state === "downloading"
       }
-      variant={status.state === "downloaded" ? "primary" : "quiet"}
-      onClick={async () => {
-        if (inFlight.current) return;
-        if (status.manualDownloadUrl) {
-          window.open(
-            status.manualDownloadUrl,
-            "_blank",
-            "noopener,noreferrer",
-          );
-          return;
-        }
-        if (status.state === "downloaded") {
-          if (activeTaskCount > 0) {
-            setDismissedVersion(undefined);
-            setWaiting(true);
-          } else await install();
-          return;
-        }
-        inFlight.current = true;
-        try {
-          onStatus(
-            await (status.availableVersion
-              ? window.artemis.downloadUpdate()
-              : window.artemis.checkForUpdates()),
-          );
-        } catch (error) {
-          onError(error instanceof Error ? error.message : String(error));
-        } finally {
-          inFlight.current = false;
-        }
-      }}
+      size={failed ? "compact" : undefined}
+      variant={
+        failed
+          ? "secondary"
+          : status.state === "downloaded"
+            ? "primary"
+            : "quiet"
+      }
+      onClick={handleUpdate}
       icon={
         status.state === "downloading" ? (
           <span className="update-progress-icon">
@@ -176,7 +184,7 @@ export function SidebarUpdateControl({
       data-state={status.state}
       role={installing ? "status" : undefined}
     >
-      {noticeTarget && notice ? null : updateButton}
+      {failed || (noticeTarget && notice) ? null : updateButton}
       {showDownloadProgress &&
         status.state === "downloading" &&
         status.downloadedBytes !== undefined &&
@@ -193,8 +201,7 @@ export function SidebarUpdateControl({
           </span>
         )}
       {notice && noticeTarget ? createPortal(notice, noticeTarget) : notice}
-      {(status.state === "error" ||
-        (status.state === "downloaded" && status.message)) && (
+      {failed && (
         <div className="update-failure" role="alert">
           <ArtemisIcon name="alert" width={18} height={18} />
           <div>
@@ -202,6 +209,17 @@ export function SidebarUpdateControl({
             {status.rollbackAvailable && (
               <p>{UI_COPY.SettingsPanel_labels[locale].rollbackReady}</p>
             )}
+            <div className="update-failure-actions">
+              <Button
+                size="compact"
+                variant="secondary"
+                disabled={installing || waiting}
+                onClick={handleUpdate}
+                icon={<ArtemisIcon name="refresh" width={14} height={14} />}
+              >
+                {uiText(locale, "App_copy.queueRetry")}
+              </Button>
+            </div>
             {status.message && (
               <details>
                 <summary>
@@ -227,6 +245,7 @@ export function sidebarUpdateSubtitle(
   status: ReleaseUpdateStatus,
   locale: AppLocale,
 ): string {
+  const version = `v${status.currentVersion}`;
   if (
     status.state === "downloading" &&
     status.downloadedBytes !== undefined &&
@@ -234,12 +253,20 @@ export function sidebarUpdateSubtitle(
   ) {
     const format = (bytes: number) =>
       (bytes / 1048576).toLocaleString(locale, { maximumFractionDigits: 1 });
-    return `${format(status.downloadedBytes)} / ${format(status.totalBytes)} MB`;
+    return `${version} · ${format(status.downloadedBytes)} / ${format(status.totalBytes)} MB`;
   }
+  if (
+    status.state === "error" ||
+    (status.state === "downloaded" && status.message)
+  )
+    return version;
   if (status.state === "downloaded")
-    return uiText(locale, "Review01.readyVersion", {
+    return `${version} · ${uiText(locale, "Review01.readyVersion", {
       version: status.availableVersion ?? status.currentVersion,
-    });
-  if (status.state === "error") return uiText(locale, "Review01.updateFailed");
-  return `v${status.currentVersion}${status.upToDate ? ` · ${uiText(locale, "Review01.upToDate")}` : ""}`;
+    })}`;
+  if (status.state === "checking")
+    return `${version} · ${uiText(locale, "Update.checking")}`;
+  if (status.state === "available")
+    return `${version} · ${uiText(locale, "Update.toVersion", { version: status.availableVersion ?? status.currentVersion })}`;
+  return `${version}${status.upToDate ? ` · ${uiText(locale, "Review01.upToDate")}` : ""}`;
 }

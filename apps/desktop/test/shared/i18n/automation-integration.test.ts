@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
+import { findCssDeclarations } from "../../contracts/css-test-utils.js";
 
 const root = join(import.meta.dirname, "../../..");
 const api = readFileSync(join(root, "src/shared/api.ts"), "utf8");
@@ -116,7 +117,9 @@ describe("automation desktop integration", () => {
     expect(page).toContain("aria-selected={option === props.value}");
     expect(styles).toContain(".automation-time-trigger");
     expect(styles).toContain(".automation-time-popover");
-    expect(styles).toMatch(/\.automation-time-option:focus-visible\s*\{/u);
+    expect(
+      findCssDeclarations(styles, ".automation-time-option:focus-visible"),
+    ).toContain("outline:");
   });
 
   it("renders the time picker popover on an opaque theme surface", () => {

@@ -24,6 +24,8 @@ export function ComposerSkillChip({
       <ResourceAvatar
         kind="skill"
         name={skill.name}
+        id={skill.id}
+        description={skill.description}
         pluginName={plugin?.name}
         iconDataUrl={plugin?.iconDataUrl}
         brandColor={plugin?.brandColor}

@@ -2,8 +2,6 @@ import { useEffect, useRef, type ComponentProps } from "react";
 import { createPortal } from "react-dom";
 import type {
   AppLocale,
-  ApprovalState,
-  ThreadViewState,
   UserInputResolution,
   SavedPlan,
 } from "@artemis/protocol";
@@ -20,55 +18,11 @@ import {
 import { UserInputCard } from "./UserInputCard.js";
 import { PlanDecisionCard } from "./PlanDecisionCard.js";
 
-type ComposerDecision =
-  | { entry: string; kind: "plan"; plan: SavedPlan }
-  | {
-      entry: string;
-      kind: "input";
-      input: ThreadViewState["userInputs"][string];
-    }
-  | {
-      entry: string;
-      kind: "approval";
-      approval: ApprovalState;
-      actorName: string | undefined;
-    };
-
-/** Resolve approvals, questions and completed plans in persisted order. */
-export function firstPendingComposerDecision(
-  state: ThreadViewState | undefined,
-): ComposerDecision | undefined {
-  if (!state) return undefined;
-  for (const entry of state.order) {
-    if (entry.startsWith("input:")) {
-      const input = state.userInputs[entry.slice("input:".length)];
-      if (input?.status === "pending") return { entry, kind: "input", input };
-    }
-    if (entry.startsWith("approval:")) {
-      const approval = state.approvals[entry.slice("approval:".length)];
-      if (approval?.status === "pending") {
-        return {
-          entry,
-          kind: "approval",
-          approval,
-          actorName: approval.actorAgentId
-            ? (state.childAgents[approval.actorAgentId]?.label ??
-              approval.actorAgentId)
-            : undefined,
-        };
-      }
-    }
-  }
-  const plan = state.plans?.at(-1);
-  if (state.status === "idle" && plan?.status === "proposed" && plan.ready) {
-    return {
-      entry: `plan:${plan.planId}:${plan.revision}`,
-      kind: "plan",
-      plan,
-    };
-  }
-  return undefined;
-}
+import {
+  firstPendingComposerDecision,
+  type ComposerDecision,
+} from "./thread-presentation.js";
+export { firstPendingComposerDecision } from "./thread-presentation.js";
 
 export function DecisionComposer({
   decision,

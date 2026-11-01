@@ -1,3 +1,7 @@
+import {
+  captureVerifierSource,
+  assertVerifierSourceUnchanged,
+} from "./verifier-source.mjs";
 import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -43,12 +47,8 @@ if (
     `Secondary pages expected HEAD ${expectedHead} does not match candidate ${candidateHead}.`,
   );
 }
-const initialStatus = runGit(["status", "--porcelain"]);
-if (initialStatus !== "") {
-  throw new Error(
-    `Secondary pages verification requires a clean exact-head worktree:\n${initialStatus}`,
-  );
-}
+const sourceSnapshot = captureVerifierSource(repositoryRoot);
+const initialStatus = sourceSnapshot.status;
 
 const outputDirectory = resolve(
   process.argv.slice(2).find((argument) => !argument.startsWith("--")) ??
@@ -311,10 +311,16 @@ try {
       const histogram = heatmap?.dataLevelHistogram ?? {};
       assert(
         "token-summary-stats",
-        audit.cardHeatmap?.summary?.itemCount === 5 &&
-          secondary?.components?.dataStat === 5,
+        audit.cardHeatmap?.summary?.itemCount === 4 &&
+          secondary?.components?.dataStat === 4,
         audit.cardHeatmap?.summary,
-        "five public data stats",
+        "four public data stats",
+      );
+      assert(
+        "token-cache-not-duplicated-in-details",
+        audit.cardHeatmap?.cacheInsight?.present === false,
+        audit.cardHeatmap?.cacheInsight,
+        "cache hit rate is absent from extra statistics; this fixture has no reported cache data and keeps four KPI cells",
       );
       assert(
         "token-heatmap-geometry",
@@ -461,9 +467,10 @@ try {
     }
   }
 
+  assertVerifierSourceUnchanged(repositoryRoot, sourceSnapshot);
   const completedHead = runGit(["rev-parse", "HEAD"]);
   const completedStatus = runGit(["status", "--porcelain"]);
-  if (completedHead !== candidateHead || completedStatus !== "") {
+  if (completedHead !== candidateHead || completedStatus !== initialStatus) {
     throw new Error(
       `Secondary pages source changed during verification: start=${candidateHead} end=${completedHead} status=${JSON.stringify(completedStatus)}.`,
     );
@@ -476,6 +483,7 @@ try {
     format: "artemis-secondary-pages-smoke",
     version: 1,
     generatedAt: new Date().toISOString(),
+    sourceSnapshot,
     candidateHead,
     completedHead,
     expectedHead,

@@ -82,7 +82,7 @@ it("defaults to whole-project reads and keeps explicit writes inside narrowed re
   await user.click(screen.getByRole("checkbox", { name: "可读取 docs" }));
   expect(value!.security!.scopes[0]!.readPaths).toEqual(["docs"]);
   expect(screen.getByText(/撤销项目授权/)).toBeVisible();
-  await user.click(screen.getByRole("checkbox", { name: /我确认当前会话/ }));
+  await user.click(screen.getByRole("checkbox", { name: /我确认当前群/ }));
   expect(value!.security!.confirmedAt).toBeGreaterThan(0);
 });
 
@@ -124,7 +124,7 @@ it("requires explicit whole-project write consent including future files for onl
     writePaths: [],
     filePaths: [],
   });
-  await user.click(screen.getByRole("checkbox", { name: /我确认当前会话/ }));
+  await user.click(screen.getByRole("checkbox", { name: /我确认当前群/ }));
   await user.click(screen.getByRole("button", { name: "设为整个项目可读写" }));
   expect(value!.security!.confirmedAt).toBe(0);
   expect(value!.security!.scopes[0]).toMatchObject({
@@ -320,7 +320,7 @@ it("confirms only the selected audience without confirming or blocking on unrela
   }
   render(<Editor />);
   await user.click(screen.getByRole("button", { name: "设为整个项目只读" }));
-  const confirmation = screen.getByRole("checkbox", { name: /我确认当前会话/ });
+  const confirmation = screen.getByRole("checkbox", { name: /我确认当前群/ });
   expect(confirmation).toBeEnabled();
   expect(screen.getByText(/Old group/)).toBeVisible();
   expect(value!.security!.scopes).toHaveLength(3);

@@ -79,7 +79,7 @@ it("keeps AI generation errors visible and lets the user retry with a manual mes
   expect(screen.queryByText("当前分支")).toBeNull();
   expect(screen.getByRole("button", { name: "main" }).title).toBe("main");
   await user.click(entry);
-  const dialog = within(screen.getByRole("dialog", { name: "提交或推送…" }));
+  const dialog = within(screen.getByRole("dialog", { name: "提交或推送" }));
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
   expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBeNull();
   const destination = dialog.getByRole("group", { name: "提交到" });

@@ -1758,7 +1758,7 @@ export const UI_COPY = {
     ),
   })),
   token_usage_TOKEN_USAGE_COPY: makeUiCopy((locale) => ({
-    title: uiText(locale, "App_copy.tokenUsage"),
+    title: uiText(locale, "Review04.usage"),
     subtitle: uiText(locale, "token_usage_TOKEN_USAGE_COPY.subtitle"),
     activity: uiText(locale, "token_usage_TOKEN_USAGE_COPY.activity"),
     modelFilter: uiText(locale, "App_copy.modelPickerModel"),

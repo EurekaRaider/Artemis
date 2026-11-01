@@ -93,6 +93,7 @@ export function ArchivePage({
     groupBy,
     t.archiveTemporary,
   ]);
+  const isSearching = query.trim().length > 0 || projectFilter.length > 0;
   const groupLabel = (thread: Thread) =>
     groupBy === "project"
       ? (projectNames.get(thread.projectId ?? "") ?? t.archiveTemporary)
@@ -100,19 +101,6 @@ export function ArchivePage({
           year: "numeric",
           month: "long",
         }).format(new Date(thread.updatedAt));
-  const isSearching = query.trim().length > 0;
-  const formattedResultCount = new Intl.NumberFormat(locale).format(
-    results.length,
-  );
-  const resultCount = (
-    isSearching
-      ? results.length === 1
-        ? t.archiveMatchOne
-        : t.archiveMatchOther
-      : results.length === 1
-        ? t.archiveCountOne
-        : t.archiveCountOther
-  ).replace("{count}", formattedResultCount);
 
   return (
     <DataSurface
@@ -166,9 +154,6 @@ export function ArchivePage({
           />
         </div>
 
-        <div className="sr-only">
-          <p aria-live="polite">{resultCount}</p>
-        </div>
         <div className="archive-results">
           {results.map((thread, index) => (
             <Fragment key={thread.id}>
@@ -217,8 +202,8 @@ export function ArchivePage({
                   </span>
                   <time dateTime={thread.updatedAt}>
                     {new Intl.DateTimeFormat(locale, {
-                      month: "numeric",
-                      day: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
                       ...(new Date(thread.updatedAt).getFullYear() !==
                       new Date().getFullYear()
                         ? { year: "numeric" as const }

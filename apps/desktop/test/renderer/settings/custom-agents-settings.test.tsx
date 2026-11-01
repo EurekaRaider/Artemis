@@ -152,15 +152,16 @@ function renderSection(options: RenderOptions = {}) {
 }
 
 describe("CustomAgentsSettingsSection", () => {
-  it("keeps one create action in the header with a quiet empty description", () => {
+  it("keeps one create action in the header with a quiet empty description and no zero count", () => {
     renderSection({ snapshotOverrides: { customAgents: [] } });
     expect(screen.getByText(/Create a specialist role once/u)).toBeVisible();
-    const create = screen.getByRole("button", { name: "New sub-agent" });
+    const create = screen.getByRole("button", { name: "New" });
     expect(create.closest('[data-part="header"]')).not.toBeNull();
     expect(
       document.querySelector('[data-artemis-component="empty-state"]'),
     ).toBeNull();
-    expect(screen.getByText("0 item(s)")).toBeVisible();
+    expect(screen.queryByText("0 item(s)")).toBeNull();
+    expect(document.querySelector(".custom-agent-count")).toBeNull();
   });
 
   it("lists definitions with policy, scope, state, and routing badges", () => {
@@ -271,7 +272,7 @@ describe("CustomAgentsSettingsSection", () => {
     await user.click(screen.getByRole("button", { name: "Edit" }));
     await user.click(
       await screen.findByRole("button", {
-        name: "Model Inherit from parent session",
+        name: "Model Inherit from parent task",
       }),
     );
     await user.click(screen.getByRole("option", { name: "Fixed model" }));
@@ -321,7 +322,7 @@ describe("CustomAgentsSettingsSection", () => {
     ).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Model Fixed model" }));
     await user.click(
-      screen.getByRole("option", { name: "Inherit from parent session" }),
+      screen.getByRole("option", { name: "Inherit from parent task" }),
     );
     expect(
       screen.getByRole("button", { name: "Save sub-agent" }),
@@ -385,14 +386,12 @@ describe("CustomAgentsSettingsSection", () => {
   it("creates a definition from the dialog and keeps the list mounted", async () => {
     const user = userEvent.setup();
     const { api, applySettings, snapshot } = renderSection();
-    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
 
     // The editor is an overlay dialog now (issue #193) — the list behind it
     // stays mounted while editing.
     expect(screen.getByText("Reviews diffs")).toBeInTheDocument();
-    expect(
-      screen.getByText("New sub-agent", { selector: "h3" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("New", { selector: "h3" })).toBeInTheDocument();
     expect(screen.getByText(/saving returns to the list/u)).toBeInTheDocument();
 
     expect(api.customAgentsPreviewCapabilities).not.toHaveBeenCalled();
@@ -445,7 +444,7 @@ describe("CustomAgentsSettingsSection", () => {
   it("saves long dedicated instructions intact and distinguishes storage from token estimates", async () => {
     const user = userEvent.setup();
     const { api } = renderSection();
-    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     expect(
       screen.getByText(/0.0 KiB stored.*approximately 0 tokens/u),
     ).toBeVisible();
@@ -468,7 +467,7 @@ describe("CustomAgentsSettingsSection", () => {
   it("closes a clean dialog through cancel without saving", async () => {
     const user = userEvent.setup();
     const { api } = renderSection();
-    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(api.customAgentsCreate).not.toHaveBeenCalled();
@@ -479,7 +478,7 @@ describe("CustomAgentsSettingsSection", () => {
   it("closes a dirty dialog through cancel and discards without saving", async () => {
     const user = userEvent.setup();
     const { api } = renderSection();
-    await user.click(screen.getByRole("button", { name: "New sub-agent" }));
+    await user.click(screen.getByRole("button", { name: "New" }));
     await user.type(screen.getByLabelText("Name"), "Discarded");
 
     // Cancel closes immediately even with unsaved changes; nothing is created.

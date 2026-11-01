@@ -1,3 +1,11 @@
+import { AgentActivityStatus } from "../conversation/WorkRecord.js";
+import { ResourceAvatar } from "../plugins/resource-icons.js";
+import type {
+  InstalledArtemisPlugin,
+  InstalledSkill,
+} from "../../shared/api.js";
+import { Fragment } from "react";
+import { Keycap } from "@artemis/ui/actions";
 import { uiText } from "../../shared/i18n/ui-text.js";
 import { Switch } from "@artemis/ui/forms";
 import { SegmentedControl } from "@artemis/ui/navigation";
@@ -174,7 +182,11 @@ export function environmentBranchMenuBranches(
           .toLocaleLowerCase()
           .includes(normalizedQuery),
     )
-    .sort((left, right) => Number(right.current) - Number(left.current));
+    .sort(
+      (left, right) =>
+        Number(Boolean(left.remote)) - Number(Boolean(right.remote)) ||
+        Number(right.current) - Number(left.current),
+    );
 }
 
 export interface AgentEnvironmentCounts {
@@ -459,75 +471,80 @@ export function PullRequestChecksSummary({
         </span>
         <span>
           <strong title={pullRequest.title}>{pullRequest.title}</strong>
-          <small>
-            #{pullRequest.number}{" "}
-            <span
-              className="environment-pr-state"
-              data-state={
-                pullRequest.isDraft ? "draft" : pullRequest.state.toLowerCase()
-              }
-            >
-              {stateLabel}
-            </span>
-          </small>
+          <small>#{pullRequest.number}</small>
         </span>
       </button>
-      <button
-        aria-controls="environment-pr-checks"
-        aria-expanded={checksOpen}
-        aria-haspopup="dialog"
-        className="environment-pr-check-summary"
-        onBlur={(event) => {
-          const related = event.relatedTarget;
-          if (related instanceof Node && shouldKeepOpen(related)) {
-            return;
-          }
-          onBlurredOut();
-        }}
-        onClick={onToggleOpen}
-        onFocus={onShowChecks}
-        onKeyDown={(event) => {
-          if (
-            event.key === "ArrowDown" ||
-            event.key === "Enter" ||
-            event.key === " "
-          ) {
-            event.preventDefault();
-            onShowChecksWithFocus();
-          }
-        }}
-        onMouseEnter={onShowChecks}
-        onMouseLeave={onBlurredOut}
-        ref={triggerRef}
-        type="button"
-      >
+      <div className="environment-pr-badges">
         <span
-          aria-hidden="true"
-          className="environment-check-status"
-          data-status={checkSummary}
+          className="environment-pr-state"
+          data-state={
+            pullRequest.isDraft ? "draft" : pullRequest.state.toLowerCase()
+          }
         >
-          {checkSummary === "pending" ? (
-            <RunningArc size={14} />
-          ) : (
-            <ArtemisIcon
-              name={
-                checkSummary === "failed"
-                  ? "x-circle"
-                  : checkSummary === "passed"
-                    ? "check"
-                    : "circle"
-              }
-              width={14}
-              height={14}
-            />
-          )}
+          {stateLabel}
         </span>
-        <span>{summaryLabel}</span>
-        <small>
-          {counts.passed}/{pullRequest.checks.length}
-        </small>
-      </button>
-      {warningLabel && <p className="environment-pr-warning">{warningLabel}</p>}
+        <button
+          aria-controls="environment-pr-checks"
+          aria-expanded={checksOpen}
+          aria-haspopup="dialog"
+          className="environment-pr-check-summary"
+          onBlur={(event) => {
+            const related = event.relatedTarget;
+            if (related instanceof Node && shouldKeepOpen(related)) {
+              return;
+            }
+            onBlurredOut();
+          }}
+          onClick={onToggleOpen}
+          onFocus={onShowChecks}
+          onKeyDown={(event) => {
+            if (
+              event.key === "ArrowDown" ||
+              event.key === "Enter" ||
+              event.key === " "
+            ) {
+              event.preventDefault();
+              onShowChecksWithFocus();
+            }
+          }}
+          onMouseEnter={onShowChecks}
+          onMouseLeave={onBlurredOut}
+          ref={triggerRef}
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className="environment-check-status"
+            data-status={checkSummary}
+          >
+            {checkSummary === "pending" ? (
+              <RunningArc size={14} />
+            ) : (
+              <ArtemisIcon
+                name={
+                  checkSummary === "failed"
+                    ? "x-circle"
+                    : checkSummary === "passed"
+                      ? "check"
+                      : "circle"
+                }
+                width={14}
+                height={14}
+              />
+            )}
+          </span>
+          <span>{summaryLabel}</span>
+          <small>
+            {counts.passed}/{pullRequest.checks.length}
+          </small>
+        </button>
+      </div>
+      {warningLabel && (
+        <p className="environment-pr-warning">
+          <ArtemisIcon name="info" width={12} height={12} />
+          {warningLabel}
+        </p>
+      )}
       {staleLabel && staleTitle && (
         <p className="environment-pr-stale" title={staleTitle}>
           {staleLabel}
@@ -612,7 +629,23 @@ export function PullRequestChecksPopover({
                   className="environment-check-indicator"
                   data-status={check.status}
                   role="img"
-                />
+                >
+                  {check.status === "pending" ? (
+                    <RunningArc size={14} />
+                  ) : (
+                    <ArtemisIcon
+                      width={14}
+                      height={14}
+                      name={
+                        check.status === "passed"
+                          ? "check"
+                          : check.status === "failed"
+                            ? "x-circle"
+                            : "clock"
+                      }
+                    />
+                  )}
+                </span>
                 <span>
                   <strong>{check.name}</strong>
                 </span>
@@ -645,6 +678,7 @@ export function EnvironmentPanel({
   commitRequest,
   agents,
   attachments,
+  contextSkills = [],
   defaultOpen,
   dockOpen,
   imGroup,
@@ -655,6 +689,7 @@ export function EnvironmentPanel({
   memberRemovalDisabled,
   executing,
   workspaceIsWorktree,
+  worktreeCount,
   onWorkspaceHandoff,
   onWorktreesChanged,
   onOpenUsage,
@@ -680,6 +715,11 @@ export function EnvironmentPanel({
   commitRequest?: number;
   agents: ChildAgentState[];
   attachments: PromptAttachment[];
+  contextSkills?: (Pick<InstalledSkill, "id" | "name" | "description"> & {
+    plugin?:
+      | Pick<InstalledArtemisPlugin, "name" | "iconDataUrl" | "brandColor">
+      | undefined;
+  })[];
   defaultOpen: boolean;
   dockOpen: boolean;
   imGroup?: ImGroupContext | undefined;
@@ -691,6 +731,7 @@ export function EnvironmentPanel({
   memberRemovalDisabled?: boolean | undefined;
   executing?: boolean | undefined;
   workspaceIsWorktree?: boolean | undefined;
+  worktreeCount?: number | undefined;
   onOpenUsage?: (() => void) | undefined;
   onWorktreesChanged?: (() => Promise<void>) | undefined;
   onWorkspaceHandoff?:
@@ -780,7 +821,11 @@ export function EnvironmentPanel({
     (source) => source.kind === "web-search",
   ).length;
   const hasSourcePanelDetails =
-    contextAttachments.length + webSearchCount + mcpUsages.length > 0;
+    contextAttachments.length +
+      contextSkills.length +
+      webSearchCount +
+      mcpUsages.length >
+    0;
 
   const hasPanelContent =
     gitInfo?.managed === true ||
@@ -1276,15 +1321,6 @@ export function EnvironmentPanel({
     open,
   ]);
 
-  const agentStatusLabels: Record<ChildAgentState["status"], string> = {
-    queued: t.agentQueued,
-    running: t.agentRunning,
-    blocked: t.agentBlocked,
-    cancelling: t.agentCancelling,
-    completed: t.agentCompleted,
-    failed: t.agentFailed,
-    cancelled: t.agentCancelled,
-  };
   const pullRequest =
     pullRequestLookup?.status === "found"
       ? pullRequestLookup.pullRequest
@@ -1607,13 +1643,12 @@ export function EnvironmentPanel({
       type="button"
     >
       <span className="environment-row-icon">
-        <ArtemisIcon name="agents" width={14} height={14} />
+        <ArtemisIcon name="agent" width={14} height={14} />
       </span>
       <span>
         <strong title={agent.label}>{agent.label}</strong>
         <small>
-          {agent.status === "running" && <RunningArc size={12} />}
-          {agentStatusLabels[agent.status]}
+          <AgentActivityStatus child={agent} locale={locale} />
           {agent.customAgent
             ? ` · ${customAgentInstanceIdentity(agent.customAgent, locale)}`
             : ""}
@@ -1625,7 +1660,7 @@ export function EnvironmentPanel({
 
   const commitSubview = gitInfo?.managed ? (
     <form
-      aria-label={t.commitOrPush}
+      aria-label={uiText(locale, "EnvironmentPanel_labels.commitOrPushTitle")}
       aria-busy={Boolean(gitBusy)}
       className="environment-git-dialog"
       onKeyDown={(event) => {
@@ -1644,11 +1679,6 @@ export function EnvironmentPanel({
     >
       <div className="environment-commit-heading">
         <span className="environment-field-label">{t.commitMessage}</span>
-        <small>
-          {uiText(locale, "Review01.filesToCommit", {
-            count: includeUnstaged ? gitInfo.changeCount : gitInfo.stagedCount,
-          })}
-        </small>
       </div>
       <label className="environment-git-message">
         <textarea
@@ -1673,6 +1703,7 @@ export function EnvironmentPanel({
 
       <label className="environment-field-label">{t.commitDestination}</label>
       <SegmentedControl
+        className="environment-commit-destination"
         label={t.commitDestination}
         value={creatingCommitBranch ? "new" : "current"}
         disabled={Boolean(gitBusy) || actionsDisabled}
@@ -1719,15 +1750,40 @@ export function EnvironmentPanel({
                 : t.generatingCommit}
         </p>
       )}
-      {gitInfo.upstream && (
-        <p className="environment-push-info">
-          <ArtemisIcon name="push" width={14} height={14} />
-          {uiText(locale, "Review01.pushAfter", {
-            count: gitInfo.ahead + 1,
-            branch: gitInfo.upstream,
-          })}
-        </p>
-      )}
+      <div className="environment-push-info">
+        {gitInfo.upstream && (
+          <span>
+            <ArtemisIcon name="push" width={14} height={14} />
+            <span>
+              {uiText(locale, "Review01.pushAfter", {
+                count: gitInfo.ahead + 1,
+                branch: "{upstream}",
+              })
+                .split("{upstream}")
+                .map((part, index) => (
+                  <Fragment key={index}>
+                    {index > 0 && (
+                      <bdi className="environment-upstream">
+                        {gitInfo.upstream}
+                      </bdi>
+                    )}
+                    {part}
+                  </Fragment>
+                ))}
+            </span>
+          </span>
+        )}
+        <button
+          className="environment-push-only"
+          disabled={Boolean(pushDisabledReason) || Boolean(gitBusy)}
+          onClick={() => void push()}
+          title={pushDisabledReason}
+          type="button"
+        >
+          <PushIcon />
+          <strong>{gitBusy === "push" ? t.pushing : t.push}</strong>
+        </button>{" "}
+      </div>
       <div className="environment-git-actions">
         <button
           disabled={Boolean(commitDisabledReason) || Boolean(gitBusy)}
@@ -1742,7 +1798,7 @@ export function EnvironmentPanel({
                 : t.generatingCommit
               : t.commit}
           </strong>
-          <kbd>⌘↵</kbd>
+          <Keycap>⌘↵</Keycap>
         </button>
         <button
           className="primary"
@@ -1759,16 +1815,6 @@ export function EnvironmentPanel({
                 : t.generatingPush
               : t.commitAndPush}
           </strong>
-        </button>
-        <button
-          className="environment-push-only"
-          disabled={Boolean(pushDisabledReason) || Boolean(gitBusy)}
-          onClick={() => void push()}
-          title={pushDisabledReason}
-          type="button"
-        >
-          <PushIcon />
-          <strong>{gitBusy === "push" ? t.pushing : t.push}</strong>
         </button>
       </div>
 
@@ -1799,7 +1845,11 @@ export function EnvironmentPanel({
         <EnvironmentPanelSurface
           data-group={imGroup ? "true" : undefined}
           id={panelId}
-          label={commitOpen ? t.commitOrPush : t.title}
+          label={
+            commitOpen
+              ? uiText(locale, "EnvironmentPanel_labels.commitOrPushTitle")
+              : t.title
+          }
           ref={panel}
         >
           <header className="environment-panel-header">
@@ -1818,8 +1868,19 @@ export function EnvironmentPanel({
               <ArtemisIcon name="layers" width={16} height={16} />
             )}
             <strong title={project.name}>
-              {commitOpen ? t.commitOrPush : t.title}
+              {commitOpen
+                ? uiText(locale, "EnvironmentPanel_labels.commitOrPushTitle")
+                : t.title}
             </strong>
+            {commitOpen && gitInfo && (
+              <small>
+                {uiText(locale, "Review01.filesToCommit", {
+                  count: includeUnstaged
+                    ? gitInfo.changeCount
+                    : gitInfo.stagedCount,
+                })}
+              </small>
+            )}
             {!commitOpen && (
               <span className="environment-project-name" title={project.name}>
                 {project.name}
@@ -1905,6 +1966,7 @@ export function EnvironmentPanel({
                   >
                     <div className="environment-rows">
                       <EnvironmentWorkspaceMenu
+                        worktreeCount={worktreeCount}
                         locale={locale}
                         path={gitInfo.root ?? project.path}
                         worktree={workspaceIsWorktree}
@@ -1971,6 +2033,12 @@ export function EnvironmentPanel({
                         </strong>
                       </button>
                       <small className="environment-sync-status">
+                        {gitInfo.currentBranch &&
+                          gitInfo.upstream &&
+                          gitInfo.ahead === 0 &&
+                          gitInfo.behind === 0 && (
+                            <ArtemisIcon name="check" width={14} height={14} />
+                          )}
                         {!gitInfo.currentBranch
                           ? t.detached
                           : !gitInfo.upstream
@@ -2073,8 +2141,8 @@ export function EnvironmentPanel({
                     title={t.viewChanges}
                     action={
                       <span className="environment-diff-total">
-                        <i>+{gitInfo.additions}</i>
-                        <b>−{gitInfo.deletions}</b>
+                        {gitInfo.additions > 0 && <i>+{gitInfo.additions}</i>}
+                        {gitInfo.deletions > 0 && <b>−{gitInfo.deletions}</b>}
                       </span>
                     }
                   >
@@ -2099,8 +2167,8 @@ export function EnvironmentPanel({
                             {file.path}
                           </span>
                           <span className="environment-diff-total">
-                            <i>+{file.additions}</i>
-                            <b>−{file.deletions}</b>
+                            {file.additions > 0 && <i>+{file.additions}</i>}
+                            {file.deletions > 0 && <b>−{file.deletions}</b>}
                           </span>
                           <span
                             className="file-status"
@@ -2229,12 +2297,7 @@ export function EnvironmentPanel({
                     </button>
                   }
                   className="sources-section"
-                  title={
-                    <>
-                      <EnvironmentSourcesIcon />
-                      {t.taskContext}
-                    </>
-                  }
+                  title={t.taskContext}
                 >
                   <div className="environment-context-list">
                     {contextAttachments.slice(0, 3).map((attachment) => (
@@ -2251,6 +2314,25 @@ export function EnvironmentPanel({
                           symlink={false}
                         />
                         <span>{attachment.name}</span>
+                      </button>
+                    ))}
+                    {contextSkills.map((skill) => (
+                      <button
+                        className="environment-context-row"
+                        key={skill.id}
+                        onClick={viewAllSources}
+                        type="button"
+                      >
+                        <ResourceAvatar
+                          kind="skill"
+                          id={skill.id}
+                          name={skill.name}
+                          description={skill.description}
+                          pluginName={skill.plugin?.name}
+                          iconDataUrl={skill.plugin?.iconDataUrl}
+                          brandColor={skill.plugin?.brandColor}
+                        />
+                        <span>{skill.name}</span>
                       </button>
                     ))}
                     {webSearchCount > 0 && (
@@ -2270,7 +2352,14 @@ export function EnvironmentPanel({
                         onClick={viewAllSources}
                         type="button"
                       >
-                        <ArtemisIcon name="tool" />
+                        <ResourceAvatar
+                          kind="mcp"
+                          name={
+                            mcpUsages[0]?.serverName ??
+                            mcpUsages[0]?.serverId ??
+                            ""
+                          }
+                        />
                         <span>
                           {uiText(
                             locale,
@@ -2286,6 +2375,7 @@ export function EnvironmentPanel({
                       type="button"
                     >
                       {t.viewAll}
+                      <ArtemisIcon name="chev-right" width={12} height={12} />
                     </button>
                   </div>
                 </EnvironmentSection>
@@ -2382,34 +2472,49 @@ export function EnvironmentPanel({
                   {visibleBranches.length === 0 ? (
                     <p className="environment-branch-empty">{t.noBranches}</p>
                   ) : (
-                    visibleBranches.map((branch) => (
-                      <button
-                        aria-checked={branch.current}
-                        className={branch.current ? "selected" : ""}
-                        data-remote={branch.remote || undefined}
-                        disabled={
-                          Boolean(gitBusy) ||
-                          (actionsDisabled && !branch.current)
-                        }
-                        key={branch.name}
-                        onClick={() =>
-                          branch.current
-                            ? closeBranchMenu()
-                            : void switchBranch(branch.name)
-                        }
-                        role="menuitemradio"
-                        type="button"
-                      >
-                        <BranchIcon />
-                        <span title={branch.name}>
-                          {environmentBranchDisplayName(branch).length > 32
-                            ? `${environmentBranchDisplayName(branch).slice(0, 15)}…${environmentBranchDisplayName(branch).slice(-15)}`
-                            : environmentBranchDisplayName(branch)}
-                        </span>
-                        <i aria-hidden="true">
-                          {branch.current ? <EnvironmentCheckIcon /> : null}
-                        </i>
-                      </button>
+                    visibleBranches.map((branch, index) => (
+                      <Fragment key={branch.name}>
+                        {(index === 0 ||
+                          Boolean(visibleBranches[index - 1]?.remote) !==
+                            Boolean(branch.remote)) &&
+                          visibleBranches.some((item) => item.remote) && (
+                            <div className="environment-branch-heading">
+                              {uiText(
+                                locale,
+                                branch.remote
+                                  ? "Review03.remoteBranches"
+                                  : "Review03.localBranches",
+                              )}
+                            </div>
+                          )}
+                        <button
+                          aria-checked={branch.current}
+                          className={branch.current ? "selected" : ""}
+                          data-remote={branch.remote || undefined}
+                          disabled={
+                            Boolean(gitBusy) ||
+                            (actionsDisabled && !branch.current)
+                          }
+                          key={branch.name}
+                          onClick={() =>
+                            branch.current
+                              ? closeBranchMenu()
+                              : void switchBranch(branch.name)
+                          }
+                          role="menuitemradio"
+                          type="button"
+                        >
+                          <BranchIcon />
+                          <span title={branch.name}>
+                            {environmentBranchDisplayName(branch).length > 32
+                              ? `${environmentBranchDisplayName(branch).slice(0, 12)}…${environmentBranchDisplayName(branch).slice(-12)}`
+                              : environmentBranchDisplayName(branch)}
+                          </span>
+                          <i aria-hidden="true">
+                            {branch.current ? <EnvironmentCheckIcon /> : null}
+                          </i>
+                        </button>
+                      </Fragment>
                     ))
                   )}
                 </div>
@@ -2421,6 +2526,9 @@ export function EnvironmentPanel({
                 {actionsDisabled && (
                   <p className="environment-branch-hint">{t.stopTasks}</p>
                 )}
+                <p className="environment-branch-hint">
+                  {uiText(locale, "Review03.branchStash")}
+                </p>
                 <div className="environment-branch-actions">
                   <button
                     disabled={actionsDisabled || Boolean(gitBusy)}

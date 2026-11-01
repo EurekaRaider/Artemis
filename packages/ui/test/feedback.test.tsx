@@ -362,6 +362,28 @@ describe("Feedback overlays", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("hides the trigger tooltip while its menu is expanded", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(
+      <Tooltip label="More task actions">
+        <button aria-expanded={false}>More</button>
+      </Tooltip>,
+    );
+    await user.hover(screen.getByRole("button", { name: "More" }));
+    expect((await screen.findByRole("tooltip")).textContent).toBe(
+      "More task actions",
+    );
+    rerender(
+      <Tooltip label="More task actions">
+        <button aria-expanded={true}>More</button>
+      </Tooltip>,
+    );
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    await user.unhover(screen.getByRole("button", { name: "More" }));
+    await user.tab();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   it("requires perceptible overlay labels", () => {
     expect(() =>
       render(

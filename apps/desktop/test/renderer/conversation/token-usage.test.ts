@@ -8,6 +8,7 @@ import {
   buildTokenUsageCells,
   filterTokenUsageEvents,
   formatTokenUsageTooltip,
+  formatTokenUsageNumber,
   TOKEN_USAGE_COPY,
   tokenUsageValue,
   tokenUsageModelsForTable,
@@ -100,28 +101,28 @@ describe("token usage activity", () => {
 
   it("provides English and Simplified Chinese page and view labels", () => {
     expect(TOKEN_USAGE_COPY.en).toMatchObject({
-      title: "Token usage",
+      title: "Usage",
       activity: "Token activity",
       dailyTab: "Daily",
       weeklyTab: "Weekly",
       cumulativeTab: "Cumulative",
       insights: "Activity insights",
       tokenComposition: "Token composition",
-      cacheHitRate: "Cache hit rate",
+      cacheHitRate: "Cache hit",
       cacheHitRateDescription:
         "Cache read tokens divided by cache-reported input tokens (input + cache read + cache write).",
       cacheDataCoverage: "Cache data coverage",
       automaticPolicyDistribution: "Automatic cache policies",
     });
     expect(TOKEN_USAGE_COPY["zh-CN"]).toMatchObject({
-      title: "Token 用量",
-      activity: "Token 活动",
+      title: "用量",
+      activity: "活动",
       dailyTab: "每日",
       weeklyTab: "每周",
       cumulativeTab: "累计",
       insights: "活动观察",
       tokenComposition: "Token 构成",
-      cacheHitRate: "缓存命中率",
+      cacheHitRate: "缓存命中",
       cacheHitRateDescription:
         "缓存读取 Token ÷ 已报告缓存数据的输入 Token（输入 + 缓存读取 + 缓存写入）。",
       cacheDataCoverage: "缓存数据覆盖率",
@@ -300,4 +301,36 @@ describe("token usage activity", () => {
       coverage: 2 / 3,
     });
   });
+});
+
+describe("locale-independent token magnitudes", () => {
+  it.each([
+    [0, "0"],
+    [999, "999"],
+    [1000, "1K"],
+    [41_700, "41.7K"],
+    [1_280_000, "1.28M"],
+    [412_000, "412K"],
+    [96_000, "96K"],
+    [18_200, "18.2K"],
+    [999_999, "1M"],
+  ] as const)("formats %i as %s", (value, expected) => {
+    expect(formatTokenUsageNumber(value)).toBe(expected);
+  });
+  it.each(["zh-CN", "en", "ar"] as const)(
+    "uses the same token magnitudes in %s tooltips",
+    (locale) => {
+      const cell = {
+        date: "2026-11-01",
+        weekStart: "2026-10-26",
+        dailyTokens: 41_700,
+        weeklyTokens: 1_280_000,
+        cumulativeTokens: 1_280_000,
+      };
+      expect(formatTokenUsageTooltip(cell, "daily", locale)).toContain("41.7K");
+      expect(formatTokenUsageTooltip(cell, "weekly", locale)).toContain(
+        "1.28M",
+      );
+    },
+  );
 });

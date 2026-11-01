@@ -167,7 +167,7 @@ export function EnvironmentAgentsIcon(props: IconProps) {
     <StandardEnvironmentIcon
       {...props}
       data-environment-tone="purple"
-      name="agents"
+      name="agent"
       size={16}
     />
   );

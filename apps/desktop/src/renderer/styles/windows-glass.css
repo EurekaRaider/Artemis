@@ -1,5 +1,5 @@
-/* Keep macOS's native vibrancy and existing chrome untouched. Acrylic supplies
-   the desktop blur; CSS adds only tint, edge light and depth on Windows. */
+/* The native backdrop supplies sidebar blur. Other surfaces stay opaque;
+   Windows adds only the sidebar tint, edge light and depth. */
 @property --environment-panel-inline-offset {
   syntax: "<length>";
   inherits: true;

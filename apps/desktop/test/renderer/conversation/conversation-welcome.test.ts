@@ -22,8 +22,8 @@ describe("conversation welcome", () => {
 
   it.each([
     [8, "morning", "freshStart"],
-    [15, "afternoon", "nextStep"],
-    [20, "evening", "eveningIdeas"],
+    [15, "afternoon", "readyWhenYouAre"],
+    [20, "evening", "readyWhenYouAre"],
     [2, "lateNight", "quietHours"],
   ] as const)(
     "offers general and matching time greetings at %i:00",
@@ -31,7 +31,13 @@ describe("conversation welcome", () => {
       const possible = possibleGreetings(localTime(hour));
       expect(possible).toContain(period);
       expect(possible).toContain(variant);
-      expect(possible).toContain("newIdeas");
+      for (const question of [
+        "newIdeas",
+        "whereToStart",
+        "nextStep",
+        "eveningIdeas",
+      ])
+        expect(possible).not.toContain(question);
       expect(possible).toContain("goodToSeeYou");
       for (const other of ["morning", "afternoon", "evening", "lateNight"])
         if (other !== period) expect(possible).not.toContain(other);
@@ -71,7 +77,7 @@ describe("conversation welcome", () => {
   it("uses a natural unnamed greeting when the display name is empty", () => {
     expect(
       conversationWelcome("zh-CN", localTime(10), "  ", "welcomeBack").title,
-    ).toBe("今天从哪里开始？");
+    ).toBe("随时可以开始");
   });
 
   it.each(APP_LOCALES)(

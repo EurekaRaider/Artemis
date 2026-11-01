@@ -56,7 +56,12 @@ export function WelcomeResume({
   const changes =
     gitInfo?.managed && gitInfo.changeCount > 0 ? gitInfo : undefined;
   if (!recent && !changes && !automation) return null;
-  const lastEvent = recent ? events[recent.id]?.at(-1) : undefined;
+  const lastEvent =
+    recent?.status === "failed"
+      ? events[recent.id]?.findLast(
+          (event) => event.payload.type === "turn.failed",
+        )
+      : undefined;
   const reason =
     lastEvent?.payload.type === "turn.failed"
       ? lastEvent.payload.message
@@ -100,8 +105,13 @@ export function WelcomeResume({
               <span>{uiText(locale, "WelcomeResume.review")}</span>
             </span>
             <span className="welcome-resume-meta">
-              <bdi className="diff-add">+{changes.additions}</bdi>{" "}
-              <bdi className="diff-remove">−{changes.deletions}</bdi> ·{" "}
+              {changes.additions > 0 && (
+                <bdi className="diff-add">+{changes.additions}</bdi>
+              )}{" "}
+              {changes.deletions > 0 && (
+                <bdi className="diff-remove">−{changes.deletions}</bdi>
+              )}{" "}
+              ·{" "}
               {uiText(locale, "WelcomeResume.files", {
                 count: changes.changeCount,
               })}

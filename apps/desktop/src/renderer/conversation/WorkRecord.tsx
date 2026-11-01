@@ -51,8 +51,20 @@ export function WorkRecord({
     ? uiText(locale, "WorkRecord.working")
     : turn.status === "cancelled"
       ? UI_COPY.App_copy_9734[locale].cancelled
-      : UI_COPY.App_copy[locale].workedFor;
-  const time = formatWorkedDuration(duration, locale);
+      : turn.status === "failed"
+        ? UI_COPY.App_copy[locale].failed
+        : duration && duration >= 1000
+          ? UI_COPY.App_copy[locale].workedFor
+          : UI_COPY.App_copy[locale].completed;
+  const time =
+    duration && duration >= 1000 ? formatWorkedDuration(duration, locale) : "";
+  if (
+    turn.status === "completed" &&
+    steps === 0 &&
+    (duration ?? 0) < 1000 &&
+    changedFileCount === 0
+  )
+    return <>{typeof children === "function" ? children() : children}</>;
   const summary = (
     <>
       {running ? (
@@ -74,7 +86,7 @@ export function WorkRecord({
       <small>
         {time}
         {steps > 0
-          ? ` · ${uiText(locale, "WorkRecord.steps", { count: steps })}`
+          ? `${time ? " · " : ""}${uiText(locale, "WorkRecord.steps", { count: steps })}`
           : ""}
         {changedFileCount > 0
           ? ` · ${uiText(locale, "WorkRecord.files", { count: changedFileCount })}`
@@ -113,6 +125,50 @@ export function WorkRecord({
         </div>
       )}
     </TurnExecutionDisclosure>
+  );
+}
+
+/** The timeline and Environment panel share the same visible agent status. */
+export function AgentActivityStatus({
+  child,
+  locale,
+  showIcon = true,
+}: {
+  child: ChildAgentState;
+  locale: AppLocale;
+  showIcon?: boolean;
+}) {
+  const label =
+    child.status === "running"
+      ? uiText(locale, "EnvironmentPanel_labels.active")
+      : child.status === "completed"
+        ? uiText(locale, "EnvironmentPanel_labels.completed")
+        : child.status === "queued"
+          ? uiText(locale, "EnvironmentPanel_labels.queued")
+          : UI_COPY.App_childStatusLabels[locale][child.status];
+  return (
+    <span className="work-record-agent-status" data-status={child.status}>
+      {showIcon &&
+        (child.status === "running" ? (
+          <RunningArc size={12} />
+        ) : (
+          <ArtemisIcon
+            width={12}
+            height={12}
+            name={
+              child.status === "completed"
+                ? "check"
+                : child.status === "blocked"
+                  ? "alert"
+                  : child.status === "failed"
+                    ? "x-circle"
+                    : "clock"
+            }
+          />
+        ))}
+      {label}
+      {child.status === "running" && <AgentElapsed child={child} />}
+    </span>
   );
 }
 

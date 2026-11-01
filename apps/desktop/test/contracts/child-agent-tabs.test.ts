@@ -87,7 +87,9 @@ describe("Codex-style child-agent workspace tabs", () => {
     expect(panelSource).toContain("CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS");
     expect(panelSource).toContain("!child?.currentTool");
     expect(uiText("zh-CN", "App_labels_10125.nudge")).toBe("催办");
-    expect(uiText("zh-CN", "App_labels_10125.childStop")).toBe("停止此子代理");
+    expect(uiText("zh-CN", "App_labels_10125.childStop")).toBe(
+      "停止此子智能体",
+    );
     expect(uiText("zh-CN", "App_copy.queueRetry")).toBe("重试");
     expect(panelSource).toContain('onControl(child, "steer")');
     expect(panelSource).toContain('onControl(child, "cancel")');

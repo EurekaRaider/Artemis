@@ -82,7 +82,7 @@ it("presents the current group's saved project scope without claiming local file
   expect(screen.getByText("Ask each time")).toBeVisible();
   expect(screen.getByText("docs/sources")).toBeVisible();
   expect(screen.getByText("Denied")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Edit authorization" }));
+  fireEvent.click(screen.getByRole("button", { name: "Manage authorization" }));
   expect(manage).toHaveBeenCalledOnce();
 });
 

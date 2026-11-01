@@ -281,9 +281,9 @@ describe("Resource Center catalog feedback", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Back to plugins" }),
     );
-    await userEvent.click(screen.getByRole("button", { name: /^Skills \d+$/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Skills(?: \d+)?$/ }));
     await userEvent.click(
-      screen.getByRole("button", { name: "Find Agent Skills" }),
+      screen.getByRole("button", { name: "Find skills" }),
     );
     const skillSearch = screen.getByLabelText("Search Agent Skills");
     await userEvent.type(skillSearch, "synthetic");

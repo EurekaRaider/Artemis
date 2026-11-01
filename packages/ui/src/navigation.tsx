@@ -478,6 +478,7 @@ export function Tabs<Value extends string>({
 export interface SegmentedControlOption<
   Value extends string,
 > extends NavigationOptionBase<Value> {
+  readonly count?: number | undefined;
   readonly id?: string;
   readonly icon?: ReactNode;
 }
@@ -526,6 +527,11 @@ export function SegmentedControl<Value extends string>({
         return (
           <button
             aria-pressed={selected}
+            aria-label={
+              option.count === undefined
+                ? undefined
+                : `${option.label} ${option.count}`
+            }
             id={option.id}
             data-part="segment"
             data-state={optionState(selected, optionDisabled)}
@@ -535,7 +541,14 @@ export function SegmentedControl<Value extends string>({
             type="button"
           >
             {option.icon && <span aria-hidden="true">{option.icon}</span>}
-            {option.label}
+            {option.count === undefined ? (
+              option.label
+            ) : (
+              <span>
+                <bdi>{option.label}</bdi>
+                <span data-part="count">{option.count}</span>
+              </span>
+            )}
           </button>
         );
       })}

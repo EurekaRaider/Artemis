@@ -224,7 +224,7 @@ describe("ContextUsageIndicator", () => {
     expect(html).toContain("上次模型实测输入 8.5万 Token");
   });
 
-  it("labels unknown usage without drawing it as zero percent", () => {
+  it("hides unknown usage instead of drawing it as zero percent", () => {
     const html = renderToStaticMarkup(
       <ContextUsageIndicator
         contextWindow={128_000}
@@ -237,8 +237,6 @@ describe("ContextUsageIndicator", () => {
       />,
     );
 
-    expect(html).toContain("上下文用量暂不可用");
-    expect(html).not.toContain("0% 已用");
-    expect(html).not.toContain('class="context-usage-progress"');
+    expect(html).toBe("");
   });
 });

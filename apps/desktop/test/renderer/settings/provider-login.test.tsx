@@ -103,7 +103,7 @@ it.each(["en", "zh-CN"] as const)(
     await waitFor(() => expect(login).toBeEnabled());
     expect(start).not.toHaveBeenCalled();
     const title =
-      locale === "en" ? /Model provider authorization/ : /模型供应商授权/;
+      locale === "en" ? /Model provider authorization/ : /模型服务授权/;
     fireEvent.click(screen.getByRole("button", { name: title }));
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(4);

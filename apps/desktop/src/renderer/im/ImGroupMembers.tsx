@@ -13,6 +13,7 @@ import { Tooltip } from "@artemis/ui/feedback";
 import { IconButton } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { imChannelLabel } from "./ImNavigation";
+import { memberAvatarStyle } from "./member-avatar.js";
 
 export function ImGroupMembers({
   group,
@@ -201,7 +202,7 @@ export function ImGroupMembers({
     const targets = imGroupMentionTargets(group);
     return (
       <EnvironmentSection
-        title={`${t("ImGroupMembers.message28")}${roster?.complete ? ` · ${roster.members.length}` : ""}`}
+        title={`${t("Review03.members")}${roster?.complete ? ` ${roster.members.length}` : ""}`}
       >
         <div className="environment-setting-copy im-group-members im-native-members">
           {error && <small role="alert">{error}</small>}
@@ -278,11 +279,22 @@ export function ImGroupMembers({
                           data-state={state}
                           tabIndex={0}
                           className="im-member-kind"
+                          style={
+                            member.kind === "human"
+                              ? memberAvatarStyle(
+                                  imIdentityKey(member.identity),
+                                )
+                              : undefined
+                          }
                           role="img"
                           aria-label={kind}
                         >
                           {member.kind === "bot" ? (
-                            <ArtemisIcon name="bot" width={18} height={18} />
+                            <ArtemisIcon
+                              name={member.self ? "artemis" : "agent"}
+                              width={18}
+                              height={18}
+                            />
                           ) : (
                             <span>
                               {member.name
@@ -321,23 +333,18 @@ export function ImGroupMembers({
                                 </span>
                               </Tooltip>
                             )}
-
-                          {member.self && (
-                            <span
-                              className="im-member-executor"
-                              data-working={executing}
-                            >
-                              {t(
-                                executing
-                                  ? "WorkRecord.working"
-                                  : "ImGroupMembers.message18",
-                              )}
-                            </span>
-                          )}
                         </span>
                       </span>
                     </strong>
                   </span>
+                  {member.self && (
+                    <span
+                      className="im-member-executor"
+                      data-working={executing}
+                    >
+                      {t(executing ? "WorkRecord.working" : "Review03.idle")}
+                    </span>
+                  )}
                   {canManage &&
                     editable &&
                     member.kind === "bot" &&
@@ -426,7 +433,9 @@ export function ImGroupMembers({
   }
 
   return (
-    <EnvironmentSection title={t("ImGroupMembers.message39")}>
+    <EnvironmentSection
+      title={`${t("Review03.members")} ${imGroupMentionTargets(group).length}`}
+    >
       <div className="environment-setting-copy im-group-members">
         {group.stale && (
           <small role="status">{t("ImGroupMembers.message29")}</small>
@@ -471,7 +480,15 @@ export function ImGroupMembers({
                         aria-label={status}
                         tabIndex={0}
                       >
-                        <ArtemisIcon name="bot" width={18} height={18} />
+                        <ArtemisIcon
+                          name={
+                            member.deviceId === group.executingDeviceId
+                              ? "artemis"
+                              : "agent"
+                          }
+                          width={18}
+                          height={18}
+                        />
                       </span>
                     </Tooltip>
                     <span className="im-member-identity">
@@ -480,22 +497,15 @@ export function ImGroupMembers({
                         <span className="im-member-device">
                           {member.deviceName || member.deviceId}
                         </span>
-                        {member.deviceId === group.executingDeviceId && (
-                          <span
-                            className="im-member-executor"
-                            data-working={executing}
-                          >
-                            {t(
-                              executing
-                                ? "WorkRecord.working"
-                                : "ImGroupMembers.message18",
-                            )}
-                          </span>
-                        )}
                       </span>
                     </span>
                   </strong>
                 </span>
+                {member.deviceId === group.executingDeviceId && (
+                  <span className="im-member-executor" data-working={executing}>
+                    {t(executing ? "WorkRecord.working" : "Review03.idle")}
+                  </span>
+                )}
                 {onRemove && (
                   <ImMemberRemoval
                     name={`${member.name} · ${member.deviceName}`}

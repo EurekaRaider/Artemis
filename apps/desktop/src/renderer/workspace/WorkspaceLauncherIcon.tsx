@@ -31,7 +31,9 @@ export function WorkspaceLauncherIcon({
 }) {
   return (
     <span className="workspace-launcher-icon" data-kind={kind}>
-      {kind === "browser" ? (
+      {kind === "review" ? (
+        <ArtemisIcon name="review" width={18} height={18} />
+      ) : kind === "browser" ? (
         <ArtemisIcon height={18} name="browser" width={18} />
       ) : kind === "design" ? (
         <DesignIcon />
@@ -47,12 +49,6 @@ export function WorkspaceLauncherIcon({
           viewBox="0 0 24 24"
           width={18}
         >
-          {kind === "review" && (
-            <>
-              <rect height="18" rx="2" width="14" x="5" y="3" />
-              <path d="M9 9h6M12 6v6M9 16h6" />
-            </>
-          )}
           {kind === "terminal" && (
             <>
               <rect height="18" rx="3" width="18" x="3" y="3" />

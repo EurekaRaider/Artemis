@@ -711,3 +711,28 @@ describe("resource catalog", () => {
     );
   });
 });
+
+it.each([">", ">-", "|", "|-"])(
+  "parses YAML %s skill descriptions",
+  (scalar) => {
+    const result = parseSkillFrontmatter(
+      `---\nname: find-docs\ndescription: ${scalar}\n  Find current documentation.\n  Include examples.\n---\n# Skill`,
+    );
+    expect(result).toEqual({
+      name: "find-docs",
+      description: scalar.startsWith(">")
+        ? "Find current documentation. Include examples."
+        : "Find current documentation.\nInclude examples.",
+    });
+  },
+);
+it.each(['"', "'"])(
+  "parses multiline %s quoted skill descriptions",
+  (quote) => {
+    expect(
+      parseSkillFrontmatter(
+        `---\nname: find-docs\ndescription: ${quote}Find current documentation.\n  Include examples.${quote}\n---`,
+      ).description,
+    ).toBe("Find current documentation. Include examples.");
+  },
+);

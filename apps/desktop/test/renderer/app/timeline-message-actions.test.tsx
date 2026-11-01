@@ -106,12 +106,13 @@ it.each(["completed", "cancelled", "failed"] as const)(
     expect(
       container.querySelector('[data-artemis-component="timeline-turn"]'),
     ).toHaveAttribute("data-state", status);
-    expect(
-      container.querySelector(".work-record-summary > svg"),
-    ).toHaveAttribute(
-      "data-artemis-icon",
-      status === "failed" ? "alert" : status === "cancelled" ? "stop" : "check",
-    );
+    if (status === "completed") {
+      expect(container.querySelector(".work-record-summary")).toBeNull();
+    } else {
+      expect(container.querySelector(".work-record-summary > svg")).toHaveAttribute(
+        "data-artemis-icon", status === "failed" ? "alert" : "stop",
+      );
+    }
     expect(container.querySelector("details.work-record")).toBeNull();
     if (status === "cancelled") {
       expect(container.querySelector(".work-record-summary")).toHaveTextContent(

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+import { findCssDeclarations } from "../../contracts/css-test-utils.js";
 
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
@@ -76,6 +77,11 @@ describe("composer project and Git context menus", () => {
       "没有匹配的本地分支",
     );
     expect(stylesSource).toContain(".composer-context-menu-skeleton");
-    expect(stylesSource).toContain(".composer-context-trigger:focus-visible");
+    expect(
+      findCssDeclarations(
+        stylesSource,
+        ".composer-context-trigger:focus-visible",
+      ),
+    ).toContain("outline:");
   });
 });

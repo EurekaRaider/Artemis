@@ -250,9 +250,15 @@ export interface DataStatProps extends Omit<
 > {
   readonly label: string;
   readonly value: string;
+  readonly detail?: string | undefined;
 }
 
-export function DataStat({ label, value, ...attributes }: DataStatProps) {
+export function DataStat({
+  label,
+  value,
+  detail,
+  ...attributes
+}: DataStatProps) {
   requirePerceptibleText(label);
   requirePerceptibleText(value);
   return (
@@ -264,6 +270,7 @@ export function DataStat({ label, value, ...attributes }: DataStatProps) {
     >
       <strong data-part="value">{value}</strong>
       <span data-part="label">{label}</span>
+      {detail && <small data-part="detail">{detail}</small>}
     </div>
   );
 }

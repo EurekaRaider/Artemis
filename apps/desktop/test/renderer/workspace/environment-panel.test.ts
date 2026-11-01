@@ -186,12 +186,12 @@ describe("task environment panel state", () => {
   });
 
   it("uses the standard agent glyph and a running status indicator", () => {
-    expect(panelSource).toContain('<ArtemisIcon name="agents"');
+    expect(panelSource).toContain('<ArtemisIcon name="agent"');
     expect(panelSource).not.toContain(
       'className="environment-agent-team-trigger"',
     );
     expect(panelSource).toContain("data-status={agent.status}");
-    expect(panelSource).toContain("<RunningArc size={12}");
+    expect(panelSource).toContain("<AgentActivityStatus child={agent} locale={locale} />");
     expect(panelSource).not.toContain("function AgentIcon(");
     expect(stylesSource).toContain(
       ".environment-row-icon svg:not(.child-agent-mark)",
@@ -623,5 +623,26 @@ describe("task environment panel state", () => {
     expect(environmentBranchMenuBranches(branches, "release")).toHaveLength(1);
     expect(panelSource).toContain("t.branchSearch(project.name)");
     expect(panelSource).toContain("t.createBranch");
+  });
+
+  it("groups local branches before remote branches with stable current-first ordering", () => {
+    const branches = [
+      { name: "origin/release-z", current: false, remote: true },
+      { name: "feature-z", current: false, remote: false },
+      { name: "origin/release-a", current: false, remote: true },
+      { name: "main", current: true },
+      { name: "feature-a", current: false },
+    ];
+    const original = structuredClone(branches);
+    expect(
+      environmentBranchMenuBranches(branches, "").map((branch) => branch.name),
+    ).toEqual([
+      "main",
+      "feature-z",
+      "feature-a",
+      "origin/release-z",
+      "origin/release-a",
+    ]);
+    expect(branches).toEqual(original);
   });
 });

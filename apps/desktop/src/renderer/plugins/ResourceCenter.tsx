@@ -1373,30 +1373,22 @@ export function ResourceCenter({
   }
 
   function visualForSkill(skill: InstalledSkill) {
-    const plugin =
-      owningPluginForSkill(skill) ??
-      allMarketplacePlugins.find((candidate) =>
-        candidate.skills.some((preview) => preview.name === skill.name),
-      );
+    const plugin = owningPluginForSkill(skill);
     const visual = plugin ? visualForPlugin(plugin) : undefined;
     return {
       brandColor: visual?.brandColor,
       iconDataUrl: visual?.iconDataUrl,
       pluginName: visual?.pluginName,
-      iconKey: resourceIconName(skill.name, "skill"),
+      iconKey: resourceIconName(skill.name, "skill", {
+        id: skill.id,
+        description: skill.description,
+        pluginName: visual?.pluginName,
+      }),
     };
   }
 
   function visualForMcp(server: McpServerStatus) {
-    const plugin =
-      owningPluginForMcp(server) ??
-      allMarketplacePlugins.find((candidate) =>
-        candidate.mcpServers.some(
-          (preview) =>
-            preview.name === server.config.name ||
-            server.config.name.endsWith(`: ${preview.name}`),
-        ),
-      );
+    const plugin = owningPluginForMcp(server);
     const visual = plugin ? visualForPlugin(plugin) : undefined;
     return {
       brandColor: visual?.brandColor,
@@ -1405,6 +1397,13 @@ export function ResourceCenter({
       iconKey: resourceIconName(
         server.config.name || server.config.id,
         server.config.resourceKind === "connector" ? "connectors" : "mcp",
+        {
+          transport: server.config.transport,
+          command:
+            server.config.transport === "stdio"
+              ? [server.config.command, ...server.config.args].join(" ")
+              : undefined,
+        },
       ),
     };
   }
@@ -1715,10 +1714,7 @@ export function ResourceCenter({
         server.state,
       ),
     );
-  const standaloneSkills = installedSkills.filter(
-    (skill) => !managedSkillNames.has(skill.name),
-  );
-  const visibleSkills = standaloneSkills.filter((skill) =>
+  const visibleSkills = installedSkills.filter((skill) =>
     matchesManagement(skill.name, skill.description, skill.source),
   );
 
@@ -2017,8 +2013,9 @@ export function ResourceCenter({
         <div className="plugin-market-card-heading">
           <span
             className="resource-avatar"
+            data-plugin="true"
             data-icon="document"
-            style={{ "--resource-hue": 255 } as CSSProperties}
+            style={{ "--resource-plugin-hue": 255 } as CSSProperties}
           >
             <ArtemisIcon name="document" />
           </span>
@@ -2128,8 +2125,9 @@ export function ResourceCenter({
         <div className="plugin-market-card-heading">
           <span
             className="resource-avatar"
+            data-plugin="true"
             data-icon="palette"
-            style={{ "--resource-hue": 300 } as CSSProperties}
+            style={{ "--resource-plugin-hue": 300 } as CSSProperties}
           >
             <ArtemisIcon name="palette" />
           </span>
@@ -2323,8 +2321,9 @@ export function ResourceCenter({
           {computer ? (
             <span
               className="resource-avatar"
+              data-plugin="true"
               data-icon="monitor"
-              style={{ "--resource-hue": 225 } as CSSProperties}
+              style={{ "--resource-plugin-hue": 225 } as CSSProperties}
             >
               <ArtemisIcon name="monitor" />
             </span>
@@ -2342,10 +2341,10 @@ export function ResourceCenter({
               title={`${displayName}${displayVersion ? ` v${displayVersion}` : ""}`}
             >
               {displayName}
-              {displayVersion && (
-                <span className="plugin-market-card-vn">v{displayVersion}</span>
-              )}
             </strong>
+            {displayVersion && (
+              <span className="plugin-market-card-vn">v{displayVersion}</span>
+            )}
           </div>
         </div>
         <div className="plugin-market-copy">
@@ -2580,6 +2579,7 @@ export function ResourceCenter({
               ) : (
                 <Button
                   className="resource-inline-action"
+                  variant="secondary"
                   disabled={
                     operationPending ||
                     !plugin.installable ||
@@ -2879,12 +2879,13 @@ export function ResourceCenter({
     mcp: mcpServers.filter(
       (server) => server.config.resourceKind !== "connector",
     ).length,
-    skills: standaloneSkills.length,
+    skills: installedSkills.length,
   };
   const managementTabOptions = (["plugins", "mcp", "skills"] as const).map(
     (tab) => ({
       id: `resource-management-tab-${tab}`,
-      label: `${t[tab]} ${managementCounts[tab]}`,
+      label: t[tab],
+      count: managementCounts[tab] || undefined,
       panelId: `resource-management-panel-${tab}`,
       value: tab,
       icon: (
@@ -2903,7 +2904,8 @@ export function ResourceCenter({
   const headerActions = (
     <div className="resource-header-actions">
       <IconButton
-        className="resource-icon-button"
+        className="resource-icon-button resource-refresh"
+        variant="quiet"
         disabled={
           operationPending ||
           selectedMarketplaceView === "local" ||
@@ -3473,6 +3475,7 @@ export function ResourceCenter({
                   <div className="resource-row-actions">
                     <Button
                       className="resource-inline-action"
+                      variant="secondary"
                       disabled={
                         operationPending ||
                         busyId === extension.config.id ||
@@ -3735,48 +3738,63 @@ export function ResourceCenter({
                     <span className="resource-mcp-chips">
                       {server.config.transport === "stdio" ? (
                         <>
-                          <span
-                            data-mode={
-                              server.config.fullAccess
-                                ? "compatibility"
-                                : "sandbox"
-                            }
-                            title={uiText(
-                              locale,
-                              server.config.fullAccess
-                                ? "McpServerEditor_labels.mcpFullAccessHint"
-                                : "McpServerEditor_labels.mcpAllowNetworkHint",
-                            )}
-                          >
-                            <ArtemisIcon
-                              name={
-                                server.config.fullAccess ? "lock" : "sandbox"
+                          <span className="resource-mcp-local">
+                            <span
+                              data-mode={
+                                server.config.fullAccess
+                                  ? "compatibility"
+                                  : "sandbox"
                               }
-                            />
-                            {server.config.fullAccess
-                              ? uiText(
-                                  locale,
-                                  "McpServerEditor_labels.mcpFullAccess",
-                                )
-                              : uiText(locale, "ResourceCenter.sandbox")}
+                              title={uiText(
+                                locale,
+                                server.config.fullAccess
+                                  ? "McpServerEditor_labels.mcpFullAccessHint"
+                                  : "McpServerEditor_labels.mcpAllowNetworkHint",
+                              )}
+                            >
+                              <ArtemisIcon
+                                name={
+                                  server.config.fullAccess ? "alert" : "sandbox"
+                                }
+                              />
+                              {server.config.fullAccess
+                                ? uiText(locale, "Review05.compatibility")
+                                : uiText(locale, "ResourceCenter.sandbox")}
+                            </span>
+                            <span className="resource-mcp-scope">
+                              {uiText(
+                                locale,
+                                server.config.fullAccess
+                                  ? "Review05.fullPermissions"
+                                  : "Review05.workspaceOnly",
+                              )}
+                            </span>
                           </span>
                           <span>
-                            {uiText(
-                              locale,
-                              "McpServerEditor_labels.mcpAllowNetwork",
-                            )}
-                            :{" "}
+                            {uiText(locale, "Review03.network")}
+                            {locale.startsWith("zh") ? "：" : ": "}
                             {server.config.fullAccess ||
                             server.config.allowNetwork
                               ? t.enabled
-                              : t.disabled}
+                              : uiText(locale, "Review03.networkDisabled")}
                           </span>
                         </>
                       ) : (
-                        <span>
-                          <ArtemisIcon name="browser" />
-                          {server.config.transport}
-                        </span>
+                        <>
+                          <span className="resource-mcp-remote">
+                            <span data-mode="remote">
+                              <ArtemisIcon name="browser" />
+                              {uiText(locale, "Review04.remote")}
+                            </span>
+                            <bdi dir="ltr">
+                              {new URL(server.config.url).hostname}
+                            </bdi>
+                          </span>
+                          <span>
+                            {uiText(locale, "Review03.network")}
+                            {locale.startsWith("zh") ? "：" : ": "}—
+                          </span>
+                        </>
                       )}
                       <span
                         className="resource-mcp-connection"
@@ -3800,6 +3818,14 @@ export function ResourceCenter({
                       iconKey={visual.iconKey}
                       pluginName={visual.pluginName}
                       kind="mcp"
+                      disabled={!server.config.enabled}
+                      command={
+                        server.config.transport === "stdio"
+                          ? [server.config.command, ...server.config.args].join(
+                              " ",
+                            )
+                          : undefined
+                      }
                       name={displayName}
                     />
                   }
@@ -3847,7 +3873,7 @@ export function ResourceCenter({
               </Button>
             </div>
           }
-          className="resource-management-section"
+          className="resource-management-section resource-skills-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
           role="region"
@@ -3920,23 +3946,47 @@ export function ResourceCenter({
           <div className="resource-management-list">
             {visibleSkills.map((skill) => {
               const visual = visualForSkill(skill);
+              const owner = owningPluginForSkill(skill);
               return (
                 <ManagementRow
                   actions={
                     <div className="resource-row-actions">
+                      <span
+                        className="resource-skill-source"
+                        dir={
+                          owner || skill.source === "builtin" ? "auto" : "ltr"
+                        }
+                      >
+                        {owner
+                          ? pluginDisplayName(owner)
+                          : skill.source === "builtin"
+                            ? uiText(
+                                locale,
+                                "SettingsPanel_labels.providerConfigBuiltin",
+                              )
+                            : skill.path
+                                .replaceAll("\\", "/")
+                                .replace(
+                                  /^(?:[a-z]:\/Users\/[^/]+|\/Users\/[^/]+|\/home\/[^/]+)/i,
+                                  "~",
+                                )
+                                .replace(/\/SKILL\.md$/i, "")
+                                .replace(/\/[^/]+$/, "")}
+                      </span>
                       <IconButton
                         className="resource-icon-button resource-remove-button"
                         disabled={
                           operationPending ||
                           busyId === skill.id ||
-                          pendingToggleIds.has(`skill:${skill.id}`)
+                          pendingToggleIds.has(`skill:${skill.id}`) ||
+                          Boolean(owner)
                         }
                         icon={<TrashIcon />}
                         label={`${t.remove} ${skill.name}`}
                         onClick={() =>
                           setResourceRemovalDraft({ kind: "skill", skill })
                         }
-                        title={t.remove}
+                        title={owner ? t.managedByPlugin : t.remove}
                         variant="quiet"
                       />
                       <Switch
@@ -3958,8 +4008,13 @@ export function ResourceCenter({
                       />
                     </div>
                   }
-                  className="resource-management-row"
-                  description={skill.description || t.skills}
+                  className="resource-management-row resource-skill-row"
+                  data-disabled={!skill.enabled || undefined}
+                  description={
+                    <>
+                      <span>{skill.description || t.skills}</span>
+                    </>
+                  }
                   key={skill.id}
                   leading={
                     <ResourceAvatar
@@ -3968,6 +4023,7 @@ export function ResourceCenter({
                       iconKey={visual.iconKey}
                       pluginName={visual.pluginName}
                       kind="skill"
+                      disabled={!skill.enabled}
                       name={skill.name}
                     />
                   }

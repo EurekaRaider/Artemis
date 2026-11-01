@@ -46,14 +46,12 @@ export function chooseConversationGreeting(
     period,
     "hello",
     "goodToSeeYou",
-    "newIdeas",
-    "whereToStart",
     "readyWhenYouAre",
     (
       {
         morning: "freshStart",
-        afternoon: "nextStep",
-        evening: "eveningIdeas",
+        afternoon: "readyWhenYouAre",
+        evening: "readyWhenYouAre",
         lateNight: "quietHours",
       } as const
     )[period],
@@ -80,7 +78,7 @@ export function conversationWelcome(
   return {
     title: uiText(
       locale,
-      `ConversationWelcome.${name.trim() ? greeting : "whereToStart"}`,
+      `ConversationWelcome.${name.trim() ? greeting : "readyWhenYouAre"}`,
       { name: name.trim() },
     ),
     projectPrompt: uiText(locale, `ConversationWelcome.${promptPeriod}Project`),

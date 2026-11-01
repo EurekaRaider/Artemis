@@ -41,6 +41,18 @@ export const UNATTRIBUTED_USAGE_MODEL = "unattributed";
 
 export const TOKEN_USAGE_COPY = UI_COPY.token_usage_TOKEN_USAGE_COPY;
 
+/** Token magnitudes keep Latin digits and K/M suffixes in every locale. */
+export function formatTokenUsageNumber(value: number): string {
+  const rounded = Number(value.toPrecision(3));
+  const divisor =
+    rounded >= 1_000_000 ? 1_000_000 : rounded >= 1_000 ? 1_000 : 1;
+  const amount =
+    divisor === 1
+      ? Math.round(value)
+      : Number((value / divisor).toPrecision(3));
+  return `${amount}${divisor === 1_000_000 ? "M" : divisor === 1_000 ? "K" : ""}`;
+}
+
 export function tokenUsageModelKey(event: AgentEvent): string | undefined {
   if (event.payload.type !== "assistant.usage") return undefined;
   if (!event.payload.providerId || !event.payload.modelId) {
@@ -294,9 +306,7 @@ export function formatTokenUsageTooltip(
     dateStyle: "long",
     timeZone: "UTC",
   }).format(new Date(`${cell.date}T12:00:00.000Z`));
-  const value = new Intl.NumberFormat(locale).format(
-    tokenUsageValue(cell, view),
-  );
+  const value = formatTokenUsageNumber(tokenUsageValue(cell, view));
   const template = TOKEN_USAGE_TOOLTIP_COPY[locale][view];
   return template.replace("{{date}}", date).replace("{{value}}", value);
 }

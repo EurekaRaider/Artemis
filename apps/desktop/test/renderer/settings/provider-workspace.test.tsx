@@ -12,6 +12,7 @@ import { expect, it, vi } from "vitest";
 import type { AgentModelInfo } from "@artemis/protocol";
 import type { SettingsSnapshot } from "../../../src/shared/api.js";
 import { SettingsPanel } from "../../../src/renderer/app/SettingsPanel.js";
+import { ProviderWorkspace } from "../../../src/renderer/settings/ProviderWorkspace.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 import "../../../src/renderer/app/i18n.js";
 function settingsSnapshot(
@@ -109,7 +110,12 @@ it("shows neutral credential metadata and keeps model editing independent of cre
   });
   stubSettingsApi(settings);
   await open(settings);
-  expect(screen.getAllByText("API key configured")).toHaveLength(2);
+  expect(screen.getAllByText("Connected")).toHaveLength(2);
+  expect(screen.getByLabelText("API key · synthetic-provider")).toHaveAttribute(
+    "placeholder",
+    "••••••••••••",
+  );
+  expect(screen.queryByRole("button", { name: "Update API key" })).toBeNull();
   expect(screen.queryByText(/unauthorized|not authorized/i)).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
   await userEvent.click(
@@ -218,9 +224,7 @@ it("offers only the selected provider's supported login routes and refreshes aft
   await waitFor(() =>
     expect(start).toHaveBeenCalledWith(syntheticModel.providerId, "oauth"),
   );
-  await waitFor(() =>
-    expect(screen.getAllByText("Signed in").length).toBeGreaterThan(1),
-  );
+  await waitFor(() => expect(screen.getByText("Signed in")).toBeVisible());
 });
 
 it("requires confirmation before removing credentials and leaves them intact on cancel", async () => {
@@ -231,6 +235,7 @@ it("requires confirmation before removing credentials and leaves them intact on 
   const deleteCredential = vi.fn(async () => ({
     ...settings,
     credentials: [],
+    models: [{ ...syntheticModel, configured: false }],
   }));
   stubSettingsApi(settings, { deleteCredential });
   await open(settings);
@@ -250,7 +255,8 @@ it("requires confirmation before removing credentials and leaves them intact on 
   await waitFor(() =>
     expect(deleteCredential).toHaveBeenCalledWith(syntheticModel.providerId),
   );
-  expect(screen.getAllByText("Not configured")).toHaveLength(2);
+  expect(screen.getByText("Not connected")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Remove API key" })).toBeNull();
 });
 
 it("keeps both credential-method tabs linked to mounted panels", async () => {
@@ -277,7 +283,14 @@ it("keeps both credential-method tabs linked to mounted panels", async () => {
 
 it("fuzzy searches provider names and IDs without changing the selected provider or credential draft", async () => {
   const settings = settingsSnapshot({
-    models: [syntheticModel, { ...syntheticModel, providerId: "deepseek" }],
+    models: [
+      syntheticModel,
+      { ...syntheticModel, providerId: "deepseek" },
+      ...Array.from({ length: 6 }, (_, index) => ({
+        ...syntheticModel,
+        providerId: `extra-${index}`,
+      })),
+    ],
     providers: [
       {
         id: "local-service",
@@ -289,7 +302,7 @@ it("fuzzy searches provider names and IDs without changing the selected provider
   });
   stubSettingsApi(settings);
   await open(settings);
-  const search = screen.getByRole("textbox", { name: "Search providers" });
+  const search = screen.getByRole("searchbox", { name: "Search providers" });
   const navigation = document.querySelector(
     ".provider-navigation",
   )! as HTMLElement;
@@ -298,7 +311,9 @@ it("fuzzy searches provider names and IDs without changing the selected provider
     "draft",
   );
   await userEvent.type(search, "D P S K");
-  expect(within(navigation).getAllByRole("button")).toHaveLength(1);
+  expect(navigation.querySelectorAll(".provider-navigation-item")).toHaveLength(
+    1,
+  );
   expect(
     within(navigation).getByRole("button", { name: /^deepseek/ }),
   ).toBeVisible();
@@ -316,7 +331,72 @@ it("fuzzy searches provider names and IDs without changing the selected provider
     "No matching providers",
   );
   await userEvent.clear(search);
-  expect(within(navigation).getAllByRole("button")).toHaveLength(3);
+  expect(navigation.querySelectorAll(".provider-navigation-item")).toHaveLength(
+    9,
+  );
+});
+
+it("shows all remaining providers when removing a ninth service hides an active search", async () => {
+  const settings = settingsSnapshot({
+    models: [
+      syntheticModel,
+      ...Array.from({ length: 8 }, (_, index) => ({
+        ...syntheticModel,
+        providerId: `extra-${index}`,
+      })),
+    ],
+  });
+  stubSettingsApi(settings);
+  const onSelect = vi.fn();
+  const workspace = (snapshot: SettingsSnapshot) => (
+    <ProviderWorkspace
+      settings={snapshot}
+      locale="en"
+      selectedProviderId={syntheticModel.providerId}
+      disabled={false}
+      creating={false}
+      onBusy={() => {}}
+      onSelect={onSelect}
+      onAdd={() => {}}
+      onChange={() => {}}
+      onDeleteConnection={() => {}}
+    >
+      {null}
+    </ProviderWorkspace>
+  );
+  const { rerender } = render(workspace(settings));
+  await userEvent.type(
+    screen.getByRole("searchbox", { name: "Search providers" }),
+    "extra-7",
+  );
+  const navigation = document.querySelector<HTMLElement>(
+    ".provider-navigation",
+  )!;
+  expect(navigation.querySelectorAll(".provider-navigation-item")).toHaveLength(
+    1,
+  );
+  expect(
+    within(navigation).getByRole("button", { name: /^extra-7/ }),
+  ).toBeVisible();
+
+  const remainingModels = settings.models.slice(0, -1);
+  rerender(workspace({ ...settings, models: remainingModels }));
+
+  expect(
+    screen.queryByRole("searchbox", { name: "Search providers" }),
+  ).toBeNull();
+  expect(
+    [...navigation.querySelectorAll(".provider-navigation-name")].map(
+      (element) => element.textContent,
+    ),
+  ).toEqual(remainingModels.map((model) => model.providerId).sort());
+  expect(within(navigation).queryByRole("status")).toBeNull();
+  expect(
+    within(navigation).getByRole("button", {
+      name: /^synthetic-provider/,
+    }),
+  ).toHaveAttribute("data-state", "selected");
+  expect(onSelect).not.toHaveBeenCalled();
 });
 
 it("saves new-task model defaults without changing credentials and constrains effort to the selected model", async () => {
@@ -373,6 +453,127 @@ it("saves new-task model defaults without changing credentials and constrains ef
     }),
   );
   expect(saveKey).not.toHaveBeenCalled();
+});
+
+it("keeps the full catalog in the add-service picker and adds only the chosen draft", async () => {
+  const settings = settingsSnapshot({
+    models: [
+      syntheticModel,
+      { ...syntheticModel, providerId: "unconfigured", configured: false },
+    ],
+  });
+  stubSettingsApi(settings);
+  await open(settings);
+  const sidebar = document.querySelector(".provider-sidebar")! as HTMLElement;
+  expect(sidebar.querySelectorAll(".provider-navigation-item")).toHaveLength(1);
+  expect(within(sidebar).queryByRole("textbox")).toBeNull();
+  expect(
+    within(sidebar).queryByRole("button", { name: /^unconfigured/ }),
+  ).toBeNull();
+  await userEvent.click(
+    within(sidebar).getByRole("button", { name: "Add provider" }),
+  );
+  const picker = screen.getByRole("dialog", { name: "Add provider" });
+  await userEvent.type(
+    within(picker).getByLabelText("Search providers"),
+    "unconfigured",
+  );
+  await userEvent.click(
+    within(picker).getByRole("button", { name: "unconfigured" }),
+  );
+  expect(screen.queryByRole("dialog", { name: "Add provider" })).toBeNull();
+  expect(
+    within(sidebar).getByRole("button", { name: "unconfigured" }),
+  ).toHaveAttribute("data-state", "selected");
+  expect(screen.getByLabelText("API key · unconfigured")).toHaveValue("");
+});
+
+it("saves an inline Base URL edit without changing the service's other settings", async () => {
+  const provider = {
+    id: syntheticModel.providerId,
+    name: "Local service",
+    baseUrl: "https://old.example.invalid/v1",
+    api: "openai-completions",
+    models: [],
+  };
+  const settings = settingsSnapshot({
+    models: [syntheticModel],
+    providers: [provider],
+  });
+  const save = vi.fn(async (connection) => ({
+    ...settings,
+    providers: [connection],
+  }));
+  stubSettingsApi(settings, { saveProviderConnection: save });
+  await open(settings);
+  const input = screen.getByLabelText("Base URL");
+  expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  await userEvent.clear(input);
+  await userEvent.type(input, "https://new.example.invalid/v1");
+  expect(save).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledExactlyOnceWith({
+      ...provider,
+      baseUrl: "https://new.example.invalid/v1",
+    }),
+  );
+  expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+});
+
+it("distinguishes duplicate model names while keeping unique default-model labels short", async () => {
+  const duplicate = {
+    ...syntheticModel,
+    providerId: "second-service",
+    modelId: "second-model",
+  };
+  const fullWidth = {
+    ...syntheticModel,
+    providerId: "full-width-service",
+    modelId: "full-width-model",
+    name: "Ｓｙｎｔｈｅｔｉｃ　Ｍｏｄｅｌ",
+  };
+  const repeatedSpaces = {
+    ...syntheticModel,
+    providerId: "spaced-service",
+    modelId: "spaced-model",
+    name: "Synthetic   Model",
+  };
+  const unique = { ...syntheticModel, modelId: "unique", name: "Unique" };
+  const settings = settingsSnapshot({
+    models: [syntheticModel, duplicate, fullWidth, repeatedSpaces, unique],
+    addedModels: [syntheticModel, duplicate, fullWidth, repeatedSpaces, unique],
+  });
+  stubSettingsApi(settings);
+  await open(settings);
+  await userEvent.click(screen.getByLabelText("Default model"));
+  expect(
+    screen.getByRole("option", { name: "Unique", exact: true }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("option", {
+      name: "Synthetic Model · synthetic-provider/synthetic-model",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("option", {
+      name: "Synthetic Model · second-service/second-model",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("option", {
+      name: "Ｓｙｎｔｈｅｔｉｃ　Ｍｏｄｅｌ · full-width-service/full-width-model",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("option", {
+      name: "Synthetic Model · spaced-service/spaced-model",
+      exact: true,
+    }),
+  ).toBeVisible();
 });
 
 it("searches settings navigation without unmounting the active provider or exposing a credential draft", async () => {

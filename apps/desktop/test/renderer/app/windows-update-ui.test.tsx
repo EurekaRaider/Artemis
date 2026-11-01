@@ -124,11 +124,38 @@ it.each([false, true])(
         onSettingsChange={() => {}}
       />,
     );
-    expect(screen.queryByText(/当前Artemis已经是最新版本/) !== null).toBe(
+    expect(screen.queryByText("当前 Artemis 已经是最新版本") !== null).toBe(
       upToDate,
     );
+    expect(screen.getByText("Artemis 1.6.8")).toBeVisible();
   },
 );
+
+it("shows an available update and both versions even when the latest-version flag is stale", () => {
+  const settings = fixture();
+  settings.update.upToDate = true;
+  stubWindowArtemis({
+    getSettings: async () => settings,
+    onUpdateStatus: () => () => {},
+  });
+  render(
+    <SettingsPanel
+      locale="en"
+      initialTab="maintenance"
+      initialSettings={settings}
+      onClose={() => {}}
+      onSettingsChange={() => {}}
+    />,
+  );
+  expect(screen.getByText("Artemis 1.0.0")).toBeVisible();
+  expect(screen.getByText("Update available → 1.1.0")).toBeVisible();
+  expect(
+    screen.queryByText("Artemis is already up to date"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Download ZIP in browser" }),
+  ).toBeEnabled();
+});
 
 it("shows a failed installation in maintenance instead of a successful download notice", async () => {
   const settings = fixture();
@@ -221,13 +248,9 @@ it("keeps the sidebar installation failure visible and supports retry", async ()
   expect(await within(footer).findByRole("alert")).toHaveTextContent(
     errorMessage,
   );
-  expect(
-    within(footer).getByRole("button", { name: "Install update" }),
-  ).toBeEnabled();
+  expect(within(footer).getByRole("button", { name: "Retry" })).toBeEnabled();
   await act(async () => {
-    fireEvent.click(
-      within(footer).getByRole("button", { name: "Install update" }),
-    );
+    fireEvent.click(within(footer).getByRole("button", { name: "Retry" }));
   });
   expect(installUpdate).toHaveBeenCalledTimes(2);
   expect(within(footer).queryByRole("alert")).not.toBeInTheDocument();

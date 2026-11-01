@@ -158,7 +158,7 @@ describe("MCP configuration toggles", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Manage installed capabilities" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /^MCP \d+$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^MCP(?: \d+)?$/ }));
     const toggles = await screen.findAllByRole("switch");
     expect(toggles[0]).toBeChecked();
     expect(toggles[1]).toBeChecked();
@@ -256,7 +256,7 @@ it.each(["plugins", "skills"] as const)(
       fireEvent.click(
         screen.getByRole("button", { name: "Manage installed capabilities" }),
       );
-      fireEvent.click(screen.getByRole("button", { name: /^Skills \d+$/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^Skills(?: \d+)?$/ }));
     }
     const toggles = await screen.findAllByRole("switch");
     expect(toggles).toHaveLength(2);

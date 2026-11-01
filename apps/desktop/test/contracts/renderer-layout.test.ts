@@ -412,7 +412,8 @@ describe("renderer layout contract", () => {
     expect(
       findCssDeclarations(compositionStylesSource, ".app-shell .workspace"),
     ).toContain("overflow: visible");
-    expect(cssRule(".workspace-content")).toMatch(/\boverflow:\s*hidden/u);
+    // clip also prevents focus in a translated Dock from scrolling the shell.
+    expect(cssRule(".workspace-content")).toMatch(/\boverflow:\s*(?:hidden|clip)/u);
     const conversation = publicUiCssRule(
       '[data-artemis-component="conversation-surface"]',
     );
@@ -1170,15 +1171,21 @@ describe("renderer layout contract", () => {
     expect(uiPatternsSource).toContain(
       'step.id === currentStepId && step.status === "pending"',
     );
-    expect(stylesSource).toContain(
-      '.task-plan-progress [data-part="marker"][data-status="in_progress"]',
-    );
-    expect(stylesSource).toContain(
-      '.task-plan-progress [data-part="marker"][data-status="pending"]',
-    );
-    expect(stylesSource).toContain(
-      '.task-plan-progress [data-part="marker"][data-status="completed"]',
-    );
+    expect(
+      cssRule(
+        '.task-plan-progress [data-part="marker"][data-status="in_progress"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      cssRule(
+        '.task-plan-progress [data-part="marker"][data-status="pending"]',
+      ),
+    ).toBeTruthy();
+    expect(
+      cssRule(
+        '.task-plan-progress [data-part="marker"][data-status="completed"]::after',
+      ),
+    ).toBeTruthy();
     expect(stylesSource).toContain("@keyframes task-step-breathe");
     expect(stylesSource).toContain("@keyframes task-step-dot-pulse");
     expect(runtimeSource).toContain('name: "update_plan"');
@@ -1445,9 +1452,9 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain("<TextField");
     expect(settingsSource).toContain("label={t.contextWindow}");
     expect(settingsSource).toContain("contextWindowHint");
-    expect(stylesSource).toContain(
-      ".context-usage-indicator:hover .context-usage-popover",
-    );
+    expect(
+      cssRule(".context-usage-indicator:hover .context-usage-popover"),
+    ).toBeTruthy();
     expect(cssRule(".context-usage-indicator")).toMatch(
       /\bposition:\s*static/u,
     );
@@ -1499,7 +1506,8 @@ describe("renderer layout contract", () => {
     );
     expect(settingsSource).toContain('{ value: "max", label: t.thinkingMax }');
     expect(mainProcessSource).toContain("customModelThinkingLevels(model)");
-    expect(settingsSource).toContain("editProviderConnection(provider)");
+    expect(providerWorkspaceSource).toContain("<ProviderBaseUrl");
+    expect(providerWorkspaceSource).toContain("baseUrl: value.trim()");
     expect(settingsSource).toContain("saveProviderConnection");
     const providerSaveHandler = mainProcessSource.slice(
       mainProcessSource.indexOf("IPC.settingsProviderSave"),
@@ -1539,7 +1547,7 @@ describe("renderer layout contract", () => {
       /window\.artemis\.deleteProviderConnection\(\s*provider\.id,?\s*\)/u,
     );
     expect(settingsSource).toContain("onDeleteConnection=");
-    expect(providerWorkspaceSource).toContain("onClick={onDeleteConnection}");
+    expect(providerWorkspaceSource).toContain("onDeleteConnection();");
     expect(settingsSource).toContain('variant="danger"');
     expect(settingsSource).toContain("<ConfirmationDialog");
     expect(apiSource).toMatch(
@@ -2444,7 +2452,7 @@ describe("renderer layout contract", () => {
 
   it("localizes every task mode in the Simplified Chinese menu", () => {
     expect(uiText("zh-CN", "App_copy.plan")).toBe("计划模式");
-    expect(uiText("zh-CN", "App_copy.work")).toBe("工作模式");
+    expect(uiText("zh-CN", "App_copy.work")).toBe("执行模式");
     expect(uiText("zh-CN", "App_copy.codemode")).toBe("代码模式");
   });
 
@@ -2888,14 +2896,12 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain("Boolean(conflict)");
     expect(resourceCenterSource).toContain("title={item.name}");
     expect(resourceCenterSource).toContain(
-      'resourceIconName(skill.name, "skill")',
+      'resourceIconName(skill.name, "skill", {',
     );
     expect(resourceIconsSource).toContain(
       "onError={() => setImageFailed(true)}",
     );
-    expect(resourceIconsSource).toContain(
-      "data-icon={semanticVisible ? semanticIcon : undefined}",
-    );
+    expect(resourceIconsSource).toContain("data-icon={semanticIcon}");
     expect(resourceIconsSource).toContain('from "@artemis/ui/icons"');
     expect(resourceIconsSource).toContain("ArtemisIcon");
     expect(resourceIconsSource).not.toContain("@phosphor-icons/react");

@@ -1,5 +1,10 @@
 import { Children, isValidElement } from "react";
-import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  HTMLAttributes,
+  MouseEventHandler,
+  ReactNode,
+} from "react";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -560,4 +565,9 @@ export function Status({
       <span data-part="label">{children}</span>
     </span>
   );
+}
+
+/** Shared keyboard shortcut cap, including menus and workspace launchers. */
+export function Keycap(attributes: HTMLAttributes<HTMLElement>) {
+  return <kbd {...attributes} data-artemis-keycap="true" />;
 }
