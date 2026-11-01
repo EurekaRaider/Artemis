@@ -108,7 +108,9 @@ it("offers one Office installation, hides legacy basic plugins, and refreshes af
     expect(card.getByRole("button", { name: "安装" })).toBeEnabled(),
   );
   expect(screen.queryByText("Legacy basic plugin")).toBeNull();
-  expect(screen.queryByText("安装所需文档插件")).toBeNull();
+  expect(screen.queryByText(/安装.*文档插件/)).toBeNull();
+  expect(document.querySelector(".resource-document-banner")).toBeNull();
+  expect(document.querySelectorAll(".office-pack-card")).toHaveLength(1);
   fireEvent.click(card.getByRole("button", { name: "安装" }));
   await waitFor(() => expect(install).toHaveBeenCalledOnce());
   fireEvent.click(await card.findByText("已安装"));

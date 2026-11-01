@@ -3594,9 +3594,6 @@ export function App() {
   const emptyConversationLabel = activeProject
     ? `${emptyConversationPrefix}${activeProject.name}${emptyConversationSuffix}`
     : emptyConversationGreeting.temporaryPrompt;
-  const activeTurnFailure = activeThreadId
-    ? turnFailureNotices[activeThreadId]
-    : undefined;
   const dockWidthBounds = workspaceDockWidthBounds(
     workspaceContent.current?.clientWidth ?? window.innerWidth,
     window.innerWidth,
@@ -4186,6 +4183,12 @@ export function App() {
     );
   }, [switchableModels, modelFilter, locale]);
   const modelPickerThinkingLevels = thinkingLevelsForModel(activeModel);
+  const activeTurnFailure = activeThreadId
+    ? (turnFailureNotices[activeThreadId] ??
+      (threadState?.error
+        ? localizedTurnFailure(t, threadState.error, threadState.errorCode)
+        : undefined))
+    : undefined;
   const failedTurnPrompt = activeTurnFailure
     ? latestFailedTurnPrompt(threadState)
     : undefined;
@@ -4234,22 +4237,24 @@ export function App() {
           </div>
         )}
       </div>
-      <button
-        aria-label={t.dismissTurnError}
-        onClick={() =>
-          activeThreadId &&
-          setTurnFailureNotices((current) =>
-            reduceTurnFailureNotices(current, {
-              type: "dismiss",
-              threadId: activeThreadId,
-            }),
-          )
-        }
-        title={t.dismissTurnError}
-        type="button"
-      >
-        <CloseIcon />
-      </button>
+      {!threadState?.error && (
+        <button
+          aria-label={t.dismissTurnError}
+          onClick={() =>
+            activeThreadId &&
+            setTurnFailureNotices((current) =>
+              reduceTurnFailureNotices(current, {
+                type: "dismiss",
+                threadId: activeThreadId,
+              }),
+            )
+          }
+          title={t.dismissTurnError}
+          type="button"
+        >
+          <CloseIcon />
+        </button>
+      )}
     </div>
   ) : null;
 
@@ -12246,14 +12251,6 @@ export function Timeline({
           {message}
         </ConversationMessage>
       ))}
-      {state.error && (
-        <TurnStatus
-          className="error-card"
-          label={t.failed}
-          state="failed"
-          statusLabel={localizedTurnFailure(t, state.error, state.errorCode)}
-        />
-      )}
     </TimelineSurface>
   );
 }

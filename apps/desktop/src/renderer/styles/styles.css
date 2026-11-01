@@ -2871,8 +2871,7 @@ button.environment-row:disabled {
   margin-top: 3px;
 }
 
-.user-input-card,
-.error-card {
+.user-input-card {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -3754,12 +3753,6 @@ button.environment-row:disabled {
 
 .agent-team-skeleton i:nth-child(3) {
   width: 62%;
-}
-
-.error-card {
-  border-color: color-mix(in srgb, var(--danger) 50%, var(--border));
-  color: var(--danger);
-  padding: 12px;
 }
 
 .turn-status {
@@ -7479,6 +7472,7 @@ button.sources-panel-entry.attachment:focus-visible {
 }
 
 .resource-market-search {
+  margin-inline-start: auto;
   inline-size: min(300px, 100%);
   min-inline-size: 160px;
   flex: 0 1 300px;
@@ -11428,6 +11422,7 @@ kbd {
 
 @media (max-width: 680px) {
   .resource-marketplace-toolbar .resource-market-search {
+    margin-inline-start: auto;
     flex: 1 1 100%;
     inline-size: 100%;
   }
@@ -11445,16 +11440,6 @@ kbd {
   max-inline-size: 100%;
   margin-bottom: 16px;
   overflow-x: auto;
-}
-
-.resource-category-tabs [data-part="tab"] {
-  border: 0;
-  font-weight: 510;
-}
-
-.resource-category-tabs [data-part="tab"][aria-selected="true"] {
-  background: var(--artemis-color-surface-base);
-  color: var(--artemis-color-text-primary);
 }
 
 .plugin-market-card {

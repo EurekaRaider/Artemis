@@ -3001,34 +3001,6 @@ export function ResourceCenter({
           aria-label={t.plugins}
         >
           {renderProgressAndMessage()}
-          <div className="resource-document-banner">
-            <div className="resource-document-icons" aria-hidden="true">
-              {(
-                ["document", "pdf", "spreadsheet", "presentation"] as const
-              ).map((iconKey) => (
-                <ResourceAvatar
-                  key={iconKey}
-                  kind="plugin"
-                  iconKey={iconKey}
-                  name={t.installRequiredDocuments}
-                />
-              ))}
-            </div>
-            <div>
-              <strong>{t.installRequiredDocuments}</strong>
-              <p>{t.requiredDocumentsDescription}</p>
-            </div>
-            <Button
-              size="compact"
-              variant={
-                officePackStatus?.activeVersion ? "secondary" : "primary"
-              }
-              disabled={operationPending}
-              onClick={() => setOfficeCapabilityOpen(true)}
-            >
-              {officePackStatus?.activeVersion ? t.configure : t.install}
-            </Button>
-          </div>
           {officePackStatus?.updateVersion && (
             <InlineNotice tone="info">
               Office:{" "}
@@ -3158,30 +3130,36 @@ export function ResourceCenter({
               ) && <EmptyResource>{t.noMarketplaceResults}</EmptyResource>}
           </div>
 
-          <ManagementSection
-            title={uiText(locale, "Review01.enabledServers")}
-            actions={
-              <Button variant="quiet" onClick={() => openManagement("mcp")}>
-                {t.mcp} {managementCounts.mcp} ›
-              </Button>
-            }
-          >
-            {mcpServers
-              .filter(
-                (server) =>
-                  server.config.enabled &&
-                  server.config.resourceKind !== "connector",
-              )
-              .slice(0, 4)
-              .map((server) => (
-                <ManagementRow
-                  key={server.config.id}
-                  title={server.config.name}
-                  leading={<ArtemisIcon name="mcp" />}
-                  description={server.state}
-                />
-              ))}
-          </ManagementSection>
+          {mcpServers.some(
+            (server) =>
+              server.config.enabled &&
+              server.config.resourceKind !== "connector",
+          ) && (
+            <ManagementSection
+              title={uiText(locale, "Review01.enabledServers")}
+              actions={
+                <Button variant="quiet" onClick={() => openManagement("mcp")}>
+                  {t.mcp} {managementCounts.mcp} ›
+                </Button>
+              }
+            >
+              {mcpServers
+                .filter(
+                  (server) =>
+                    server.config.enabled &&
+                    server.config.resourceKind !== "connector",
+                )
+                .slice(0, 4)
+                .map((server) => (
+                  <ManagementRow
+                    key={server.config.id}
+                    title={server.config.name}
+                    leading={<ArtemisIcon name="mcp" />}
+                    description={server.state}
+                  />
+                ))}
+            </ManagementSection>
+          )}
           <ManagementSection
             actions={
               <IconButton
