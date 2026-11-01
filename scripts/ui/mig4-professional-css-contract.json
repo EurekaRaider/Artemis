@@ -210,7 +210,7 @@
   [
     "normal|[data-artemis-component=\"browser-navigation-button\"]:focus-visible, [data-artemis-component=\"browser-go-button\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px"
     }
   ],
@@ -239,7 +239,7 @@
     "normal|[data-artemis-component=\"browser-address-form\"]:focus-within",
     {
       "border-color": "var(--artemis-color-accent-primary)",
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "1px"
     }
   ],

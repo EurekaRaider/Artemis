@@ -67,35 +67,23 @@ describe("current user profile integration", () => {
     expect(appSource).toContain("runtimeSettings?.profileAvatar");
   });
 
-  it("renders the usage heading and a compact real-user account with initials fallback", () => {
+  it("renders usage filters beside the heading without a duplicate account identity", () => {
     const profileStart = pageSource.indexOf(
       '<header className="token-usage-profile">',
     );
-    const profileEnd = pageSource.indexOf("</header>", profileStart);
-    const profile = pageSource.slice(profileStart, profileEnd);
-    const summaryStart = pageSource.indexOf(
-      '<section className="token-usage-summary"',
+    const profile = pageSource.slice(
+      profileStart,
+      pageSource.indexOf("</header>", profileStart),
     );
-
-    expect(pageSource).toContain("username: string");
-    expect(profileStart).toBeGreaterThan(-1);
-    expect(profileEnd).toBeGreaterThan(profileStart);
-    expect(profileStart).toBeLessThan(summaryStart);
-    expect(profile).toContain('className="token-usage-avatar"');
-    expect(profile).toContain("profileAvatar ? (");
-    expect(profile).toContain('className="token-usage-avatar-image"');
-    expect(profile).toContain("userInitials(username)");
     expect(profile).toContain("<h1>{t.title}</h1>");
-    expect(profile).toContain('className="token-usage-account"');
-    expect(profile).toContain("{username}");
-    expect(profile).not.toContain('className="token-usage-profile-badge"');
+    expect(profile).toContain(
+      '<div className="token-usage-activity-controls">',
+    );
+    expect(profile).toContain("<Select");
+    expect(profile).toContain("<SegmentedControl");
+    expect(profile).not.toContain("token-usage-account");
+    expect(profile).not.toContain("token-usage-avatar");
     expect(pageSource).toContain('className="token-usage-details"');
     expect(pageSource).toContain("usageTotals.input");
-    expect(stylesSource).toMatch(
-      /\.token-usage-profile\s*\{(?=[^}]*justify-content:\s*space-between)(?=[^}]*flex-direction:\s*row)(?=[^}]*text-align:\s*start)[^}]*\}/u,
-    );
-    expect(stylesSource).toMatch(
-      /\.token-usage-avatar\s*\{(?=[^}]*border-radius:\s*8px)(?=[^}]*inline-size:\s*28px)[^}]*\}/u,
-    );
   });
 });

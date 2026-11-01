@@ -109,11 +109,11 @@
     {
       "classNameSets": [["turn-status", "running"]],
       "owner": "Desktop active turn status",
-      "reason": "The finite run presentation status is appended to the turn-status class at runtime.",
+      "reason": "The initial active turn uses a running status row until a work record is available.",
       "sources": [
         {
           "path": "apps/desktop/src/renderer/app/App.tsx",
-          "contains": "className={`turn-status ${remoteWaiting ? \"waiting-approval\" : runPresentation.status}`}"
+          "contains": "className=\"turn-status running\""
         }
       ]
     },

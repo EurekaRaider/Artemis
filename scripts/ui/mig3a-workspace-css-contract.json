@@ -85,15 +85,21 @@
     }
   ],
   [
-    "normal|[data-artemis-component=\"workspace-dock-resizer\"]:is(:hover, :focus-visible)::after",
+    "normal|[data-artemis-component=\"workspace-dock-resizer\"]:hover::after",
     {
-      "background": "var(--artemis-color-accent-primary)"
+      "background": "var(--artemis-color-border-default)"
+    }
+  ],
+  [
+    "normal|[data-artemis-component=\"workspace-dock-resizer\"]:focus-visible::after",
+    {
+      "background": "var(--artemis-color-focus-ring)"
     }
   ],
   [
     "normal|[data-artemis-component=\"workspace-dock-resizer\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "-2px"
     }
   ],
@@ -221,7 +227,7 @@
   [
     "normal|[data-artemis-component=\"workspace-tab-bar\"] :is([data-part=\"scroll-start\"], [data-part=\"scroll-end\"], [data-part=\"add\"]) button:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px"
     }
   ],
@@ -297,7 +303,7 @@
   [
     "normal|[data-artemis-component=\"workspace-tab\"] > [data-part=\"select\"]:focus-visible, [data-artemis-component=\"workspace-tab\"] > [data-part=\"close\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "-2px"
     }
   ],
@@ -451,7 +457,7 @@
   [
     "normal|[data-artemis-component=\"workspace-launcher\"] [data-part=\"action\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px"
     }
   ],
@@ -575,7 +581,7 @@
   [
     "normal|[data-artemis-component=\"workspace-editor-toolbar\"] [data-part=\"save\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px"
     }
   ],
@@ -741,7 +747,7 @@
     "normal|[data-artemis-component=\"workspace-file-tree\"] [data-part=\"filter\"]:focus-visible",
     {
       "border-color": "var(--artemis-color-border-strong)",
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "1px"
     }
   ],
@@ -774,7 +780,7 @@
   [
     "normal|[data-artemis-component=\"workspace-file-tree\"] [data-part=\"refresh\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px"
     }
   ],
@@ -832,7 +838,7 @@
   [
     "normal|[data-artemis-component=\"workspace-file-tree-row\"]:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "-2px"
     }
   ],
@@ -952,7 +958,7 @@
   [
     "normal|[data-artemis-component=\"workspace-source-editor\"]:focus-within",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "-2px"
     }
   ],

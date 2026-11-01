@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -43,8 +44,7 @@ import {
   ManagementSection,
   ResourceSurface,
 } from "@artemis/ui/management";
-import { Tabs } from "@artemis/ui/navigation";
-import { MarketplaceTabs } from "./MarketplaceTabs.js";
+import { SegmentedControl } from "@artemis/ui/navigation";
 
 import type {
   ArtemisPluginMarketplace,
@@ -237,6 +237,7 @@ export function ResourceCenter({
     "marketplace" | "manage"
   >("marketplace");
   const [marketplaceQuery, setMarketplaceQuery] = useState("");
+  const [allMarkets, setAllMarkets] = useState(true);
   const [managementQuery, setManagementQuery] = useState("");
   const [sourceInput, setSourceInput] = useState("");
   const [catalogQuery, setCatalogQuery] = useState("");
@@ -1419,8 +1420,16 @@ export function ResourceCenter({
     );
   }
 
-  const selectedMarketplaceView = marketplaceState?.selectedView ?? "bundled";
+  const selectedMarketplaceView = allMarkets
+    ? "all"
+    : (marketplaceState?.selectedView ?? "bundled");
   const marketplaceTabOptions = [
+    {
+      id: "resource-marketplace-all",
+      panelId: "resource-marketplace-all-panel",
+      value: "all",
+      label: uiText(locale, "Review01.allMarkets"),
+    },
     ...(marketplaceState?.sources ?? []).map((source) => ({
       id: `resource-marketplace-tab-${encodeURIComponent(source.id)}`,
       label: marketplaceSourceLabel(source),
@@ -1470,7 +1479,7 @@ export function ResourceCenter({
     plugins: ArtemisPluginPreview[];
     sourceId?: string;
   }> = [];
-  if (marketplaceFilter) {
+  if (marketplaceFilter || allMarkets) {
     for (const source of marketplaceState?.sources ?? []) {
       const plugins = matchingMarketplacePlugins(
         pluginsForMarketplace(source.id),
@@ -1483,6 +1492,13 @@ export function ResourceCenter({
         });
       }
     }
+    const local = matchingMarketplacePlugins(localPluginResults);
+    if (local.length)
+      marketplaceGroups.push({
+        title: t.local,
+        plugins: local,
+        sourceId: "local",
+      });
   } else if (selectedMarketplaceView === "local") {
     marketplaceGroups.push({
       title: t.local,
@@ -1999,12 +2015,13 @@ export function ResourceCenter({
     return (
       <ManagementCard className="plugin-market-card office-pack-card">
         <div className="plugin-market-card-heading">
-          <ResourceAvatar
-            brandColor="#D83B01"
-            iconDataUrl={officeSuiteIcon}
-            kind="plugin"
-            name="Office"
-          />
+          <span
+            className="resource-avatar"
+            data-icon="document"
+            style={{ "--resource-hue": 255 } as CSSProperties}
+          >
+            <ArtemisIcon name="document" />
+          </span>
           <div className="plugin-market-card-titles">
             <strong>
               {"Office"}
@@ -2012,75 +2029,85 @@ export function ResourceCenter({
                 {installedVersion ? `v${installedVersion}` : ""}
               </span>
             </strong>
-            <small className="plugin-market-card-source">
-              {t.marketplaceSource}: {t.bundledPlugins}
-            </small>
           </div>
         </div>
         <div className="plugin-market-copy">
           <small>{office.shared}</small>
         </div>
         <div className="plugin-market-card-footer">
-          <div className="plugin-market-card-actions">
-            {working ? (
-              <>
-                <progress
-                  aria-label={office.working}
-                  max={status?.totalBytes || 1}
-                  value={status?.downloadedBytes}
-                />
-                <Button
-                  variant="quiet"
-                  onClick={() => void window.artemis.cancelOfficeCapability()}
-                >
-                  {office.cancel}
-                </Button>
-              </>
-            ) : installed ? (
-              <>
-                {status?.updateVersion && (
+          <small className="plugin-market-card-source">
+            {t.marketplaceSource}: {t.bundledPlugins}
+          </small>
+          <details
+            className="plugin-market-card-actions"
+            data-installed={installed}
+            open={working || !installed ? true : undefined}
+          >
+            <summary>
+              <ArtemisIcon name="check" width={14} height={14} />
+              {t.installed}
+            </summary>
+            <div className="plugin-card-menu-body">
+              {working ? (
+                <>
+                  <progress
+                    aria-label={office.working}
+                    max={status?.totalBytes || 1}
+                    value={status?.downloadedBytes}
+                  />
+                  <Button
+                    variant="quiet"
+                    onClick={() => void window.artemis.cancelOfficeCapability()}
+                  >
+                    {office.cancel}
+                  </Button>
+                </>
+              ) : installed ? (
+                <>
+                  {status?.updateVersion && (
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        run(() => window.artemis.installOfficeCapability())
+                      }
+                    >
+                      {office.updateNow.replace(
+                        "{version}",
+                        status.updateVersion,
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="secondary"
+                    className="management-destructive-action plugin-market-remove-action"
+                    icon={<TrashIcon />}
+                    disabled={status?.versions.some((version) => version.inUse)}
+                    title={
+                      status?.versions.some((version) => version.inUse)
+                        ? office.inUse
+                        : undefined
+                    }
                     onClick={() =>
-                      run(() => window.artemis.installOfficeCapability())
+                      run(() => window.artemis.uninstallOfficeCapability())
                     }
                   >
-                    {office.updateNow.replace(
-                      "{version}",
-                      status.updateVersion,
-                    )}
+                    {office.remove}
                   </Button>
-                )}
+                </>
+              ) : (
                 <Button
                   variant="secondary"
-                  className="management-destructive-action plugin-market-remove-action"
-                  icon={<TrashIcon />}
-                  disabled={status?.versions.some((version) => version.inUse)}
-                  title={
-                    status?.versions.some((version) => version.inUse)
-                      ? office.inUse
-                      : undefined
-                  }
                   onClick={() =>
-                    run(() => window.artemis.uninstallOfficeCapability())
+                    status?.availableVersion
+                      ? run(() => window.artemis.installOfficeCapability())
+                      : setOfficeCapabilityOpen(true)
                   }
                 >
-                  {office.remove}
+                  {t.install}
                 </Button>
-              </>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  status?.availableVersion
-                    ? run(() => window.artemis.installOfficeCapability())
-                    : setOfficeCapabilityOpen(true)
-                }
-              >
-                {t.install}
-              </Button>
-            )}
-          </div>
+              )}
+            </div>
+          </details>
         </div>
       </ManagementCard>
     );
@@ -2102,12 +2129,13 @@ export function ResourceCenter({
     return (
       <ManagementCard className="plugin-market-card design-pack-card">
         <div className="plugin-market-card-heading">
-          <ResourceAvatar
-            brandColor="#6d5ae6"
-            iconDataUrl={designPluginIcon}
-            kind="plugin"
-            name={uiText(locale, "App_copy.designTab")}
-          />
+          <span
+            className="resource-avatar"
+            data-icon="palette"
+            style={{ "--resource-hue": 300 } as CSSProperties}
+          >
+            <ArtemisIcon name="palette" />
+          </span>
           <div className="plugin-market-card-titles">
             <strong
               title={`${uiText(
@@ -2123,87 +2151,100 @@ export function ResourceCenter({
                 </span>
               )}
             </strong>
-            <small className="plugin-market-card-source">
-              {t.marketplaceSource}: {t.bundledPlugins}
-            </small>
           </div>
         </div>
         <div className="plugin-market-copy">
           <small>{copy.manageDescription}</small>
         </div>
         <div className="plugin-market-card-footer">
-          <div className="plugin-market-card-actions">
-            {working ? (
-              <div
-                className="office-capability-progress"
-                role="status"
-                style={{ display: "flex", alignItems: "center", gap: 10 }}
-              >
-                <progress
-                  max={status?.totalBytes || 1}
-                  value={status?.downloadedBytes}
-                  style={{ width: 140 }}
-                />
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  onClick={() => void window.artemis.cancelDesignCapability()}
+          <small className="plugin-market-card-source">
+            {t.marketplaceSource}: {t.bundledPlugins}
+          </small>
+          <details
+            className="plugin-market-card-actions"
+            data-installed={installed}
+            open={working || !installed ? true : undefined}
+          >
+            <summary>
+              <ArtemisIcon name="check" width={14} height={14} />
+              {t.installed}
+            </summary>
+            <div className="plugin-card-menu-body">
+              {working ? (
+                <div
+                  className="office-capability-progress"
+                  role="status"
+                  style={{ display: "flex", alignItems: "center", gap: 10 }}
                 >
-                  {copy.cancel}
-                </Button>
-              </div>
-            ) : installed ? (
-              <>
-                {status?.updateVersion ? (
+                  <progress
+                    max={status?.totalBytes || 1}
+                    value={status?.downloadedBytes}
+                    style={{ width: 140 }}
+                  />
                   <Button
-                    className="plugin-market-update-action"
-                    variant="secondary"
+                    variant="quiet"
                     size="compact"
-                    disabled={operationPending}
+                    onClick={() => void window.artemis.cancelDesignCapability()}
+                  >
+                    {copy.cancel}
+                  </Button>
+                </div>
+              ) : installed ? (
+                <>
+                  {status?.updateVersion ? (
+                    <Button
+                      className="plugin-market-update-action"
+                      variant="secondary"
+                      size="compact"
+                      disabled={operationPending}
+                      onClick={() =>
+                        run(() => window.artemis.installDesignCapability())
+                      }
+                    >
+                      {copy.updateNow.replace(
+                        "{version}",
+                        status.updateVersion,
+                      )}
+                    </Button>
+                  ) : null}
+                  <Button
+                    className="management-destructive-action plugin-market-remove-action"
+                    icon={<TrashIcon />}
+                    variant="secondary"
+                    disabled={
+                      operationPending ||
+                      status?.versions.some((version) => version.inUse)
+                    }
+                    title={
+                      status?.versions.some((version) => version.inUse)
+                        ? copy.inUse
+                        : undefined
+                    }
                     onClick={() =>
-                      run(() => window.artemis.installDesignCapability())
+                      run(() => window.artemis.uninstallDesignCapability())
                     }
                   >
-                    {copy.updateNow.replace("{version}", status.updateVersion)}
+                    {t.remove}
                   </Button>
-                ) : null}
+                </>
+              ) : (
                 <Button
-                  className="management-destructive-action plugin-market-remove-action"
-                  icon={<TrashIcon />}
                   variant="secondary"
-                  disabled={
-                    operationPending ||
-                    status?.versions.some((version) => version.inUse)
-                  }
-                  title={
-                    status?.versions.some((version) => version.inUse)
-                      ? copy.inUse
-                      : undefined
-                  }
-                  onClick={() =>
-                    run(() => window.artemis.uninstallDesignCapability())
-                  }
+                  disabled={operationPending}
+                  onClick={() => {
+                    if (status?.availableVersion) {
+                      run(() => window.artemis.installDesignCapability());
+                      return;
+                    }
+                    // 无在线版本：管理弹窗承载离线导入路径。
+                    setDesignPackOpen(true);
+                  }}
                 >
-                  {t.remove}
+                  {t.install}
                 </Button>
-              </>
-            ) : (
-              <Button
-                variant="secondary"
-                disabled={operationPending}
-                onClick={() => {
-                  if (status?.availableVersion) {
-                    run(() => window.artemis.installDesignCapability());
-                    return;
-                  }
-                  // 无在线版本：管理弹窗承载离线导入路径。
-                  setDesignPackOpen(true);
-                }}
-              >
-                {t.install}
-              </Button>
-            )}
-          </div>
+              )}
+            </div>
+          </details>
         </div>
       </ManagementCard>
     );
@@ -2285,13 +2326,23 @@ export function ResourceCenter({
     return (
       <ManagementCard className="plugin-market-card" key={plugin.id}>
         <div className="plugin-market-card-heading">
-          <ResourceAvatar
-            brandColor={plugin.brandColor}
-            iconDataUrl={plugin.iconDataUrl}
-            iconKey={plugin.hasHooks ? "hook-plugin" : undefined}
-            kind="plugin"
-            name={plugin.name}
-          />
+          {computer ? (
+            <span
+              className="resource-avatar"
+              data-icon="monitor"
+              style={{ "--resource-hue": 225 } as CSSProperties}
+            >
+              <ArtemisIcon name="monitor" />
+            </span>
+          ) : (
+            <ResourceAvatar
+              brandColor={plugin.brandColor}
+              iconDataUrl={plugin.iconDataUrl}
+              iconKey={plugin.hasHooks ? "hook-plugin" : undefined}
+              kind="plugin"
+              name={plugin.name}
+            />
+          )}
           <div className="plugin-market-card-titles">
             <strong
               title={`${displayName}${displayVersion ? ` v${displayVersion}` : ""}`}
@@ -2301,12 +2352,6 @@ export function ResourceCenter({
                 <span className="plugin-market-card-vn">v{displayVersion}</span>
               )}
             </strong>
-            <small
-              className="plugin-market-card-source"
-              title={`${t.marketplaceSource}: ${sourceLabel}`}
-            >
-              {t.marketplaceSource}: {sourceLabel}
-            </small>
           </div>
         </div>
         <div className="plugin-market-copy">
@@ -2354,6 +2399,12 @@ export function ResourceCenter({
           )}
         </div>
         <div className="plugin-market-card-footer">
+          <small
+            className="plugin-market-card-source"
+            title={`${t.marketplaceSource}: ${sourceLabel}`}
+          >
+            {t.marketplaceSource}: {sourceLabel}
+          </small>
           <span className="plugin-permission-tags">
             {plugin.mcpServers.length > 0 && (
               <span>
@@ -2374,187 +2425,197 @@ export function ResourceCenter({
               </span>
             )}
           </span>
-          <div
+          <details
             className="plugin-market-card-actions"
-            data-installed={installed && Boolean(installedPlugin)}
             data-office={hasOfficeCapability || undefined}
             data-computer={computer || undefined}
+            data-installed={installed}
+            open={installed ? undefined : true}
           >
-            {computer &&
-              installed &&
-              computerRuntime &&
-              (computerRuntime.updateVersion ||
-                computerRuntime.migrationRequired ||
-                computerRuntime.pendingVersion ||
-                computerWorking) && (
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  disabled={
-                    operationPending ||
-                    computerWorking ||
-                    (Boolean(computerRuntime.pendingVersion) &&
-                      !computerRuntime.error) ||
-                    !computerRuntime.supported
-                  }
-                  onClick={() =>
-                    installedPlugin
-                      ? void updatePlugin(installedPlugin)
-                      : setPluginInstallDraft(plugin)
-                  }
-                >
-                  {computerWorking
-                    ? office.working
-                    : computerRuntime.error
-                      ? uiText(locale, "App_copy.queueRetry")
-                      : computerRuntime.pendingVersion
-                        ? runtimeCopy.ready
-                        : computerRuntime.migrationRequired
-                          ? runtimeCopy.install
-                          : office.updateNow.replace(
-                              "{version}",
-                              computerRuntime.updateVersion!,
-                            )}
-                </Button>
-              )}
-            {computer && computerRuntime?.phase === "downloading" && (
-              <Button
-                variant="quiet"
-                size="compact"
-                onClick={() => {
-                  void window.artemis.cancelComputerRuntimeDownload();
-                }}
-              >
-                {t.cancel}
-              </Button>
-            )}
-            {installed && plugin.hasHooks && onReviewHooks && (
-              <Button
-                variant="quiet"
-                size="compact"
-                icon={<ArtemisIcon name="hooks" />}
-                onClick={(event) =>
-                  onReviewHooks(plugin.id, event.currentTarget)
-                }
-              >
-                {uiText(locale, "Hooks.title")}
-              </Button>
-            )}
-            {installed && installedPlugin ? (
-              <>
-                {hasOfficeCapability &&
-                  (officePackStatus?.updateVersion || officeUpdating) && (
-                    <>
-                      {officeUpdating && (
-                        <progress
-                          aria-label={office.working}
-                          max={officePackStatus?.totalBytes || 1}
-                          value={officePackStatus?.downloadedBytes}
-                          style={{ width: 100 }}
-                        />
-                      )}
-                      <Button
-                        className="plugin-market-update-action"
-                        variant="secondary"
-                        size="compact"
-                        disabled={
-                          operationPending ||
-                          Boolean(
-                            officePackStatus &&
-                            officePackStatus.phase !== "idle",
-                          )
-                        }
-                        onClick={() =>
-                          runResourceOperation(async () => {
-                            setMessage(undefined);
-                            setOfficeUpdating(true);
-                            try {
-                              await window.artemis.installOfficeCapability();
-                            } finally {
-                              setOfficeUpdating(false);
-                            }
-                          })
-                        }
-                      >
-                        {officeUpdating
-                          ? office.working
-                          : office.updateNow.replace(
-                              "{version}",
-                              officePackStatus!.updateVersion!,
-                            )}
-                      </Button>
-                    </>
-                  )}
-                {hasOfficeCapability ? (
+            <summary>
+              <ArtemisIcon name="check" width={14} height={14} />
+              {t.installed}
+            </summary>
+            <div className="plugin-card-menu-body">
+              {computer &&
+                installed &&
+                computerRuntime &&
+                (computerRuntime.updateVersion ||
+                  computerRuntime.migrationRequired ||
+                  computerRuntime.pendingVersion ||
+                  computerWorking) && (
                   <Button
-                    className="plugin-market-configure-action"
-                    disabled={officeUpdating}
-                    icon={
-                      <ArtemisIcon
-                        name={
-                          officeCapabilityInstalled === false ? "push" : "gear"
-                        }
-                      />
-                    }
                     variant="secondary"
-                    title={
-                      officeCapabilityInstalled === false
-                        ? office.shared
-                        : office.manageDescription
+                    size="compact"
+                    disabled={
+                      operationPending ||
+                      computerWorking ||
+                      (Boolean(computerRuntime.pendingVersion) &&
+                        !computerRuntime.error) ||
+                      !computerRuntime.supported
                     }
-                    onClick={() => setOfficeCapabilityOpen(true)}
+                    onClick={() =>
+                      installedPlugin
+                        ? void updatePlugin(installedPlugin)
+                        : setPluginInstallDraft(plugin)
+                    }
                   >
-                    {officeCapabilityInstalled === false
-                      ? office.runtime
-                      : office.manage}
-                  </Button>
-                ) : null}
-                {pluginHasConnection(installedPlugin) && (
-                  <Button
-                    className="plugin-market-configure-action"
-                    icon={<GearIcon />}
-                    variant="secondary"
-                    disabled={operationPending || busyId === plugin.id}
-                    onClick={() => setConnectionPlugin(installedPlugin)}
-                  >
-                    {t.configure}
+                    {computerWorking
+                      ? office.working
+                      : computerRuntime.error
+                        ? uiText(locale, "App_copy.queueRetry")
+                        : computerRuntime.pendingVersion
+                          ? runtimeCopy.ready
+                          : computerRuntime.migrationRequired
+                            ? runtimeCopy.install
+                            : office.updateNow.replace(
+                                "{version}",
+                                computerRuntime.updateVersion!,
+                              )}
                   </Button>
                 )}
+              {computer && computerRuntime?.phase === "downloading" && (
                 <Button
-                  className="management-destructive-action plugin-market-remove-action"
-                  icon={<TrashIcon />}
-                  disabled={operationPending || busyId === plugin.id}
-                  onClick={() => setPluginUninstallDraft(installedPlugin)}
-                  variant="secondary"
+                  variant="quiet"
+                  size="compact"
+                  onClick={() => {
+                    void window.artemis.cancelComputerRuntimeDownload();
+                  }}
                 >
-                  {t.remove}
+                  {t.cancel}
                 </Button>
-              </>
-            ) : (
-              <Button
-                className="resource-inline-action"
-                disabled={
-                  operationPending ||
-                  !plugin.installable ||
-                  (computer && computerRuntime?.supported === false) ||
-                  (computer && computerWorking) ||
-                  Boolean(conflict) ||
-                  busyId === plugin.id ||
-                  installProgress !== undefined
-                }
-                onClick={() => setPluginInstallDraft(plugin)}
-                title={
-                  diagnostic || (plugin.installable ? t.install : t.needsSetup)
-                }
-              >
-                {conflict
-                  ? t.skillConflict
-                  : plugin.installable
-                    ? t.install
-                    : t.needsSetup}
-              </Button>
-            )}
-          </div>
+              )}
+              {installed && plugin.hasHooks && onReviewHooks && (
+                <Button
+                  variant="quiet"
+                  size="compact"
+                  icon={<ArtemisIcon name="hooks" />}
+                  onClick={(event) =>
+                    onReviewHooks(plugin.id, event.currentTarget)
+                  }
+                >
+                  {uiText(locale, "Hooks.title")}
+                </Button>
+              )}
+              {installed && installedPlugin ? (
+                <>
+                  {hasOfficeCapability &&
+                    (officePackStatus?.updateVersion || officeUpdating) && (
+                      <>
+                        {officeUpdating && (
+                          <progress
+                            aria-label={office.working}
+                            max={officePackStatus?.totalBytes || 1}
+                            value={officePackStatus?.downloadedBytes}
+                            style={{ width: 100 }}
+                          />
+                        )}
+                        <Button
+                          className="plugin-market-update-action"
+                          variant="secondary"
+                          size="compact"
+                          disabled={
+                            operationPending ||
+                            Boolean(
+                              officePackStatus &&
+                              officePackStatus.phase !== "idle",
+                            )
+                          }
+                          onClick={() =>
+                            runResourceOperation(async () => {
+                              setMessage(undefined);
+                              setOfficeUpdating(true);
+                              try {
+                                await window.artemis.installOfficeCapability();
+                              } finally {
+                                setOfficeUpdating(false);
+                              }
+                            })
+                          }
+                        >
+                          {officeUpdating
+                            ? office.working
+                            : office.updateNow.replace(
+                                "{version}",
+                                officePackStatus!.updateVersion!,
+                              )}
+                        </Button>
+                      </>
+                    )}
+                  {hasOfficeCapability ? (
+                    <Button
+                      className="plugin-market-configure-action"
+                      disabled={officeUpdating}
+                      icon={
+                        <ArtemisIcon
+                          name={
+                            officeCapabilityInstalled === false
+                              ? "push"
+                              : "gear"
+                          }
+                        />
+                      }
+                      variant="secondary"
+                      title={
+                        officeCapabilityInstalled === false
+                          ? office.shared
+                          : office.manageDescription
+                      }
+                      onClick={() => setOfficeCapabilityOpen(true)}
+                    >
+                      {officeCapabilityInstalled === false
+                        ? office.runtime
+                        : office.manage}
+                    </Button>
+                  ) : null}
+                  {pluginHasConnection(installedPlugin) && (
+                    <Button
+                      className="plugin-market-configure-action"
+                      icon={<GearIcon />}
+                      variant="secondary"
+                      disabled={operationPending || busyId === plugin.id}
+                      onClick={() => setConnectionPlugin(installedPlugin)}
+                    >
+                      {t.configure}
+                    </Button>
+                  )}
+                  <Button
+                    className="management-destructive-action plugin-market-remove-action"
+                    icon={<TrashIcon />}
+                    disabled={operationPending || busyId === plugin.id}
+                    onClick={() => setPluginUninstallDraft(installedPlugin)}
+                    variant="secondary"
+                  >
+                    {t.remove}
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  className="resource-inline-action"
+                  disabled={
+                    operationPending ||
+                    !plugin.installable ||
+                    (computer && computerRuntime?.supported === false) ||
+                    (computer && computerWorking) ||
+                    Boolean(conflict) ||
+                    busyId === plugin.id ||
+                    installProgress !== undefined
+                  }
+                  onClick={() => setPluginInstallDraft(plugin)}
+                  title={
+                    diagnostic ||
+                    (plugin.installable ? t.install : t.needsSetup)
+                  }
+                >
+                  {conflict
+                    ? t.skillConflict
+                    : plugin.installable
+                      ? t.install
+                      : t.needsSetup}
+                </Button>
+              )}
+            </div>
+          </details>
         </div>
       </ManagementCard>
     );
@@ -2826,6 +2887,13 @@ export function ResourceCenter({
       label: `${t[tab]} ${managementCounts[tab]}`,
       panelId: `resource-management-panel-${tab}`,
       value: tab,
+      icon: (
+        <ArtemisIcon
+          name={tab === "plugins" ? "plugin" : tab === "mcp" ? "mcp" : "skill"}
+          width={14}
+          height={14}
+        />
+      ),
     }),
   );
   const activeManagementTabOption = managementTabOptions.find(
@@ -2879,11 +2947,11 @@ export function ResourceCenter({
         <ManagementHeader
           className="resource-page-header"
           description={t.marketDescription}
-          title={t.title}
+          title={uiText(locale, "Review01.resources")}
           actions={headerActionTarget ? undefined : headerActions}
         />
         <div className="resource-marketplace-toolbar">
-          <Tabs
+          <SegmentedControl
             className="resource-category-tabs"
             disabled={operationPending}
             label={t.manage}
@@ -2891,6 +2959,20 @@ export function ResourceCenter({
             options={managementTabOptions}
             size="compact"
             value="plugins"
+          />
+          <Select
+            className="resource-marketplace-filter"
+            label={t.marketplaces}
+            labelVisibility="hidden"
+            size="compact"
+            value={selectedMarketplaceView}
+            options={marketplaceTabOptions}
+            disabled={operationPending}
+            onValueChange={(sourceId) => {
+              setAllMarkets(sourceId === "all");
+              if (sourceId !== "all")
+                runResourceOperation(() => selectMarketplace(sourceId));
+            }}
           />
           <SearchField
             className="resource-search-field resource-market-search"
@@ -2909,14 +2991,14 @@ export function ResourceCenter({
               hidden
               id={option.panelId}
               key={option.value}
-              role="tabpanel"
+              role="region"
             />
           ))}
         <div
           className="resource-marketplace-content"
-          role="tabpanel"
+          role="region"
           id="resource-management-panel-plugins"
-          aria-labelledby="resource-management-tab-plugins"
+          aria-label={t.plugins}
         >
           {renderProgressAndMessage()}
           <div className="resource-document-banner">
@@ -2999,18 +3081,10 @@ export function ResourceCenter({
           )}
 
           {/* 第三方提示在来源 tab 条之上（先讲清风险再选来源）。 */}
-          <InlineNotice tone="warning">{t.thirdParty}</InlineNotice>
-
-          <MarketplaceTabs
-            disabled={operationPending}
-            label={t.marketplaces}
-            onValueChange={(sourceId) =>
-              runResourceOperation(() => selectMarketplace(sourceId))
-            }
-            options={marketplaceTabOptions}
-            size="compact"
-            value={activeMarketplaceTabOption.value}
-          />
+          <div className="resource-risk-meta">
+            <ArtemisIcon name="approval" width={14} height={14} />
+            {t.thirdParty}
+          </div>
 
           {marketplaceTabOptions
             .filter(
@@ -3022,16 +3096,18 @@ export function ResourceCenter({
                 hidden
                 id={option.panelId}
                 key={option.value}
-                role="tabpanel"
+                role="region"
               />
             ))}
           <div
             aria-labelledby={activeMarketplaceTabOption.id}
             className="plugin-market-groups"
             id={activeMarketplaceTabOption.panelId}
-            role="tabpanel"
+            role="region"
           >
-            {(selectedMarketplaceView === "bundled" || marketplaceFilter) && (
+            {(allMarkets ||
+              selectedMarketplaceView === "bundled" ||
+              marketplaceFilter) && (
               <div className="plugin-market-grid">
                 {(!marketplaceFilter ||
                   `office word excel powerpoint pdf ${office.runtime}`
@@ -3082,6 +3158,30 @@ export function ResourceCenter({
               ) && <EmptyResource>{t.noMarketplaceResults}</EmptyResource>}
           </div>
 
+          <ManagementSection
+            title={uiText(locale, "Review01.enabledServers")}
+            actions={
+              <Button variant="quiet" onClick={() => openManagement("mcp")}>
+                {t.mcp} {managementCounts.mcp} ›
+              </Button>
+            }
+          >
+            {mcpServers
+              .filter(
+                (server) =>
+                  server.config.enabled &&
+                  server.config.resourceKind !== "connector",
+              )
+              .slice(0, 4)
+              .map((server) => (
+                <ManagementRow
+                  key={server.config.id}
+                  title={server.config.name}
+                  leading={<ArtemisIcon name="mcp" />}
+                  description={server.state}
+                />
+              ))}
+          </ManagementSection>
           <ManagementSection
             actions={
               <IconButton
@@ -3228,11 +3328,11 @@ export function ResourceCenter({
             />
           </>
         }
-        title={t[managementTab]}
+        title={uiText(locale, "Review01.resources")}
       />
 
       <div className="resource-management-toolbar">
-        <Tabs
+        <SegmentedControl
           className="resource-management-tabs resource-category-tabs"
           disabled={operationPending}
           label={t.manage}
@@ -3265,7 +3365,7 @@ export function ResourceCenter({
             hidden
             id={option.panelId}
             key={option.value}
-            role="tabpanel"
+            role="region"
           />
         ))}
 
@@ -3287,7 +3387,7 @@ export function ResourceCenter({
           className="resource-management-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
-          role="tabpanel"
+          role="region"
           title={t.plugins}
         >
           <div className="resource-management-list">
@@ -3536,7 +3636,7 @@ export function ResourceCenter({
           className="resource-management-section resource-mcp-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
-          role="tabpanel"
+          role="region"
           title={t.mcp}
         >
           {discoveryOpen && (
@@ -3795,7 +3895,7 @@ export function ResourceCenter({
           className="resource-management-section"
           id={activeManagementTabOption.panelId}
           labelledBy={activeManagementTabOption.id}
-          role="tabpanel"
+          role="region"
           title={t.skills}
         >
           {discoveryOpen && (

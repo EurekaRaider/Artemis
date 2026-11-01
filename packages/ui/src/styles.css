@@ -33,7 +33,7 @@
 
   [data-artemis-component="conformance-probe"]
     [data-part="control"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -179,7 +179,7 @@
 
   [data-artemis-component="button"]:focus-visible,
   [data-artemis-component="icon-button"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -867,12 +867,11 @@
   }
 
   [data-artemis-component="segmented-control"] {
-    gap: var(--artemis-space-1);
-    padding: var(--artemis-space-1);
+    gap: 2px;
+    padding: 2px;
     background: var(--artemis-color-surface-sunken);
-    border: var(--artemis-border-width-default) solid
-      var(--artemis-color-border-default);
-    border-radius: var(--artemis-radius-control);
+    border: 0;
+    border-radius: 9px;
   }
 
   [data-artemis-component="segmented-control"] [data-part="segment"] {
@@ -898,9 +897,19 @@
   [data-artemis-component="segmented-control"]
     [data-part="segment"][aria-pressed="true"] {
     color: var(--artemis-color-text-primary);
-    background: var(--artemis-color-interaction-selected);
-    border-color: var(--artemis-color-border-strong);
-    font-weight: calc(var(--artemis-typography-body-weight) + 200);
+    background: light-dark(
+      var(--artemis-color-canvas),
+      color-mix(
+        in srgb,
+        var(--artemis-color-text-primary) 6%,
+        var(--artemis-color-surface-sunken)
+      )
+    );
+    border-color: transparent;
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.16),
+      0 0 0 1px var(--artemis-color-border-subtle);
+    font-weight: 500;
   }
 
   [data-artemis-component="tabs"] [data-part="tab"]:focus-visible,
@@ -962,7 +971,7 @@
 
   [data-artemis-component="popover"]:focus-visible,
   [data-artemis-component="dialog"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -1094,7 +1103,7 @@
   }
 
   [data-artemis-component="toast"] [data-part="action"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -1296,7 +1305,7 @@
   }
 
   [data-artemis-component="list-row"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -1368,7 +1377,7 @@
   }
 
   [data-artemis-component="scroll-area"] [data-part="viewport"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -1415,7 +1424,7 @@
   }
 
   [data-artemis-component="split-pane"] [data-part="separator"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -1603,7 +1612,7 @@
   [data-artemis-component="task-plan"] [data-part="trigger"]:focus-visible,
   [data-artemis-component="result-disclosure"]
     [data-part="disclosure"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -2154,7 +2163,7 @@
   [data-artemis-component="queued-message-item"]
     > [data-part="actions"]
     button:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -2221,13 +2230,15 @@
       var(--artemis-motion-easing-standard);
   }
 
-  [data-artemis-component="application-shell-resizer"]:hover::after,
+  [data-artemis-component="application-shell-resizer"]:hover::after {
+    background: var(--artemis-color-border-default);
+  }
   [data-artemis-component="application-shell-resizer"]:focus-visible::after {
-    background: var(--artemis-color-accent-primary);
+    background: var(--artemis-color-focus-ring);
   }
 
   [data-artemis-component="application-shell-resizer"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -2323,7 +2334,7 @@
   }
 
   [data-artemis-component="activity-bar-item"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -2522,15 +2533,15 @@
       var(--artemis-motion-easing-standard);
   }
 
-  [data-artemis-component="workspace-dock-resizer"]:is(
-      :hover,
-      :focus-visible
-    )::after {
-    background: var(--artemis-color-accent-primary);
+  [data-artemis-component="workspace-dock-resizer"]:hover::after {
+    background: var(--artemis-color-border-default);
+  }
+  [data-artemis-component="workspace-dock-resizer"]:focus-visible::after {
+    background: var(--artemis-color-focus-ring);
   }
 
   [data-artemis-component="workspace-dock-resizer"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -2653,7 +2664,7 @@
   [data-artemis-component="workspace-tab-bar"]
     :is([data-part="scroll-start"], [data-part="scroll-end"], [data-part="add"])
     button:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -2716,7 +2727,7 @@
 
   [data-artemis-component="workspace-tab"] > [data-part="select"]:focus-visible,
   [data-artemis-component="workspace-tab"] > [data-part="close"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -2849,7 +2860,7 @@
 
   [data-artemis-component="workspace-launcher"]
     [data-part="action"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -2990,7 +3001,7 @@
 
   [data-artemis-component="workspace-editor-toolbar"]
     [data-part="save"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -3136,7 +3147,7 @@
   [data-artemis-component="workspace-file-tree"]
     [data-part="filter"]:focus-visible {
     border-color: var(--artemis-color-border-strong);
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 1px;
   }
 
@@ -3165,7 +3176,7 @@
 
   [data-artemis-component="workspace-file-tree"]
     [data-part="refresh"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -3224,7 +3235,7 @@
   }
 
   [data-artemis-component="workspace-file-tree-row"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -3328,7 +3339,7 @@
   }
 
   [data-artemis-component="workspace-source-editor"]:focus-within {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: -2px;
   }
 
@@ -3585,7 +3596,7 @@
   [data-artemis-component="goal-editor"] [data-part="input"]:focus-visible,
   [data-artemis-component="sources-surface"] button:focus-visible,
   [data-artemis-component="review-surface"] button:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -4326,7 +4337,7 @@
     [data-part="cell"]:is(:hover, :focus-visible) {
     z-index: 1;
     border-color: var(--artemis-color-border-strong);
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 1px;
     transform: scale(1.08);
   }
@@ -4621,7 +4632,7 @@
 
   [data-artemis-component="browser-navigation-button"]:focus-visible,
   [data-artemis-component="browser-go-button"]:focus-visible {
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 2px;
   }
 
@@ -4646,7 +4657,7 @@
 
   [data-artemis-component="browser-address-form"]:focus-within {
     border-color: var(--artemis-color-accent-primary);
-    outline: 2px solid Highlight;
+    outline: 2px solid var(--artemis-color-focus-ring);
     outline-offset: 1px;
   }
 
@@ -5067,5 +5078,13 @@
     font-size: var(--artemis-typography-label-size);
     color: var(--artemis-color-text-secondary);
     line-height: 1.5;
+  }
+
+  @media (forced-colors: active) {
+    [data-artemis-component]:focus-visible,
+    [data-artemis-component] :focus-visible,
+    [data-artemis-component="browser-address-form"]:focus-within {
+      outline-color: Highlight;
+    }
   }
 }

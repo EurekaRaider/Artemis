@@ -39,6 +39,7 @@ export const PROFESSIONAL_COMPONENT_MUTABLE_TOKENS =
     "--artemis-color-surface-raised",
     "--artemis-color-interaction-hover",
     "--artemis-color-text-primary",
+    "--artemis-color-focus-ring",
     "--artemis-color-text-secondary",
     "--artemis-color-border-default",
     "--artemis-color-border-subtle",

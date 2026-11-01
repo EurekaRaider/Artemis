@@ -527,32 +527,6 @@
   inline-size: 14px;
   block-size: 14px;
 }
-.composer-wrap .task-plan-progress {
-  position: absolute;
-  inset-block-start: -48px;
-  inset-inline-start: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  inline-size: max-content;
-  max-inline-size: calc(100% - 24px);
-  z-index: 25;
-}
-[dir="rtl"] .composer-wrap .task-plan-progress {
-  transform: translateX(50%);
-}
-.task-plan-progress > [data-part="trigger"] {
-  min-block-size: 36px;
-  block-size: 36px;
-  padding: 0 14px;
-  gap: 9px;
-  font-size: 12px;
-  font-weight: 480;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
-  backdrop-filter: blur(20px) saturate(1.4);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
-}
 .task-plan-progress [data-part="steps"] {
   max-block-size: min(320px, 46vh);
   overflow: auto;

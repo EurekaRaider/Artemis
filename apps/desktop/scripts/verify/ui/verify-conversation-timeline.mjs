@@ -292,7 +292,6 @@ try {
         "task-plan",
         "user-input",
         "agent-activity",
-        "turn-status",
       ]) {
         assert(
           `rich-component-${component}`,
@@ -301,6 +300,21 @@ try {
           "> 0",
         );
       }
+      assert(
+        "decision-in-timeline-with-visible-disabled-composer",
+        audit.decisionInTimeline && audit.composerDisabled,
+        {
+          decision: audit.decisionInTimeline,
+          disabled: audit.composerDisabled,
+        },
+        { decision: true, disabled: true },
+      );
+      assert(
+        "no-duplicate-turn-status",
+        !audit.turnStatus,
+        audit.turnStatus,
+        null,
+      );
       const messageKinds = new Set(
         components("conversation-message").map(
           (component) => component.messageKind,
@@ -441,11 +455,12 @@ try {
       );
       assert(
         "failed-status-visible",
-        components("turn-status").some(
-          (component) => component.state === "failed",
-        ),
-        components("turn-status"),
-        "visible failed status",
+        audit.headerStatus?.state?.includes("failed") &&
+          !audit.headerStatus.hasTimer &&
+          !audit.turnStatus &&
+          audit.failureNotice,
+        audit.headerStatus,
+        "failed header, no timer or duplicate status, actionable failure notice",
       );
     } else {
       const surface = components("conversation-surface")[0];

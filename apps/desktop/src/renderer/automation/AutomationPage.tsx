@@ -1,3 +1,4 @@
+import { SegmentedControl } from "@artemis/ui/navigation";
 import { isExecutionMode } from "@artemis/protocol";
 import { statusText } from "../../shared/i18n/status-text.js";
 import { makeUiCopy, uiText } from "../../shared/i18n/ui-text.js";
@@ -555,6 +556,9 @@ export function AutomationPage(props: {
     createAutomationViewState,
   );
   const [projectFilter, setProjectFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "enabled" | "paused"
+  >("all");
   const [selectedAutomationId, setSelectedAutomationId] = useState<string>();
   const [draft, setDraft] = useState<AutomationDraft>();
   const [busy, setBusy] = useState(false);
@@ -695,10 +699,12 @@ export function AutomationPage(props: {
       Object.values(state.automations)
         .filter(
           (automation) =>
-            !projectFilter || automation.projectId === projectFilter,
+            (!projectFilter || automation.projectId === projectFilter) &&
+            (statusFilter === "all" ||
+              automation.enabled === (statusFilter === "enabled")),
         )
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    [projectFilter, state.automations],
+    [projectFilter, statusFilter, state.automations],
   );
 
   const selectedAutomation =
@@ -798,11 +804,17 @@ export function AutomationPage(props: {
               size="compact"
               value={projectFilter}
             />
-            <span className="automation-count">
-              {uiText(props.locale, "AutomationPage_text.taskCount", {
-                count: automations.length,
-              })}
-            </span>
+            <SegmentedControl
+              label={t.title}
+              size="compact"
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+              options={[
+                { value: "all", label: uiText(props.locale, "Review01.all") },
+                { value: "enabled", label: t.enabled },
+                { value: "paused", label: t.paused },
+              ]}
+            />
             {message && !draft ? (
               <ErrorState className="automation-message">{message}</ErrorState>
             ) : null}

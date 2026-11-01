@@ -183,11 +183,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     [".environment-branch-list > button > svg", "base", 16],
     [".environment-branch-list > button > i > svg", "base", 16],
     [".environment-branch-actions > button > svg", "lg", 18],
-    [
-      ".environment-git-destination-trigger svg,\n.environment-git-destination-menu svg,\n.environment-git-actions svg",
-      "lg",
-      20,
-    ],
+    [".environment-git-actions svg", "lg", 20],
   ];
 
   it.each(MIGRATED_RULES)(
@@ -306,14 +302,13 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
   it("freezes the remaining ✓/✦ text dingbat inventory after icon migration", () => {
     expect(dingbats).toEqual({
       "app/App.tsx": { check: 6, star: 0 },
-      "workspace/EnvironmentPanel.tsx": { check: 1, star: 0 },
       "workspace/WorktreeManager.tsx": { check: 1, star: 0 },
     });
     const total = Object.values(dingbats).reduce(
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(8);
+    expect(total).toBe(7);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/app/App.tsx"), "utf8"),
     ).toMatch(/<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u);

@@ -14,6 +14,8 @@ const pullRequest = {
   url: "https://example.org/pr/1",
   number: 1,
   title: "Release fix",
+  state: "OPEN" as const,
+  isDraft: false,
   headRefOid: "abc",
   checks: [
     {

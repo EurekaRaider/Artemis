@@ -62,6 +62,15 @@ export function DecisionOptions({
               onClick={() => onChoose(index)}
               onKeyDown={(event) => {
                 if (
+                  /^[1-9]$/.test(event.key) &&
+                  Number(event.key) <= options.length
+                ) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onChoose(Number(event.key) - 1);
+                  return;
+                }
+                if (
                   !["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)
                 )
                   return;

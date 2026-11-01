@@ -88,20 +88,20 @@ describe("IM thread connection indicators", () => {
           locale="zh-CN"
         />,
       );
-      const indicator = container.querySelector(".im-thread-computers")!;
+      const indicator = container.querySelector(".im-thread-connection")!;
       expect(
         container
           .querySelector(".im-thread-connection")!
           .querySelector('[data-artemis-icon="agents"]'),
       ).toBeTruthy();
-      expect(indicator).toHaveAttribute("data-state", expected);
+      expect(indicator).toHaveAttribute("data-computer-state", expected);
       expect(
-        indicator.querySelector('[data-artemis-icon="monitor"]'),
+        indicator.querySelector('[data-artemis-icon="agents"]'),
       ).toBeTruthy();
       if (expected === "offline")
-        expect(indicator).toHaveAccessibleName("群协作电脑：所有成员离线");
+        expect(indicator).toHaveAccessibleName(/群协作电脑：所有成员离线/);
       if (expected === "online")
-        expect(indicator).toHaveAccessibleName("群协作电脑：有成员在线");
+        expect(indicator).toHaveAccessibleName(/群协作电脑：有成员在线/);
       rerender(
         <ImThreadConnection
           status={{
@@ -112,7 +112,7 @@ describe("IM thread connection indicators", () => {
           locale="zh-CN"
         />,
       );
-      expect(indicator).toHaveAttribute("data-state", "unknown");
+      expect(indicator).toHaveAttribute("data-computer-state", "unknown");
     },
   );
 
@@ -145,8 +145,8 @@ describe("IM thread connection indicators", () => {
         locale="zh-CN"
       />,
     );
-    expect(container.querySelector(".im-thread-computers")).toHaveAttribute(
-      "data-state",
+    expect(container.querySelector(".im-thread-connection")).toHaveAttribute(
+      "data-computer-state",
       "offline",
     );
     rerender(
@@ -158,8 +158,8 @@ describe("IM thread connection indicators", () => {
         locale="zh-CN"
       />,
     );
-    expect(container.querySelector(".im-thread-computers")).toHaveAttribute(
-      "data-state",
+    expect(container.querySelector(".im-thread-connection")).toHaveAttribute(
+      "data-computer-state",
       "unknown",
     );
   });

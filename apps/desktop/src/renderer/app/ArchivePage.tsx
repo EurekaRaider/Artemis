@@ -4,10 +4,12 @@ import type { AppLocale, Project, Thread } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
 import { EmptyState } from "@artemis/ui/feedback";
-import { SearchField } from "@artemis/ui/forms";
+import { SegmentedControl } from "@artemis/ui/navigation";
+import { uiText } from "../../shared/i18n/ui-text.js";
+import { statusText } from "../../shared/i18n/status-text.js";
+import { Select, SearchField } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
-import archiveEmptyIcon from "../assets/archive-empty-icon.png";
 
 import {
   promptWithoutSelectedSkills,
@@ -42,6 +44,8 @@ export function ArchivePage({
   onDelete,
 }: ArchivePageProps) {
   const [query, setQuery] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [groupBy, setGroupBy] = useState<"time" | "project">("time");
   const t = labels[locale];
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
@@ -56,13 +60,44 @@ export function ArchivePage({
   );
   const results = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase(locale);
-    return archivedThreads.filter((thread) => {
-      if (!normalized) return true;
-      return `${visibleThreadTitle(thread.title)} ${thread.goal ?? ""} ${thread.projectId ? (projectNames.get(thread.projectId) ?? "") : t.archiveTemporary}`
-        .toLocaleLowerCase(locale)
-        .includes(normalized);
-    });
-  }, [archivedThreads, locale, projectNames, query, t.archiveTemporary]);
+    return archivedThreads
+      .filter((thread) => {
+        if (
+          projectFilter &&
+          (thread.projectId ?? "temporary") !== projectFilter
+        )
+          return false;
+        if (!normalized) return true;
+        return `${visibleThreadTitle(thread.title)} ${thread.goal ?? ""} ${thread.projectId ? (projectNames.get(thread.projectId) ?? "") : t.archiveTemporary}`
+          .toLocaleLowerCase(locale)
+          .includes(normalized);
+      })
+      .sort((a, b) =>
+        groupBy === "project"
+          ? (
+              projectNames.get(a.projectId ?? "") ?? t.archiveTemporary
+            ).localeCompare(
+              projectNames.get(b.projectId ?? "") ?? t.archiveTemporary,
+              locale,
+            ) || b.updatedAt.localeCompare(a.updatedAt)
+          : b.updatedAt.localeCompare(a.updatedAt),
+      );
+  }, [
+    archivedThreads,
+    locale,
+    projectNames,
+    query,
+    projectFilter,
+    groupBy,
+    t.archiveTemporary,
+  ]);
+  const groupLabel = (thread: Thread) =>
+    groupBy === "project"
+      ? (projectNames.get(thread.projectId ?? "") ?? t.archiveTemporary)
+      : new Intl.DateTimeFormat(locale, {
+          year: "numeric",
+          month: "long",
+        }).format(new Date(thread.updatedAt));
   const isSearching = query.trim().length > 0;
   const formattedResultCount = new Intl.NumberFormat(locale).format(
     results.length,
@@ -92,10 +127,6 @@ export function ArchivePage({
     >
       <div className="archive-content">
         <div className="archive-toolbar">
-          <div className="archive-summary">
-            <h2>{t.archiveSectionTitle}</h2>
-            <p aria-live="polite">{resultCount}</p>
-          </div>
           <SearchField
             className="archive-search"
             label={t.archiveSearch}
@@ -103,31 +134,55 @@ export function ArchivePage({
             placeholder={t.archiveSearch}
             value={query}
           />
+          <Select
+            label={uiText(locale, "AutomationPage_text.allProjects")}
+            labelVisibility="hidden"
+            size="compact"
+            value={projectFilter}
+            onValueChange={setProjectFilter}
+            options={[
+              {
+                value: "",
+                label: uiText(locale, "AutomationPage_text.allProjects"),
+              },
+              ...projects.map((project) => ({
+                value: project.id,
+                label: project.name,
+              })),
+              { value: "temporary", label: t.archiveTemporary },
+            ]}
+          />
+          <SegmentedControl
+            label={t.archiveSectionTitle}
+            size="compact"
+            value={groupBy}
+            onValueChange={setGroupBy}
+            options={[
+              { value: "time", label: uiText(locale, "Review01.byTime") },
+              { value: "project", label: uiText(locale, "Review01.byProject") },
+            ]}
+          />
         </div>
 
+        <div className="archive-summary">
+          <h2>{t.archiveSectionTitle}</h2>
+          <p aria-live="polite">{resultCount}</p>
+        </div>
         <div className="archive-results">
           {results.map((thread, index) => (
             <Fragment key={thread.id}>
               {(index === 0 ||
-                new Date(results[index - 1]!.updatedAt).toLocaleDateString(
-                  locale,
-                  { year: "numeric", month: "long" },
-                ) !==
-                  new Date(thread.updatedAt).toLocaleDateString(locale, {
-                    year: "numeric",
-                    month: "long",
-                  })) && (
-                <h3 className="archive-time-group">
-                  {new Intl.DateTimeFormat(locale, {
-                    year: "numeric",
-                    month: "long",
-                  }).format(new Date(thread.updatedAt))}
-                </h3>
+                groupLabel(results[index - 1]!) !== groupLabel(thread)) && (
+                <h3 className="archive-time-group">{groupLabel(thread)}</h3>
               )}
               <ManagementCard className="archive-card">
                 <ArtemisIcon className="archive-thread-icon" name="message" />
                 <div className="archive-card-copy">
                   <h2>{visibleThreadTitle(thread.title)}</h2>
+                  <p className="archive-subtitle">
+                    {UI_COPY.App_copy[locale][thread.mode]} ·{" "}
+                    {statusText(locale, thread.status)}
+                  </p>
                   {thread.goal && (
                     <p className="archive-goal">
                       <strong>{t.archiveGoal}</strong>
@@ -191,13 +246,7 @@ export function ArchivePage({
                   ? t.archiveNoResultsDescription
                   : t.archiveEmptyDescription
               }
-              icon={
-                <img
-                  className="archive-empty-artwork"
-                  src={archiveEmptyIcon}
-                  alt=""
-                />
-              }
+              icon={<ArtemisIcon name="archive" width={32} height={32} />}
               title={
                 isSearching ? t.archiveNoResultsTitle : t.archiveEmptyTitle
               }

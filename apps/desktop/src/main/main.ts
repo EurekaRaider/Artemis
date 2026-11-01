@@ -18312,6 +18312,26 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
         delta: "环境面板、Git 状态和任务来源已经验证。",
       },
     },
+    ...(!["environment-branch-menu", "environment-non-git-empty"].includes(view)
+      ? ([
+          {
+            id: "environment-readme-change",
+            payload: {
+              type: "file.changed",
+              path: "README.md",
+              operation: "update",
+            },
+          },
+          {
+            id: "environment-design-change",
+            payload: {
+              type: "file.changed",
+              path: "设计说明.md",
+              operation: "create",
+            },
+          },
+        ] satisfies SmokeEnvironmentEvent[])
+      : []),
     ...approvalEvents,
     ...(view === "environment-feedback-approval"
       ? []
@@ -21857,6 +21877,13 @@ function createMainWindow(): BrowserWindow {
                         width: timelineContentBounds.width,
                       }
                     : null,
+                  headerStatus: {
+                    state: document.querySelector(".workspace-header .status-pill")?.className,
+                    hasTimer: Boolean(document.querySelector(".workspace-header .status-pill time")),
+                  },
+                  decisionInTimeline: Boolean(document.querySelector(".timeline-scroll .composer-decision, [data-artemis-component=timeline-viewport] .composer-decision")),
+                  composerDisabled: document.querySelector(".composer textarea")?.disabled === true,
+                  failureNotice: Boolean(document.querySelector(".turn-error-banner[role=alert]")),
                   turnStatus: turnStatusBounds
                     ? {
                         left: turnStatusBounds.left,

@@ -40,6 +40,7 @@ export const LAYOUT_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-interaction-hover",
   "--artemis-color-interaction-selected",
   "--artemis-color-text-primary",
+  "--artemis-color-focus-ring",
   "--artemis-color-text-secondary",
   "--artemis-color-border-default",
   "--artemis-color-border-subtle",

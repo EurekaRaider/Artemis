@@ -105,7 +105,10 @@ async function setup(
       onSettingsChange={() => {}}
     />,
   );
-  await screen.findByRole("tab", { name: t.local });
+  await user.click(
+    await screen.findByRole("button", { name: /^Marketplaces / }),
+  );
+  await user.click(screen.getByRole("option", { name: t.local, exact: true }));
   const add = async () => {
     await user.click(screen.getByRole("button", { name: "Add", exact: true }));
     await user.click(
@@ -121,10 +124,7 @@ it("installs on local add and removes the card after uninstall", async () => {
   await waitFor(() =>
     expect(install).toHaveBeenCalledWith(preview.source, expect.any(String)),
   );
-  const uninstall = await screen.findByRole("button", {
-    name: "Uninstall",
-    exact: true,
-  });
+  const uninstall = await openInstalledMenu(user);
   expect(
     uninstall
       .closest(".plugin-market-card")
@@ -149,9 +149,7 @@ it("installs on local add and removes the card after uninstall", async () => {
 
 it("shows previously installed local plugins and removes them without retaining a preview", async () => {
   const { user } = await setup([installed]);
-  await user.click(
-    await screen.findByRole("button", { name: "Uninstall", exact: true }),
-  );
+  await user.click(await openInstalledMenu(user));
   await user.click(
     within(screen.getByRole("alertdialog")).getByRole("button", {
       name: "Uninstall plugin",
@@ -180,7 +178,7 @@ it("reports failed installation and allows retry without a leftover card", async
   await user.click(
     screen.getByRole("button", { name: t.inspectLocalPlugin, exact: true }),
   );
-  await screen.findByRole("button", { name: "Uninstall", exact: true });
+  expect(await openInstalledMenu(user)).toBeVisible();
   expect(install).toHaveBeenCalledTimes(2);
 });
 
@@ -282,9 +280,7 @@ it("keeps imported marketplace installation explicit and retains its catalog ent
       expect.any(String),
     ),
   );
-  await user.click(
-    await screen.findByRole("button", { name: "Uninstall", exact: true }),
-  );
+  await user.click(await openInstalledMenu(user));
   await user.click(
     within(screen.getByRole("alertdialog")).getByRole("button", {
       name: "Uninstall plugin",
@@ -298,3 +294,14 @@ it("keeps imported marketplace installation explicit and retains its catalog ent
   ).toBeVisible();
   expect(screen.getByText("Ocean Skins")).toBeVisible();
 });
+
+async function openInstalledMenu(user: ReturnType<typeof userEvent.setup>) {
+  const title = (await screen.findAllByText("Ocean Skins")).find((node) =>
+    node.closest(".plugin-market-card"),
+  )!;
+  const menu = title
+    .closest(".plugin-market-card")!
+    .querySelector<HTMLDetailsElement>(".plugin-market-card-actions")!;
+  if (!menu.open) await user.click(menu.querySelector("summary")!);
+  return within(menu).getByRole("button", { name: "Uninstall", exact: true });
+}

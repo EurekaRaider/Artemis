@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { TaskPlan as TaskPlanPattern } from "@artemis/ui/patterns";
 
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { taskPlanPatternView } from "./agent-pattern-adapters.js";
 import { isTaskPlanCompleted, type TaskPlan } from "./task-plan.js";
 
@@ -35,7 +36,15 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
       expanded={expanded}
       label={view.label}
       onExpandedChange={setExpanded}
-      progressLabel={view.progressLabel}
+      progressLabel={[
+        uiText(locale, "Review01.planProgress", {
+          step: Math.min(plan.currentIndex + 1, plan.steps.length),
+          total: plan.steps.length,
+        }),
+        plan.steps[plan.currentIndex]?.step,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
       state={view.state}
       statusLabel={view.statusLabel}
       steps={view.steps}

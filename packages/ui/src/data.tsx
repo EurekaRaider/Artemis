@@ -40,6 +40,7 @@ export const DATA_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-interaction-hover",
   "--artemis-color-interaction-selected",
   "--artemis-color-text-primary",
+  "--artemis-color-focus-ring",
   "--artemis-color-text-secondary",
   "--artemis-color-text-tertiary",
   "--artemis-color-border-default",
@@ -389,6 +390,12 @@ export function DataHeatmap({
         : 1;
       tooltip.style.maxWidth = `${Math.max(0, right - left) / scale}px`;
       tooltip.style.translate = "none";
+      const heatmap = cell.closest('[data-artemis-component="data-heatmap"]');
+      const below =
+        cell.getBoundingClientRect().top - tooltip.offsetHeight * scale - 8 <
+        (heatmap?.getBoundingClientRect().top ?? 0);
+      tooltip.style.insetBlockStart = below ? "calc(100% + 8px)" : "auto";
+      tooltip.style.insetBlockEnd = below ? "auto" : "calc(100% + 8px)";
       const bounds = tooltip.getBoundingClientRect();
       const shift = Math.max(
         left - bounds.left,

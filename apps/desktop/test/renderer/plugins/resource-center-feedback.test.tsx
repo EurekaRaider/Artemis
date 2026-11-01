@@ -16,7 +16,6 @@ import {
   ResourceCenter,
 } from "../../../src/renderer/plugins/ResourceCenter.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
-import { MarketplaceTabs } from "../../../src/renderer/plugins/MarketplaceTabs.js";
 
 let resize: () => void;
 beforeEach(() => {
@@ -41,67 +40,7 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
 });
 
-function expectLinkedTabPanels(selector: string): void {
-  const tablist = document.querySelector(selector);
-  expect(tablist).not.toBeNull();
-  const tabs = [...tablist!.querySelectorAll<HTMLElement>('[role="tab"]')];
-  expect(tabs.length).toBeGreaterThan(1);
-  for (const tab of tabs) {
-    const panelId = tab.getAttribute("aria-controls");
-    const panel = panelId ? document.getElementById(panelId) : null;
-    expect(panel).not.toBeNull();
-    expect(panel).toHaveAttribute("role", "tabpanel");
-    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
-    expect(panel!.hidden).toBe(tab.getAttribute("aria-selected") !== "true");
-  }
-}
-
 describe("Resource Center catalog feedback", () => {
-  it("shows scroll controls only on overflow without changing tab selection", () => {
-    const select = vi.fn();
-    render(
-      <MarketplaceTabs
-        label="Marketplaces"
-        value="a"
-        onValueChange={select}
-        options={[
-          { value: "a", label: "First", id: "a", panelId: "panel-a" },
-          { value: "b", label: "Second", id: "b", panelId: "panel-b" },
-        ]}
-      />,
-    );
-    const tabs = screen.getByRole("tablist");
-    const container = tabs.parentElement!;
-    Object.defineProperty(container, "clientWidth", {
-      configurable: true,
-      value: 260,
-    });
-    expect(screen.queryByRole("button", { name: "Marketplaces →" })).toBeNull();
-    Object.defineProperty(tabs, "clientWidth", {
-      configurable: true,
-      value: 200,
-    });
-    Object.defineProperty(tabs, "scrollWidth", {
-      configurable: true,
-      value: 500,
-    });
-    const scroll = vi.fn();
-    Object.defineProperty(tabs, "scrollBy", { value: scroll });
-    act(() => resize());
-    fireEvent.click(screen.getByRole("button", { name: "Marketplaces →" }));
-    expect(scroll).toHaveBeenCalledWith({ left: 150 });
-    expect(select).not.toHaveBeenCalled();
-    fireEvent.keyDown(screen.getByRole("tab", { name: "First" }), {
-      key: "End",
-    });
-    expect(select).toHaveBeenCalledWith("b");
-    // Content fits the whole row while the visible arrows still consume space.
-    Object.defineProperty(tabs, "clientWidth", { value: 450 });
-    Object.defineProperty(container, "clientWidth", { value: 500 });
-    act(() => resize());
-    expect(screen.queryByRole("button", { name: "Marketplaces →" })).toBeNull();
-  });
-
   it("keeps polite status semantics when search changes from loading to empty", async () => {
     const user = userEvent.setup();
     function Example() {
@@ -265,15 +204,26 @@ describe("Resource Center catalog feedback", () => {
       />,
     );
 
-    await screen.findByRole("tab", {
-      name: "Synthetic marketplace · synthetic-owner/source-a",
+    const marketFilter = await screen.findByRole("button", {
+      name: /^Marketplaces /,
     });
+    await userEvent.click(marketFilter);
     expect(
-      screen.getByRole("tab", {
+      screen.getByRole("option", {
+        name: "Synthetic marketplace · synthetic-owner/source-a",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("option", {
         name: "Synthetic marketplace · synthetic-owner/source-b",
       }),
-    ).toBeInTheDocument();
-    expectLinkedTabPanels(".resource-scope-tabs");
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("option", { name: "All marketplaces" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /^Plugins \d+$/ }),
+    ).toHaveAttribute("aria-pressed", "true");
     const diagnostics = screen
       .getByText("View details (150)")
       .closest("details");
@@ -293,7 +243,9 @@ describe("Resource Center catalog feedback", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Manage installed capabilities" }),
     );
-    expectLinkedTabPanels(".resource-management-tabs");
+    expect(
+      screen.getByRole("button", { name: /^Plugins \d+$/ }),
+    ).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(screen.getByRole("button", { name: "Add plugin" }));
     expect(screen.getByText("synthetic-owner/source-a")).toBeVisible();
     expect(screen.getByText("synthetic-owner/source-b")).toBeVisible();
@@ -329,7 +281,7 @@ describe("Resource Center catalog feedback", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "Back to plugins" }),
     );
-    await userEvent.click(screen.getByRole("tab", { name: /^Skills \d+$/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^Skills \d+$/ }));
     await userEvent.click(
       screen.getByRole("button", { name: "Find Agent Skills" }),
     );

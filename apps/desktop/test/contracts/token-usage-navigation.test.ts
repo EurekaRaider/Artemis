@@ -76,28 +76,22 @@ const navigationVerifierSource = readFileSync(
 );
 
 describe("token usage navigation", () => {
-  it("uses public Tabs with exact tab-panel relations for the three usage views", () => {
+  it("uses public segmented controls and a named activity region", () => {
     expect(tokenUsagePageSource).toContain(
-      'import { Tabs } from "@artemis/ui/navigation";',
+      'import { SegmentedControl } from "@artemis/ui/navigation";',
     );
-    expect(tokenUsagePageSource).toContain("<Tabs");
-    expect(tokenUsagePageSource).toContain("label={t.activity}");
+    expect(tokenUsagePageSource).toContain("<SegmentedControl");
     expect(tokenUsagePageSource).toContain(
-      "id: `token-usage-${candidate}-tab`",
+      "options={TOKEN_USAGE_VIEWS.map((candidate)",
     );
+    expect(tokenUsagePageSource).toContain("setView(candidate)");
+    expect(tokenUsagePageSource).toContain('role="region"');
     expect(tokenUsagePageSource).toContain(
-      "panelId: `token-usage-${candidate}-panel`",
+      "aria-label={`${t.activity}: ${t[`${view}Tab`]}`}",
     );
-    expect(tokenUsagePageSource).toContain('role="tabpanel"');
-    expect(tokenUsagePageSource).toContain(
-      "aria-labelledby={`token-usage-${candidate}-tab`}",
-    );
-    expect(tokenUsagePageSource).toContain("TOKEN_USAGE_VIEWS.map((candidate)");
-    expect(tokenUsagePageSource).toContain("hidden={candidate !== view}");
-    expect(tokenUsagePageSource).toContain(
-      "id={`token-usage-${candidate}-panel`}",
-    );
-    expect(tokenUsagePageSource).toContain("candidate === view ? (");
+    expect(tokenUsagePageSource).toContain("<TokenUsageHeatmap");
+    expect(tokenUsagePageSource).toContain("view={view}");
+    expect(tokenUsagePageSource).not.toContain("<Tabs");
   });
 
   it("binds production navigation evidence to its exact head and live renderer security", () => {

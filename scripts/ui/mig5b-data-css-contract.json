@@ -142,7 +142,7 @@
     {
       "z-index": "1",
       "border-color": "var(--artemis-color-border-strong)",
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "1px",
       "transform": "scale(1.08)"
     }

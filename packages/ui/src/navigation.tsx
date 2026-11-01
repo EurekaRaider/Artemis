@@ -17,6 +17,8 @@ export const NAVIGATION_COMPONENT_MUTABLE_TOKENS =
     "--artemis-color-interaction-hover",
     "--artemis-color-interaction-selected",
     "--artemis-color-text-primary",
+    "--artemis-color-canvas",
+    "--artemis-color-focus-ring",
     "--artemis-color-text-secondary",
     "--artemis-color-border-default",
     "--artemis-color-border-subtle",

@@ -18,6 +18,8 @@ interface TerminalPanelProps {
   emptyMessage: string;
   theme: AppTheme;
   locale: AppLocale;
+  projectName?: string | undefined;
+  onNew?: (() => void) | undefined;
 }
 
 type TerminalPanelState = "ready" | "connecting" | "empty" | "error" | "exited";
@@ -119,6 +121,8 @@ export function TerminalPanel({
   emptyMessage,
   theme,
   locale,
+  projectName,
+  onNew,
 }: TerminalPanelProps) {
   const host = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -383,7 +387,29 @@ export function TerminalPanel({
     >
       <TerminalHeader
         className="terminal-header"
-        detail={displayDetail}
+        detail={
+          <>
+            <span>
+              {state === "ready"
+                ? `${detail.split(/[\\/]/).at(-1)}${projectName ? ` · ${projectName}` : ""}`
+                : displayDetail}
+            </span>
+            <span className="terminal-header-actions">
+              {onNew && (
+                <button type="button" onClick={onNew}>
+                  + {uiText(locale, "Review01.newTerminal")}
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={state !== "ready" && state !== "exited"}
+                onClick={() => terminalRef.current?.clear()}
+              >
+                {uiText(locale, "BrowserPreview.clear")}
+              </button>
+            </span>
+          </>
+        }
         heading={title}
       />
       <TerminalViewport className="terminal-body">

@@ -619,15 +619,22 @@ describe("renderer layout contract", () => {
       'openSettings("maintenance", event.currentTarget)',
     );
     expect(sidebarFooterSource).toContain(
-      "v{runtimeSettings.update.currentVersion}",
+      "sidebarUpdateSubtitle(runtimeSettings.update, locale)",
     );
     expect(appSource).toContain("initialTab={settingsTab}");
     expect(settingsSource).toContain('initialTab = "general"');
     expect(settingsSource).toContain("useState<SettingsTab>(initialTab)");
-    expect(cssRule(".app-version")).toMatch(/\bfont-size:\s*10\.5px/u);
-    expect(cssRule(".app-version")).toMatch(/\bcolor:\s*var\(--muted-2\)/u);
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        ".app-shell .sidebar .app-version",
+      ),
+    ).toContain("font-size: 11.5px");
+    expect(nocturneStylesSource).toContain(
+      "color: var(--artemis-color-text-tertiary)",
+    );
     expect(cssRule(".app-version")).toMatch(/\bbackground:\s*transparent/u);
-    expect(cssRule(".sidebar-footer")).toContain("padding: 12px 10px 4px 14px");
+    expect(nocturneStylesSource).toContain("padding: 8px 10px");
   });
 
   it("keeps archived conversations out of the task sidebar and opens them from a library", () => {
@@ -812,64 +819,35 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("keeps the model controls visually balanced with the compact Codex proportions", () => {
-    expect(cssRule(".composer-trailing")).toMatch(/\bgap:\s*4px/u);
-    expect(cssRule(".context-usage-indicator")).toMatch(/\bwidth:\s*24px/u);
-    expect(cssRule(".context-usage-ring")).toMatch(
-      /\bheight:\s*14px[\s\S]*\bwidth:\s*14px/u,
-    );
-    expect(cssRule(".model-button")).toMatch(
-      /\bheight:\s*28px[\s\S]*\bpadding:\s*0\s+4px\s+0\s+6px/u,
-    );
+  it("keeps model names and thinking levels readable at compact widths", () => {
     expect(cssRule(".model-information strong")).toMatch(
-      /\bfont-size:\s*14px[\s\S]*\bfont-weight:\s*400/u,
+      /font-size:\s*12\.5px/u,
     );
-    expect(cssRule(".model-information small")).toMatch(/\bfont-size:\s*13px/u);
-    expect(cssRule(".send-button")).toMatch(
-      /\bborder-radius:\s*50%[\s\S]*\bheight:\s*28px[\s\S]*\bwidth:\s*28px/u,
+    expect(cssRule(".model-information strong")).toContain(
+      "text-overflow: ellipsis",
     );
-  });
-
-  it("compacts verbose approval and model labels only at narrow composer width", () => {
-    const compactComposer = cssAtRule(/@container\s*\(max-width:\s*\d+px\)/u);
-
-    expect(compactComposer).toBeDefined();
-    expect(compactComposer).toMatch(
-      /\.approval-policy-trigger\s*>\s*span\s*\{[^}]*\bdisplay:\s*none/isu,
+    expect(cssRule(".model-information small")).toMatch(
+      /font-size:\s*12\.5px/u,
     );
-    expect(compactComposer).toMatch(
-      /\.model-information\s+small\s*\{[^}]*\bdisplay:\s*none/isu,
+    expect(nocturneStylesSource).toContain(
+      "@container composer (max-width: 680px)",
     );
-    expect(compactComposer).toMatch(
-      /\.model-information\s+strong\s*\{[^}]*\bmax-width:\s*\d+px[^}]*\boverflow:\s*hidden/isu,
+    expect(nocturneStylesSource).toContain(
+      "@container composer (max-width: 460px)",
     );
-    expect(compactComposer).toMatch(
-      /\.model-compact-icon\s*\{[^}]*\bdisplay:\s*(?:inline-)?flex/isu,
+    expect(nocturneStylesSource).toContain(
+      '.composer-run-modes [aria-checked="false"] [data-part="label"]',
     );
-    expect(compactComposer).toMatch(
-      /\.model-information\s*\{[^}]*\bdisplay:\s*none/isu,
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        ".app-shell .model-information",
+      ),
+    ).toContain("display: flex");
+    expect(stylesSource).not.toMatch(
+      /\.model-information\s*\{[^}]*display:\s*none/u,
     );
-    expect(compactComposer).toMatch(
-      /\.model-picker-menu\s*\{[^}]*\bgrid-template-columns:\s*minmax\(0,\s*96px\)\s*minmax\(0,\s*1fr\)[^}]*\bwidth:\s*min\(320px,\s*calc\(100cqi\s*-\s*48px\)\)/isu,
-    );
-    expect(compactComposer).toMatch(
-      /\.model-picker-navigation\s*\{[^}]*\balign-self:\s*end/isu,
-    );
-    expect(compactComposer).toMatch(
-      /\.model-picker-options\s*\{[^}]*\bmargin-left:\s*0[^}]*\bmargin-top:\s*-1px/isu,
-    );
-
-    const composerStart = appSource.indexOf('className="composer-toolbar"');
-    const composerEnd = appSource.indexOf(
-      "\n                      </div>\n                    </div>",
-      composerStart,
-    );
-    const composerSource = appSource.slice(composerStart, composerEnd);
-    expect(composerSource).toContain("<span>{approvalPolicyLabel}</span>");
-    expect(composerSource).toContain('className="model-information"');
-    expect(composerSource).toContain('className="model-compact-icon"');
-    expect(composerSource).toContain("<strong>{activeModelLabel}</strong>");
-    expect(composerSource).toContain("<small>{activeThinkingLevel}</small>");
+    expect(appSource).toContain("thinkingLevelLabel(");
   });
 
   it("uses a compact Codex-style slash menu and keeps selected Skills visible", () => {
@@ -1015,12 +993,12 @@ describe("renderer layout contract", () => {
     expect(decisionSource).toContain('type="button"');
   });
 
-  it("keeps a turn stop control while the composer hosts a pending decision", () => {
+  it("keeps a turn stop control while a timeline decision disables the composer", () => {
     expect(appSource).toContain("window.artemis.cancelTurn(activeThreadId)");
     expect(appSource).toContain("onClick={() => void cancelActiveTurn()}");
-    expect(appSource).toMatch(
-      /pendingComposerDecision &&\s+pendingComposerDecision.kind !== "plan" &&/u,
-    );
+    expect(appSource).toContain('className="timeline-decision"');
+    expect(appSource).toContain("decisionTarget={decisionTarget}");
+    expect(appSource).toContain("disabled={Boolean(pendingComposerDecision)}");
     expect(userInputSource).not.toContain("onCancel");
     expect(decisionSource).toContain('className="decision-reply"');
     expect(decisionSource).toContain("disabled={busy || !draft.trim()}");
@@ -1875,7 +1853,10 @@ describe("renderer layout contract", () => {
     expect(terminalSource).toMatch(
       /\(state === "connecting" \|\|[\s\S]*state === "empty" \|\|[\s\S]*state === "error"\) && \(/u,
     );
-    expect(terminalSource).not.toContain('state !== "ready"');
+    expect(terminalSource).toContain(
+      'disabled={state !== "ready" && state !== "exited"}',
+    );
+    expect(terminalSource).not.toMatch(/state !== "ready" && \(/u);
   });
 
   it("caches Review data for scope switching without eager prefetching", () => {
@@ -2507,15 +2488,13 @@ describe("renderer layout contract", () => {
     expect(resourceCenterSource).toContain(
       'className="resource-management-tabs resource-category-tabs"',
     );
-    expect(resourceCenterSource).toContain(
-      "value={activeMarketplaceTabOption.value}",
-    );
+    expect(resourceCenterSource).toContain("value={selectedMarketplaceView}");
     expect(resourceCenterSource).toContain("options={managementTabOptions}");
     expect(resourceSurface).toMatch(/\bdisplay:\s*flex/u);
     expect(publicUiStylesSource).toContain("inline-size: min(100%, 72rem)");
     expect(toolbar).toMatch(/\bdisplay:\s*flex/u);
     expect(toolbar).toMatch(/\bjustify-content:\s*space-between/u);
-    expect(resourceCenterSource).toContain("<Tabs");
+    expect(resourceCenterSource).toContain("<SegmentedControl");
   });
 
   it("renders MCP switches from configuration independently of connection status", () => {

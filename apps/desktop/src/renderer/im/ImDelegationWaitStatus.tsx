@@ -1,4 +1,4 @@
-import { ArtemisIcon } from "@artemis/ui/icons";
+import { ArtemisIcon, RunningArc } from "@artemis/ui/icons";
 import { useState } from "react";
 import type { AppLocale, ImStatus } from "@artemis/protocol";
 import { uiText, type UiMessageKey } from "../../shared/i18n/ui-text.js";
@@ -36,7 +36,15 @@ export function ImDelegationWaitStatus({
                     : "ImDelegation.waiting",
               )}
             >
-              <span className="im-delegation-dot" aria-hidden="true" />
+              {wait.state === "waiting" ? (
+                <RunningArc size={16} />
+              ) : (
+                <ArtemisIcon
+                  name={wait.state === "ready" ? "check" : "alert"}
+                  width={16}
+                  height={16}
+                />
+              )}
               <span className="im-delegation-label">
                 {uiText(
                   locale,

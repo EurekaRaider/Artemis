@@ -181,7 +181,7 @@ const expectedCssRules = new Map([
   [
     `normal|${PROBE} [data-part="control"]:focus-visible`,
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px",
     },
   ],
@@ -310,7 +310,10 @@ const expectedCssRules = new Map([
   ],
   [
     `normal|${BUTTON}:focus-visible, ${ICON_BUTTON}:focus-visible`,
-    { outline: "2px solid Highlight", "outline-offset": "2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "2px",
+    },
   ],
   [
     `normal|${BUTTON}[data-state="selected"], ${ICON_BUTTON}[data-state="selected"]`,
@@ -506,7 +509,10 @@ const expectedCssRules = new Map([
   ],
   [
     'normal|[data-artemis-component="text-field"] [data-part="control"]:focus-visible, [data-artemis-component="textarea-field"] [data-part="control"]:focus-visible, [data-artemis-component="search-field"] [data-part="control"]:focus-visible, [data-artemis-component="select"] [data-part="trigger"]:focus-visible, [data-artemis-component="select"] [data-part="search"]:focus-visible, [data-artemis-component="select"] [data-part="listbox"]:focus-visible',
-    { outline: "2px solid Highlight", "outline-offset": "2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "2px",
+    },
   ],
   [
     'normal|[data-artemis-component="text-field"][data-state="error"] [data-part="control"], [data-artemis-component="textarea-field"][data-state="error"] [data-part="control"], [data-artemis-component="search-field"][data-state="error"] [data-part="control"], [data-artemis-component="select"][data-state="error"] [data-part="trigger"]',
@@ -875,7 +881,10 @@ const expectedCssRules = new Map([
   ],
   [
     'normal|[data-artemis-component="checkbox"] [data-part="control"]:focus-visible + [data-part="indicator"], [data-artemis-component="switch"] [data-part="control"]:focus-visible + [data-part="track"]',
-    { outline: "2px solid Highlight", "outline-offset": "2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "2px",
+    },
   ],
   [
     'normal|[data-artemis-component="checkbox"] [data-part="description"], [data-artemis-component="checkbox"] [data-part="error"], [data-artemis-component="switch"] [data-part="description"], [data-artemis-component="switch"] [data-part="error"]',
@@ -943,12 +952,11 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="segmented-control"]',
     {
-      gap: "var(--artemis-space-1)",
-      padding: "var(--artemis-space-1)",
+      gap: "2px",
+      padding: "2px",
       background: "var(--artemis-color-surface-sunken)",
-      border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
-      "border-radius": "var(--artemis-radius-control)",
+      border: "0",
+      "border-radius": "9px",
     },
   ],
   [
@@ -979,14 +987,20 @@ const expectedCssRules = new Map([
     'normal|[data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="true"]',
     {
       color: "var(--artemis-color-text-primary)",
-      background: "var(--artemis-color-interaction-selected)",
-      "border-color": "var(--artemis-color-border-strong)",
-      "font-weight": "calc(var(--artemis-typography-body-weight) + 200)",
+      background:
+        "light-dark(var(--artemis-color-canvas), color-mix(in srgb, var(--artemis-color-text-primary) 6%, var(--artemis-color-surface-sunken)))",
+      "border-color": "transparent",
+      "box-shadow":
+        "0 1px 2px rgb(0 0 0 / 0.16), 0 0 0 1px var(--artemis-color-border-subtle)",
+      "font-weight": "500",
     },
   ],
   [
     'normal|[data-artemis-component="tabs"] [data-part="tab"]:focus-visible, [data-artemis-component="segmented-control"] [data-part="segment"]:focus-visible',
-    { outline: "2px solid Highlight", "outline-offset": "2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "2px",
+    },
   ],
   [
     'normal|[data-artemis-component="tabs"] [data-part="tab"]:disabled, [data-artemis-component="segmented-control"] [data-part="segment"]:disabled',
@@ -1061,7 +1075,7 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="popover"]:focus-visible, [data-artemis-component="dialog"]:focus-visible',
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px",
     },
   ],
@@ -1222,7 +1236,7 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="toast"] [data-part="action"]:focus-visible',
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px",
     },
   ],
@@ -1447,7 +1461,7 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="list-row"]:focus-visible',
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px",
     },
   ],
@@ -1538,7 +1552,7 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="scroll-area"] [data-part="viewport"]:focus-visible',
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "-2px",
     },
   ],
@@ -1594,7 +1608,7 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="split-pane"] [data-part="separator"]:focus-visible',
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "-2px",
     },
   ],
@@ -1757,7 +1771,10 @@ const CL4_EXPECTED_CSS_RULES = [
   ],
   [
     'normal|[data-artemis-component="run-mode-control"] [data-part="option"]:focus-visible, [data-artemis-component="user-input"] [data-part="option"]:focus-visible, [data-artemis-component="agent-team-summary"] [data-part="member"] > button:focus-visible, [data-artemis-component="tool-activity"] [data-part="disclosure"]:focus-visible, [data-artemis-component="task-plan"] [data-part="trigger"]:focus-visible, [data-artemis-component="result-disclosure"] [data-part="disclosure"]:focus-visible',
-    { outline: "2px solid Highlight", "outline-offset": "2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "2px",
+    },
   ],
   [
     'normal|[data-artemis-component="run-mode-control"] [data-part="description"], [data-artemis-component="user-input"] [data-part="option"] small',
@@ -2037,12 +2054,19 @@ const MIG1_EXPECTED_CSS_RULES = [
     },
   ],
   [
-    'normal|[data-artemis-component="application-shell-resizer"]:hover::after, [data-artemis-component="application-shell-resizer"]:focus-visible::after',
-    { background: "var(--artemis-color-accent-primary)" },
+    'normal|[data-artemis-component="application-shell-resizer"]:hover::after',
+    { background: "var(--artemis-color-border-default)" },
+  ],
+  [
+    'normal|[data-artemis-component="application-shell-resizer"]:focus-visible::after',
+    { background: "var(--artemis-color-focus-ring)" },
   ],
   [
     'normal|[data-artemis-component="application-shell-resizer"]:focus-visible',
-    { outline: "2px solid Highlight", "outline-offset": "-2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "-2px",
+    },
   ],
   [
     'normal|[data-artemis-component="application-shell-resizer"][data-state="collapsed"]',
@@ -2141,7 +2165,10 @@ const MIG1_EXPECTED_CSS_RULES = [
   ],
   [
     'normal|[data-artemis-component="activity-bar-item"]:focus-visible',
-    { outline: "2px solid Highlight", "outline-offset": "2px" },
+    {
+      outline: "2px solid var(--artemis-color-focus-ring)",
+      "outline-offset": "2px",
+    },
   ],
   [
     'normal|[data-artemis-component="activity-bar-item"] [data-part="icon"]',
@@ -2653,7 +2680,7 @@ const MIG2_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="queued-message-item"] > [data-part="actions"] button:focus-visible',
     {
-      outline: "2px solid Highlight",
+      outline: "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px",
     },
   ],
@@ -2765,6 +2792,11 @@ for (const [key, declarations] of LATEST_UI_EXPECTED_CSS_RULES) {
   expectedCssRules.set(key, declarations);
 }
 
+expectedCssRules.set(
+  'forced-colors|[data-artemis-component]:focus-visible, [data-artemis-component] :focus-visible, [data-artemis-component="browser-address-form"]:focus-within',
+  { "outline-color": "Highlight" },
+);
+
 function verifyStructuralCss(css, from, tokenFamilies) {
   const parsed = postcss.parse(css, { from });
   const rootNodes = parsed.nodes ?? [];
@@ -2830,7 +2862,7 @@ function verifyStructuralCss(css, from, tokenFamilies) {
     const matchingFamilies = familyConsumption.filter((family) =>
       family.markers.some((marker) => selector.includes(marker)),
     );
-    if (matchingFamilies.length === 0) {
+    if (matchingFamilies.length === 0 && context !== "forced-colors") {
       throw new Error(
         `UI structural CSS selector must belong to a public family: ${selector}`,
       );
@@ -2913,6 +2945,10 @@ function verifyStructuralCss(css, from, tokenFamilies) {
       throw new Error("UI structural CSS contains an unexpected at-rule");
     }
     const media = normalizeWhitespace(node.params);
+    if (media === "(forced-colors: active)" && node.nodes.length === 1) {
+      verifyRule(node.nodes[0], "forced-colors");
+      continue;
+    }
     if (media === "(max-width: 1100px)" && node.nodes.length === 5) {
       for (const nested of node.nodes) verifyRule(nested, "compact-width");
       continue;

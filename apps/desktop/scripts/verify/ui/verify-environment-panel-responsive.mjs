@@ -220,7 +220,12 @@ try {
     wide.timelineContent,
     "Wide window timeline content bounds are missing.",
   );
-  assert(wide.turnStatus, "Wide window completed status bounds are missing.");
+  assert(
+    !wide.turnStatus &&
+      wide.headerStatus?.state?.includes("completed") &&
+      !wide.headerStatus.hasTimer,
+    "Completed state must appear once in the header, without a live timer.",
+  );
   assert(wide.workspaceContent, "Wide window workspace bounds are missing.");
   assert(
     Math.abs(wide.timelineScroll.right - wide.workspaceContent.right) <= 1,

@@ -119,7 +119,9 @@ describe("task environment panel state", () => {
     ).toEqual(["direct", "legacy-direct", "member", "legacy-member"]);
   });
   it("mounts the popover between task status and the existing right dock", () => {
-    const status = appSource.indexOf('className="status-pill"');
+    const status = appSource.indexOf(
+      "className={`status-pill ${statusDotStatus}`}",
+    );
     const environment = appSource.indexOf("<EnvironmentPanel", status);
     const dock = appSource.indexOf(
       'className="right-sidebar-toggle"',
@@ -240,7 +242,7 @@ describe("task environment panel state", () => {
     expect(watcherSource).toContain("pendingKinds");
     expect(watcherSource).toContain("}, 1_000);");
     expect(watcherSource).toContain("IPC.projectGitChanged");
-    expect(appSource).toContain("{ threadId: activeThreadId } : {})");
+    expect(appSource).toMatch(/\{ threadId: activeThreadId \}\s*:\s*\{\}\)/u);
   });
 
   it("suggests a safe Codex-prefixed branch from the task title", () => {

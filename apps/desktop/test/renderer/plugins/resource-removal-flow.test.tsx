@@ -85,7 +85,9 @@ it("confirms the named MCP or Skill before removing it and preserves cancellatio
   await user.click(
     screen.getByRole("button", { name: "Manage installed capabilities" }),
   );
-  await user.click(screen.getByRole("tab", { name: /^MCP \d+$/, exact: true }));
+  await user.click(
+    screen.getByRole("button", { name: /^MCP \d+$/, exact: true }),
+  );
   const removeTrigger = await screen.findByRole("button", {
     name: "Remove Context7",
   });
@@ -138,7 +140,7 @@ it("confirms the named MCP or Skill before removing it and preserves cancellatio
   expect(screen.queryByRole("button", { name: "Remove Context7" })).toBeNull();
 
   await user.click(
-    screen.getByRole("tab", { name: /^Skills \d+$/, exact: true }),
+    screen.getByRole("button", { name: /^Skills \d+$/, exact: true }),
   );
   const uninstallTrigger = screen.getByRole("button", {
     name: "Uninstall design-taste-frontend",

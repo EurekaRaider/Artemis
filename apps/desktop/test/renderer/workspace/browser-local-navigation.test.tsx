@@ -61,7 +61,7 @@ it("opens the displayed local HTML label using its preview URL and still accepts
     tabId: "preview",
     path,
   });
-  fireEvent.click(screen.getByRole("button", { name: "Go" }));
+  fireEvent.submit(screen.getByRole("textbox").closest("form")!);
   expect(browserSession).toHaveBeenLastCalledWith({
     action: "navigate",
     threadId: "task",
@@ -190,13 +190,11 @@ it.each([
         locale="en"
       />,
     );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Go" })).toBeEnabled(),
-    );
+    await waitFor(() => expect(screen.getByRole("textbox")).toBeEnabled());
     fireEvent.change(screen.getByRole("textbox", { name: "Address" }), {
       target: { value: "https://failure.test" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Go" }));
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
     await act(async () => {
       if (newerEvent) publish({ ...ready, url: "https://current.test" });
       finishNavigation();

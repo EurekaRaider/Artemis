@@ -1,4 +1,5 @@
-import type { ComponentProps } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
+import { createPortal } from "react-dom";
 import type {
   AppLocale,
   ApprovalState,
@@ -33,7 +34,7 @@ type ComposerDecision =
       actorName: string | undefined;
     };
 
-/** Share one composer slot across approvals, questions and completed plans. */
+/** Resolve approvals, questions and completed plans in persisted order. */
 export function firstPendingComposerDecision(
   state: ThreadViewState | undefined,
 ): ComposerDecision | undefined {
@@ -71,6 +72,7 @@ export function firstPendingComposerDecision(
 
 export function DecisionComposer({
   decision,
+  decisionTarget,
   children,
   context,
   className,
@@ -82,6 +84,7 @@ export function DecisionComposer({
   ...props
 }: ComponentProps<typeof ComposerSurface> & {
   decision: ComposerDecision | undefined;
+  decisionTarget?: HTMLElement | null;
   locale: AppLocale;
   onResolveApproval: ResolveApprovalDecision;
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
@@ -89,57 +92,63 @@ export function DecisionComposer({
     ((plan: SavedPlan, mode: "work" | "codemode") => Promise<void>) | undefined;
   onRevisePlan?: ((text: string) => Promise<void>) | undefined;
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    cardRef.current
+      ?.querySelector<HTMLElement>(
+        'button:not(:disabled)[tabindex="0"], button:not(:disabled), textarea:not(:disabled)',
+      )
+      ?.focus();
+  }, [decision?.entry, decisionTarget]);
+  const card = decision ? (
+    <div className="composer-decision" key={decision.entry} ref={cardRef}>
+      {decision.kind === "plan" ? (
+        <PlanDecisionCard
+          plan={decision.plan}
+          locale={locale}
+          onAccept={onAcceptPlan}
+          onRevise={onRevisePlan}
+        />
+      ) : decision.kind === "approval" ? (
+        <ApprovalDecisionCard
+          approval={decision.approval}
+          locale={locale}
+          onResolve={onResolveApproval}
+          {...(decision.actorName
+            ? {
+                actorLabel: `${UI_COPY.App_copy[locale].agentActor}: ${decision.actorName}`,
+              }
+            : {})}
+        />
+      ) : isMultiQuestionUserInput(decision.input) ? (
+        <MultiQuestionUserInputCard
+          active
+          input={decision.input}
+          locale={locale}
+          onResolve={onResolveUserInput}
+        />
+      ) : (
+        <UserInputCard
+          active
+          input={decision.input}
+          locale={locale}
+          onResolve={onResolveUserInput}
+        />
+      )}
+    </div>
+  ) : null;
   return (
     <>
+      {card && decisionTarget ? createPortal(card, decisionTarget) : card}
       <ComposerSurface
         {...props}
-        className={`${className ?? ""}${decision ? " composer-awaiting-decision" : ""}`}
+        className={className}
         onDragEnter={decision ? undefined : props.onDragEnter}
         onDragLeave={decision ? undefined : props.onDragLeave}
         onDragOver={decision ? undefined : props.onDragOver}
         onDrop={decision ? undefined : props.onDrop}
       >
-        {decision ? (
-          <>
-            <div className="composer-decision" key={decision.entry}>
-              {decision.kind === "plan" ? (
-                <PlanDecisionCard
-                  plan={decision.plan}
-                  locale={locale}
-                  onAccept={onAcceptPlan}
-                  onRevise={onRevisePlan}
-                />
-              ) : decision.kind === "approval" ? (
-                <ApprovalDecisionCard
-                  approval={decision.approval}
-                  locale={locale}
-                  onResolve={onResolveApproval}
-                  {...(decision.actorName
-                    ? {
-                        actorLabel: `${UI_COPY.App_copy[locale].agentActor}: ${decision.actorName}`,
-                      }
-                    : {})}
-                />
-              ) : isMultiQuestionUserInput(decision.input) ? (
-                <MultiQuestionUserInputCard
-                  active
-                  input={decision.input}
-                  locale={locale}
-                  onResolve={onResolveUserInput}
-                />
-              ) : (
-                <UserInputCard
-                  active
-                  input={decision.input}
-                  locale={locale}
-                  onResolve={onResolveUserInput}
-                />
-              )}
-            </div>
-          </>
-        ) : (
-          children
-        )}
+        {children}
       </ComposerSurface>
       {context ? (
         <div className="composer-context-surface" data-part="context">

@@ -14,6 +14,7 @@ export function SidebarUpdateControl({
   noticeTarget,
   onStatus,
   onError,
+  showDownloadProgress = true,
 }: {
   status: ReleaseUpdateStatus;
   locale: AppLocale;
@@ -21,6 +22,7 @@ export function SidebarUpdateControl({
   noticeTarget?: HTMLElement | null;
   onStatus(status: ReleaseUpdateStatus): void;
   onError(message: string): void;
+  showDownloadProgress?: boolean;
 }) {
   const [installing, setInstalling] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -175,7 +177,8 @@ export function SidebarUpdateControl({
       role={installing ? "status" : undefined}
     >
       {noticeTarget && notice ? null : updateButton}
-      {status.state === "downloading" &&
+      {showDownloadProgress &&
+        status.state === "downloading" &&
         status.downloadedBytes !== undefined &&
         status.totalBytes !== undefined && (
           <span className="update-byte-count">
@@ -190,17 +193,45 @@ export function SidebarUpdateControl({
           </span>
         )}
       {notice && noticeTarget ? createPortal(notice, noticeTarget) : notice}
-      {(status.state === "error" || status.state === "downloaded") &&
-        status.message && (
-          <span className="update-error" role="alert">
-            {status.message}
-          </span>
-        )}
-      {status.state === "error" && status.rollbackAvailable && (
-        <span className="update-rollback-note">
-          {UI_COPY.SettingsPanel_labels[locale].rollbackReady}
-        </span>
+      {(status.state === "error" ||
+        (status.state === "downloaded" && status.message)) && (
+        <div className="update-failure" role="alert">
+          <ArtemisIcon name="alert" width={18} height={18} />
+          <div>
+            <strong>{uiText(locale, "Review01.updateFailed")}</strong>
+            {status.rollbackAvailable && (
+              <p>{UI_COPY.SettingsPanel_labels[locale].rollbackReady}</p>
+            )}
+            {status.message && (
+              <details>
+                <summary>{uiText(locale, "Review01.viewDetails")}</summary>
+                <p>{status.message}</p>
+              </details>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
+}
+
+export function sidebarUpdateSubtitle(
+  status: ReleaseUpdateStatus,
+  locale: AppLocale,
+): string {
+  if (
+    status.state === "downloading" &&
+    status.downloadedBytes !== undefined &&
+    status.totalBytes !== undefined
+  ) {
+    const format = (bytes: number) =>
+      (bytes / 1048576).toLocaleString(locale, { maximumFractionDigits: 1 });
+    return `${format(status.downloadedBytes)} / ${format(status.totalBytes)} MB`;
+  }
+  if (status.state === "downloaded")
+    return uiText(locale, "Review01.readyVersion", {
+      version: status.availableVersion ?? status.currentVersion,
+    });
+  if (status.state === "error") return uiText(locale, "Review01.updateFailed");
+  return `v${status.currentVersion}${status.upToDate ? ` · ${uiText(locale, "Review01.upToDate")}` : ""}`;
 }

@@ -166,6 +166,7 @@ export const CONFORMANCE_PROBE_CONTRACT = deepFreeze({
     mutableTokens: [
       "--artemis-color-surface-base",
       "--artemis-color-text-primary",
+      "--artemis-color-focus-ring",
       "--artemis-color-text-secondary",
       "--artemis-color-status-danger",
       "--artemis-color-border-default",

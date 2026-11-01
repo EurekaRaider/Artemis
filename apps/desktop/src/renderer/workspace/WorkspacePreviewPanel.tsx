@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { PreviewCanvas } from "../computer-use/PreviewCanvas.js";
 import { BrowserPreviewTools } from "./BrowserPreviewTools.js";
 import { IconButton } from "@artemis/ui/actions";
@@ -12,7 +13,6 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   BrowserAddressForm,
   BrowserAddressInput,
-  BrowserGoButton,
   BrowserNavigation,
   BrowserNavigationButton,
   BrowserState,
@@ -131,6 +131,7 @@ function useWorkspacePreviewFile({
 }
 
 export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
+  const [toolsTarget, setToolsTarget] = useState<HTMLDivElement | null>(null);
   const [session, setSession] =
     useState<import("@artemis/protocol").BrowserSessionSnapshot>();
   const [address, setAddress] = useState(props.initialUrl ?? "");
@@ -286,6 +287,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
           label={props.addressPlaceholder}
           onSubmit={navigate}
         >
+          <ArtemisIcon name="browser" width={14} height={14} />
           <BrowserAddressInput
             className="browser-address-input"
             label={props.addressPlaceholder}
@@ -294,12 +296,8 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
             spellCheck={false}
             value={address}
           />
-          <BrowserGoButton
-            className="browser-go-button"
-            disabled={!session}
-            label={props.goLabel}
-          />
         </BrowserAddressForm>
+        <div className="browser-tools-slot" ref={setToolsTarget} />
       </BrowserToolbar>
       {error && (
         <BrowserState className="browser-error" state="error">
@@ -307,6 +305,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         </BrowserState>
       )}
       <BrowserPreviewTools
+        toolbarTarget={toolsTarget}
         enabled={!/\.pdf$/iu.test(props.path ?? "")}
         threadId={props.threadId}
         tabId={props.tabId}
@@ -325,6 +324,9 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
           )}
         </BrowserViewport>
       </BrowserPreviewTools>
+      <small className="browser-boundary">
+        {uiText(props.locale, "Review01.browserBoundary")}
+      </small>
     </BrowserSurface>
   );
 }

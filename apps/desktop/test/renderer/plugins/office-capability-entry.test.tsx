@@ -122,6 +122,9 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
     Array.from(document.querySelectorAll<HTMLElement>('[data-office="true"]'));
   await waitFor(() => expect(cardActions()).toHaveLength(3));
   for (const card of cardActions()) {
+    const summary = card.querySelector("summary");
+    if (summary && !(summary.parentElement as HTMLDetailsElement).open)
+      fireEvent.click(summary);
     expect(
       within(card).getByRole("button", { name: "更新到 1.1.0" }),
     ).toBeVisible();
@@ -142,6 +145,9 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
   expect(install).toHaveBeenCalledTimes(2);
   expect(screen.queryByRole("dialog")).toBeNull();
   for (const card of cardActions()) {
+    const summary = card.querySelector("summary");
+    if (summary && !(summary.parentElement as HTMLDetailsElement).open)
+      fireEvent.click(summary);
     expect(within(card).getByRole("progressbar")).toBeVisible();
     expect(
       within(card).getByRole("button", { name: "正在安装…" }),
@@ -150,6 +156,9 @@ it("recognizes an installed Office pack with legacy plugin metadata and keeps al
   finishUpdate!();
   await waitFor(() => {
     for (const card of cardActions()) {
+      const summary = card.querySelector("summary");
+      if (summary && !(summary.parentElement as HTMLDetailsElement).open)
+        fireEvent.click(summary);
       expect(
         within(card).queryByRole("button", { name: "更新到 1.1.0" }),
       ).toBeNull();

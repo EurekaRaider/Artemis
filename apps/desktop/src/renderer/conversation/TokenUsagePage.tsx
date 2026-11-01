@@ -4,7 +4,7 @@ import { Button } from "@artemis/ui/actions";
 import { DataStat, DataSurface } from "@artemis/ui/data";
 import { EmptyState, ErrorState, LoadingState } from "@artemis/ui/feedback";
 import { Select } from "@artemis/ui/forms";
-import { Tabs } from "@artemis/ui/navigation";
+import { SegmentedControl } from "@artemis/ui/navigation";
 
 import {
   ALL_USAGE_MODELS,
@@ -20,7 +20,7 @@ import {
   type TokenUsageLocale,
   type TokenUsageView,
 } from "./token-usage.js";
-import { userInitials } from "../app/user-profile.js";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { TokenUsageHeatmap } from "./TokenUsageHeatmap.js";
 
 const TOKEN_USAGE_VIEWS = ["daily", "weekly", "cumulative"] as const;
@@ -84,8 +84,6 @@ function currentStreak(cells: readonly TokenUsageCell[]): number {
 
 export function TokenUsagePage({
   locale,
-  profileAvatar,
-  username,
 }: {
   locale: TokenUsageLocale;
   profileAvatar?: string;
@@ -298,20 +296,40 @@ export function TokenUsagePage({
           <h1>{t.title}</h1>
           <p>{t.subtitle}</p>
         </div>
-        <span className="token-usage-account">
-          <span aria-hidden="true" className="token-usage-avatar">
-            {profileAvatar ? (
-              <img
-                alt=""
-                className="token-usage-avatar-image"
-                src={profileAvatar}
-              />
-            ) : (
-              userInitials(username)
-            )}
-          </span>
-          {username}
-        </span>
+        <div className="token-usage-activity-controls">
+          <Select
+            className="token-usage-model-filter"
+            label={t.modelFilter}
+            labelVisibility="hidden"
+            onValueChange={(model) => {
+              setSelectedModel(model);
+              setHovered(undefined);
+            }}
+            options={[
+              { label: t.allModels, value: ALL_USAGE_MODELS },
+              ...usageByModel.map((model) => ({
+                label: modelLabel(model),
+                value: model.key,
+              })),
+            ]}
+            size="compact"
+            value={selectedModel}
+          />
+          <SegmentedControl
+            className="token-usage-tabs"
+            size="compact"
+            label={t.activity}
+            onValueChange={(candidate) => {
+              setView(candidate);
+              setHovered(undefined);
+            }}
+            options={TOKEN_USAGE_VIEWS.map((candidate) => ({
+              label: t[`${candidate}Tab`],
+              value: candidate,
+            }))}
+            value={view}
+          />
+        </div>
       </header>
 
       <section className="token-usage-summary" aria-label={t.title}>
@@ -323,65 +341,23 @@ export function TokenUsagePage({
       <section className="token-usage-activity">
         <div className="token-usage-activity-header">
           <h2>{t.activity}</h2>
-          <div className="token-usage-activity-controls">
-            <Select
-              className="token-usage-model-filter"
-              label={t.modelFilter}
-              labelVisibility="visible"
-              onValueChange={(model) => {
-                setSelectedModel(model);
-                setHovered(undefined);
-              }}
-              options={[
-                { label: t.allModels, value: ALL_USAGE_MODELS },
-                ...usageByModel.map((model) => ({
-                  label: modelLabel(model),
-                  value: model.key,
-                })),
-              ]}
-              size="compact"
-              value={selectedModel}
-            />
-            <Tabs
-              className="token-usage-tabs"
-              label={t.activity}
-              onValueChange={(candidate) => {
-                setView(candidate);
-                setHovered(undefined);
-              }}
-              options={TOKEN_USAGE_VIEWS.map((candidate) => ({
-                id: `token-usage-${candidate}-tab`,
-                label: t[`${candidate}Tab`],
-                panelId: `token-usage-${candidate}-panel`,
-                value: candidate,
-              }))}
-              value={view}
-            />
-          </div>
         </div>
 
-        {TOKEN_USAGE_VIEWS.map((candidate) => (
-          <div
-            aria-labelledby={`token-usage-${candidate}-tab`}
-            className="token-usage-chart-scroll"
-            hidden={candidate !== view}
-            id={`token-usage-${candidate}-panel`}
-            key={candidate}
-            role="tabpanel"
-          >
-            {candidate === view ? (
-              <TokenUsageHeatmap
-                cells={cells}
-                hovered={hovered}
-                label={t.activity}
-                locale={locale}
-                maximum={maximum}
-                onHoveredChange={setHovered}
-                view={view}
-              />
-            ) : null}
-          </div>
-        ))}
+        <div
+          className="token-usage-chart-scroll"
+          role="region"
+          aria-label={`${t.activity}: ${t[`${view}Tab`]}`}
+        >
+          <TokenUsageHeatmap
+            cells={cells}
+            hovered={hovered}
+            label={t.activity}
+            locale={locale}
+            maximum={maximum}
+            onHoveredChange={setHovered}
+            view={view}
+          />
+        </div>
         {loadError ? (
           <ErrorState className="token-usage-empty">{t.error}</ErrorState>
         ) : loading ? (
@@ -405,6 +381,7 @@ export function TokenUsagePage({
                       setHovered(undefined);
                     }}
                   >
+                    <ArtemisIcon name="model" width={14} height={14} />
                     {modelLabel(model)}
                   </Button>
                   <span>{number.format(model.totalTokens)}</span>
@@ -420,7 +397,7 @@ export function TokenUsagePage({
             ))}
           </div>
           <details className="token-usage-model-breakdown">
-            <summary>{t.insights}</summary>
+            <summary>{t.usageByModel}</summary>
             <div className="token-usage-models-scroll">
               <table>
                 <thead>
@@ -449,6 +426,7 @@ export function TokenUsagePage({
                           }}
                           variant="quiet"
                         >
+                          <ArtemisIcon name="model" width={14} height={14} />
                           {modelLabel(model)}
                         </Button>
                       </td>
@@ -484,7 +462,10 @@ export function TokenUsagePage({
         </div>
 
         <div className="token-usage-detail-block">
-          <h2>{t.tokenComposition}</h2>
+          <h2>
+            {t.tokenComposition}
+            <span>{number.format(totalTokens)}</span>
+          </h2>
           <div className="token-usage-composition-bar" aria-hidden="true">
             {composition.map((item) => (
               <span

@@ -54,7 +54,7 @@ describe("reported screenshot regressions", () => {
       />,
     );
     const trigger = screen.getByRole("button", { name: "展开: 第 3 / 5 步" });
-    expect(trigger).toHaveTextContent("第 3 / 5 步");
+    expect(trigger).toHaveTextContent("计划 3/5 · 封装基础与交互组件");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await userEvent.tab();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -339,7 +339,7 @@ describe("reported screenshot regressions", () => {
     ).toBeVisible();
     expect(button).toHaveAttribute("aria-pressed", "true");
     const composition = screen.getByRole("heading", {
-      name: "Token 构成",
+      name: /^Token 构成/,
     }).parentElement!;
     expect(composition.querySelectorAll("dt")).toHaveLength(3);
     expect(
@@ -415,7 +415,7 @@ describe("reported screenshot regressions", () => {
     const pluginList = container.querySelector(".resource-installed-list")!;
     expect(pluginList).not.toHaveTextContent("Server 0");
     expect(pluginList).toHaveTextContent("Shell Executor");
-    await userEvent.click(screen.getByRole("tab", { name: /^MCP \d+$/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^MCP \d+$/ }));
     expect(
       screen.getAllByRole("heading", { name: "MCP", exact: true })[0],
     ).toBeVisible();

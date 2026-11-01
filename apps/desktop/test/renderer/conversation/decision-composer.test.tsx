@@ -50,7 +50,7 @@ function pendingState() {
   };
 }
 
-describe("decisions share the composer", () => {
+describe("timeline decisions preserve the composer", () => {
   it("takes the oldest pending entry across approvals and questions", () => {
     expect(firstPendingComposerDecision(undefined)).toBeUndefined();
     const state = pendingState();
@@ -70,20 +70,24 @@ describe("decisions share the composer", () => {
     expect(firstPendingComposerDecision(state)).toBeUndefined();
   });
 
-  it("replaces the normal input until the queue clears, then restores its draft", async () => {
+  it("keeps the draft disabled beneath the timeline while keyboard decisions resolve in order", async () => {
     const user = userEvent.setup();
     const resolvedApproval = vi.fn();
     function Harness() {
       const [state, setState] = useState(createThreadViewState("thread"));
       const [draft, setDraft] = useState("");
+      const [target, setTarget] = useState<HTMLElement | null>(null);
+      const decision = firstPendingComposerDecision(state);
       return (
         <>
           <button onClick={() => setState(pendingState())}>收到提问</button>
+          <section aria-label="时间线" ref={setTarget} />
           <DecisionComposer
+            decisionTarget={target}
             className="composer"
             label="发送消息"
             locale="zh-CN"
-            decision={firstPendingComposerDecision(state)}
+            decision={decision}
             context={<button>停止任务</button>}
             onResolveUserInput={async () => {
               setState((current) => ({
@@ -103,6 +107,7 @@ describe("decisions share the composer", () => {
           >
             <textarea
               aria-label="消息草稿"
+              disabled={Boolean(decision)}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
             />
@@ -117,20 +122,31 @@ describe("decisions share the composer", () => {
     );
     await user.click(screen.getByRole("button", { name: "收到提问" }));
     const composer = screen.getByRole("region", { name: "发送消息" });
-    expect(screen.queryByRole("textbox", { name: "消息草稿" })).toBeNull();
-    expect(within(composer).getByText("选择布局")).toBeInTheDocument();
+    const timeline = screen.getByRole("region", { name: "时间线" });
+    expect(screen.getByRole("textbox", { name: "消息草稿" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "消息草稿" })).toHaveValue(
+      "保留这份草稿",
+    );
+    expect(within(timeline).getByText("选择布局")).toBeInTheDocument();
+    expect(composer).not.toContainElement(
+      within(timeline).getByText("选择布局"),
+    );
     expect(composer).not.toContainElement(
       screen.getByRole("button", { name: "停止任务" }),
     );
     expect(composer.nextElementSibling).toContainElement(
       screen.getByRole("button", { name: "停止任务" }),
     );
-    await user.click(within(composer).getByRole("button", { name: /简洁/ }));
-    expect(within(composer).queryByText("选择布局")).toBeNull();
-    expect(within(composer).getByText("允许执行测试？")).toBeInTheDocument();
-    await user.click(
-      within(composer).getByRole("button", { name: /仅批准本次/ }),
-    );
+    expect(
+      within(timeline).getByRole("button", { name: /简洁/ }),
+    ).toHaveFocus();
+    await user.keyboard("1");
+    expect(within(timeline).queryByText("选择布局")).toBeNull();
+    expect(within(timeline).getByText("允许执行测试？")).toBeInTheDocument();
+    expect(
+      within(timeline).getByRole("button", { name: /仅批准本次/ }),
+    ).toHaveFocus();
+    await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
     expect(resolvedApproval).toHaveBeenCalledExactlyOnceWith(
       approval,
       true,
@@ -140,10 +156,11 @@ describe("decisions share the composer", () => {
     expect(screen.getByRole("textbox", { name: "消息草稿" })).toHaveValue(
       "保留这份草稿",
     );
-    expect(composer).not.toHaveClass("composer-awaiting-decision");
+    expect(screen.getByRole("textbox", { name: "消息草稿" })).toBeEnabled();
+    expect(timeline).toBeEmptyDOMElement();
   });
 
-  it("routes a sequence of questions through the same composer slot", async () => {
+  it("keeps multi-question decisions outside the composer", async () => {
     const user = userEvent.setup();
     const onResolve = vi.fn();
     const multi: MultiQuestionUserInputState = {
@@ -175,9 +192,10 @@ describe("decisions share the composer", () => {
       </DecisionComposer>,
     );
     const composer = screen.getByRole("region", { name: "发送消息" });
-    expect(within(composer).getAllByRole("tabpanel")).toHaveLength(1);
-    expect(within(composer).getByText("第 1/3 题")).toBeInTheDocument();
-    await user.click(within(composer).getByRole("button", { name: /紧凑/ }));
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
+    expect(composer).not.toContainElement(screen.getByRole("tabpanel"));
+    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /紧凑/ }));
     expect(onResolve).toHaveBeenCalledExactlyOnceWith({
       requestId: input.requestId,
       nonce: input.nonce,

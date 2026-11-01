@@ -5,7 +5,6 @@ import {
   fireEvent,
   render,
   screen,
-  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { createThreadViewState, type SavedPlan } from "@artemis/protocol";
@@ -56,22 +55,26 @@ function surface(
     </>
   );
 }
-it("keeps the full plan in history and waits inside the ordinary composer without a timer", async () => {
+it("keeps the full plan in history and waits alongside the visible composer without a timer", async () => {
   vi.useFakeTimers();
   const accept = vi.fn(async () => {});
   const revise = vi.fn(async (_text: string) => {});
   render(surface(plan, accept, revise));
   const composer = screen.getByRole("region", { name: "Message" });
-  expect(composer.classList.contains("composer-awaiting-decision")).toBe(true);
+  expect(composer).not.toContainElement(
+    screen.getByRole("button", { name: /^Execute plan/ }),
+  );
   expect(document.querySelector(".plan-confirmation button")).toBeNull();
   expect(screen.getByText("Keep completed results.")).toBeTruthy();
-  expect(screen.queryByRole("textbox", { name: "Normal composer" })).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Normal composer" })).toHaveValue(
+    "Preserved draft",
+  );
   expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
   await act(async () => vi.advanceTimersByTime(24 * 60 * 60 * 1000));
   expect(accept).not.toHaveBeenCalled();
   expect(revise).not.toHaveBeenCalled();
   fireEvent.click(
-    within(composer).getByRole("button", {
+    screen.getByRole("button", {
       name: "Add requirements",
       exact: true,
     }),
@@ -80,7 +83,7 @@ it("keeps the full plan in history and waits inside the ordinary composer withou
     screen.getByRole("textbox", { name: "Add requirements" }),
   );
   expect(revise).not.toHaveBeenCalled();
-  const execute = within(composer).getByRole("button", {
+  const execute = screen.getByRole("button", {
     name: /^Execute plan/,
   });
   fireEvent.click(execute);

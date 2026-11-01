@@ -132,7 +132,7 @@ it("lists capability packs without plugin receipts, including inactive packs, an
     overview.getByRole("button", { name: "Manage installed capabilities" }),
   );
   expect(
-    await screen.findByRole("tab", { name: /^Plugins \d+$/ }),
+    await screen.findByRole("button", { name: /^Plugins \d+$/ }),
   ).toBeVisible();
   const list = within(
     document.querySelector(".resource-management-list") as HTMLElement,
@@ -154,5 +154,5 @@ it("lists capability packs without plugin receipts, including inactive packs, an
     within(dialog).getByRole("button", { name: "Close", exact: true }),
   );
   await waitFor(() => expect(list.queryByText("Office")).toBeNull());
-  expect(screen.getByRole("tab", { name: /^Plugins \d+$/ })).toBeVisible();
+  expect(screen.getByRole("button", { name: /^Plugins \d+$/ })).toBeVisible();
 });

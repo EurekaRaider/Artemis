@@ -168,16 +168,18 @@ it.each(
     await screen.findAllByText("Pending decision");
     fireEvent.click(container.querySelector(".thread-title-copy")!);
     await screen.findByText("Which evidence should be recorded?");
-    const status = await screen.findByRole("status", {
-      name: "How should Artemis approve actions?",
-    });
+    const status = await screen.findByRole("button", { name: label });
     expect(within(status).getByText(label)).toBeVisible();
     expect(status.querySelector("svg")).toHaveAttribute(
       "data-artemis-icon",
       icon,
     );
-    expect(status.closest(".composer-context-surface")).not.toBeNull();
-    expect(status.querySelector("button, input, a, [tabindex]")).toBeNull();
+    expect(status.closest(".composer-toolbar")).not.toBeNull();
+    expect(status).toBeDisabled();
+    expect(
+      container.querySelector(".timeline-decision .decision-card"),
+    ).not.toBeNull();
+    expect(container.querySelector(".composer textarea")).toBeDisabled();
     expect(
       container.querySelector(".composer-run-modes [aria-checked=true]"),
     ).toHaveTextContent(

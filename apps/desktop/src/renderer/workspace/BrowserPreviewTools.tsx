@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { Popover, Tooltip } from "@artemis/ui/feedback";
 import { Button, IconButton } from "@artemis/ui/actions";
@@ -30,6 +31,7 @@ interface Props {
   ): void;
   enabled?: boolean;
   children: ReactNode;
+  toolbarTarget?: HTMLElement | null;
 }
 export function BrowserPreviewTools({
   threadId,
@@ -38,6 +40,7 @@ export function BrowserPreviewTools({
   locale,
   onEvidence,
   children,
+  toolbarTarget,
   enabled = true,
 }: Props) {
   const t = (
@@ -358,27 +361,57 @@ export function BrowserPreviewTools({
       }}
     />
   );
+  const toolbar = (
+    <div
+      className="browser-preview-toolbar browser-preview-main-toolbar"
+      role="toolbar"
+      aria-label={t("responsive")}
+    >
+      <Tooltip label={t("annotate")}>
+        <IconButton
+          label={t("annotate")}
+          icon={<ArtemisIcon name="target" />}
+          disabled={!snapshot || busy || snapshot.paused}
+          selected={picking}
+          onClick={() => {
+            setPicking(!picking);
+            setPicked(undefined);
+          }}
+        />
+      </Tooltip>
+      <span className="browser-preview-divider" />
+      <div className="browser-preview-size-anchor" ref={sizesAnchor}>
+        <IconButton
+          label={t("responsive")}
+          title={t("responsive")}
+          icon={<ArtemisIcon name="settings" />}
+          aria-expanded={sizesOpen}
+          onClick={() => setSizesOpen(!sizesOpen)}
+        />
+      </div>
+
+      <Tooltip label={t("screenshot")}>
+        <IconButton
+          label={t("screenshot")}
+          icon={<ArtemisIcon name="image" />}
+          disabled={!snapshot || busy || snapshot.paused}
+          onClick={() => run(() => sendEvidence())}
+        />
+      </Tooltip>
+    </div>
+  );
   if (!enabled) return <>{children}</>;
   return (
     <div className="browser-preview-tools">
-      <div
-        className="browser-preview-toolbar browser-preview-main-toolbar"
-        role="toolbar"
-        aria-label={t("responsive")}
+      {toolbarTarget ? createPortal(toolbar, toolbarTarget) : toolbar}
+      <Popover
+        className="browser-preview-size-popover"
+        anchorRef={sizesAnchor}
+        open={sizesOpen}
+        onOpenChange={setSizesOpen}
+        label={t("responsive")}
       >
-        <Tooltip label={t("annotate")}>
-          <IconButton
-            label={t("annotate")}
-            icon={<ArtemisIcon name="target" />}
-            disabled={!snapshot || busy || snapshot.paused}
-            selected={picking}
-            onClick={() => {
-              setPicking(!picking);
-              setPicked(undefined);
-            }}
-          />
-        </Tooltip>
-        <span className="browser-preview-divider" />
+        <span className="browser-preview-popover-title">{t("responsive")}</span>
         <Select
           className="browser-preview-preset"
           label={t("responsive")}
@@ -410,26 +443,6 @@ export function BrowserPreviewTools({
             );
           }}
         />
-        <div className="browser-preview-inline-dimensions">{fields()}</div>
-        <div className="browser-preview-size-anchor" ref={sizesAnchor}>
-          <IconButton
-            label={t("responsive")}
-            title={t("responsive")}
-            icon={<ArtemisIcon name="settings" />}
-            aria-expanded={sizesOpen}
-            onClick={() => setSizesOpen(!sizesOpen)}
-          />
-        </div>
-        {zoomControl()}
-        <span className="browser-preview-toolbar-spacer" />
-        <Tooltip label={t("screenshot")}>
-          <IconButton
-            label={t("screenshot")}
-            icon={<ArtemisIcon name="image" />}
-            disabled={!snapshot || busy || snapshot.paused}
-            onClick={() => run(() => sendEvidence())}
-          />
-        </Tooltip>
         <span className="browser-preview-debug-control">
           <Tooltip label={t("debug")}>
             <IconButton
@@ -443,15 +456,6 @@ export function BrowserPreviewTools({
             <span className="browser-preview-error-dot" />
           )}
         </span>
-      </div>
-      <Popover
-        className="browser-preview-size-popover"
-        anchorRef={sizesAnchor}
-        open={sizesOpen}
-        onOpenChange={setSizesOpen}
-        label={t("responsive")}
-      >
-        <span className="browser-preview-popover-title">{t("responsive")}</span>
         {fields()}
         <div className="browser-preview-popover-zoom">
           <span>{t("zoom")}</span>

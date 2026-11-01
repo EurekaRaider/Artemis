@@ -97,10 +97,19 @@ it("requires explicit plugin confirmation from both uninstall entry points", asy
     />,
   );
 
-  const marketUninstall = await screen.findByRole("button", {
-    name: "Uninstall",
-    exact: true,
-  });
+  const card = (await screen.findAllByText("GitHub"))
+    .find((node) => node.closest(".plugin-market-card"))!
+    .closest(".plugin-market-card")!;
+  await user.click(
+    card.querySelector(".plugin-market-card-actions > summary")!,
+  );
+  const marketUninstall = await within(card as HTMLElement).findByRole(
+    "button",
+    {
+      name: "Uninstall",
+      exact: true,
+    },
+  );
   for (const dismissal of ["Cancel", "Close", "Escape"]) {
     await user.click(marketUninstall);
     const dialog = screen.getByRole("alertdialog", {

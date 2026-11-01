@@ -264,7 +264,7 @@ await rejectCss("undeclared token", (css) =>
 await rejectCss("overridable focus safety", (css) =>
   replaceRequired(
     css,
-    "outline: 2px solid Highlight;",
+    "outline: 2px solid var(--artemis-color-focus-ring);",
     "outline: var(--artemis-border-width-default) solid var(--artemis-color-focus-ring);",
   ),
 );

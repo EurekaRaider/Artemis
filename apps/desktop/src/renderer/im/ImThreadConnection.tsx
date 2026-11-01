@@ -192,16 +192,17 @@ export function ImThreadConnection({
     <span className="im-thread-indicators">
       {/* 图标始终表达会话类型（单聊/群聊）；连接状态只通过颜色与悬浮文案区分。 */}
       <span
-        aria-label={summary}
+        aria-label={group ? `${summary} · ${computerLabel}` : summary}
         className="im-thread-connection"
         data-state={state}
+        data-computer-state={group ? computerState : undefined}
         role="img"
-        title={summary}
+        title={group ? `${summary} · ${computerLabel}` : summary}
       >
         <ArtemisIcon
           name={group ? "agents" : "message"}
-          width={14}
-          height={14}
+          width={16}
+          height={16}
         />
       </span>
       {group?.retired && (
@@ -215,17 +216,6 @@ export function ImThreadConnection({
             ·
           </span>
         </>
-      )}
-      {group && !group.native && !group.retired && (
-        <span
-          className="im-thread-computers"
-          data-state={computerState}
-          role="img"
-          aria-label={computerLabel}
-          title={computerLabel}
-        >
-          <ArtemisIcon name="monitor" width={14} height={14} />
-        </span>
       )}
     </span>
   );

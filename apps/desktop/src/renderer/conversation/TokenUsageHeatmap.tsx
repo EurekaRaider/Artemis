@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import {
   DataHeatmap,
   type DataHeatmapCell,
@@ -39,7 +40,8 @@ export function TokenUsageHeatmap({
     timeZone: "UTC",
   });
   const monthLabels: DataHeatmapColumnLabel[] = cells.flatMap((cell, index) => {
-    if (index % 7 !== 0) return [];
+    if (index % 7 !== 0 || (index === 0 && Number(cell.date.slice(-2)) > 7))
+      return [];
     const previous = cells[index - 7];
     if (previous?.date.slice(0, 7) === cell.date.slice(0, 7)) return [];
     return [
@@ -65,17 +67,38 @@ export function TokenUsageHeatmap({
   }));
 
   return (
-    <DataHeatmap
-      activeCellId={hovered?.date}
-      cells={displayCells}
-      className="token-usage-chart"
-      columnLabels={visibleMonthLabels}
-      columns={Math.max(1, Math.ceil(cells.length / 7))}
-      label={label}
-      onActiveCellChange={(cellId) =>
-        onHoveredChange(cells.find((cell) => cell.date === cellId))
-      }
-      rows={7}
-    />
+    <div className="token-heatmap-frame">
+      <div className="token-heatmap-legend" aria-hidden="true">
+        {uiText(locale, "Review01.less")}
+        {[0, 1, 2, 3, 4].map((level) => (
+          <i key={level} data-level={level} />
+        ))}
+        {uiText(locale, "Review01.more")}
+      </div>
+      <div className="token-heatmap-weekdays" aria-hidden="true">
+        {Array.from({ length: 7 }, (_, index) => (
+          <span key={index}>
+            {index % 2 === 0 && index < 5
+              ? new Intl.DateTimeFormat(locale, {
+                  weekday: "narrow",
+                  timeZone: "UTC",
+                }).format(new Date(Date.UTC(2026, 0, 5 + index)))
+              : ""}
+          </span>
+        ))}
+      </div>
+      <DataHeatmap
+        activeCellId={hovered?.date}
+        cells={displayCells}
+        className="token-usage-chart"
+        columnLabels={visibleMonthLabels}
+        columns={Math.max(1, Math.ceil(cells.length / 7))}
+        label={label}
+        onActiveCellChange={(cellId) =>
+          onHoveredChange(cells.find((cell) => cell.date === cellId))
+        }
+        rows={7}
+      />
+    </div>
   );
 }

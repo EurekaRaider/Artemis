@@ -240,7 +240,9 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(
     await screen.findByText("Live response 0.Live response 1.Live response 2."),
   ).toBeInTheDocument();
-  expect(getReviewDiff).toHaveBeenCalledTimes(1);
+  expect(
+    getReviewDiff.mock.calls.filter(([query]) => query.scope === "turn"),
+  ).toHaveLength(1);
   await act(async () => {
     receiveEvents([
       {
@@ -257,12 +259,21 @@ it("keeps historical review stable during live output while preserving refresh a
       requestAnimationFrame(() => resolve()),
     );
   });
-  expect(getReviewDiff).toHaveBeenCalledTimes(1);
+  expect(
+    getReviewDiff.mock.calls.filter(([query]) => query.scope === "turn"),
+  ).toHaveLength(1);
 
   fireEvent.click(document.querySelector(".review-toolbar-action")!);
-  await waitFor(() => expect(getReviewDiff).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(
+      getReviewDiff.mock.calls.filter(([query]) => query.scope === "turn"),
+    ).toHaveLength(2),
+  );
   fireEvent.click(
-    await screen.findByRole("button", { name: "Unstaged", exact: true }),
+    await screen.findByRole("button", {
+      name: /^Unstaged(?: \d+)?$/,
+      exact: true,
+    }),
   );
   await waitFor(() =>
     expect(getReviewDiff).toHaveBeenLastCalledWith({

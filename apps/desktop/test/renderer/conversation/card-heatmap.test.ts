@@ -188,7 +188,7 @@ describe("public data stat and heatmap migration (D#76 MIG5B)", () => {
     ).toEqual(["Aug", "Sep"]);
   });
 
-  it("retains the initial month when three weeks separate it from the next label", async () => {
+  it("omits an incomplete initial month while retaining its accessible date cells", async () => {
     const { TokenUsageHeatmap } =
       await import("../../../src/renderer/conversation/TokenUsageHeatmap.js");
     const cells = SYNTHETIC_CELLS.map((cell, index) => ({
@@ -201,7 +201,7 @@ describe("public data stat and heatmap migration (D#76 MIG5B)", () => {
       [...document.querySelectorAll('[data-part="column-label"]')].map(
         (month) => month.textContent,
       ),
-    ).toEqual(["Jul", "Aug"]);
+    ).toEqual(["Aug"]);
     expect(gridcells()).toHaveLength(cells.length);
   });
 

@@ -185,7 +185,7 @@
   [
     "normal|[data-artemis-component=\"environment-control\"][data-part=\"trigger\"]:focus-visible, [data-artemis-component=\"goal-editor\"] [data-part=\"input\"]:focus-visible, [data-artemis-component=\"sources-surface\"] button:focus-visible, [data-artemis-component=\"review-surface\"] button:focus-visible",
     {
-      "outline": "2px solid Highlight",
+      "outline": "2px solid var(--artemis-color-focus-ring)",
       "outline-offset": "2px"
     }
   ],

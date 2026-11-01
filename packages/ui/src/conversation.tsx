@@ -37,6 +37,7 @@ export const CONVERSATION_COMPONENT_MUTABLE_TOKENS =
     "--artemis-color-surface-sunken",
     "--artemis-color-interaction-hover",
     "--artemis-color-text-primary",
+    "--artemis-color-focus-ring",
     "--artemis-color-text-secondary",
     "--artemis-color-text-tertiary",
     "--artemis-color-border-default",

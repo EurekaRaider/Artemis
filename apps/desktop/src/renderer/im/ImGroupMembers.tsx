@@ -21,6 +21,7 @@ export function ImGroupMembers({
   onRemove,
   removalDisabled = false,
   managePermissions = false,
+  executing = false,
 }: {
   group: ImGroupContext;
   locale: AppLocale;
@@ -28,6 +29,7 @@ export function ImGroupMembers({
   onRemove?: ((deviceId: string) => Promise<boolean>) | undefined;
   removalDisabled?: boolean | undefined;
   managePermissions?: boolean;
+  executing?: boolean | undefined;
 }) {
   const t = uiTranslator(locale);
   type Person = NonNullable<ImGroupContext["roster"]>["members"][number];
@@ -279,11 +281,15 @@ export function ImGroupMembers({
                           role="img"
                           aria-label={kind}
                         >
-                          <ArtemisIcon
-                            name={member.kind === "bot" ? "bot" : "agents"}
-                            width={14}
-                            height={14}
-                          />
+                          {member.kind === "bot" ? (
+                            <ArtemisIcon name="bot" width={18} height={18} />
+                          ) : (
+                            <span>
+                              {member.name
+                                .slice(0, 1)
+                                .toLocaleUpperCase(locale)}
+                            </span>
+                          )}
                         </span>
                       </Tooltip>
                       <span className="im-member-identity">
@@ -317,8 +323,15 @@ export function ImGroupMembers({
                             )}
 
                           {member.self && (
-                            <span className="im-member-executor">
-                              {t("ImGroupMembers.message18")}
+                            <span
+                              className="im-member-executor"
+                              data-working={executing}
+                            >
+                              {t(
+                                executing
+                                  ? "WorkRecord.working"
+                                  : "ImGroupMembers.message18",
+                              )}
                             </span>
                           )}
                         </span>
@@ -458,7 +471,7 @@ export function ImGroupMembers({
                         aria-label={status}
                         tabIndex={0}
                       >
-                        <ArtemisIcon name="monitor" width={14} height={14} />
+                        <ArtemisIcon name="bot" width={18} height={18} />
                       </span>
                     </Tooltip>
                     <span className="im-member-identity">
@@ -468,8 +481,15 @@ export function ImGroupMembers({
                           {member.deviceName || member.deviceId}
                         </span>
                         {member.deviceId === group.executingDeviceId && (
-                          <span className="im-member-executor">
-                            {t("ImGroupMembers.message18")}
+                          <span
+                            className="im-member-executor"
+                            data-working={executing}
+                          >
+                            {t(
+                              executing
+                                ? "WorkRecord.working"
+                                : "ImGroupMembers.message18",
+                            )}
                           </span>
                         )}
                       </span>

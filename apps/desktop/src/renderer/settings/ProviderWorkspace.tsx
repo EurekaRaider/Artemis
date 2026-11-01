@@ -155,7 +155,14 @@ export function ProviderWorkspace({
               />
               <span className="provider-navigation-copy">
                 <span className="provider-navigation-name">{name}</span>
-                <span className="provider-credential-status">{status(id)}</span>
+                <span
+                  className="provider-credential-status"
+                  data-configured={settings.credentials.some(
+                    (item) => item.providerId === id,
+                  )}
+                >
+                  {status(id)}
+                </span>
               </span>
             </Button>
           ))}
@@ -189,13 +196,35 @@ export function ProviderWorkspace({
         {selectedProviderId && !creating && (
           <>
             <header className="provider-detail-heading">
+              <span className="provider-initial-avatar" aria-hidden="true">
+                {(providers.get(selectedProviderId) ?? selectedProviderId)
+                  .slice(0, 1)
+                  .toLocaleUpperCase(locale)}
+              </span>
               <div>
                 <h2>
                   {providers.get(selectedProviderId) ?? selectedProviderId}
                 </h2>
-                <p>{uiText(locale, "Providers.description")}</p>
+                <p>
+                  {connection?.api ?? "API"} ·{" "}
+                  {uiText(locale, "Review01.enabledModels", {
+                    count: new Set([
+                      ...settings.addedModels
+                        .filter(
+                          (model) => model.providerId === selectedProviderId,
+                        )
+                        .map((model) => model.modelId),
+                      ...(connection?.models ?? []).map((model) => model.id),
+                    ]).size,
+                  })}
+                </p>
               </div>
-              <span className="provider-credential-status">
+              <span
+                className="provider-credential-status"
+                data-configured={settings.credentials.some(
+                  (item) => item.providerId === selectedProviderId,
+                )}
+              >
                 {status(selectedProviderId)}
               </span>
             </header>

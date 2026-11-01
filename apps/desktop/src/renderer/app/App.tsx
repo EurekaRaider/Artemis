@@ -1,4 +1,7 @@
-import { SidebarUpdateControl } from "../updates/SidebarUpdateControl.js";
+import {
+  SidebarUpdateControl,
+  sidebarUpdateSubtitle,
+} from "../updates/SidebarUpdateControl.js";
 import { SegmentedControl } from "@artemis/ui/navigation";
 import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
 import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
@@ -130,9 +133,9 @@ import slackChannelIcon from "../assets/slack-channel.svg";
 import { PanelHeader, Toolbar } from "@artemis/ui/layout";
 import {
   AgentActivity,
+  TurnStatus,
   ResultDisclosure,
   ToolActivity,
-  TurnStatus,
 } from "@artemis/ui/patterns";
 import {
   TerminalState,
@@ -251,7 +254,12 @@ import {
 } from "./project-thread-tree.js";
 import { SourcesIcon, SourcesPanel } from "../conversation/SourcesPanel.js";
 import { TaskPlanProgress } from "../conversation/TaskPlanProgress.js";
-import { WorkRecord, AgentElapsed } from "../conversation/WorkRecord.js";
+import {
+  WorkRecord,
+  AgentElapsed,
+  turnChangedFileCount,
+  turnUsageLabel,
+} from "../conversation/WorkRecord.js";
 import { toolActivityPatternView } from "../conversation/agent-pattern-adapters.js";
 import {
   prepareTimelineRestore,
@@ -979,6 +987,10 @@ export function App() {
     useState<ModelPickerSection>("model");
   const [mode, setMode] = useState<RunMode>("work");
   const [query, setQuery] = useState("");
+  const sidebarSearchInput = useRef<HTMLInputElement>(null);
+  const [decisionTarget, setDecisionTarget] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [projectsOpen, setProjectsOpen] = usePersistentUiState(
     "artemis-projects-open",
     booleanUiState,
@@ -1211,6 +1223,11 @@ export function App() {
     files: [],
   });
   const [reviewComments, setReviewComments] = useState<ReviewComment[]>([]);
+  const [reviewCounts, setReviewCounts] = useState<{
+    threadId: string;
+    staged?: number;
+    unstaged?: number;
+  }>();
 
   const openSettings = (tab: SettingsEntryTab, trigger: HTMLButtonElement) => {
     settingsTrigger.current = trigger;
@@ -4174,45 +4191,49 @@ export function App() {
     : undefined;
   const turnFailureBanner = activeTurnFailure ? (
     <div className="turn-error-banner" role="alert">
-      <span>{activeTurnFailure}</span>
-      {!activeThread?.archived && (
-        <div className="turn-error-actions">
-          {failedTurnPrompt && (
+      <ArtemisIcon name="alert" width={18} height={18} />
+      <div className="turn-error-copy">
+        <strong>{t.failed}</strong>
+        <p>{activeTurnFailure}</p>
+        {!activeThread?.archived && (
+          <div className="turn-error-actions">
+            {failedTurnPrompt && (
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  turnActive ||
+                  Boolean(pendingComposerDecision) ||
+                  Boolean(prompt.trim()) ||
+                  attachments.length > 0 ||
+                  selectedComposerSkillNames.length > 0 ||
+                  customAgentTasks.length > 0
+                }
+                onClick={() => editConversationMessage(failedTurnPrompt)}
+              >
+                {t.editAndResend}
+              </button>
+            )}
             <button
               type="button"
               disabled={
                 busy ||
                 turnActive ||
                 Boolean(pendingComposerDecision) ||
-                Boolean(prompt.trim()) ||
-                attachments.length > 0 ||
-                selectedComposerSkillNames.length > 0 ||
-                customAgentTasks.length > 0
+                switchableModels.length === 0
               }
-              onClick={() => editConversationMessage(failedTurnPrompt)}
+              onClick={() => {
+                setApprovalMenuOpen(false);
+                setModelPickerSection("model");
+                setModelFilter("");
+                setModelPickerOpen(true);
+              }}
             >
-              {t.editAndResend}
+              {uiText(locale, "DecisionCard.changeModel")}
             </button>
-          )}
-          <button
-            type="button"
-            disabled={
-              busy ||
-              turnActive ||
-              Boolean(pendingComposerDecision) ||
-              switchableModels.length === 0
-            }
-            onClick={() => {
-              setApprovalMenuOpen(false);
-              setModelPickerSection("model");
-              setModelFilter("");
-              setModelPickerOpen(true);
-            }}
-          >
-            {uiText(locale, "DecisionCard.changeModel")}
-          </button>
-        </div>
-      )}
+          </div>
+        )}
+      </div>
       <button
         aria-label={t.dismissTurnError}
         onClick={() =>
@@ -4372,9 +4393,7 @@ export function App() {
     : threadState?.status === "running" &&
         threadState.activity?.phase === "queued"
       ? "queued"
-      : runPresentation.status === "completed"
-        ? "idle"
-        : runPresentation.status;
+      : runPresentation.status;
   const taskPlan = useMemo(
     () => deriveTaskPlan(activeEvents, turnActive),
     [activeEvents, turnActive],
@@ -4697,6 +4716,48 @@ export function App() {
     reviewChangedFileCount,
     workspaceDockOpen,
   ]);
+
+  useEffect(() => {
+    if (
+      !activeThreadId ||
+      !activeProject ||
+      !workspaceDockOpen ||
+      activeWorkspaceTab?.kind !== "review"
+    )
+      return;
+    let active = true;
+    void window.artemis
+      .getProjectGitInfo(activeProject.id, activeThreadId)
+      .then((info) => {
+        if (active)
+          setReviewCounts({
+            threadId: activeThreadId,
+            staged: info.stagedCount,
+            unstaged: info.unstagedCount,
+          });
+      })
+      .catch(() => {
+        if (active) setReviewCounts(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [
+    activeThreadId,
+    activeProject?.id,
+    workspaceDockOpen,
+    activeWorkspaceTab?.kind,
+    reviewDiff,
+  ]);
+  const reviewCount = (scope: ReviewScope) =>
+    reviewDiff?.scope === scope && reviewDiff.available
+      ? reviewDiff.files.length
+      : reviewCounts?.threadId === activeThreadId &&
+          (scope === "staged" || scope === "unstaged")
+        ? reviewCounts?.[scope]
+        : undefined;
+  const reviewScopeLabel = (scope: ReviewScope, label: string) =>
+    reviewCount(scope) === undefined ? label : `${label} ${reviewCount(scope)}`;
 
   const mutateReview = useCallback(
     async (
@@ -6010,6 +6071,10 @@ export function App() {
       } else if (modifier && event.key.toLowerCase() === "j") {
         event.preventDefault();
         toggleTerminalPanel();
+      } else if (modifier && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        changeSidebarOpen(true);
+        requestAnimationFrame(() => sidebarSearchInput.current?.focus());
       } else if (modifier && event.key.toLowerCase() === "n") {
         event.preventDefault();
         beginNewConversation();
@@ -6161,15 +6226,6 @@ export function App() {
         }
         footer={
           <div className="sidebar-footer">
-            <button
-              className="activity-button foot-icon"
-              type="button"
-              aria-label={t.settings}
-              title={t.settings}
-              onClick={(event) => openSettings("general", event.currentTarget)}
-            >
-              <SettingsIcon />
-            </button>
             <span className="local-indicator" title={username}>
               <span aria-hidden="true" className="sidebar-profile-avatar">
                 {runtimeSettings?.profileAvatar ? (
@@ -6178,25 +6234,28 @@ export function App() {
                   userInitials(username)
                 )}
               </span>
-              <span className="local-user-name">{username}</span>
-              {runtimeSettings?.update.currentVersion && (
-                <button
-                  className="app-version"
-                  onClick={(event) =>
-                    openSettings("maintenance", event.currentTarget)
-                  }
-                  title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                  type="button"
-                >
-                  v{runtimeSettings.update.currentVersion}
-                </button>
-              )}
+              <span className="sidebar-profile-copy">
+                <span className="local-user-name">{username}</span>
+                {runtimeSettings?.update.currentVersion && (
+                  <button
+                    className="app-version"
+                    onClick={(event) =>
+                      openSettings("maintenance", event.currentTarget)
+                    }
+                    title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                    type="button"
+                  >
+                    {sidebarUpdateSubtitle(runtimeSettings.update, locale)}
+                  </button>
+                )}
+              </span>
             </span>
             {runtimeSettings && (
               <SidebarUpdateControl
                 status={runtimeSettings.update}
                 locale={locale}
                 noticeTarget={updateNoticeTarget}
+                showDownloadProgress={false}
                 activeTaskCount={
                   snapshot?.threads.filter(
                     (thread) =>
@@ -6211,7 +6270,16 @@ export function App() {
                 }
                 onError={(message) => setToast({ error: true, message })}
               />
-            )}
+            )}{" "}
+            <button
+              className="activity-button foot-icon"
+              type="button"
+              aria-label={t.settings}
+              title={t.settings}
+              onClick={(event) => openSettings("general", event.currentTarget)}
+            >
+              <SettingsIcon />
+            </button>
           </div>
         }
         header={
@@ -6226,6 +6294,9 @@ export function App() {
                 >
                   <ArtemisMark />
                   <strong>Artemis</strong>
+                  <span className="group-agent-identity">
+                    {uiText(locale, "Review01.localArtemis")}
+                  </span>
                 </button>
                 <button
                   type="button"
@@ -6261,10 +6332,14 @@ export function App() {
                     <SearchIcon />
                     <input
                       aria-label={t.search}
+                      ref={sidebarSearchInput}
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder={t.search}
                       value={query}
                     />
+                    <kbd aria-hidden="true">
+                      {snapshot.platform === "darwin" ? "⌘K" : "Ctrl+K"}
+                    </kbd>
                   </label>
                 </div>
               }
@@ -6286,6 +6361,14 @@ export function App() {
                 >
                   {icon}
                   <span>{label}</span>
+                  {view === "archive" && (
+                    <span className="sidebar-nav-count" aria-hidden="true">
+                      {
+                        snapshot.threads.filter((thread) => thread.archived)
+                          .length
+                      }
+                    </span>
+                  )}
                   {view === "automations" && automationCount !== undefined && (
                     <span className="sidebar-nav-count" aria-hidden="true">
                       {automationCount}
@@ -7323,155 +7406,6 @@ export function App() {
           </Suspense>
         ) : (
           <>
-            <Toolbar
-              actions={
-                <div className="header-actions">
-                  <span
-                    className="status-pill"
-                    onAnimationStart={synchronizeTurnIndicator}
-                  >
-                    {statusDotStatus === "running" ? (
-                      <RunningArc />
-                    ) : (
-                      <span className={`status-dot ${statusDotStatus}`} />
-                    )}
-                    <span className="status-pill-label">
-                      {permissionBlock && !turnActive
-                        ? uiText(locale, "ImPermission.waiting")
-                        : delegationWaiting
-                          ? uiText(locale, "ImDelegation.waitingShort")
-                          : runPresentation.status === "completed"
-                            ? t.completed
-                            : statusLabel(threadState, locale, clockMs)}
-                    </span>
-                    {!remoteWaiting && runPresentation.status !== "idle" && (
-                      <time
-                        dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                      >
-                        {formatRunDuration(runPresentation.elapsedMs)}
-                      </time>
-                    )}
-                  </span>
-                  {activeProject && (
-                    <EnvironmentPanel
-                      key={environmentWorkspaceKey}
-                      commitRequest={environmentCommitRequest}
-                      actionsDisabled={
-                        projectBranchActionsDisabled ||
-                        Boolean(activeThread?.archived)
-                      }
-                      onOpenUsage={() => setActiveView("token-usage")}
-                      workspaceIsWorktree={Boolean(
-                        activeThread && activeThread.target !== "local",
-                      )}
-                      onWorktreesChanged={refreshWorkspaceSnapshot}
-                      onWorkspaceHandoff={handoffActiveWorkspace}
-                      agents={environmentAgents}
-                      onMentionMember={groupMentions.insert}
-                      memberRemovalDisabled={turnActive || busy}
-                      onRemoveMember={async (deviceId) => {
-                        if (!activeThread) return false;
-                        try {
-                          await window.artemis.manageIm({
-                            action: "remove-conversation-member",
-                            threadId: activeThread.id,
-                            deviceId,
-                          });
-                          setToast(uiText(locale, "App.inline10"));
-                          return true;
-                        } catch (error) {
-                          setToast({
-                            error: true,
-                            message:
-                              error instanceof Error
-                                ? error.message
-                                : String(error),
-                          });
-                          return false;
-                        }
-                      }}
-                      imConnection={
-                        activeThread
-                          ? imThreadStatus[activeThread.id]
-                          : undefined
-                      }
-                      onManageGroupAuthorization={(trigger) =>
-                        openSettings("im", trigger)
-                      }
-                      imGroup={
-                        activeThread
-                          ? imThreadStatus[activeThread.id]?.group
-                          : undefined
-                      }
-                      attachments={attachments}
-                      defaultOpen={Boolean(threadState?.turnOrder.length)}
-                      dockOpen={workspaceDockOpen}
-                      locale={locale}
-                      mcpUsages={environmentMcpUsages}
-                      onAddProject={() => void openProject()}
-                      onAddSources={() => void selectPromptAttachments()}
-                      onConfirm={requestConfirmation}
-                      onMessage={(message, error) =>
-                        setToast(error ? { error: true, message } : message)
-                      }
-                      onOpenAgent={openChildAgentPanel}
-                      onOpenReview={openReviewScopePanel}
-                      onOpenTeam={openAgentTeamPanel}
-                      onOpenUrl={openConversationExternalLink}
-                      onViewAllSources={openSourcesPanel}
-                      project={activeProject}
-                      {...(environmentRefreshKey
-                        ? { refreshKey: environmentRefreshKey }
-                        : {})}
-                      sources={environmentSources}
-                      taskTitle={activeThread?.title ?? activeProject.name}
-                      teams={environmentTeams}
-                      {...(activeThreadId ? { threadId: activeThreadId } : {})}
-                    />
-                  )}
-                  {!activeThread?.archived && (
-                    <button
-                      aria-expanded={workspaceDockOpen}
-                      aria-label={t.rightSidebar}
-                      className="right-sidebar-toggle"
-                      onClick={toggleRightSidebar}
-                      ref={workspaceDockToggleElement}
-                      title={t.rightSidebar}
-                    >
-                      <RightSidebarIcon />
-                    </button>
-                  )}
-                </div>
-              }
-              className="workspace-header"
-              label={activeWorkspaceLabel}
-            >
-              <div className="workspace-header-leading">
-                <button
-                  aria-expanded={sidebarOpen}
-                  aria-label={t.leftSidebar}
-                  className="left-sidebar-toggle"
-                  onClick={() => changeSidebarOpen((open) => !open)}
-                  title={t.leftSidebar}
-                >
-                  <LeftSidebarIcon />
-                </button>
-                <div className="workspace-heading">
-                  <strong dir="auto">{activeWorkspaceLabel}</strong>
-                  {activeThread && (
-                    <>
-                      <span className="header-separator">/</span>
-                      <span className="workspace-thread-title">
-                        {activeThread.title}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Toolbar>
-
-            <div className="update-notice-slot" ref={setUpdateNoticeTarget} />
-
             <div
               className="workspace-content"
               data-resizing={workspaceDockResizing || undefined}
@@ -7492,6 +7426,184 @@ export function App() {
                     : "ready"
                 }
               >
+                <Toolbar
+                  actions={
+                    <div className="header-actions">
+                      <span
+                        className={`status-pill ${statusDotStatus}`}
+                        onAnimationStart={synchronizeTurnIndicator}
+                      >
+                        {statusDotStatus === "running" ? (
+                          <RunningArc />
+                        ) : statusDotStatus === "completed" ||
+                          statusDotStatus === "failed" ? (
+                          <ArtemisIcon
+                            name={
+                              statusDotStatus === "completed"
+                                ? "check"
+                                : "alert"
+                            }
+                            width={14}
+                            height={14}
+                          />
+                        ) : (
+                          <span className={`status-dot ${statusDotStatus}`} />
+                        )}
+                        <span className="status-pill-label">
+                          {permissionBlock && !turnActive
+                            ? uiText(locale, "ImPermission.waiting")
+                            : delegationWaiting
+                              ? uiText(locale, "ImDelegation.waitingShort")
+                              : runPresentation.status === "completed"
+                                ? t.completed
+                                : statusLabel(threadState, locale, clockMs)}
+                        </span>
+                        {!remoteWaiting &&
+                          runPresentation.status === "running" && (
+                            <time
+                              dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
+                            >
+                              {formatRunDuration(runPresentation.elapsedMs)}
+                            </time>
+                          )}
+                      </span>
+                      {activeProject && activeThread && (
+                        <button
+                          className="header-share"
+                          type="button"
+                          aria-label={uiText(locale, "Share.title")}
+                          title={uiText(locale, "Share.title")}
+                          onClick={() => setSharingThreadId(activeThread.id)}
+                        >
+                          <ArtemisIcon name="external" width={16} height={16} />
+                        </button>
+                      )}
+                      {activeProject && (
+                        <EnvironmentPanel
+                          key={environmentWorkspaceKey}
+                          commitRequest={environmentCommitRequest}
+                          actionsDisabled={
+                            projectBranchActionsDisabled ||
+                            Boolean(activeThread?.archived)
+                          }
+                          onOpenUsage={() => setActiveView("token-usage")}
+                          workspaceIsWorktree={Boolean(
+                            activeThread && activeThread.target !== "local",
+                          )}
+                          onWorktreesChanged={refreshWorkspaceSnapshot}
+                          onWorkspaceHandoff={handoffActiveWorkspace}
+                          agents={environmentAgents}
+                          onMentionMember={groupMentions.insert}
+                          memberRemovalDisabled={turnActive || busy}
+                          executing={turnActive}
+                          onRemoveMember={async (deviceId) => {
+                            if (!activeThread) return false;
+                            try {
+                              await window.artemis.manageIm({
+                                action: "remove-conversation-member",
+                                threadId: activeThread.id,
+                                deviceId,
+                              });
+                              setToast(uiText(locale, "App.inline10"));
+                              return true;
+                            } catch (error) {
+                              setToast({
+                                error: true,
+                                message:
+                                  error instanceof Error
+                                    ? error.message
+                                    : String(error),
+                              });
+                              return false;
+                            }
+                          }}
+                          imConnection={
+                            activeThread
+                              ? imThreadStatus[activeThread.id]
+                              : undefined
+                          }
+                          onManageGroupAuthorization={(trigger) =>
+                            openSettings("im", trigger)
+                          }
+                          imGroup={
+                            activeThread
+                              ? imThreadStatus[activeThread.id]?.group
+                              : undefined
+                          }
+                          attachments={attachments}
+                          defaultOpen={Boolean(threadState?.turnOrder.length)}
+                          dockOpen={workspaceDockOpen}
+                          locale={locale}
+                          mcpUsages={environmentMcpUsages}
+                          onAddProject={() => void openProject()}
+                          onAddSources={() => void selectPromptAttachments()}
+                          onConfirm={requestConfirmation}
+                          onMessage={(message, error) =>
+                            setToast(error ? { error: true, message } : message)
+                          }
+                          onOpenAgent={openChildAgentPanel}
+                          onOpenReview={openReviewScopePanel}
+                          onOpenTeam={openAgentTeamPanel}
+                          onOpenUrl={openConversationExternalLink}
+                          onViewAllSources={openSourcesPanel}
+                          project={activeProject}
+                          {...(environmentRefreshKey
+                            ? { refreshKey: environmentRefreshKey }
+                            : {})}
+                          sources={environmentSources}
+                          taskTitle={activeThread?.title ?? activeProject.name}
+                          teams={environmentTeams}
+                          {...(activeThreadId
+                            ? { threadId: activeThreadId }
+                            : {})}
+                        />
+                      )}
+                      {!activeThread?.archived && !workspaceDockOpen && (
+                        <button
+                          aria-expanded={workspaceDockOpen}
+                          aria-label={t.rightSidebar}
+                          className="right-sidebar-toggle"
+                          onClick={toggleRightSidebar}
+                          ref={workspaceDockToggleElement}
+                          title={t.rightSidebar}
+                        >
+                          <RightSidebarIcon />
+                        </button>
+                      )}
+                    </div>
+                  }
+                  className="workspace-header"
+                  label={activeWorkspaceLabel}
+                >
+                  <div className="workspace-header-leading">
+                    <button
+                      aria-expanded={sidebarOpen}
+                      aria-label={t.leftSidebar}
+                      className="left-sidebar-toggle"
+                      onClick={() => changeSidebarOpen((open) => !open)}
+                      title={t.leftSidebar}
+                    >
+                      <LeftSidebarIcon />
+                    </button>
+                    <div className="workspace-heading">
+                      <strong dir="auto">{activeWorkspaceLabel}</strong>
+                      {activeThread && (
+                        <>
+                          <span className="header-separator">/</span>
+                          <span className="workspace-thread-title">
+                            {activeThread.title}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Toolbar>
+
+                <div
+                  className="update-notice-slot"
+                  ref={setUpdateNoticeTarget}
+                />
+
                 <TimelineViewport
                   className="timeline-scroll"
                   label={t.conversationHistory}
@@ -7632,6 +7744,16 @@ export function App() {
                         onOpenChildAgent={openChildAgentPanel}
                         onOpenTurnReview={openReviewTurnPanel}
                         onCopyText={copyConversationText}
+                        onFork={
+                          activeThread && !turnActive && !activeThread.archived
+                            ? () => void forkThread(activeThread)
+                            : undefined
+                        }
+                        onShare={
+                          activeProject && activeThread
+                            ? () => setSharingThreadId(activeThread.id)
+                            : undefined
+                        }
                         onEditUserMessage={
                           activeThread?.archived
                             ? undefined
@@ -7647,50 +7769,23 @@ export function App() {
                     </Fragment>
                   )}
                   {activeThread &&
-                    runPresentation.status !== "idle" &&
+                    runPresentation.status === "running" &&
+                    !remoteWaiting &&
+                    !threadState?.turnOrder.some(
+                      (id) => threadState.turns[id]?.status === "running",
+                    ) &&
                     !latestTimelineEntryIsCompaction && (
-                      <TurnStatus
-                        className={`turn-status ${remoteWaiting ? "waiting-approval" : runPresentation.status}`}
-                        onAnimationStart={synchronizeTurnIndicator}
-                        durationLabel={
-                          remoteWaiting ? undefined : (
-                            <time
-                              dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
-                              title={t.elapsed}
-                            >
-                              {formatRunDuration(runPresentation.elapsedMs)}
-                            </time>
-                          )
-                        }
-                        label={t.elapsed}
-                        state={
-                          remoteWaiting ||
-                          runPresentation.status === "waiting-approval" ||
-                          runPresentation.status === "waiting-user-input"
-                            ? "waiting"
-                            : runPresentation.status
-                        }
-                        statusLabel={
-                          permissionBlock && !turnActive
-                            ? uiText(locale, "ImPermission.waiting")
-                            : delegationWaiting
-                              ? uiText(locale, "ImDelegation.waitingShort")
-                              : runPresentation.status === "running"
-                                ? statusLabel(threadState, locale, clockMs)
-                                : runPresentation.status === "waiting-approval"
-                                  ? t.waiting
-                                  : runPresentation.status ===
-                                      "waiting-user-input"
-                                    ? t.waitingInput
-                                    : runPresentation.status === "failed"
-                                      ? t.failed
-                                      : t.completed
-                        }
-                      />
+                      <div className="turn-status running" role="status">
+                        <RunningArc size={16} />
+                        <span>{statusLabel(threadState, locale, clockMs)}</span>
+                        <time>
+                          {formatRunDuration(runPresentation.elapsedMs)}
+                        </time>
+                      </div>
                     )}
+                  {turnFailureBanner}
+                  <div className="timeline-decision" ref={setDecisionTarget} />
                 </TimelineViewport>
-
-                {activeThread?.archived && turnFailureBanner}
 
                 {activeThread?.archived && (
                   <div className="archived-readonly" role="status">
@@ -7726,7 +7821,6 @@ export function App() {
                 )}
                 {!activeThread?.archived && !retiredGroup && (
                   <div className="composer-wrap">
-                    {turnFailureBanner}
                     <Suspense fallback={null}>
                       <ComputerUseControls
                         locale={locale}
@@ -7783,9 +7877,176 @@ export function App() {
                         locale={locale}
                       />
                     )}
-                    {taskPlan && (
-                      <TaskPlanProgress locale={locale} plan={taskPlan} />
-                    )}
+                    <div className="composer-status-row">
+                      {activeThread?.goal && (
+                        <GoalBar
+                          clockMs={clockMs}
+                          disabled={goalMutationPending}
+                          goal={activeThread.goal}
+                          locale={locale}
+                          onClear={() => void updateActiveGoal("clear")}
+                          onEdit={openGoalEditor}
+                          onPause={() => void updateActiveGoal("pause")}
+                          onResume={() => void updateActiveGoal("resume")}
+                        />
+                      )}
+                      {taskPlan && (
+                        <TaskPlanProgress locale={locale} plan={taskPlan} />
+                      )}
+                      {queuedFollowUps.length > 0 && (
+                        <details className="composer-queue">
+                          <summary>
+                            <QueueIcon />
+                            {t.queuedMessages.replace(
+                              "{{count}}",
+                              String(queuedFollowUps.length),
+                            )}
+                          </summary>
+                          <QueuedMessageGroup
+                            className="queued-message-bar"
+                            heading={
+                              <>
+                                <QueueIcon />
+                                <strong>
+                                  {t.queuedMessages.replace(
+                                    "{{count}}",
+                                    String(queuedFollowUps.length),
+                                  )}
+                                </strong>
+                              </>
+                            }
+                            label={t.queuedMessages.replace(
+                              "{{count}}",
+                              String(queuedFollowUps.length),
+                            )}
+                            state={busy ? "busy" : "queued"}
+                          >
+                            {queuedFollowUps.map((message, index) => {
+                              const editing =
+                                editingQueuedMessage?.index === index;
+                              const itemLabel = t.queueItem.replace(
+                                "{{number}}",
+                                String(index + 1),
+                              );
+                              return (
+                                <QueuedMessageItem
+                                  actions={
+                                    editing ? undefined : (
+                                      <>
+                                        <button
+                                          aria-label={`${t.queueSteer}: ${itemLabel}`}
+                                          className="queued-message-steer"
+                                          disabled={busy || contextCompacting}
+                                          onClick={() =>
+                                            void steerQueuedMessage(index)
+                                          }
+                                          title={t.queueSteerHint}
+                                          type="button"
+                                        >
+                                          <SteerIcon />
+                                          <span>{t.queueSteer}</span>
+                                        </button>
+                                        {index > 0 && (
+                                          <button
+                                            aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
+                                            className="queued-message-prioritize"
+                                            disabled={busy}
+                                            onClick={() =>
+                                              void moveQueuedMessageToFront(
+                                                index,
+                                              )
+                                            }
+                                            title={t.queueMoveToFrontHint}
+                                            type="button"
+                                          >
+                                            <MoveToFrontIcon />
+                                          </button>
+                                        )}
+                                        <button
+                                          aria-label={`${t.queueEdit}: ${itemLabel}`}
+                                          className="queued-message-edit"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            setEditingQueuedMessage({
+                                              index,
+                                              value: message,
+                                            })
+                                          }
+                                          title={t.queueEdit}
+                                          type="button"
+                                        >
+                                          <EditIcon />
+                                        </button>
+                                        <button
+                                          aria-label={`${t.queueDelete}: ${itemLabel}`}
+                                          className="queued-message-delete"
+                                          disabled={busy}
+                                          onClick={() =>
+                                            void deleteQueuedMessage(index)
+                                          }
+                                          title={t.queueDelete}
+                                          type="button"
+                                        >
+                                          <TrashIcon />
+                                        </button>
+                                      </>
+                                    )
+                                  }
+                                  className="queued-message-item"
+                                  data-queued-index={index}
+                                  index={index + 1}
+                                  key={String(index)}
+                                  state={busy ? "busy" : "queued"}
+                                >
+                                  {editing ? (
+                                    <QueuedMessageEditor
+                                      busy={busy}
+                                      cancelLabel={t.queueCancel}
+                                      errorDetail={queuedSaveErrorDetail}
+                                      errorLabel={t.queueSaveError}
+                                      retryLabel={t.queueRetry}
+                                      saveLabel={t.queueSave}
+                                      textareaLabel={t.queueEdit}
+                                      value={editingQueuedMessage.value}
+                                      focusReturnTarget={() =>
+                                        document.querySelector<HTMLElement>(
+                                          `[data-queued-index="${index}"] .queued-message-steer`,
+                                        )
+                                      }
+                                      onCancel={() =>
+                                        setEditingQueuedMessage(undefined)
+                                      }
+                                      onSave={async () =>
+                                        (await saveQueuedMessage(
+                                          index,
+                                          editingQueuedMessage.value,
+                                        )) === true
+                                      }
+                                      onSuccess={() =>
+                                        setEditingQueuedMessage(undefined)
+                                      }
+                                      onValueChange={(value) =>
+                                        setEditingQueuedMessage({
+                                          index,
+                                          value,
+                                        })
+                                      }
+                                    />
+                                  ) : (
+                                    <span
+                                      className="queued-message-content"
+                                      title={message}
+                                    >
+                                      {message}
+                                    </span>
+                                  )}
+                                </QueuedMessageItem>
+                              );
+                            })}
+                          </QueuedMessageGroup>
+                        </details>
+                      )}
+                    </div>
                     {toast && (
                       <TransientNotice
                         dismissLabel={t.dismissNotice}
@@ -7809,159 +8070,10 @@ export function App() {
                           </span>
                         </div>
                       )}
-                      {queuedFollowUps.length > 0 && (
-                        <QueuedMessageGroup
-                          className="queued-message-bar"
-                          heading={
-                            <>
-                              <QueueIcon />
-                              <strong>
-                                {t.queuedMessages.replace(
-                                  "{{count}}",
-                                  String(queuedFollowUps.length),
-                                )}
-                              </strong>
-                            </>
-                          }
-                          label={t.queuedMessages.replace(
-                            "{{count}}",
-                            String(queuedFollowUps.length),
-                          )}
-                          state={busy ? "busy" : "queued"}
-                        >
-                          {queuedFollowUps.map((message, index) => {
-                            const editing =
-                              editingQueuedMessage?.index === index;
-                            const itemLabel = t.queueItem.replace(
-                              "{{number}}",
-                              String(index + 1),
-                            );
-                            return (
-                              <QueuedMessageItem
-                                actions={
-                                  editing ? undefined : (
-                                    <>
-                                      <button
-                                        aria-label={`${t.queueSteer}: ${itemLabel}`}
-                                        className="queued-message-steer"
-                                        disabled={busy || contextCompacting}
-                                        onClick={() =>
-                                          void steerQueuedMessage(index)
-                                        }
-                                        title={t.queueSteerHint}
-                                        type="button"
-                                      >
-                                        <SteerIcon />
-                                        <span>{t.queueSteer}</span>
-                                      </button>
-                                      {index > 0 && (
-                                        <button
-                                          aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
-                                          className="queued-message-prioritize"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            void moveQueuedMessageToFront(index)
-                                          }
-                                          title={t.queueMoveToFrontHint}
-                                          type="button"
-                                        >
-                                          <MoveToFrontIcon />
-                                        </button>
-                                      )}
-                                      <button
-                                        aria-label={`${t.queueEdit}: ${itemLabel}`}
-                                        className="queued-message-edit"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          setEditingQueuedMessage({
-                                            index,
-                                            value: message,
-                                          })
-                                        }
-                                        title={t.queueEdit}
-                                        type="button"
-                                      >
-                                        <EditIcon />
-                                      </button>
-                                      <button
-                                        aria-label={`${t.queueDelete}: ${itemLabel}`}
-                                        className="queued-message-delete"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void deleteQueuedMessage(index)
-                                        }
-                                        title={t.queueDelete}
-                                        type="button"
-                                      >
-                                        <TrashIcon />
-                                      </button>
-                                    </>
-                                  )
-                                }
-                                className="queued-message-item"
-                                data-queued-index={index}
-                                index={index + 1}
-                                key={String(index)}
-                                state={busy ? "busy" : "queued"}
-                              >
-                                {editing ? (
-                                  <QueuedMessageEditor
-                                    busy={busy}
-                                    cancelLabel={t.queueCancel}
-                                    errorDetail={queuedSaveErrorDetail}
-                                    errorLabel={t.queueSaveError}
-                                    retryLabel={t.queueRetry}
-                                    saveLabel={t.queueSave}
-                                    textareaLabel={t.queueEdit}
-                                    value={editingQueuedMessage.value}
-                                    focusReturnTarget={() =>
-                                      document.querySelector<HTMLElement>(
-                                        `[data-queued-index="${index}"] .queued-message-steer`,
-                                      )
-                                    }
-                                    onCancel={() =>
-                                      setEditingQueuedMessage(undefined)
-                                    }
-                                    onSave={async () =>
-                                      (await saveQueuedMessage(
-                                        index,
-                                        editingQueuedMessage.value,
-                                      )) === true
-                                    }
-                                    onSuccess={() =>
-                                      setEditingQueuedMessage(undefined)
-                                    }
-                                    onValueChange={(value) =>
-                                      setEditingQueuedMessage({ index, value })
-                                    }
-                                  />
-                                ) : (
-                                  <span
-                                    className="queued-message-content"
-                                    title={message}
-                                  >
-                                    {message}
-                                  </span>
-                                )}
-                              </QueuedMessageItem>
-                            );
-                          })}
-                        </QueuedMessageGroup>
-                      )}
-                      {activeThread?.goal && (
-                        <GoalBar
-                          clockMs={clockMs}
-                          disabled={goalMutationPending}
-                          goal={activeThread.goal}
-                          locale={locale}
-                          onClear={() => void updateActiveGoal("clear")}
-                          onEdit={openGoalEditor}
-                          onPause={() => void updateActiveGoal("pause")}
-                          onResume={() => void updateActiveGoal("resume")}
-                        />
-                      )}
+
                       <DecisionComposer
                         decision={pendingComposerDecision}
+                        decisionTarget={decisionTarget}
                         locale={locale}
                         onResolveApproval={resolveApprovalRequest}
                         onResolveUserInput={resolveUserInputRequest}
@@ -8013,7 +8125,7 @@ export function App() {
                               }
                               locale={locale}
                               mode={mode}
-                              showMode={Boolean(pendingComposerDecision)}
+                              showMode={false}
                               workspaceControl={
                                 activeProject ? (
                                   <EnvironmentWorkspaceMenu
@@ -8070,38 +8182,10 @@ export function App() {
                               }}
                               projects={projects}
                             />
-                            {pendingComposerDecision && (
-                              <span
-                                aria-label={t.approvalPolicy}
-                                className="decision-approval-policy"
-                                role="status"
-                              >
-                                <ArtemisIcon
-                                  name={approvalPolicyIcon}
-                                  width={14}
-                                  height={14}
-                                />
-                                <span>{approvalPolicyLabel}</span>
-                              </span>
-                            )}
-                            {!pendingComposerDecision && (
-                              <small className="composer-send-hint">
-                                {uiText(locale, "ComposerMode.sendHint")}
-                              </small>
-                            )}
-                            {pendingComposerDecision &&
-                              pendingComposerDecision.kind !== "plan" && (
-                                <button
-                                  aria-label={t.stop}
-                                  className="send-button stop decision-stop"
-                                  disabled={!turnRunning}
-                                  onClick={() => void cancelActiveTurn()}
-                                  title={t.stop}
-                                  type="button"
-                                >
-                                  <span />
-                                </button>
-                              )}
+                            <small className="composer-send-hint">
+                              <kbd>↵</kbd> {t.send}　<kbd>⇧↵</kbd>{" "}
+                              {uiText(locale, "Review01.newline")}
+                            </small>
                           </div>
                         }
                         className="composer"
@@ -8412,6 +8496,7 @@ export function App() {
                               customAgentMention.open || skillCommandMenuOpen
                             }
                             aria-label={t.prompt}
+                            disabled={Boolean(pendingComposerDecision)}
                             onChange={(event) => {
                               const value = event.target.value;
                               composerPrediction.changed(value);
@@ -8576,18 +8661,29 @@ export function App() {
                                           "AppDesign.askArtemisToEditName",
                                           { name: designDocBinding.name },
                                         )
-                                      : t.prompt
+                                      : pendingComposerDecision
+                                        ? uiText(
+                                            locale,
+                                            "Review01.waitingPrompt",
+                                          )
+                                        : t.prompt
                             }
                             ref={promptInput}
                             rows={1}
                             value={prompt}
                           />
+                          {!prompt && !visibleComposerPrediction && (
+                            <small className="composer-empty-hint">
+                              {uiText(locale, "Review01.composerHint")}
+                            </small>
+                          )}
                         </div>
                         <div className="composer-toolbar">
                           <div className="composer-leading">
                             <button
                               aria-label={t.addAttachments}
                               className="composer-icon-button"
+                              disabled={Boolean(pendingComposerDecision)}
                               onClick={() => void selectPromptAttachments()}
                               title={t.addAttachments}
                             >
@@ -8773,7 +8869,7 @@ export function App() {
                                 <span className="model-information">
                                   <strong>{activeModelLabel}</strong>
                                   {activeThinkingLevel && (
-                                    <small>{activeThinkingLevel}</small>
+                                    <small>· {activeThinkingLevel}</small>
                                   )}
                                 </span>
                                 <ChevronIcon />
@@ -9033,7 +9129,8 @@ ${model.providerId} · ${model.modelId}`}
                                     !prompt.trim() &&
                                     attachments.length === 0 &&
                                     selectedSkills.length === 0) ||
-                                  busy
+                                  busy ||
+                                  Boolean(pendingComposerDecision)
                                 }
                                 onClick={() => void sendPrompt()}
                                 title={t.send}
@@ -9087,6 +9184,21 @@ ${model.providerId} · ${model.modelId}`}
                     <WorkspaceTabBar
                       add={
                         <div className="workspace-tab-add-wrap">
+                          <button
+                            className="right-sidebar-toggle"
+                            aria-expanded={workspaceDockOpen}
+                            aria-label={t.rightSidebar}
+                            title={t.rightSidebar}
+                            onClick={toggleRightSidebar}
+                            ref={
+                              workspaceDockOpen
+                                ? workspaceDockToggleElement
+                                : undefined
+                            }
+                            type="button"
+                          >
+                            <RightSidebarIcon />
+                          </button>
                           <button
                             aria-expanded={workspaceTabMenuOpen}
                             aria-label={t.addTab}
@@ -9305,49 +9417,31 @@ ${model.providerId} · ${model.modelId}`}
                                           : []),
                                         {
                                           value: "last-turn",
-                                          label: t.lastTurn,
+                                          label: reviewScopeLabel(
+                                            "last-turn",
+                                            t.lastTurn,
+                                          ),
                                         },
                                         {
                                           value: "unstaged",
-                                          label: t.unstaged,
+                                          label: reviewScopeLabel(
+                                            "unstaged",
+                                            t.unstaged,
+                                          ),
                                         },
-                                        { value: "staged", label: t.staged },
+                                        {
+                                          value: "staged",
+                                          label: reviewScopeLabel(
+                                            "staged",
+                                            t.staged,
+                                          ),
+                                        },
                                         { value: "branch", label: t.branch },
                                       ]}
                                       size="compact"
                                       value={reviewScope}
                                     />
                                   </div>
-                                  <button
-                                    aria-label={
-                                      reviewRefreshing
-                                        ? t.refreshingDiff
-                                        : t.refreshDiff
-                                    }
-                                    aria-busy={reviewRefreshing}
-                                    className="review-toolbar-action"
-                                    disabled={
-                                      reviewRefreshing || !activeThreadId
-                                    }
-                                    onClick={async () => {
-                                      setReviewRefreshing(true);
-                                      try {
-                                        const diff = await refreshDiff(true);
-                                        if (diff?.available)
-                                          setToast(t.diffRefreshed);
-                                      } finally {
-                                        setReviewRefreshing(false);
-                                      }
-                                    }}
-                                    title={
-                                      reviewRefreshing
-                                        ? t.refreshingDiff
-                                        : t.refreshDiff
-                                    }
-                                    type="button"
-                                  >
-                                    <RefreshIcon />
-                                  </button>
                                 </div>
                                 <div className="review-comparison-route">
                                   {reviewScope === "branch" ? (
@@ -9382,7 +9476,37 @@ ${model.providerId} · ${model.modelId}`}
                                               : t.lastTurn}
                                       </strong>
                                     </>
-                                  )}
+                                  )}{" "}
+                                  <button
+                                    aria-label={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
+                                    aria-busy={reviewRefreshing}
+                                    className="review-toolbar-action"
+                                    disabled={
+                                      reviewRefreshing || !activeThreadId
+                                    }
+                                    onClick={async () => {
+                                      setReviewRefreshing(true);
+                                      try {
+                                        const diff = await refreshDiff(true);
+                                        if (diff?.available)
+                                          setToast(t.diffRefreshed);
+                                      } finally {
+                                        setReviewRefreshing(false);
+                                      }
+                                    }}
+                                    title={
+                                      reviewRefreshing
+                                        ? t.refreshingDiff
+                                        : t.refreshDiff
+                                    }
+                                    type="button"
+                                  >
+                                    <RefreshIcon />
+                                  </button>
                                 </div>
                               </ReviewToolbar>
                               <ReviewWorkspace>
@@ -9837,6 +9961,25 @@ ${model.providerId} · ${model.modelId}`}
                                 </ReviewDiffReader>
                               </ReviewWorkspace>
                               <footer className="review-footer">
+                                <small className="review-footer-summary">
+                                  {[
+                                    reviewCount("staged") !== undefined
+                                      ? `${t.staged} ${reviewCount("staged")}`
+                                      : undefined,
+                                    reviewCount("unstaged") !== undefined
+                                      ? `${t.unstaged} ${reviewCount("unstaged")}`
+                                      : undefined,
+                                    commentBody.trim()
+                                      ? uiText(
+                                          locale,
+                                          "Review01.pendingComments",
+                                          { count: 1 },
+                                        )
+                                      : undefined,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </small>
                                 <button
                                   className="secondary-button compact"
                                   disabled={
@@ -9931,6 +10074,12 @@ ${model.providerId} · ${model.modelId}`}
                               }
                             >
                               <TerminalPanel
+                                projectName={activeProject?.name}
+                                onNew={() =>
+                                  openWorkspaceTab("terminal", {
+                                    forceNew: true,
+                                  })
+                                }
                                 locale={locale}
                                 threadId={activeThread?.id}
                                 title={tab.title}
@@ -11521,6 +11670,8 @@ export function Timeline({
   onOpenChildAgent,
   onOpenTurnReview,
   onCopyText,
+  onFork,
+  onShare,
   onEditUserMessage,
   onResolve,
   onResolveUserInput,
@@ -11543,6 +11694,8 @@ export function Timeline({
   onOpenChildAgent: (child: ChildAgentState) => void;
   onOpenTurnReview: (turnId: string, path?: string) => void;
   onCopyText: (text: string) => Promise<void>;
+  onFork?: (() => void) | undefined;
+  onShare?: (() => void) | undefined;
   onEditUserMessage: ((text: string) => void) | undefined;
   onResolve: ResolveApprovalDecision;
   onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
@@ -11815,16 +11968,45 @@ export function Timeline({
       return (
         <ConversationMessage
           actions={
-            <Tooltip label={t.copyMessage}>
-              <button
-                aria-label={t.copyMessage}
-                className="message-action"
-                onClick={() => void onCopyText(part.text)}
-                type="button"
-              >
-                <CopyIcon />
-              </button>
-            </Tooltip>
+            <>
+              <Tooltip label={t.copyMessage}>
+                <button
+                  aria-label={t.copyMessage}
+                  className="message-action"
+                  onClick={() => void onCopyText(part.text)}
+                  type="button"
+                >
+                  <CopyIcon />
+                </button>
+              </Tooltip>
+              {onFork && (
+                <button
+                  className="message-action"
+                  aria-label={t.forkTask}
+                  title={t.forkTask}
+                  type="button"
+                  onClick={onFork}
+                >
+                  <ArtemisIcon name="branch" width={14} height={14} />
+                </button>
+              )}
+              {onShare && (
+                <button
+                  className="message-action"
+                  aria-label={uiText(locale, "Share.title")}
+                  title={uiText(locale, "Share.title")}
+                  type="button"
+                  onClick={onShare}
+                >
+                  <ArtemisIcon name="external" width={14} height={14} />
+                </button>
+              )}
+              {turn?.finalPartId === id && (
+                <span className="message-usage-meta">
+                  {turnUsageLabel(events ?? [], turn.id, locale)}
+                </span>
+              )}
+            </>
           }
           className="assistant-message"
           key={entry}
@@ -11837,6 +12019,9 @@ export function Timeline({
                 <ArtemisLogo size={20} />
               </span>
               <strong>Artemis</strong>
+              <span className="group-agent-identity">
+                {uiText(locale, "Review01.localArtemis")}
+              </span>
               {renderMessageTime(entry)}
             </div>
           )}
@@ -11971,6 +12156,7 @@ export function Timeline({
                   {entries.slice(0, leadingUserCount).map(renderTimelineEntry)}
                   <WorkRecord
                     turn={turn}
+                    changedFileCount={turnChangedFileCount(events ?? [], turn)}
                     locale={locale}
                     entries={entries}
                     childAgents={state.childAgents}
@@ -12024,6 +12210,7 @@ export function Timeline({
                 {userEntries.map(renderTimelineEntry)}
                 <WorkRecord
                   turn={turn}
+                  changedFileCount={turnChangedFileCount(events ?? [], turn)}
                   locale={locale}
                   entries={executionEntries}
                   childAgents={state.childAgents}

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import postcss from "postcss";
+import { findCssDeclarations } from "./css-test-utils.js";
 import { describe, expect, it } from "vitest";
 import { artemisDarkTokens, artemisLightTokens } from "@artemis/theme-artemis";
 import { SEMANTIC_TOKEN_REGISTRY } from "@artemis/theme-contract";
@@ -15,6 +16,10 @@ const shared = postcss.parse(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
     "utf8",
   ),
+);
+const nocturneSource = readFileSync(
+  new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
+  "utf8",
 );
 function declarations(sheet: postcss.Root, selector: string) {
   const result: Record<string, string> = {};
@@ -135,19 +140,15 @@ describe("screenshot visual contracts", () => {
       "overflow-wrap": "anywhere",
     });
     expect(declarations(desktop, ".review-file")["min-width"]).toBe("0");
-    for (const selector of [".review-line code", ".review-hunk code"]) {
-      const code = declarations(desktop, selector);
-      expect(code).toMatchObject({
-        "min-width": "0",
-        "white-space": "pre-wrap",
-        "overflow-wrap": "anywhere",
-      });
-      expect(code.overflow).not.toBe("hidden");
-      expect(code["text-overflow"]).not.toBe("ellipsis");
-    }
-    expect(declarations(desktop, ".review-line")["grid-template-columns"]).toBe(
-      "44px minmax(0, 1fr)",
-    );
+    expect(
+      findCssDeclarations(nocturneSource, ".app-shell .review-lines"),
+    ).toContain("overflow-x: auto");
+    expect(
+      findCssDeclarations(nocturneSource, ".app-shell .review-line code"),
+    ).toContain("white-space: pre");
+    expect(
+      findCssDeclarations(nocturneSource, ".app-shell .review-line"),
+    ).toContain("grid-template-columns: 36px 36px 16px max-content");
     expect(declarations(desktop, ".review-line").position).toBe("relative");
     expect(declarations(desktop, ".review-comment-trigger")).toMatchObject({
       position: "absolute",
@@ -158,18 +159,18 @@ describe("screenshot visual contracts", () => {
       "pre",
     );
   });
-  it("uses plain text Token period tabs without a baseline or selected underline", () => {
-    expect(declarations(desktop, ".token-usage-tabs")["border-block-end"]).toBe(
-      "0",
-    );
+  it("uses a filled, medium-weight segmented selection for Token periods", () => {
     expect(
-      declarations(desktop, '.token-usage-tabs [data-part="tab"]').border,
-    ).toBe("0");
+      declarations(shared, '[data-artemis-component="segmented-control"]'),
+    ).toMatchObject({ border: "0", padding: "2px" });
     expect(
-      declarations(desktop, '.token-usage-tabs [data-part="tab"]::after')
-        .display,
-    ).toBe("none");
+      declarations(
+        shared,
+        '[data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="true"]',
+      ),
+    ).toMatchObject({ "border-color": "transparent", "font-weight": "500" });
   });
+
   it("keeps turn changes readable with file review buttons and unframed actions", () => {
     expect(declarations(desktop, ".turn-change-card")).toMatchObject({
       "border-color": "var(--border-soft)",
@@ -347,7 +348,6 @@ describe("screenshot visual contracts", () => {
       ),
     ).toMatchObject({
       content: '\"\"',
-      background: "var(--accent)",
     });
     expect(
       declarations(

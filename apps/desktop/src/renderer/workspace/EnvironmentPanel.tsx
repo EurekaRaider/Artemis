@@ -1,4 +1,5 @@
 import { uiText } from "../../shared/i18n/ui-text.js";
+import { Switch } from "@artemis/ui/forms";
 import { SegmentedControl } from "@artemis/ui/navigation";
 import { WorkspaceFileIcon } from "./WorkspaceFilesPanel.js";
 import { filePresentation } from "./workspace-file-presentation.js";
@@ -476,7 +477,15 @@ export function PullRequestChecksSummary({
         <span>
           <strong title={pullRequest.title}>{pullRequest.title}</strong>
           <small>
-            #{pullRequest.number} · {stateLabel}
+            #{pullRequest.number}{" "}
+            <span
+              className="environment-pr-state"
+              data-state={
+                pullRequest.isDraft ? "draft" : pullRequest.state.toLowerCase()
+              }
+            >
+              {stateLabel}
+            </span>
           </small>
         </span>
       </button>
@@ -656,6 +665,7 @@ export function EnvironmentPanel({
   onMentionMember,
   onRemoveMember,
   memberRemovalDisabled,
+  executing,
   workspaceIsWorktree,
   onWorkspaceHandoff,
   onWorktreesChanged,
@@ -691,6 +701,7 @@ export function EnvironmentPanel({
   onMentionMember?: ((token: string) => void) | undefined;
   onRemoveMember?: ((deviceId: string) => Promise<boolean>) | undefined;
   memberRemovalDisabled?: boolean | undefined;
+  executing?: boolean | undefined;
   workspaceIsWorktree?: boolean | undefined;
   onOpenUsage?: (() => void) | undefined;
   onWorktreesChanged?: (() => Promise<void>) | undefined;
@@ -749,7 +760,6 @@ export function EnvironmentPanel({
   const [commitOpen, setCommitOpen] = useState(false);
   const [commitMessage, setCommitMessage] = useState("");
   const [includeUnstaged, setIncludeUnstaged] = useState(true);
-  const [commitBranchOpen, setCommitBranchOpen] = useState(false);
   const [creatingCommitBranch, setCreatingCommitBranch] = useState(false);
   const [newCommitBranch, setNewCommitBranch] = useState(() =>
     suggestedEnvironmentBranchName(taskTitle),
@@ -1143,7 +1153,6 @@ export function EnvironmentPanel({
     setCommitOpen(false);
     setCommitMessage("");
     setIncludeUnstaged(true);
-    setCommitBranchOpen(false);
     setCreatingCommitBranch(false);
     setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
     setBranchOpen(false);
@@ -1251,8 +1260,6 @@ export function EnvironmentPanel({
       if (checksOpen) {
         closeChecks();
         checksTrigger.current?.focus();
-      } else if (commitBranchOpen) {
-        setCommitBranchOpen(false);
       } else if (commitOpen) {
         setCommitOpen(false);
         setCreatingCommitBranch(false);
@@ -1276,7 +1283,6 @@ export function EnvironmentPanel({
     closeChecks,
     closeBranchMenu,
     closePanel,
-    commitBranchOpen,
     commitOpen,
     creatingMenuBranch,
     open,
@@ -1411,7 +1417,6 @@ export function EnvironmentPanel({
 
   const closeCommitDialog = () => {
     setCommitOpen(false);
-    setCommitBranchOpen(false);
     setPendingSwitchBranch(undefined);
     setCreatingCommitBranch(false);
     setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
@@ -1560,7 +1565,6 @@ export function EnvironmentPanel({
         await window.artemis.switchProjectBranch(project.id, branch, threadId),
       );
       closeBranchMenu();
-      setCommitBranchOpen(false);
       setCreatingCommitBranch(false);
       await loadPullRequest();
     } catch (error) {
@@ -1650,6 +1654,14 @@ export function EnvironmentPanel({
       onMouseDown={(event) => event.stopPropagation()}
       onSubmit={commit}
     >
+      <div className="environment-commit-heading">
+        <span className="environment-field-label">{t.commitMessage}</span>
+        <small>
+          {uiText(locale, "Review01.filesToCommit", {
+            count: includeUnstaged ? gitInfo.changeCount : gitInfo.stagedCount,
+          })}
+        </small>
+      </div>
       <label className="environment-git-message">
         <textarea
           aria-label={t.commitMessage}
@@ -1663,33 +1675,13 @@ export function EnvironmentPanel({
         />
       </label>
 
-      <label
+      <Switch
         className="environment-git-include"
-        data-artemis-component="checkbox"
-        data-state={
-          gitBusy ? "disabled" : includeUnstaged ? "checked" : "ready"
-        }
-      >
-        <input
-          data-part="control"
-          checked={includeUnstaged}
-          disabled={Boolean(gitBusy)}
-          onChange={(event) => setIncludeUnstaged(event.target.checked)}
-          type="checkbox"
-        />
-        <span aria-hidden="true" data-part="indicator">
-          {includeUnstaged ? "✓" : ""}
-        </span>
-        <strong>{t.includeUnstaged}</strong>
-        <span className="environment-diff-total">
-          <i>
-            +{includeUnstaged ? gitInfo.additions : gitInfo.stagedAdditions}
-          </i>
-          <b>
-            −{includeUnstaged ? gitInfo.deletions : gitInfo.stagedDeletions}
-          </b>
-        </span>
-      </label>
+        label={t.includeUnstaged}
+        checked={includeUnstaged}
+        disabled={Boolean(gitBusy)}
+        onCheckedChange={setIncludeUnstaged}
+      />
 
       <label className="environment-field-label">{t.commitDestination}</label>
       <SegmentedControl
@@ -1697,89 +1689,19 @@ export function EnvironmentPanel({
         value={creatingCommitBranch ? "new" : "current"}
         disabled={Boolean(gitBusy) || actionsDisabled}
         options={[
-          { value: "current", label: t.branch },
-          { value: "new", label: t.newBranch },
+          {
+            value: "current",
+            label: gitInfo.currentBranch ?? t.detached,
+            icon: <BranchIcon />,
+          },
+          { value: "new", label: t.newBranch, icon: <EnvironmentAddIcon /> },
         ]}
         onValueChange={(value) => {
           setCreatingCommitBranch(value === "new");
           if (value === "new")
             setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
-          setCommitBranchOpen(false);
         }}
       />
-      <div className="environment-git-destination">
-        <button
-          aria-expanded={commitBranchOpen}
-          aria-haspopup="menu"
-          className="environment-git-destination-trigger"
-          disabled={Boolean(gitBusy)}
-          onClick={() => setCommitBranchOpen((current) => !current)}
-          type="button"
-        >
-          <BranchIcon />
-          <strong>
-            {creatingCommitBranch
-              ? t.newBranch
-              : (gitInfo.currentBranch ?? t.detached)}
-          </strong>
-          <EnvironmentChevronIcon aria-hidden="true" />
-        </button>
-        {commitBranchOpen && (
-          <div
-            aria-label={t.commitDestination}
-            className="environment-git-destination-menu"
-            role="menu"
-          >
-            <h3>{t.commitDestination}</h3>
-            {gitInfo.branches.map((branch) => (
-              <button
-                aria-checked={!creatingCommitBranch && branch.current}
-                className={
-                  !creatingCommitBranch && branch.current ? "selected" : ""
-                }
-                disabled={Boolean(gitBusy)}
-                key={branch.name}
-                onClick={() => {
-                  if (branch.current) {
-                    setCreatingCommitBranch(false);
-                    setCommitBranchOpen(false);
-                  } else {
-                    void switchBranch(branch.name);
-                  }
-                }}
-                role="menuitemradio"
-                type="button"
-              >
-                <BranchIcon />
-                <span>{branch.name}</span>
-                <i aria-hidden="true">
-                  {!creatingCommitBranch && branch.current ? (
-                    <EnvironmentCheckIcon />
-                  ) : null}
-                </i>
-              </button>
-            ))}
-            <button
-              aria-checked={creatingCommitBranch}
-              className={creatingCommitBranch ? "selected" : ""}
-              disabled={actionsDisabled || Boolean(gitBusy)}
-              onClick={() => {
-                setCreatingCommitBranch(true);
-                setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
-                setCommitBranchOpen(false);
-              }}
-              role="menuitemradio"
-              type="button"
-            >
-              <span className="environment-git-new-branch-icon">
-                <EnvironmentAddIcon aria-hidden="true" />
-              </span>
-              <span>{t.newBranch}</span>
-              <i />
-            </button>
-          </div>
-        )}
-      </div>
 
       {creatingCommitBranch && (
         <label className="environment-git-branch-name">
@@ -1807,6 +1729,15 @@ export function EnvironmentPanel({
               : commitMessage.trim()
                 ? t.committing
                 : t.generatingCommit}
+        </p>
+      )}
+      {gitInfo.upstream && (
+        <p className="environment-push-info">
+          <ArtemisIcon name="push" width={14} height={14} />
+          {uiText(locale, "Review01.pushAfter", {
+            count: gitInfo.ahead + 1,
+            branch: gitInfo.upstream,
+          })}
         </p>
       )}
       <div className="environment-git-actions">
@@ -1895,6 +1826,9 @@ export function EnvironmentPanel({
                 <ArtemisIcon name="chev-left" />
               </button>
             )}
+            {!commitOpen && (
+              <ArtemisIcon name="layers" width={16} height={16} />
+            )}
             <strong title={project.name}>
               {commitOpen ? t.commitOrPush : t.title}
             </strong>
@@ -1921,6 +1855,7 @@ export function EnvironmentPanel({
                 <>
                   <ImGroupMembers
                     managePermissions
+                    executing={executing}
                     group={imGroup}
                     locale={locale}
                     onMention={onMentionMember}
@@ -2262,38 +2197,20 @@ export function EnvironmentPanel({
               {(displayAgents.length > 0 || teams.length > 0) && (
                 <EnvironmentSection
                   action={
-                    <div className="environment-section-actions">
-                      {latestTeam && (
-                        <button
-                          className="environment-text-action"
-                          onClick={() => {
-                            hidePanel();
-                            onOpenTeam(latestTeam);
-                          }}
-                          type="button"
-                        >
-                          {t.details}
-                        </button>
-                      )}
-                      {displayAgents.length > activityPreviewLimit && (
-                        <button
-                          className="environment-text-action"
-                          onClick={() =>
-                            setShowAllAgents((current) => !current)
-                          }
-                          type="button"
-                        >
-                          {showAllAgents ? t.showLess : t.viewAll}
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      className="environment-text-action"
+                      type="button"
+                      onClick={() => {
+                        if (latestTeam) {
+                          hidePanel();
+                          onOpenTeam(latestTeam);
+                        } else setShowAllAgents((current) => !current);
+                      }}
+                    >
+                      {showAllAgents && !latestTeam ? t.showLess : t.details}
+                    </button>
                   }
-                  title={
-                    <>
-                      <EnvironmentAgentsIcon />
-                      {t.agents}
-                    </>
-                  }
+                  title={t.agents}
                 >
                   <div className="environment-activity-list">
                     {teamGroups.map(({ team, agents: members }) => (

@@ -107,18 +107,16 @@ it.each(["completed", "cancelled", "failed"] as const)(
       container.querySelector('[data-artemis-component="timeline-turn"]'),
     ).toHaveAttribute("data-state", status);
     expect(
-      container.querySelector(".work-record > summary > svg"),
+      container.querySelector(".work-record-summary > svg"),
     ).toHaveAttribute(
       "data-artemis-icon",
       status === "failed" ? "alert" : status === "cancelled" ? "stop" : "check",
     );
-    expect(
-      container.querySelector<HTMLDetailsElement>(".work-record")!.open,
-    ).toBe(status === "failed");
+    expect(container.querySelector("details.work-record")).toBeNull();
     if (status === "cancelled") {
-      expect(
-        container.querySelector(".work-record > summary"),
-      ).toHaveTextContent("Stopped");
+      expect(container.querySelector(".work-record-summary")).toHaveTextContent(
+        "Stopped",
+      );
     }
     expect(screen.getByText("A useful partial answer")).toBeVisible();
     expect(
@@ -193,13 +191,11 @@ it("retains both cancelled questions inside the stopped work record", async () =
     />,
   );
   const record = container.querySelector<HTMLDetailsElement>(".work-record")!;
-  expect(record.open).toBe(false);
-  expect(container.querySelector(".user-input-result")).toBeNull();
-  await user.click(record.querySelector("summary")!);
+  expect(record.tagName).toBe("DIV");
+  expect(record.querySelector(".work-record-chevron")).toBeNull();
   const result = container.querySelector<HTMLDetailsElement>(
     '.user-input-result[data-state="cancelled"]',
   )!;
-  expect(record.open).toBe(true);
   expect(result).not.toBeNull();
   expect(result.open).toBe(false);
   await user.click(result.querySelector("summary")!);

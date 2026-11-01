@@ -22,7 +22,11 @@ const turn: TurnViewState = {
   startedAt: new Date().toISOString(),
 };
 it("retains a manual running disclosure, then collapses when that turn completes", async () => {
-  const props = { locale: "en" as const, entries: [], childAgents: {} };
+  const props = {
+    locale: "en" as const,
+    entries: [{ kind: "tool-group" as const, key: "read", toolIds: ["a"] }],
+    childAgents: {},
+  };
   const { container, rerender } = render(
     <WorkRecord {...props} turn={turn}>
       <span>Tool details</span>
@@ -49,7 +53,7 @@ it("retains a manual running disclosure, then collapses when that turn completes
     </WorkRecord>,
   );
   expect(container.querySelector("details")!.open).toBe(false);
-  expect(screen.getByText(/Worked for 3s/)).toBeVisible();
+  expect(container.querySelector("summary")).toBeVisible();
 });
 it("opens failed work and counts merged groups once", () => {
   const { container } = render(
@@ -65,6 +69,26 @@ it("opens failed work and counts merged groups once", () => {
   expect(container.querySelector("details")!.open).toBe(true);
   expect(screen.getByText(/1 steps/)).toBeVisible();
 });
+it.each(["completed", "failed"] as const)(
+  "keeps a zero-step %s record static and shows changed files",
+  (status) => {
+    const { container } = render(
+      <WorkRecord
+        locale="en"
+        turn={{ ...turn, status, durationMs: 41000 }}
+        changedFileCount={2}
+        entries={[]}
+        childAgents={{}}
+      >
+        No tools
+      </WorkRecord>,
+    );
+    expect(container.querySelector("details")).toBeNull();
+    expect(container.querySelector(".work-record-chevron")).toBeNull();
+    expect(screen.queryByText(/0 steps/)).toBeNull();
+    expect(screen.getByText(/41s · 2 files/)).toBeVisible();
+  },
+);
 it("keeps all modes visible and routes keyboard selection through the existing callback", async () => {
   const changed = vi.fn();
   function Harness({ disabled = false }: { disabled?: boolean }) {

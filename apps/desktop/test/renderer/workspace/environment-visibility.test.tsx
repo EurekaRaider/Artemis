@@ -317,7 +317,7 @@ describe("environment agent activity", () => {
     expect(screen.queryByRole("button", { name: /Nested check/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /Layout check 3/ })).toBeNull();
     await userEvent.click(
-      screen.getByRole("button", { name: "View all", exact: true }),
+      screen.getByRole("button", { name: "Details", exact: true }),
     );
     expect(
       screen.getByRole("button", { name: /Layout check 3/ }),
@@ -364,7 +364,10 @@ describe("environment agent activity", () => {
       updatedAt: child.updatedAt,
     };
     const onOpenAgent = vi.fn();
-    const { rerender } = await renderReady(fixture({ teams: [team] }));
+    const onOpenTeam = vi.fn();
+    const { rerender } = await renderReady(
+      fixture({ teams: [team], onOpenTeam }),
+    );
     expect(screen.getByRole("group", { name: team.mission })).toBeVisible();
     expect(document.querySelectorAll(".environment-activity-row")).toHaveLength(
       0,
@@ -373,6 +376,7 @@ describe("environment agent activity", () => {
       fixture({
         agents: [...children, nested],
         teams: [team],
+        onOpenTeam,
         onOpenAgent,
       }),
     );
@@ -391,10 +395,7 @@ describe("environment agent activity", () => {
     expect(
       screen.queryByRole("button", { name: /typed-flash-rebase-verify/ }),
     ).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: "View all", exact: true }),
-    );
-    for (const member of children) {
+    for (const member of children.slice(0, 2)) {
       const row = within(group).getByRole("button", {
         name: new RegExp(`${member.label}\\s*Completed`),
       });
@@ -411,6 +412,13 @@ describe("environment agent activity", () => {
       status: "completed",
       lastActivityAt: team.updatedAt,
     });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Details", exact: true }),
+    );
+    expect(onOpenTeam).toHaveBeenCalledWith(team);
+    expect(
+      screen.queryByRole("button", { name: "View all", exact: true }),
+    ).toBeNull();
   });
 
   it("opens the latest team from header details, including teams with no loaded children", async () => {
