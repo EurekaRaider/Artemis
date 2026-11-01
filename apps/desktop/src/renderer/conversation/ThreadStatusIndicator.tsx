@@ -59,6 +59,9 @@ export function ThreadStatusIndicator({
       aria-label={label}
       role={status ? "img" : undefined}
     >
+      {!status && !thread.projectId && (
+        <ArtemisIcon name="chat" width={16} height={16} aria-hidden="true" />
+      )}
       {status && (
         <span aria-hidden="true" className={`status-dot ${status}`}>
           {status === "running" ? (
@@ -82,10 +85,7 @@ export function ThreadWaitingBadge({
   locale: AppLocale;
 }) {
   if (thread.status !== "waiting-approval") return null;
-  const label =
-    thread.notification?.kind === "input-required"
-      ? uiText(locale, "App_copy.waitingSelection")
-      : statusText(locale, "waiting-approval");
+  const label = uiText(locale, "Review02.waitingDecision");
   return (
     <span className="thread-waiting-badge" title={label}>
       {label}

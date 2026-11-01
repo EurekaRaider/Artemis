@@ -88,7 +88,10 @@ describe("marketplace source ordering", () => {
     const target = document.createElement("div");
     document.body.append(target);
     const { user } = await setup(target);
-    const add = screen.getByRole("button", { name: "Add", exact: true });
+    const add = screen.getByRole("button", {
+      name: "Add marketplace or server",
+      exact: true,
+    });
     expect(target).toContainElement(add);
     await user.click(add);
     expect(target).toBeEmptyDOMElement();
@@ -96,14 +99,22 @@ describe("marketplace source ordering", () => {
       screen.getByRole("button", { name: "Back to marketplace" }),
     );
     expect(target).toContainElement(
-      screen.getByRole("button", { name: "Add", exact: true }),
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
     );
     target.remove();
   });
 
   it("keeps keyboard sorting available alongside dragging", async () => {
     const { user, reorder } = await setup();
-    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
+    );
     const moveUp = screen.getByRole("button", {
       name: "Move marketplace up: second",
     });
@@ -120,7 +131,12 @@ describe("marketplace source ordering", () => {
 
   it("moves a dragged source to its destination and excludes the built-in source", async () => {
     const { user, reorder } = await setup();
-    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
+    );
     const data = new Map<string, string>();
     const dataTransfer = {
       setData: (type: string, value: string) => data.set(type, value),
@@ -152,7 +168,12 @@ describe("marketplace source ordering", () => {
           finish = resolve;
         }),
     );
-    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
+    );
     fireEvent.drop(row("third"), {
       dataTransfer: { getData: () => "first" },
     });
@@ -166,12 +187,20 @@ describe("marketplace source ordering", () => {
 
   it("returns to the marketplace or management entry that opened the add page", async () => {
     const { user } = await setup();
-    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
+    );
     await user.click(
       screen.getByRole("button", { name: "Back to marketplace" }),
     );
     expect(
-      screen.getByRole("button", { name: "Add", exact: true }),
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
     ).toBeVisible();
     await user.click(
       screen.getByRole("button", { name: "Manage installed capabilities" }),

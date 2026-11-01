@@ -54,7 +54,8 @@ describe("reported screenshot regressions", () => {
       />,
     );
     const trigger = screen.getByRole("button", { name: "展开: 第 3 / 5 步" });
-    expect(trigger).toHaveTextContent("计划 3/5 · 封装基础与交互组件");
+    expect(trigger).toHaveTextContent("计划 3/5");
+    expect(trigger).toHaveTextContent("封装基础与交互组件");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await userEvent.tab();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -326,7 +327,7 @@ describe("reported screenshot regressions", () => {
     });
     render(<TokenUsagePage locale="zh-CN" username="Artemis" />);
     const table = await screen.findByRole("table");
-    await userEvent.click(table.closest("details")!.querySelector("summary")!);
+    expect(table.closest("details")).toBeNull();
     const button = await within(table).findByRole("button", {
       name: "zai · glm-5.3",
     });
@@ -341,14 +342,18 @@ describe("reported screenshot regressions", () => {
     const composition = screen.getByRole("heading", {
       name: /^Token 构成/,
     }).parentElement!;
-    expect(composition.querySelectorAll("dt")).toHaveLength(3);
+    expect(composition.querySelectorAll("dt")).toHaveLength(4);
     expect(
       within(composition)
-        .getByText("缓存命中 Token")
+        .getByText("缓存读取 Token")
         .closest(".token-usage-detail-row"),
-    ).toHaveTextContent("110");
-    expect(composition).not.toHaveTextContent("缓存读取");
-    expect(composition).not.toHaveTextContent("缓存写入");
+    ).toHaveTextContent("80");
+    expect(composition).toHaveTextContent("缓存读取");
+    expect(
+      within(composition)
+        .getByText("缓存写入 Token")
+        .closest(".token-usage-detail-row"),
+    ).toHaveTextContent("30");
   });
 
   it("keeps MCP resources in the MCP category with working configuration and toggles", async () => {

@@ -61,14 +61,14 @@ const windowWidth = 1_440;
 const themes = ["light", "dark"];
 const steps = [
   {
-    component: "tabs",
+    component: "segmented-control",
     context: "token-usage",
     expectedLabel: "Weekly",
-    expectedParts: ["root", "tab"],
-    expectedSize: "comfortable",
+    expectedParts: ["root", "segment"],
+    expectedSize: "compact",
     id: "token-usage",
     scenario:
-      "Token Usage renders public Tabs and uses real ArrowRight automatic activation with exact tab/panel relations.",
+      "Token Usage renders a public SegmentedControl and uses real Space activation exactly once.",
     view: "navigation-token-usage",
   },
   {
@@ -464,12 +464,14 @@ try {
         interaction?.clickCount,
         1,
       );
-      assert(
-        "source-surface-present",
-        interaction?.sourceSurfacePresent === true,
-        interaction?.sourceSurfacePresent,
-        true,
-      );
+      if (context !== "token-usage") {
+        assert(
+          "source-surface-present",
+          interaction?.sourceSurfacePresent === true,
+          interaction?.sourceSurfacePresent,
+          true,
+        );
+      }
     }
 
     results.push({

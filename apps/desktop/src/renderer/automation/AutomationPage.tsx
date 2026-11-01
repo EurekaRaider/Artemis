@@ -1,7 +1,8 @@
+import { formatDate, scheduleLabel, weekLabels } from "./schedule-label.js";
 import { SegmentedControl } from "@artemis/ui/navigation";
 import { isExecutionMode } from "@artemis/protocol";
 import { statusText } from "../../shared/i18n/status-text.js";
-import { makeUiCopy, uiText } from "../../shared/i18n/ui-text.js";
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
 import { I18N_RESOURCES } from "../../shared/i18n/i18n-resources.js";
 import type { SettingsSnapshot } from "../../shared/api.js";
@@ -117,15 +118,6 @@ function projectSelectOptions(
     return { label, value: project.id };
   });
 }
-
-const weekLabels = makeUiCopy((locale) =>
-  Array.from({ length: 7 }, (_, day) =>
-    new Intl.DateTimeFormat(locale, {
-      weekday: locale.startsWith("zh") ? "narrow" : "short",
-      timeZone: "UTC",
-    }).format(new Date(Date.UTC(2024, 0, day + 1))),
-  ),
-);
 
 const timeHours = Array.from({ length: 24 }, (_, index) =>
   String(index).padStart(2, "0"),
@@ -500,47 +492,10 @@ function draftForAutomation(automation: Automation): AutomationDraft {
   };
 }
 
-function formatDate(value: string | undefined, locale: Locale): string {
-  if (!value) return text[locale].never;
-  return new Intl.DateTimeFormat(locale, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function scheduleLabel(
-  automation: Pick<Automation, "schedule">,
-  locale: Locale,
-): string {
-  const schedule = automation.schedule;
-  const labels = text[locale];
-  if (schedule.kind === "interval") {
-    return `${labels.interval} ${schedule.every} ${labels[schedule.unit]}`;
-  }
-  if (schedule.kind === "windowed-interval") {
-    const days = schedule.daysOfWeek
-      .map((day) => weekLabels[locale][day - 1])
-      .join(" ");
-    return `${days} · ${schedule.startTime}–${schedule.endTime} · ${labels.interval} ${schedule.every} ${labels[schedule.unit]} · ${schedule.timeZone}`;
-  }
-  if (schedule.kind === "once") {
-    return `${labels.once} · ${formatDate(schedule.at, locale)} · ${schedule.timeZone}`;
-  }
-  const dayKey = [...schedule.daysOfWeek].sort((a, b) => a - b).join(",");
-  const days =
-    dayKey === "1,2,3,4,5,6,7"
-      ? labels.daily
-      : dayKey === "1,2,3,4,5"
-        ? labels.weekdays
-        : `${labels.weekly} ${schedule.daysOfWeek
-            .map((day) => weekLabels[locale][day - 1])
-            .join(" ")}`;
-  return `${days} · ${schedule.localTime} · ${schedule.timeZone}`;
-}
-
 export function AutomationPage(props: {
   locale: Locale;
   headerActionTarget?: HTMLElement | null | undefined;
+  initialAutomationId?: string | undefined;
   projects: Project[];
   settings?:
     | Pick<
@@ -559,7 +514,9 @@ export function AutomationPage(props: {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "enabled" | "paused"
   >("all");
-  const [selectedAutomationId, setSelectedAutomationId] = useState<string>();
+  const [selectedAutomationId, setSelectedAutomationId] = useState<
+    string | undefined
+  >(props.initialAutomationId);
   const [draft, setDraft] = useState<AutomationDraft>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -907,19 +864,21 @@ export function AutomationPage(props: {
                   <div className="automation-card-heading">
                     <div className="automation-title-block">
                       <div className="automation-title-line">
-                        <h2>{automation.name}</h2>
-                        <Status
-                          className="automation-state"
-                          tone={
-                            automation.authorizationState === "required"
-                              ? "warning"
-                              : automation.enabled
-                                ? "success"
-                                : "neutral"
-                          }
-                        >
-                          {statusLabel}
-                        </Status>
+                        <h2>
+                          {automation.name}{" "}
+                          <Status
+                            className="automation-state"
+                            tone={
+                              automation.authorizationState === "required"
+                                ? "warning"
+                                : automation.enabled
+                                  ? "success"
+                                  : "neutral"
+                            }
+                          >
+                            {statusLabel}
+                          </Status>
+                        </h2>
                       </div>
                       <span>
                         {t.lastRun}:{" "}

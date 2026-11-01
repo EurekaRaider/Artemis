@@ -1,3 +1,4 @@
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { useEffect, useState } from "react";
 import type { AppLocale } from "@artemis/protocol";
 import { TaskPlan as TaskPlanPattern } from "@artemis/ui/patterns";
@@ -36,15 +37,18 @@ export function TaskPlanProgress({ locale, plan }: TaskPlanProgressProps) {
       expanded={expanded}
       label={view.label}
       onExpandedChange={setExpanded}
-      progressLabel={[
-        uiText(locale, "Review01.planProgress", {
-          step: Math.min(plan.currentIndex + 1, plan.steps.length),
-          total: plan.steps.length,
-        }),
-        plan.steps[plan.currentIndex]?.step,
-      ]
-        .filter(Boolean)
-        .join(" · ")}
+      progressLabel={
+        <>
+          <ArtemisIcon name="plan" width={14} height={14} />
+          <span>
+            {uiText(locale, "Review01.planProgress", {
+              step: Math.min(plan.currentIndex + 1, plan.steps.length),
+              total: plan.steps.length,
+            })}
+          </span>
+          <small>{plan.steps[plan.currentIndex]?.step}</small>
+        </>
+      }
       state={view.state}
       statusLabel={view.statusLabel}
       steps={view.steps}

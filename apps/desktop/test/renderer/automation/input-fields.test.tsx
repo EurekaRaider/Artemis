@@ -253,6 +253,9 @@ async function renderSettingsPanel(
         document.querySelector(".provider-models > header") as HTMLElement,
       ).getByRole("button", { name: "Add model" }),
     );
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "From catalog" }),
+    );
   }
 }
 
@@ -483,10 +486,13 @@ describe("settings management operation contract (MIG5A)", () => {
     stubSettingsApi(initial);
     await renderSettingsPanel(initial);
     await userEvent.click(
-      screen.getByRole("tab", { name: "Providers & models" }),
+      screen.getByRole("tab", { name: "Model services" }),
     );
     await userEvent.click(screen.getByRole("button", { name: /^mistral/ }));
     await userEvent.click(screen.getByRole("button", { name: "Add model" }));
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "From catalog" }),
+    );
     await userEvent.click(screen.getByLabelText("Model"));
     expect(screen.getAllByRole("option")).toHaveLength(
       models.filter((model) => model.providerId === "mistral").length,
@@ -876,6 +882,16 @@ describe("settings management operation contract (MIG5A)", () => {
       });
       stubSettingsApi(initial);
       await renderSettingsPanel(initial, "maintenance");
+      if (state === "disabled") {
+        expect(
+          screen.getByText("Development build · updates disabled"),
+        ).toBeVisible();
+        expect(screen.queryByText("Update status detail")).toBeNull();
+        expect(
+          screen.getByRole("button", { name: "Check for updates" }),
+        ).toBeDisabled();
+        return;
+      }
       const notice = screen
         .getByText("Update status detail")
         .closest('[data-artemis-component="inline-notice"]');
@@ -939,7 +955,7 @@ describe("settings management operation contract (MIG5A)", () => {
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Scan configuration",
+        name: /Import configuration/,
       }),
     );
 

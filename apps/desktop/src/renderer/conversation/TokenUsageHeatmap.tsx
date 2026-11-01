@@ -1,4 +1,3 @@
-import { uiText } from "../../shared/i18n/ui-text.js";
 import {
   DataHeatmap,
   type DataHeatmapCell,
@@ -68,13 +67,6 @@ export function TokenUsageHeatmap({
 
   return (
     <div className="token-heatmap-frame">
-      <div className="token-heatmap-legend" aria-hidden="true">
-        {uiText(locale, "Review01.less")}
-        {[0, 1, 2, 3, 4].map((level) => (
-          <i key={level} data-level={level} />
-        ))}
-        {uiText(locale, "Review01.more")}
-      </div>
       <div className="token-heatmap-weekdays" aria-hidden="true">
         {Array.from({ length: 7 }, (_, index) => (
           <span key={index}>

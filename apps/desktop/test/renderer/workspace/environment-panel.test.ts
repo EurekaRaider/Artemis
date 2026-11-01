@@ -170,7 +170,7 @@ describe("task environment panel state", () => {
     );
     expect(nocturneStylesSource).toContain("inset-block: 46px 0");
     expect(nocturneStylesSource).toContain(
-      "border-inline-start: 1px solid var(--artemis-color-border-subtle)",
+      "border-inline-start: 1px solid var(--border-soft)",
     );
     expect(nocturneStylesSource).toContain("backdrop-filter: none");
     expect(panelSource).toContain("window.innerWidth >= 980");

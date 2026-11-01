@@ -325,6 +325,7 @@ export function WorkspaceBrowserPanel(props: BrowserPanelProps) {
         </BrowserViewport>
       </BrowserPreviewTools>
       <small className="browser-boundary">
+        <ArtemisIcon name="lock" width={14} height={14} />
         {uiText(props.locale, "Review01.browserBoundary")}
       </small>
     </BrowserSurface>

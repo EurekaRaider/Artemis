@@ -100,13 +100,16 @@ export function DecisionOptions({
               </span>
               <span className="decision-option-copy">
                 <strong>{option.label}</strong>
-                {option.recommended && (
-                  <span className="decision-recommended">
-                    {uiText(locale, "WorkRecord.recommended")}
-                  </span>
-                )}
                 {option.description && <small>{option.description}</small>}
               </span>
+              {option.recommended && (
+                <span className="decision-recommended">
+                  {uiText(locale, "WorkRecord.recommended")}
+                </span>
+              )}
+              {!numbered && (
+                <kbd className="decision-option-number">{index + 1}</kbd>
+              )}
             </button>
           );
           return optionAccessory ? (

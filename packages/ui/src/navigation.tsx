@@ -478,6 +478,7 @@ export function Tabs<Value extends string>({
 export interface SegmentedControlOption<
   Value extends string,
 > extends NavigationOptionBase<Value> {
+  readonly id?: string;
   readonly icon?: ReactNode;
 }
 
@@ -525,6 +526,7 @@ export function SegmentedControl<Value extends string>({
         return (
           <button
             aria-pressed={selected}
+            id={option.id}
             data-part="segment"
             data-state={optionState(selected, optionDisabled)}
             disabled={optionDisabled}

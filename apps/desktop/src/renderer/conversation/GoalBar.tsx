@@ -1,25 +1,12 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { GOAL_RESOURCES } from "../../shared/i18n/goal-resources.js";
 import { useEffect, useState } from "react";
 import { Tooltip } from "@artemis/ui/feedback";
 import type { AppLocale, ThreadGoal } from "@artemis/protocol";
-import {
-  Badge,
-  Button,
-  IconButton,
-  type ActionTone,
-} from "@artemis/ui/actions";
+import { Button, IconButton } from "@artemis/ui/actions";
 import { ArtemisIcon } from "@artemis/ui/icons";
 
 const GOAL_OBJECTIVE_PREVIEW_MARKER = "\n\nObjective preview:\n";
-
-const GOAL_TONES = {
-  active: "info",
-  paused: "neutral",
-  blocked: "danger",
-  usageLimited: "warning",
-  budgetLimited: "warning",
-  complete: "success",
-} as const satisfies Readonly<Record<ThreadGoal["status"], ActionTone>>;
 
 export function displayGoalObjective(objective: string): string {
   const previewIndex = objective.indexOf(GOAL_OBJECTIVE_PREVIEW_MARKER);
@@ -87,7 +74,6 @@ export function GoalBar({
   const copy = GOAL_RESOURCES[locale];
   const objective = displayGoalObjective(goal.objective);
   const resumable = ["paused", "blocked", "usageLimited"].includes(goal.status);
-  const tone = GOAL_TONES[goal.status];
   const progress = formatGoalProgress(goal, locale, clockMs);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [fullObjective, setFullObjective] = useState<string>();
@@ -145,16 +131,35 @@ export function GoalBar({
           align="start"
           className="goal-bar-main"
           disabled={disabled}
-          label={`${status} ${objective} ${progress} — ${copy.edit}`}
+          title={`${copy.edit}: ${objective}`}
           onClick={onEdit}
           variant="quiet"
         >
           <ArtemisIcon className="goal-bar-icon" name="target" />
-          <Badge className="goal-bar-status" tone={tone}>
-            {status}
-          </Badge>
           <span className="goal-bar-objective">{objective}</span>
-          <span className="goal-bar-progress">{progress}</span>
+          {goal.status === "active" &&
+          goal.tokenBudget !== undefined &&
+          goal.tokenBudget > 0 ? (
+            <span className="goal-bar-budget">
+              <progress
+                max={goal.tokenBudget}
+                value={Math.min(goal.tokensUsed, goal.tokenBudget)}
+              />
+              {Math.min(
+                100,
+                Math.round((goal.tokensUsed / goal.tokenBudget) * 100),
+              )}
+              %
+            </span>
+          ) : null}
+          {goal.status === "complete" ? (
+            <ArtemisIcon name="check-circle" className="goal-bar-complete" />
+          ) : (
+            <span className="goal-bar-status">{status}</span>
+          )}
+          {goal.status === "active" && goal.tokenBudget === undefined && (
+            <span className="goal-bar-progress">{progress}</span>
+          )}
         </Button>
       </Tooltip>
       <div className="goal-bar-actions">
@@ -178,7 +183,13 @@ export function GoalBar({
             title={copy.resume}
           />
         )}
+        {goal.status === "budgetLimited" && (
+          <Button disabled={disabled} onClick={onEdit} variant="quiet">
+            {uiText(locale, "Review02.addBudget")}
+          </Button>
+        )}
         <IconButton
+          className="goal-bar-secondary"
           disabled={disabled}
           icon={<ArtemisIcon name="edit" />}
           iconSize="sm"
@@ -188,7 +199,14 @@ export function GoalBar({
         />
         <IconButton
           disabled={disabled}
-          icon={<ArtemisIcon name="trash" />}
+          className={
+            goal.status === "complete" ? undefined : "goal-bar-secondary"
+          }
+          icon={
+            <ArtemisIcon
+              name={goal.status === "complete" ? "close" : "trash"}
+            />
+          }
           iconSize="sm"
           label={copy.clear}
           onClick={onClear}

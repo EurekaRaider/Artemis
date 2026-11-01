@@ -30,7 +30,7 @@ export function ImMemberRemoval({
       <Tooltip label={`${label}：${name}`} align="end">
         <IconButton
           className="im-member-action im-member-remove"
-          icon={<ArtemisIcon name="unlink" width={14} height={14} />}
+          icon={<ArtemisIcon name="close" width={14} height={14} />}
           label={`${label}：${name}`}
           disabled={disabled}
           onClick={() => setConfirming(true)}

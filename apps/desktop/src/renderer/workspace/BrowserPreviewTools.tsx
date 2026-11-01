@@ -370,7 +370,7 @@ export function BrowserPreviewTools({
       <Tooltip label={t("annotate")}>
         <IconButton
           label={t("annotate")}
-          icon={<ArtemisIcon name="target" />}
+          icon={<ArtemisIcon name="edit" />}
           disabled={!snapshot || busy || snapshot.paused}
           selected={picking}
           onClick={() => {
@@ -384,7 +384,7 @@ export function BrowserPreviewTools({
         <IconButton
           label={t("responsive")}
           title={t("responsive")}
-          icon={<ArtemisIcon name="settings" />}
+          icon={<ArtemisIcon name="mobile" />}
           aria-expanded={sizesOpen}
           onClick={() => setSizesOpen(!sizesOpen)}
         />
@@ -393,7 +393,7 @@ export function BrowserPreviewTools({
       <Tooltip label={t("screenshot")}>
         <IconButton
           label={t("screenshot")}
-          icon={<ArtemisIcon name="image" />}
+          icon={<ArtemisIcon name="camera" />}
           disabled={!snapshot || busy || snapshot.paused}
           onClick={() => run(() => sendEvidence())}
         />

@@ -27,6 +27,7 @@ export interface MessagePartState {
   id: string;
   type: "text" | "thinking";
   text: string;
+  timestamp?: string;
 }
 
 export interface ToolState {
@@ -144,7 +145,10 @@ export interface ThreadViewState {
   turnOrder: string[];
   turns: Record<string, TurnViewState>;
   entryTurnIds: Record<string, string>;
-  userMessages: Record<string, { id: string; text: string }>;
+  userMessages: Record<
+    string,
+    { id: string; text: string; timestamp?: string }
+  >;
   messageParts: Record<string, MessagePartState>;
   tools: Record<string, ToolState>;
   approvals: Record<string, ApprovalState>;
@@ -607,6 +611,7 @@ function applyAgentPayload(
       state.userMessages[payload.messageId] = {
         id: payload.messageId,
         text: payload.text,
+        timestamp: event.timestamp,
       };
       appendOnce(state.order, orderedItems, `user:${payload.messageId}`);
       return;
@@ -654,6 +659,7 @@ function applyAgentPayload(
         id: partId,
         type: payload.partType,
         text: `${existing?.text ?? ""}${payload.delta}`,
+        timestamp: existing?.timestamp ?? event.timestamp,
       };
       appendOnce(state.order, orderedItems, `part:${partId}`);
       return;

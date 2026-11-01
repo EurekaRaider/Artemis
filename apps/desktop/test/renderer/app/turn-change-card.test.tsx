@@ -62,7 +62,7 @@ describe("compact turn changes", () => {
     expect(within(card).getAllByRole("listitem")).toHaveLength(2);
     expect(container.querySelector(".turn-change-more")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "审核 .artemis/MEMORY.md" }),
+      screen.getByRole("button", { name: "评审 .artemis/MEMORY.md" }),
     ).toHaveAttribute("title", ".artemis/MEMORY.md");
     await userEvent.tab();
     await userEvent.keyboard("{Enter}");
@@ -74,7 +74,7 @@ describe("compact turn changes", () => {
     await userEvent.keyboard("{Enter}");
     expect(onReview).toHaveBeenLastCalledWith("turn-1", ".artemis/MEMORY.md");
     await userEvent.click(
-      screen.getByRole("button", { name: "审核 AI_HANDOFF_V2.md" }),
+      screen.getByRole("button", { name: "评审 AI_HANDOFF_V2.md" }),
     );
     expect(onReview).toHaveBeenLastCalledWith("turn-1", "AI_HANDOFF_V2.md");
   });
@@ -102,7 +102,7 @@ describe("compact turn changes", () => {
     expect(screen.getByText("文件已被其他操作修改。")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "撤销" }));
     expect(onUndo).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "审核" }));
+    await userEvent.click(screen.getByRole("button", { name: "评审" }));
     expect(onReview).toHaveBeenCalledWith("turn-1");
   });
 
@@ -149,7 +149,7 @@ describe("compact turn changes", () => {
     expect(list.nextElementSibling).toBe(toggle);
     expect(within(list).getAllByRole("listitem")).toHaveLength(3);
     expect(
-      screen.queryByRole("button", { name: "审核 assets/icon.png" }),
+      screen.queryByRole("button", { name: "评审 assets/icon.png" }),
     ).toBeNull();
     await userEvent.click(toggle);
     expect(toggle).toHaveAccessibleName("收起 4 个文件");
@@ -159,7 +159,7 @@ describe("compact turn changes", () => {
     expect(list.nextElementSibling).toBe(toggle);
     expect(toggle).toHaveFocus();
     const binaryFile = screen.getByRole("button", {
-      name: "审核 assets/icon.png",
+      name: "评审 assets/icon.png",
     });
     expect(binaryFile).toBeVisible();
     await userEvent.click(binaryFile);
@@ -199,7 +199,7 @@ describe("compact turn changes", () => {
     expect(
       container.querySelector(".turn-change-heading strong"),
     ).toHaveAttribute("title", path);
-    await userEvent.click(screen.getByRole("button", { name: `审核 ${path}` }));
+    await userEvent.click(screen.getByRole("button", { name: `评审 ${path}` }));
     expect(props.onReview).toHaveBeenCalledWith("turn-1", path);
     rerender(
       <TurnChangeSetCard

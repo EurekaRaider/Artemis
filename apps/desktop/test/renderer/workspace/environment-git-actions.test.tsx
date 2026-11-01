@@ -72,14 +72,14 @@ it("keeps AI generation errors visible and lets the user retry with a manual mes
   );
   const user = userEvent.setup();
   await user.click(screen.getByRole("button", { name: "任务环境" }));
-  const entry = await screen.findByRole("button", { name: "提交或推送" });
-  expect(screen.getByRole("button", { name: "审核" })).toBeTruthy();
+  const entry = await screen.findByRole("button", { name: "提交或推送…" });
+  expect(screen.getByRole("button", { name: "评审" })).toBeTruthy();
   expect(screen.getByRole("heading", { name: "变更" })).toBeTruthy();
   expect(entry.querySelector("svg")).not.toBeNull();
   expect(screen.queryByText("当前分支")).toBeNull();
   expect(screen.getByRole("button", { name: "main" }).title).toBe("main");
   await user.click(entry);
-  const dialog = within(screen.getByRole("dialog", { name: "提交或推送" }));
+  const dialog = within(screen.getByRole("dialog", { name: "提交或推送…" }));
   expect(screen.getAllByRole("dialog")).toHaveLength(1);
   expect(screen.getByRole("dialog").getAttribute("aria-modal")).toBeNull();
   const destination = dialog.getByRole("group", { name: "提交到" });

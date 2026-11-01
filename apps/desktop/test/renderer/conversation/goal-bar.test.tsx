@@ -94,7 +94,7 @@ describe("compact Goal rail", () => {
     ).toBe("1h 0m 0s");
   });
 
-  it("keeps one status marker and plain progress beside the icon-only controls", () => {
+  it("shows accessible budget progress beside the goal controls", () => {
     const markup = renderToStaticMarkup(
       <GoalBar
         clockMs={Date.parse(goal().updatedAt)}
@@ -110,10 +110,10 @@ describe("compact Goal rail", () => {
     expect(markup).toContain("Ship the Goal UI");
     expect(markup).toContain('data-artemis-component="button"');
     expect(markup).toContain('data-artemis-component="icon-button"');
-    expect(markup).toContain('data-artemis-component="badge"');
+    expect(markup).not.toContain('data-artemis-component="badge"');
     expect(markup).not.toContain('data-artemis-component="status"');
-    expect(markup.match(/data-part="indicator"/g)).toHaveLength(1);
-    expect(markup).toContain('class="goal-bar-progress">2.5K / 10K</span>');
+    expect(markup).toContain('<progress max="10000" value="2500"');
+    expect(markup).toContain("25%");
     expect(markup.lastIndexOf('aria-label="Edit goal"')).toBeLessThan(
       markup.indexOf('aria-label="Clear goal"'),
     );

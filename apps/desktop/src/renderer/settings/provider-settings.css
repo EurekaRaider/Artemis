@@ -39,7 +39,7 @@
   align-items: center;
   justify-content: flex-start;
   height: auto;
-  min-height: 48px;
+  min-height: 42px;
   flex-shrink: 0;
   padding: 8px 10px;
   text-align: start;
@@ -238,6 +238,7 @@
 }
 .provider-navigation {
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   flex: 1;
 }
@@ -295,6 +296,7 @@ span.provider-brand-icon {
   flex-direction: row;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   width: 100%;
 }
 .provider-navigation-copy {

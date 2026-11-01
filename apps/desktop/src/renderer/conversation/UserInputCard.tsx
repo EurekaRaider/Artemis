@@ -91,7 +91,7 @@ export function UserInputCard({
       state={busy ? "busy" : input.status}
     >
       <header>
-        <strong>{input.question}</strong>
+        <strong>{uiText(locale, "Review02.decisionQuestion")}</strong>
         <span className="decision-waiting" title={t.timeoutHint}>
           {t.waitingSelection}{" "}
           <time dateTime={input.expiresAt}>
@@ -99,6 +99,7 @@ export function UserInputCard({
           </time>
         </span>
       </header>
+      <h3 className="decision-title">{input.question}</h3>
       <DecisionOptions
         key={input.requestId}
         options={input.options}

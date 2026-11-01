@@ -121,7 +121,7 @@ export function EnvironmentCompareIcon(props: IconProps) {
 }
 
 export function EnvironmentPullRequestIcon(props: IconProps) {
-  return <StandardEnvironmentIcon {...props} name="pull-request" size={20} />;
+  return <StandardEnvironmentIcon {...props} name="pr" size={20} />;
 }
 
 export function EnvironmentChevronIcon(props: IconProps) {

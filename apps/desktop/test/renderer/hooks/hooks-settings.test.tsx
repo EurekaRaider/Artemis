@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { HookDefinition } from "@artemis/protocol";
@@ -50,10 +51,12 @@ it("requires deliberate selection and shows command, permissions and scope befor
       (checkbox as HTMLInputElement).checked,
   ).not.toBe(true);
   expect(screen.queryByRole("button", { name: /Trust and enable/ })).toBeNull();
-  expect(screen.queryByText(hook.command)).toBeNull();
+  expect(screen.getByText(hook.command).tagName).toBe("CODE");
   fireEvent.click(screen.getByRole("button", { name: "Review hooks" }));
   expect(screen.getByRole("dialog")).toBeTruthy();
-  expect(screen.getByText(hook.command)).toBeTruthy();
+  expect(
+    within(screen.getByRole("dialog")).getByText(hook.command),
+  ).toBeTruthy();
   expect(screen.getByText(/approve or deny agent tool/)).toBeTruthy();
 
   expect(screen.getByText(/current desktop user/)).toBeTruthy();

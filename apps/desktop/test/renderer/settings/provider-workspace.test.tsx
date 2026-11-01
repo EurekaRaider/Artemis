@@ -161,6 +161,7 @@ it("keeps failed credential edits for retry and prevents concurrent model writes
   stubSettingsApi(settings, { saveApiKey });
   await open(settings);
   fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "From catalog" }));
   await userEvent.type(
     screen.getByLabelText("API key · synthetic-provider"),
     "fixture-secret",
@@ -383,10 +384,10 @@ it("searches settings navigation without unmounting the active provider or expos
     "zz-no-section",
   );
   expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-    "Providers & models",
+    "Model services",
   ]);
   expect(
-    screen.getByRole("tabpanel", { name: "Providers & models" }),
+    screen.getByRole("tabpanel", { name: "Model services" }),
   ).toBeVisible();
   await userEvent.clear(screen.getByLabelText("Search settings"));
   expect(screen.getAllByRole("tab")).toHaveLength(7);

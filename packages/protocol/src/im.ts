@@ -454,6 +454,8 @@ export interface ImStatus {
     permissionBlock?: string;
     delegationWaits?: Array<{
       id: string;
+      /** Existing server deadline, exposed for the waiting countdown. */
+      deadline?: number;
       state: "waiting" | "ready" | "interrupted";
       reason?: string;
       canContinue?: boolean;

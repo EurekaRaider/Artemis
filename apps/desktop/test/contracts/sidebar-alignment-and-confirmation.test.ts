@@ -9,6 +9,9 @@ const source = (relativePath: string) =>
 
 const appSource = source("../../src/renderer/app/App.tsx");
 const stylesSource = source("../../src/renderer/styles/styles.css");
+const compositionSource = source(
+  "../../src/renderer/styles/prototype-migration.css",
+);
 
 function sourceBetween(value: string, start: string, end: string): string {
   const startIndex = value.indexOf(start);
@@ -139,10 +142,17 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
     const scrollingTitle = cssDeclarations(
       '.thread-title[data-overflowing="true"]:hover .thread-title-text',
     );
-    expect(scrollingTitle).toContain("animation: thread-title-scroll");
+    expect(
+      findCssDeclarations(
+        compositionSource,
+        '.thread-title[data-overflowing="true"]:hover .thread-title-text',
+      ),
+    ).toContain("animation: latest-thread-marquee");
     expect(scrollingTitle).toContain("text-overflow: clip");
-    expect(stylesSource).toMatch(/@keyframes\s+thread-title-scroll\s*\{/u);
-    expect(stylesSource).toMatch(
+    expect(compositionSource).toMatch(
+      /@keyframes\s+latest-thread-marquee\s*\{/u,
+    );
+    expect(compositionSource).toMatch(
       /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.thread-title\[data-overflowing="true"\]:hover\s+\.thread-title-text[\s\S]*?animation:\s*none/u,
     );
   });

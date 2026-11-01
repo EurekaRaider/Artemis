@@ -172,20 +172,6 @@
     },
     {
       "classNameSets": [
-        ["token-usage-composition-marker", "output"],
-        ["token-usage-composition-marker", "cache-read"]
-      ],
-      "owner": "Desktop token composition legend",
-      "reason": "The finite token category tone is appended to each composition marker at runtime.",
-      "sources": [
-        {
-          "path": "apps/desktop/src/renderer/conversation/TokenUsagePage.tsx",
-          "contains": "className={`token-usage-composition-marker ${item.tone}`}"
-        }
-      ]
-    },
-    {
-      "classNameSets": [
         ["sources-panel-entry", "attachment"],
         ["sources-panel-icon", "web"]
       ],
@@ -537,15 +523,6 @@
     },
     {
       "atRules": [],
-      "selector": ":is(.resource-page, .settings-panel) [data-artemis-component=\"switch\"] [data-part=\"thumb\"]",
-      "property": "background",
-      "value": "#fff",
-      "important": false,
-      "owner": "Issues #171 and #175 management switch prototype parity",
-      "reason": "The approved design in git show 9556fac:docs/ui-prototype/ui/primitives/controls.css uses a white thumb in both themes. Existing inverse/surface/status tokens change by theme; scope this exact color to resource and settings switches. Verified in real Electron in dark and light modes."
-    },
-    {
-      "atRules": [],
       "selector": ".im-member-action[data-artemis-component=\"icon-button\"]",
       "property": "padding",
       "value": "4px",
@@ -557,7 +534,7 @@
       "atRules": [],
       "selector": "[data-artemis-component=\"tooltip\"].goal-objective-tooltip",
       "property": "border",
-      "value": "1px solid var(--artemis-color-border-default)",
+      "value": "1px solid var(--border)",
       "important": false,
       "owner": "Goal objective preview",
       "reason": "Preserve the existing one-pixel theme-token border on the full-objective tooltip."

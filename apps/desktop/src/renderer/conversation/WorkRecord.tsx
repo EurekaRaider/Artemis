@@ -52,7 +52,7 @@ export function WorkRecord({
     : turn.status === "cancelled"
       ? UI_COPY.App_copy_9734[locale].cancelled
       : UI_COPY.App_copy[locale].workedFor;
-  const time = formatWorkedDuration(duration);
+  const time = formatWorkedDuration(duration, locale);
   const summary = (
     <>
       {running ? (

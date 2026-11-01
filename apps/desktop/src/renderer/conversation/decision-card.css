@@ -22,14 +22,15 @@
 }
 .decision-card > header strong,
 .decision-card.multi-question > header [data-part="question"] {
-  font-size: 14px;
+  font-size: 12px;
+  color: var(--artemis-color-focus-ring);
   font-weight: 600;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .decision-waiting {
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--muted-2);
+  font-size: 11.5px;
   flex-shrink: 0;
 }
 .decision-command {
@@ -37,8 +38,11 @@
   overflow-wrap: anywhere;
   font-size: 13px;
   color: var(--muted);
-  margin: 0 8px 12px;
-  font-family: var(--artemis-typography-mono-family);
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-family: var(--mono-font);
 }
 .decision-reason {
   margin: 0 0 12px;
@@ -84,9 +88,8 @@
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 2px 8px;
 }
 .decision-option-copy strong {
@@ -95,9 +98,9 @@
   overflow-wrap: anywhere;
 }
 .decision-option-copy small {
-  flex: 1 1 200px;
+  display: block;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--muted-2);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -339,4 +342,12 @@
   .decision-option:focus-visible {
     outline: 2px solid Highlight;
   }
+}
+
+.decision-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text);
 }

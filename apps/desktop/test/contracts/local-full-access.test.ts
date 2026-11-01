@@ -70,10 +70,10 @@ describe("local full access setting", () => {
 
   it("shows a bilingual master switch and saves its checked state", () => {
     expect(uiText("en", "SettingsPanel_labels.localFullAccess")).toBe(
-      "Full local access",
+      "Executable extensions · full local access",
     );
     expect(uiText("zh-CN", "SettingsPanel_labels.localFullAccess")).toBe(
-      "完整本机访问",
+      "可执行扩展 · 完全本地访问",
     );
     expect(settingsPanelSource).toContain("checked={settings.localFullAccess}");
     expect(settingsPanelSource).toMatch(
@@ -82,10 +82,10 @@ describe("local full access setting", () => {
     expect(settingsPanelSource).toContain("setSettings(updated)");
     expect(settingsPanelSource).toContain("onSettingsChange(updated)");
     expect(uiText("en", "SettingsPanel_labels.localFullAccessDetail")).toBe(
-      "Allow executable extensions to run with your desktop permissions.",
+      "Affects only trusted executable Pi extensions; does not change bash, Terminal or MCP permissions.",
     );
     expect(uiText("zh-CN", "SettingsPanel_labels.localFullAccessDetail")).toBe(
-      "允许可执行扩展使用当前桌面用户权限运行。",
+      "只影响已信任的可执行 Pi 扩展，不改变 bash、终端或 MCP 权限。",
     );
   });
 

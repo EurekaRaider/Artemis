@@ -1,3 +1,4 @@
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { useEffect, useRef, useState } from "react";
 import { FitAddon } from "@xterm/addon-fit";
 import { Terminal } from "@xterm/xterm";
@@ -396,21 +397,33 @@ export function TerminalPanel({
             </span>
             <span className="terminal-header-actions">
               {onNew && (
-                <button type="button" onClick={onNew}>
-                  + {uiText(locale, "Review01.newTerminal")}
+                <button
+                  type="button"
+                  onClick={onNew}
+                  aria-label={uiText(locale, "Review01.newTerminal")}
+                  title={uiText(locale, "Review01.newTerminal")}
+                >
+                  <ArtemisIcon name="plus" width={14} height={14} />
                 </button>
               )}
               <button
                 type="button"
                 disabled={state !== "ready" && state !== "exited"}
                 onClick={() => terminalRef.current?.clear()}
+                aria-label={uiText(locale, "BrowserPreview.clear")}
+                title={uiText(locale, "BrowserPreview.clear")}
               >
-                {uiText(locale, "BrowserPreview.clear")}
+                <ArtemisIcon name="trash" width={14} height={14} />
               </button>
             </span>
           </>
         }
-        heading={title}
+        heading={
+          <>
+            <ArtemisIcon name="terminal" width={14} height={14} />
+            {title}
+          </>
+        }
       />
       <TerminalViewport className="terminal-body">
         <TerminalHost className="terminal-host" ref={host} />
@@ -420,6 +433,7 @@ export function TerminalPanel({
       </TerminalViewport>
       {desktopUserAccess && (state === "ready" || state === "exited") && (
         <footer className="terminal-permission-note">
+          <ArtemisIcon name="user" width={14} height={14} />
           {uiText(locale, "TerminalPanel.desktopUserAccess")}
         </footer>
       )}

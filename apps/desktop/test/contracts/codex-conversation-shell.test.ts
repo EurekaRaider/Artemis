@@ -16,6 +16,10 @@ const stylesSource = readFileSync(
   ),
   "utf8",
 );
+const nocturneStylesSource = readFileSync(
+  new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
+  "utf8",
+);
 const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
@@ -217,9 +221,9 @@ describe("Codex conversation shell contract", () => {
     expect(conversation).toContain("emptyConversationGreeting.temporaryPrompt");
     expect(conversation).not.toContain("What should we build in");
     expect(conversation).toContain('className="conversation-empty-state"');
-    expect(conversation.indexOf("activeEvents.length === 0")).toBeLessThan(
-      conversation.indexOf("<Timeline"),
-    );
+    expect(
+      conversation.indexOf('className="conversation-empty-state"'),
+    ).toBeLessThan(conversation.indexOf("<Timeline\n"));
     expect(sendPrompt).toContain("window.artemis.startTurn({");
     expect(sendPrompt).toContain("clearSubmittedPrompt(rawPrompt)");
     expect(sendPrompt.indexOf("if (!text || busy) return;")).toBeLessThan(
@@ -345,9 +349,10 @@ describe("Codex conversation shell contract", () => {
     expect(
       publicUiCssDeclarations('[data-artemis-component="navigation-sidebar"]'),
     ).toMatch(/\bbackground:\s*var\(--artemis-color-background-sidebar\)/u);
-    expect(cssDeclarations(".workspace")).toMatch(
-      /\bbackground:\s*var\(--artemis-color-surface-base\)/u,
-    );
+    expect(
+      findCssDeclarations(nocturneStylesSource, ".app-shell .workspace"),
+    ).toContain("background: var(--bg)");
+    expect(stylesSource).toContain("--bg: var(--artemis-color-canvas)");
     expect(
       publicUiCssDeclarations('[data-artemis-component="toolbar"]'),
     ).toMatch(/\bbackground:\s*var\(--artemis-color-surface-base\)/u);
@@ -368,9 +373,12 @@ describe("Codex conversation shell contract", () => {
         '[data-artemis-component="conversation-surface"]',
       ),
     ).toMatch(/\bfont-family:\s*var\(--artemis-typography-body-family\)/u);
-    expect(cssDeclarations(".conversation-empty-state h1")).toMatch(
-      /\bfont-weight:\s*(?:400|normal)/u,
-    );
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        ".app-shell .conversation-empty-state h1",
+      ),
+    ).toContain("font-weight: 600");
   });
 
   it("keeps the compact task status horizontal when the title needs space", () => {

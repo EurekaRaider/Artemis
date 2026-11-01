@@ -29,6 +29,7 @@ interface ComposerContextBarProps {
   showMode?: boolean;
   workspaceControl?: ReactNode;
   modeActionsDisabled: boolean;
+  onGitInfo?(info: ProjectGitInfo | undefined): void;
   onClearProject(): void;
   onError(message: string): void;
   onModeChange(mode: RunMode): void;
@@ -134,6 +135,7 @@ export function ComposerContextBar({
   showMode = true,
   workspaceControl,
   modeActionsDisabled,
+  onGitInfo,
   onClearProject,
   onError,
   onModeChange,
@@ -153,6 +155,7 @@ export function ComposerContextBar({
   const [projectQuery, setProjectQuery] = useState("");
   const [branchQuery, setBranchQuery] = useState("");
   const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
+  useEffect(() => onGitInfo?.(gitInfo), [gitInfo, onGitInfo]);
   const [gitLoading, setGitLoading] = useState(true);
   const [gitError, setGitError] = useState<string>();
   const [branchBusy, setBranchBusy] = useState<string>();
@@ -618,7 +621,11 @@ export function ComposerContextBar({
                             >
                               <BranchIcon />
                               <span>
-                                <strong>{branch.name}</strong>
+                                <strong title={branch.name}>
+                                  {branch.name.length > 32
+                                    ? `${branch.name.slice(0, 15)}…${branch.name.slice(-15)}`
+                                    : branch.name}
+                                </strong>
                                 {branch.current && (
                                   <small>
                                     {t.uncommitted(gitInfo?.changeCount ?? 0)}

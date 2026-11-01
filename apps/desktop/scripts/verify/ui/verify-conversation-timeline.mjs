@@ -471,6 +471,8 @@ try {
       const surface = components("conversation-surface")[0];
       const viewport = components("timeline-viewport")[0];
       const emptyState = components("conversation-empty-state")[0];
+      const body = timeline.viewport?.parent;
+      const header = timeline.viewport?.header;
       const within = (inner, outer) =>
         inner?.width > 0 &&
         inner?.height > 0 &&
@@ -482,26 +484,34 @@ try {
         "empty-parent-scroll-contract",
         surface?.state === "empty" &&
           surface.visible === true &&
-          surface.computed.overflowY === "auto" &&
+          surface.computed.overflowY === "hidden" &&
           surface.contentFitsInline === true &&
-          timeline.viewport?.parentComponent === "conversation-surface" &&
+          body?.className === "conversation-body" &&
+          body.visible &&
+          body.computed.overflowY === "auto" &&
+          body.contentFitsInline &&
+          within(body.geometry, surface.geometry) &&
+          header?.visible &&
+          Math.abs(header.geometry.top) <= 1 &&
+          Math.abs(header.geometry.height - 46) <= 1 &&
+          body.geometry.top >= header.geometry.bottom - 1 &&
           within(surface.geometry, {
             left: 0,
             top: 0,
             right: audit.windowInnerWidth,
             bottom: audit.windowInnerHeight,
           }),
-        { surface, parentComponent: timeline.viewport?.parentComponent },
-        "visible empty conversation parent, within the window, with vertical auto scroll and no horizontal overflow",
+        { surface, body, header },
+        "fixed 46px header above the inner scrolling conversation body, both within the surface without horizontal overflow",
       );
       assert(
         "empty-viewport-flow-contract",
         timeline.viewport?.overflowY === "visible" &&
           timeline.viewport.scrollWidth <= timeline.viewport.clientWidth + 1 &&
           viewport?.visible === true &&
-          within(viewport.geometry, surface.geometry),
+          within(viewport.geometry, body.geometry),
         { viewport: timeline.viewport, component: viewport },
-        "visible non-scrolling welcome viewport inside its conversation parent without horizontal overflow",
+        "visible non-scrolling welcome viewport inside its scrolling body without horizontal overflow",
       );
       assert(
         "empty-state-visible",

@@ -320,10 +320,17 @@ describe("screenshot visual contracts", () => {
   });
   it("keeps the plan capsule compact with a breathing dot, checkmarks, and accessible status text", () => {
     expect(
+      findCssDeclarations(
+        nocturneSource,
+        '.app-shell .task-plan-progress [data-part="steps"]',
+      ),
+    ).toContain(
+      "width: min(520px, calc(var(--conversation-column-width, 100cqi) - 40px))",
+    );
+    expect(
       declarations(desktop, '.task-plan-progress [data-part="steps"]'),
     ).toMatchObject({
       background: "color-mix(in srgb, var(--surface) 96%, transparent)",
-      width: "min(520px, 72vw, calc(100cqw - 40px))",
       gap: "0",
     });
     expect(

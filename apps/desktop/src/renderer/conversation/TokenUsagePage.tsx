@@ -1,3 +1,4 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
 import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
@@ -201,10 +202,36 @@ export function TokenUsagePage({
     .map(([label, count]) => `${label} ${exactNumber.format(Number(count))}`)
     .join(" · ");
   const summary = [
-    { label: t.totalTokens, value: number.format(totalTokens) },
-    { label: t.peakDay, value: number.format(peakDay) },
-    { label: t.peakWeek, value: number.format(peakWeek) },
-    { label: t.activeDays, value: exactNumber.format(activeDays) },
+    {
+      label: t.totalTokens,
+      value: number.format(totalTokens),
+      detail: allCells.length
+        ? `${allCells[0]!.date} – ${allCells.at(-1)!.date}`
+        : undefined,
+    },
+    {
+      label: t.peakDay,
+      value: number.format(peakDay),
+      detail: peakDay > 0 ? mostActiveCell?.date : undefined,
+    },
+    {
+      label: t.peakWeek,
+      value: number.format(peakWeek),
+      detail:
+        peakWeek > 0
+          ? allCells.find((cell) => cell.weeklyTokens === peakWeek)?.weekStart
+          : undefined,
+    },
+    {
+      label: t.activeDays,
+      value: exactNumber.format(activeDays),
+      detail: uiText(locale, "Review02.monthActiveDays", {
+        count: allCells.filter(
+          (cell) =>
+            cell.date.startsWith(today.slice(0, 7)) && cell.dailyTokens > 0,
+        ).length,
+      }),
+    },
     {
       label: t.cacheHitRate,
       value:
@@ -266,9 +293,14 @@ export function TokenUsagePage({
     { label: t.inputTokens, tone: "input", value: usageTotals.input },
     { label: t.outputTokens, tone: "output", value: usageTotals.output },
     {
-      label: t.cacheHitTokens,
+      label: t.cacheReadTokens,
       tone: "cache-read",
-      value: usageTotals.cacheRead + usageTotals.cacheWrite,
+      value: usageTotals.cacheRead,
+    },
+    {
+      label: t.cacheWriteTokens,
+      tone: "cache-write",
+      value: usageTotals.cacheWrite,
     },
   ] as const;
   const modelLabel = (model: (typeof usageByModel)[number]) =>
@@ -334,13 +366,25 @@ export function TokenUsagePage({
 
       <section className="token-usage-summary" aria-label={t.title}>
         {summary.map((item) => (
-          <DataStat key={item.label} label={item.label} value={item.value} />
+          <div key={item.label}>
+            <DataStat label={item.label} value={item.value} />
+            {item.detail && (
+              <small className="token-kpi-meta">{item.detail}</small>
+            )}
+          </div>
         ))}
       </section>
 
       <section className="token-usage-activity">
         <div className="token-usage-activity-header">
           <h2>{t.activity}</h2>
+          <div className="token-heatmap-legend" aria-hidden="true">
+            {uiText(locale, "Review01.less")}
+            {[0, 1, 2, 3, 4].map((level) => (
+              <i key={level} data-level={level} />
+            ))}
+            {uiText(locale, "Review01.more")}
+          </div>
         </div>
 
         <div
@@ -396,8 +440,7 @@ export function TokenUsagePage({
               </div>
             ))}
           </div>
-          <details className="token-usage-model-breakdown">
-            <summary>{t.usageByModel}</summary>
+          <div className="token-usage-model-breakdown">
             <div className="token-usage-models-scroll">
               <table>
                 <thead>
@@ -444,7 +487,7 @@ export function TokenUsagePage({
                 </tbody>
               </table>
             </div>
-          </details>
+          </div>
         </section>
       )}
 

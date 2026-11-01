@@ -13,7 +13,6 @@
 .app-shell {
   /* 背板透明给 macOS vibrancy 让路；主区由 .workspace 实色兜底。 */
   background: transparent;
-  --sidebar-expanded-width: 280px;
   --sidebar-native-tint: 80%;
   --sidebar-native-color: var(--artemis-color-surface-raised);
 }
@@ -153,12 +152,6 @@
   color: var(--text);
   font-weight: 600;
 }
-.sidebar .sidebar-header {
-  display: none;
-}
-.sidebar .sidebar-header [data-part="copy"] {
-  display: none;
-}
 .sidebar-header-actions,
 .sidebar-header [data-part="actions"] {
   inline-size: 100%;
@@ -231,9 +224,7 @@
 }
 .sidebar .sidebar-footer {
   gap: 8px;
-  padding: 12px 10px 4px 14px;
   block-size: 56px;
-  min-block-size: 56px;
 }
 .sidebar .local-indicator {
   flex: 1;
@@ -247,7 +238,6 @@
 /* 版本号恢复徽章胶囊（继承 .app-version 基础样式），
    右缘与顶部折叠按钮的图标右缘对齐（同为侧栏 10px 内缩）。 */
 .sidebar .app-version {
-  font-size: 11px;
   white-space: nowrap;
 }
 .update-btn {
@@ -322,10 +312,10 @@
   overflow: hidden;
   border: 0;
   border-radius: 4px;
-  background: var(--artemis-color-border-subtle);
+  background: var(--border-soft);
 }
 .sidebar-update-progress progress::-webkit-progress-bar {
-  background: var(--artemis-color-border-subtle);
+  background: var(--border-soft);
 }
 .sidebar-update-progress progress::-webkit-progress-value {
   background: #3b9cff;
@@ -337,9 +327,7 @@
   align-items: center;
   inline-size: 48px;
   block-size: 100%;
-  gap: 5px;
   padding: 10px 0;
-  background: var(--artemis-color-background-sidebar);
 }
 .rail-brand {
   padding: 0;
@@ -359,22 +347,18 @@
   cursor: pointer;
 }
 .workspace-header {
-  block-size: 48px;
-  min-block-size: 48px;
   flex: 0 0 48px;
   padding: 0 12px 0 18px;
   gap: 8px;
   background: var(--artemis-color-surface-header);
   position: relative;
   z-index: 30;
-  border-block-end: 1px solid var(--border-soft);
 }
 .app-shell .workspace-header .left-sidebar-toggle {
   display: none;
 }
 .workspace-heading {
   min-inline-size: 0;
-  max-inline-size: min(62%, 680px);
 }
 .workspace-heading strong {
   max-inline-size: 200px;
@@ -388,7 +372,7 @@
 .workspace,
 .conversation,
 .timeline-scroll {
-  background: var(--artemis-color-canvas);
+  background: var(--bg);
 }
 .conversation {
   --conversation-padding: 18px;
@@ -414,16 +398,12 @@
 .composer {
   background: var(--artemis-color-surface-composer);
   border: 1px solid var(--border);
-  border-radius: 18px;
   box-shadow:
     0 1px 2px rgb(0 0 0 / 0.05),
     0 6px 20px rgb(0 0 0 / 0.05);
 }
 [data-theme="dark"] .composer {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-}
-.composer > [data-part="context"] {
-  background: var(--artemis-color-surface-composer-head);
 }
 [data-theme="dark"] .composer-context-trigger {
   background: transparent;
@@ -437,8 +417,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-inline-size: 0;
-  flex-wrap: wrap;
 }
 .composer-context-row .composer-context {
   flex: 0 1 auto;
@@ -500,9 +478,9 @@
   min-inline-size: 0;
 }
 [data-artemis-component="tooltip"].goal-objective-tooltip {
-  color: var(--artemis-color-text-primary);
+  color: var(--text);
   background: var(--artemis-color-surface-popover);
-  border: 1px solid var(--artemis-color-border-default);
+  border: 1px solid var(--border);
 }
 .goal-bar .goal-bar-progress {
   border-inline-start: 1px solid var(--border);
@@ -566,7 +544,7 @@
   border-radius: 4px;
   overflow: hidden;
   margin-block: 7px;
-  background: var(--artemis-color-surface-sunken);
+  background: var(--panel-3);
 }
 .context-usage-breakdown-bar span {
   min-inline-size: 0;
@@ -630,7 +608,7 @@
     [data-artemis-component="button"],
     [data-artemis-component="icon-button"]
   )[data-variant="secondary"]:hover:not(:disabled) {
-  background: var(--artemis-color-surface-sunken);
+  background: var(--panel-3);
   border-color: var(--border);
 }
 :is(.resource-page, .archive-page, .automation-page, .settings-panel)
@@ -706,15 +684,6 @@
   background: var(--artemis-color-surface-popover);
   box-shadow: var(--artemis-shadow-overlay);
 }
-
-.task-plan-progress [data-part="marker"][data-status="in_progress"] {
-  border-color: color-mix(in srgb, var(--success) 46%, transparent);
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  color: var(--success);
-}
-.task-plan-progress [data-part="marker"][data-status="in_progress"]::after {
-  background: var(--success);
-}
 .task-plan-progress [data-part="marker"][data-status="completed"] {
   border-color: var(--success);
   color: var(--artemis-color-status-success-text);
@@ -724,12 +693,6 @@
   [data-part="track"] {
   background: var(--artemis-color-switch-on);
   border-color: var(--artemis-color-switch-on);
-}
-
-:is(.resource-page, .settings-panel)
-  [data-artemis-component="switch"]
-  [data-part="thumb"] {
-  background: #fff;
 }
 
 .workspace-header > [data-part="leading"] {
@@ -753,12 +716,6 @@
 }
 .token-usage-composition-marker {
   background: var(--artemis-color-usage-1);
-}
-.token-usage-composition-marker.output {
-  background: var(--artemis-color-usage-2);
-}
-.token-usage-composition-marker.cache-read {
-  background: var(--artemis-color-usage-3);
 }
 
 .thread-title-copy {
@@ -920,9 +877,6 @@ body:has(.app-shell[data-platform="darwin"]),
   backdrop-filter: blur(24px) saturate(1.35);
   box-shadow: none;
 }
-.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
-  padding-block-start: 38px;
-}
 .app-shell[data-platform="darwin"] .workspace-header,
 .app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-brand {
   -webkit-app-region: drag;
@@ -985,10 +939,7 @@ body:has(.app-shell[data-platform="darwin"]),
   block-size: 18px;
 }
 .sidebar[data-state="collapsed"] {
-  background: linear-gradient(
-    transparent 48px,
-    var(--artemis-color-canvas) 48px
-  );
+  background: linear-gradient(transparent 48px, var(--bg) 48px);
   pointer-events: none;
   border-inline-end: 0;
   transform: none;
@@ -1048,13 +999,11 @@ body:has(.app-shell[data-platform="darwin"]),
       var(--artemis-color-background-sidebar) var(--sidebar-rail-tint),
       transparent
     );
-  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
   backdrop-filter: url(#railGlass);
 }
 .sidebar[data-state="collapsed"] > [data-part="main"] {
   inset-block: 48px 0;
   background: var(--sidebar-floating-glass);
-  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
   backdrop-filter: url(#drawerGlass);
   transition-delay: 0s, 0s, 0s, var(--sidebar-toggle-duration);
 }
@@ -1103,7 +1052,6 @@ body:has(.app-shell[data-platform="darwin"]),
   animation: environment-panel-enter var(--artemis-motion-duration-fast)
     var(--sidebar-toggle-ease) both;
   background: var(--sidebar-floating-glass);
-  backdrop-filter: blur(20px) saturate(1.8) brightness(1.04);
   backdrop-filter: url(#panelGlass);
   border: 0;
   border-radius: 14px;
@@ -1196,7 +1144,7 @@ body:has(.app-shell[data-platform="darwin"]),
   min-width: 0;
   min-height: 28px;
   margin: 0 6px 8px;
-  color: var(--artemis-color-text-tertiary);
+  color: var(--muted-2);
   font-size: 12px;
   line-height: 18px;
 }
@@ -1218,27 +1166,6 @@ body:has(.app-shell[data-platform="darwin"]),
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   background: var(--artemis-color-surface-composer-head);
-}
-.hooks-empty {
-  align-content: center;
-  gap: 10px;
-  min-height: 200px;
-  padding: 32px 24px;
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-}
-.hooks-empty > [data-part="icon"] {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 4px;
-  border-radius: 12px;
-  background: var(--hover);
-}
-.hooks-empty > [data-part="description"] {
-  max-width: 440px;
-  line-height: 1.7;
 }
 .hooks-policy {
   display: flex;
@@ -1283,7 +1210,7 @@ body:has(.app-shell[data-platform="darwin"]),
   flex-wrap: wrap;
   gap: 3px 10px;
   font-size: 12px;
-  color: var(--artemis-color-text-tertiary);
+  color: var(--muted-2);
 }
 .hooks-selection {
   display: flex;
@@ -1294,7 +1221,7 @@ body:has(.app-shell[data-platform="darwin"]),
 }
 .hooks-selection > span,
 .hooks-help {
-  color: var(--artemis-color-text-tertiary);
+  color: var(--muted-2);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -1319,7 +1246,7 @@ body:has(.app-shell[data-platform="darwin"]),
   margin: 0 0 8px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--artemis-color-text-secondary);
+  color: var(--muted);
 }
 .hooks-review-source {
   display: flex;
@@ -1361,8 +1288,8 @@ body:has(.app-shell[data-platform="darwin"]),
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--artemis-radius-control);
-  background: var(--artemis-color-surface-sunken);
-  font-family: var(--artemis-typography-mono-family);
+  background: var(--panel-3);
+  font-family: var(--mono-font);
   font-size: 12px;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -1379,7 +1306,7 @@ body:has(.app-shell[data-platform="darwin"]),
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  color: var(--artemis-color-text-secondary);
+  color: var(--muted);
 }
 .hooks-disclosure > summary > span {
   color: var(--muted-2);
@@ -1409,7 +1336,7 @@ body:has(.app-shell[data-platform="darwin"]),
   gap: 10px;
   font-size: 12px;
   line-height: 1.6;
-  color: var(--artemis-color-text-secondary);
+  color: var(--muted);
 }
 .hooks-capability {
   margin: 12px 0;
@@ -1441,7 +1368,7 @@ body:has(.app-shell[data-platform="darwin"]),
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  color: var(--artemis-color-text-secondary);
+  color: var(--muted);
 }
 .hooks-run time {
   margin-inline-start: auto;

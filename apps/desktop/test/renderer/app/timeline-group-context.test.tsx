@@ -97,5 +97,16 @@ it("shows message event times and the thread channel without inventing a member 
     ),
   ).toEqual(events.map((event) => event.timestamp));
   rerender(<Timeline {...props} />);
+  expect(
+    [...container.querySelectorAll(".group-message-heading time")].map((node) =>
+      node.getAttribute("datetime"),
+    ),
+  ).toEqual(events.map((event) => event.timestamp));
+  const legacyState = JSON.parse(JSON.stringify(state));
+  for (const message of Object.values(legacyState.userMessages))
+    delete (message as { timestamp?: string }).timestamp;
+  for (const part of Object.values(legacyState.messageParts))
+    delete (part as { timestamp?: string }).timestamp;
+  rerender(<Timeline {...props} state={legacyState} />);
   expect(container.querySelector(".group-message-heading time")).toBeNull();
 });

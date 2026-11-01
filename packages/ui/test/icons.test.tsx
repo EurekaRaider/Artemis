@@ -35,11 +35,13 @@ describe("ArtemisIcon", () => {
   });
   it("publishes the complete Nocturne icon catalog and workspace brand", () => {
     expect(ARTEMIS_ICON_SOURCE).toBe("nocturne:Icons.dc.html");
-    expect(ARTEMIS_ICON_NAMES).toHaveLength(145);
-    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(145);
+    expect(ARTEMIS_ICON_NAMES).toHaveLength(147);
+    expect(new Set(ARTEMIS_ICON_NAMES)).toHaveLength(147);
     expect(ARTEMIS_ICON_NAMES).toEqual(
       expect.arrayContaining([
         "artemis",
+        "chat",
+        "pr",
         "mobile",
         "monitor",
         "folder",
@@ -101,7 +103,7 @@ describe("ArtemisIcon", () => {
     expect(icon?.getAttribute("height")).toBe("20");
     expect(icon?.getAttribute("width")).toBe("20");
     expect(icon?.querySelector("path")?.getAttribute("d")).toBe(
-      "M12 5.5v13M5.5 12h13",
+      "M12 5v14 M5 12h14",
     );
   });
 });

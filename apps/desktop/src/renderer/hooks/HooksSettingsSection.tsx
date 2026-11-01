@@ -1,3 +1,5 @@
+import { uiText } from "../../shared/i18n/ui-text.js";
+import { formatWorkedDuration } from "../conversation/turn-timeline.js";
 import { useEffect, useRef, useState } from "react";
 import type {
   AppLocale,
@@ -136,8 +138,8 @@ export function HooksSettingsSection({
     <>
       <ManagementSection
         className="settings-section hooks-section"
-        title={t("Hooks.title")}
-        description={t("Hooks.summary")}
+        title={uiText(locale, "Hooks.title")}
+        description={uiText(locale, "Review02.hooksDescription")}
         actions={
           <IconButton
             icon={<ArtemisIcon name="refresh" />}
@@ -145,14 +147,14 @@ export function HooksSettingsSection({
             variant="quiet"
             size="compact"
             disabled={busy}
-            onClick={() => void run(refresh)}
+            onClick={() => void run(async () => {})}
           />
         }
       >
         <div className="hooks-toolbar">
           <Select
             label={t("Hooks.project")}
-            labelVisibility="visible"
+            labelVisibility="hidden"
             value={projectId}
             onValueChange={setProjectId}
             options={[
@@ -165,11 +167,11 @@ export function HooksSettingsSection({
           />
           <Select
             label={t("Hooks.filter")}
-            labelVisibility="visible"
+            labelVisibility="hidden"
             value={filter}
             onValueChange={setFilter}
             options={[
-              { value: "all", label: t("Hooks.title") },
+              { value: "all", label: uiText(locale, "Hooks.title") },
               ...(
                 [
                   "pending",
@@ -187,24 +189,30 @@ export function HooksSettingsSection({
         {error && !reviewing.length && (
           <InlineNotice tone="danger">{error}</InlineNotice>
         )}
-        {!catalog && !error && <LoadingState label={t("Hooks.title")} />}
+        {!catalog && !error && (
+          <LoadingState label={uiText(locale, "Hooks.title")} />
+        )}
         {catalog && !visible.length && (
-          <EmptyState
-            className="hooks-empty"
-            icon={<ArtemisIcon name="hooks" />}
-            title={t("Hooks.empty")}
-            description={t("Hooks.emptyHint")}
-          />
+          <p className="settings-empty-inline">{t("Hooks.emptyHint")}</p>
         )}
         <div className="hooks-list">
           {visible.map((hook) => (
             <ManagementRow
               key={hook.id}
               className="hooks-row"
-              title={title(hook)}
+              title={
+                <>
+                  <span className="hook-event">{hook.event}</span>
+                  <code title={title(hook)}>{hook.command}</code>
+                </>
+              }
               description={
                 <span className="hooks-row-meta">
-                  {title(hook) !== hook.event && <span>{hook.event}</span>}
+                  <span>{hook.matcher}</span>
+                  <span>
+                    {t("Hooks.timeout")}:{" "}
+                    {formatWorkedDuration(hook.timeout * 1000, locale)}
+                  </span>
                   <span>
                     {hook.source === "plugin"
                       ? sourceName(hook)
@@ -321,7 +329,7 @@ export function HooksSettingsSection({
               <p>
                 {reviewing.length === 1
                   ? title(reviewing[0]!)
-                  : `${t("Hooks.title")} · ${reviewing.length}`}
+                  : `${uiText(locale, "Hooks.title")} · ${reviewing.length}`}
               </p>
             </div>
             <IconButton

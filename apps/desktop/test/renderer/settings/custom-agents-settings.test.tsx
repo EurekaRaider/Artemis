@@ -152,27 +152,20 @@ function renderSection(options: RenderOptions = {}) {
 }
 
 describe("CustomAgentsSettingsSection", () => {
-  it("shows the dashed empty state as the only create entry point", () => {
+  it("keeps one create action in the header with a quiet empty description", () => {
     renderSection({ snapshotOverrides: { customAgents: [] } });
-    expect(screen.getByText("No custom sub-agents yet")).toBeInTheDocument();
     expect(screen.getByText(/Create a specialist role once/u)).toBeVisible();
-    const empty = screen
-      .getByText("No custom sub-agents yet")
-      .closest("[data-artemis-component='empty-state']");
-    expect(empty?.className).toContain("custom-agent-empty");
-    // While empty, the header count chip and create button stay hidden —
-    // the dashed box owns the single creation entry point.
+    const create = screen.getByRole("button", { name: "New sub-agent" });
+    expect(create.closest('[data-part="header"]')).not.toBeNull();
     expect(
-      screen.getAllByRole("button", { name: "New sub-agent" }).length,
-    ).toBe(1);
-    expect(screen.queryByText("0 item(s)")).toBeNull();
+      document.querySelector('[data-artemis-component="empty-state"]'),
+    ).toBeNull();
+    expect(screen.getByText("0 item(s)")).toBeVisible();
   });
 
   it("lists definitions with policy, scope, state, and routing badges", () => {
     renderSection();
-    const row = screen
-      .getByText("Reviewer", { selector: '[data-part="title"]' })
-      .closest("article");
+    const row = screen.getByText("@Reviewer").closest("article");
     expect(row).not.toBeNull();
     const scoped = within(row as HTMLElement);
     expect(scoped.getByText("Reviews diffs")).toBeInTheDocument();

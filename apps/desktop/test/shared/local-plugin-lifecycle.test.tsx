@@ -110,7 +110,12 @@ async function setup(
   );
   await user.click(screen.getByRole("option", { name: t.local, exact: true }));
   const add = async () => {
-    await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+    await user.click(
+      screen.getByRole("button", {
+        name: "Add marketplace or server",
+        exact: true,
+      }),
+    );
     await user.click(
       screen.getByRole("button", { name: t.inspectLocalPlugin, exact: true }),
     );
@@ -251,7 +256,12 @@ it("keeps imported marketplace installation explicit and retains its catalog ent
     warnings: [],
     settings: { mcpServers: [], trustedExtensions: [] },
   });
-  await user.click(screen.getByRole("button", { name: "Add", exact: true }));
+  await user.click(
+    screen.getByRole("button", {
+      name: "Add marketplace or server",
+      exact: true,
+    }),
+  );
   await user.click(
     screen.getByRole("button", {
       name: t.importOfflineMarketplace,

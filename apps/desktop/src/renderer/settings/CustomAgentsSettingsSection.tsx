@@ -428,20 +428,17 @@ export function CustomAgentsSettingsSection({
     <div className="custom-agents-anchor">
       <ManagementSection
         actions={
-          definitions.length === 0 ? undefined : (
-            <>
-              <span className="custom-agent-count">
-                {t.count.replace("{count}", String(definitions.length))}
-              </span>
-              <Button disabled={busy} onClick={openCreate}>
-                <ArtemisIcon name="plus" />
-                {t.add}
-              </Button>
-            </>
-          )
+          <>
+            <span className="custom-agent-count">
+              {t.count.replace("{count}", String(definitions.length))}
+            </span>
+            <Button disabled={busy} onClick={openCreate}>
+              <ArtemisIcon name="plus" />
+              {t.add}
+            </Button>
+          </>
         }
         className="settings-section custom-agents-section"
-        description={t.hint}
         title={t.title}
       >
         {error && !formOpen && (
@@ -456,17 +453,7 @@ export function CustomAgentsSettingsSection({
           </InlineNotice>
         )}
         {definitions.length === 0 ? (
-          <EmptyState
-            action={
-              <Button disabled={busy} onClick={openCreate}>
-                <ArtemisIcon name="plus" />
-                {t.add}
-              </Button>
-            }
-            className="custom-agent-empty"
-            description={t.emptyHint}
-            title={t.empty}
-          />
+          <p className="settings-empty-inline">{t.emptyHint}</p>
         ) : (
           definitions.map((definition) => (
             <ManagementRow
@@ -482,13 +469,12 @@ export function CustomAgentsSettingsSection({
                       void toggleEnabled(definition, enabled)
                     }
                   />
-                  <Button
+                  <IconButton
                     disabled={busy}
                     onClick={() => void openEdit(definition)}
-                    size="compact"
-                  >
-                    {t.edit}
-                  </Button>
+                    icon={<ArtemisIcon name="edit" />}
+                    label={t.edit}
+                  />
                   {deleteConfirmId === definition.id ? (
                     <>
                       <Button
@@ -553,9 +539,22 @@ export function CustomAgentsSettingsSection({
                 <span
                   aria-hidden="true"
                   className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
-                />
+                >
+                  <ArtemisIcon
+                    name="agent-configuration"
+                    width={16}
+                    height={16}
+                  />
+                </span>
               }
-              title={definition.name}
+              title={
+                <>
+                  {definition.name}{" "}
+                  <small className="custom-agent-handle">
+                    @{definition.name}
+                  </small>
+                </>
+              }
             />
           ))
         )}

@@ -165,7 +165,7 @@ function BackIcon() {
 }
 
 function EmptyResource({ children }: { children: string }) {
-  return <EmptyState className="resource-empty-state" title={children} />;
+  return <p className="resource-empty-inline">{children}</p>;
 }
 
 export function CatalogSearchNotice({
@@ -2035,9 +2035,6 @@ export function ResourceCenter({
           <small>{office.shared}</small>
         </div>
         <div className="plugin-market-card-footer">
-          <small className="plugin-market-card-source">
-            {t.marketplaceSource}: {t.bundledPlugins}
-          </small>
           <details
             className="plugin-market-card-actions"
             data-installed={installed}
@@ -2157,9 +2154,6 @@ export function ResourceCenter({
           <small>{copy.manageDescription}</small>
         </div>
         <div className="plugin-market-card-footer">
-          <small className="plugin-market-card-source">
-            {t.marketplaceSource}: {t.bundledPlugins}
-          </small>
           <details
             className="plugin-market-card-actions"
             data-installed={installed}
@@ -2399,12 +2393,6 @@ export function ResourceCenter({
           )}
         </div>
         <div className="plugin-market-card-footer">
-          <small
-            className="plugin-market-card-source"
-            title={`${t.marketplaceSource}: ${sourceLabel}`}
-          >
-            {t.marketplaceSource}: {sourceLabel}
-          </small>
           <span className="plugin-permission-tags">
             {plugin.mcpServers.length > 0 && (
               <span>
@@ -2664,6 +2652,16 @@ export function ResourceCenter({
 
         <section className="resource-add-plugin-options">
           <ManagementCard className="resource-add-plugin-card">
+            <strong>{t.mcp}</strong>
+            <Button
+              disabled={operationPending}
+              icon={<PlusIcon />}
+              onClick={() => openMcpEditor()}
+            >
+              {t.addMcp}
+            </Button>
+          </ManagementCard>
+          <ManagementCard className="resource-add-plugin-card">
             <div>
               <strong>{t.gitMarketplace}</strong>
               <small>{t.gitMarketplaceHint}</small>
@@ -2872,10 +2870,12 @@ export function ResourceCenter({
 
   const managementCounts: Record<ManagementTab, number> = {
     plugins:
-      installedPlugins.filter((plugin) => !isLegacyOfficePlugin(plugin))
-        .length +
-      installedPacks.length +
-      (settings?.trustedExtensions.length ?? 0),
+      new Set([
+        ...marketplaceGroups.flatMap((group) =>
+          group.plugins.map((plugin) => plugin.id),
+        ),
+        ...selectedMarketplacePlugins.map((plugin) => plugin.id),
+      ]).size + 2,
     mcp: mcpServers.filter(
       (server) => server.config.resourceKind !== "connector",
     ).length,
@@ -2900,38 +2900,60 @@ export function ResourceCenter({
     (option) => option.value === managementTab,
   )!;
 
+  const headerActions = (
+    <div className="resource-header-actions">
+      <IconButton
+        className="resource-icon-button"
+        disabled={
+          operationPending ||
+          selectedMarketplaceView === "local" ||
+          marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
+          marketplaceSourceById.get(selectedMarketplaceView)?.refreshable ===
+            false ||
+          searching ||
+          installProgress !== undefined
+        }
+        icon={<RefreshIcon />}
+        label={t.refresh}
+        onClick={() => runResourceOperation(refreshSelectedMarketplace)}
+        title={t.refresh}
+      />
+      <Button
+        className="resource-add-button"
+        disabled={operationPending}
+        icon={<PlusIcon />}
+        onClick={() => {
+          setAddPluginReturnMode("marketplace");
+          setMode("add-plugin");
+        }}
+      >
+        {uiText(locale, "Review02.addMarketServer")}
+      </Button>
+    </div>
+  );
+  const resourceHeader = (
+    <ManagementHeader
+      className="resource-page-header"
+      description={t.marketDescription}
+      title={uiText(locale, "Review01.resources")}
+      actions={headerActionTarget ? undefined : headerActions}
+    />
+  );
+  const resourceTabs = (
+    <SegmentedControl
+      className="resource-category-tabs"
+      disabled={operationPending}
+      label={t.manage}
+      onValueChange={(tab) => {
+        if (tab === "plugins") setMode("marketplace");
+        else openManagement(tab);
+      }}
+      options={managementTabOptions}
+      size="compact"
+      value={mode === "marketplace" ? "plugins" : managementTab}
+    />
+  );
   if (mode === "marketplace") {
-    const headerActions = (
-      <div className="resource-header-actions">
-        <IconButton
-          className="resource-icon-button"
-          disabled={
-            operationPending ||
-            selectedMarketplaceView === "local" ||
-            marketplaceSourceById.get(selectedMarketplaceView)?.builtIn ||
-            marketplaceSourceById.get(selectedMarketplaceView)?.refreshable ===
-              false ||
-            searching ||
-            installProgress !== undefined
-          }
-          icon={<RefreshIcon />}
-          label={t.refresh}
-          onClick={() => runResourceOperation(refreshSelectedMarketplace)}
-          title={t.refresh}
-        />
-        <Button
-          className="resource-add-button"
-          disabled={operationPending}
-          icon={<PlusIcon />}
-          onClick={() => {
-            setAddPluginReturnMode("marketplace");
-            setMode("add-plugin");
-          }}
-        >
-          {t.add}
-        </Button>
-      </div>
-    );
     return (
       <ResourceSurface
         busy={
@@ -2944,22 +2966,9 @@ export function ResourceCenter({
         label={t.title}
       >
         {headerActionTarget && createPortal(headerActions, headerActionTarget)}
-        <ManagementHeader
-          className="resource-page-header"
-          description={t.marketDescription}
-          title={uiText(locale, "Review01.resources")}
-          actions={headerActionTarget ? undefined : headerActions}
-        />
+        {resourceHeader}
         <div className="resource-marketplace-toolbar">
-          <SegmentedControl
-            className="resource-category-tabs"
-            disabled={operationPending}
-            label={t.manage}
-            onValueChange={(tab) => openManagement(tab)}
-            options={managementTabOptions}
-            size="compact"
-            value="plugins"
-          />
+          {resourceTabs}
           <Select
             className="resource-marketplace-filter"
             label={t.marketplaces}
@@ -3053,9 +3062,12 @@ export function ResourceCenter({
           )}
 
           {/* 第三方提示在来源 tab 条之上（先讲清风险再选来源）。 */}
-          <div className="resource-risk-meta">
-            <ArtemisIcon name="approval" width={14} height={14} />
-            {t.thirdParty}
+          <div className="resource-section-heading">
+            <h2>{uiText(locale, "Review02.bundledPlugins")}</h2>
+            <div className="resource-risk-meta">
+              <ArtemisIcon name="approval" width={14} height={14} />
+              {t.thirdParty}
+            </div>
           </div>
 
           {marketplaceTabOptions
@@ -3283,45 +3295,10 @@ export function ResourceCenter({
       className="resource-page resource-management-page"
       label={`${t.manage}: ${t[managementTab]}`}
     >
-      <ManagementHeader
-        className="resource-page-header resource-management-header"
-        description={t.marketDescription}
-        leading={
-          <>
-            <IconButton
-              className="resource-back-button"
-              disabled={operationPending}
-              icon={<BackIcon />}
-              label={t.backToMarketplace}
-              onClick={() => {
-                setMode("marketplace");
-                setMessage(undefined);
-              }}
-              title={t.backToMarketplace}
-            />
-            <img
-              className="resource-page-artwork"
-              src={resourceCenterIcon}
-              alt=""
-            />
-          </>
-        }
-        title={uiText(locale, "Review01.resources")}
-      />
-
+      {headerActionTarget && createPortal(headerActions, headerActionTarget)}
+      {resourceHeader}
       <div className="resource-management-toolbar">
-        <SegmentedControl
-          className="resource-management-tabs resource-category-tabs"
-          disabled={operationPending}
-          label={t.manage}
-          onValueChange={(tab) => {
-            if (tab === "plugins") setMode("marketplace");
-            switchManagementTab(tab);
-          }}
-          options={managementTabOptions}
-          size="compact"
-          value={managementTab}
-        />
+        {resourceTabs}
         <SearchField
           className="resource-search-field resource-management-search"
           disabled={operationPending}

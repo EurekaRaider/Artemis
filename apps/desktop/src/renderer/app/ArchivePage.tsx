@@ -20,6 +20,7 @@ interface ArchivePageProps {
   locale: AppLocale;
   projects: Project[];
   threads: Thread[];
+  groupThreadIds?: ReadonlySet<string>;
   onOpen(thread: Thread): void;
   onRestore(thread: Thread): void;
   onDelete(thread: Thread): void;
@@ -39,6 +40,7 @@ export function ArchivePage({
   locale,
   projects,
   threads,
+  groupThreadIds,
   onOpen,
   onRestore,
   onDelete,
@@ -164,8 +166,7 @@ export function ArchivePage({
           />
         </div>
 
-        <div className="archive-summary">
-          <h2>{t.archiveSectionTitle}</h2>
+        <div className="sr-only">
           <p aria-live="polite">{resultCount}</p>
         </div>
         <div className="archive-results">
@@ -173,10 +174,28 @@ export function ArchivePage({
             <Fragment key={thread.id}>
               {(index === 0 ||
                 groupLabel(results[index - 1]!) !== groupLabel(thread)) && (
-                <h3 className="archive-time-group">{groupLabel(thread)}</h3>
+                <h3 className="archive-time-group">
+                  <span>{groupLabel(thread)}</span>
+                  <span>
+                    {
+                      results.filter(
+                        (item) => groupLabel(item) === groupLabel(thread),
+                      ).length
+                    }
+                  </span>
+                </h3>
               )}
               <ManagementCard className="archive-card">
-                <ArtemisIcon className="archive-thread-icon" name="message" />
+                <ArtemisIcon
+                  className="archive-thread-icon"
+                  name={
+                    groupThreadIds?.has(thread.id)
+                      ? "agents"
+                      : thread.projectId
+                        ? "plan"
+                        : "chat"
+                  }
+                />
                 <div className="archive-card-copy">
                   <h2>{visibleThreadTitle(thread.title)}</h2>
                   <p className="archive-subtitle">
@@ -198,9 +217,12 @@ export function ArchivePage({
                   </span>
                   <time dateTime={thread.updatedAt}>
                     {new Intl.DateTimeFormat(locale, {
-                      month: "short",
+                      month: "numeric",
                       day: "numeric",
-                      year: "numeric",
+                      ...(new Date(thread.updatedAt).getFullYear() !==
+                      new Date().getFullYear()
+                        ? { year: "numeric" as const }
+                        : {}),
                     }).format(new Date(thread.updatedAt))}
                   </time>
                 </div>

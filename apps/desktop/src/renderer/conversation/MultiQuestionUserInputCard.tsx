@@ -450,9 +450,7 @@ export function MultiQuestionUserInputCard({
         </div>
       </div>
       <header>
-        <strong data-part="question">
-          {currentQuestion?.question ?? input.header}
-        </strong>
+        <strong>{uiText(locale, "Review02.multipleQuestions")}</strong>
         <div className="decision-question-meta">
           <span className="decision-question-progress">
             {fill(t.questionProgress, {
@@ -476,6 +474,9 @@ export function MultiQuestionUserInputCard({
           )}
         </div>
       </header>
+      <h3 className="decision-title" data-part="question">
+        {currentQuestion?.question ?? input.header}
+      </h3>
       <span
         aria-label={t.progressLabel}
         aria-valuemax={questionCount}
@@ -509,6 +510,7 @@ export function MultiQuestionUserInputCard({
         ))}
       </div>
       <div className="user-question-nav">
+        <small>{uiText(locale, "Review02.skippedQuestions")}</small>
         <button
           type="button"
           disabled={activeQuestionIndex === 0}

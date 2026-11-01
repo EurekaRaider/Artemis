@@ -114,14 +114,26 @@ export function ApprovalDecisionCard({
       aria-busy={busy}
     >
       <header>
-        <strong>
-          <bdi>{approval.summary}</bdi>
-        </strong>
+        <strong>{uiText(locale, "Review02.decisionApproval")}</strong>
         <span className="decision-waiting">{t.waiting}</span>
       </header>
-      <pre className="decision-command">
-        <bdi>{view.detail}</bdi>
-      </pre>
+      <h3 className="decision-title">
+        <bdi>{approval.summary}</bdi>
+      </h3>
+      {view.detail && (
+        <pre className="decision-command">
+          {approval.command && <span aria-hidden="true">$ </span>}
+          <bdi>{view.detail}</bdi>
+        </pre>
+      )}
+      <div className="decision-metadata">
+        {approval.network.map((host) => (
+          <span key={host}>
+            <bdi>{host}</bdi>
+          </span>
+        ))}
+        <span>{uiText(locale, `Review02.risk.${approval.risk}`)}</span>
+      </div>
       {actorLabel && <small>{actorLabel}</small>}
       {view.reason && (
         <p className="decision-reason">

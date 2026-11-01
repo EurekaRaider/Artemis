@@ -1,6 +1,8 @@
+import { formatWorkedDuration } from "./turn-timeline.js";
 import {
   reduceAgentEvents,
   type AgentEvent,
+  type AppLocale,
   type ThreadViewState,
 } from "@artemis/protocol";
 
@@ -27,7 +29,18 @@ export function deriveRunPresentation(
   );
   const started = events[startIndex];
   if (!started) {
-    return { status: "idle", elapsedMs: 0 };
+    const status =
+      reducedStatus ??
+      (events[0]
+        ? reduceAgentEvents(events[0].threadId, [...events]).status
+        : "idle");
+    return {
+      status:
+        status === "waiting-user-input" || status === "waiting-approval"
+          ? status
+          : "idle",
+      elapsedMs: 0,
+    };
   }
 
   const startedAt = Date.parse(started.timestamp);
@@ -65,8 +78,11 @@ export function deriveRunPresentation(
         .filter((event) => event.turnId === started.turnId),
     ).status;
   const status: RunPresentationStatus =
-    terminalStatus ??
-    (currentTurnStatus === "idle" ? "running" : currentTurnStatus);
+    currentTurnStatus === "waiting-user-input" ||
+    currentTurnStatus === "waiting-approval"
+      ? currentTurnStatus
+      : (terminalStatus ??
+        (currentTurnStatus === "idle" ? "running" : currentTurnStatus));
 
   return {
     status,
@@ -74,7 +90,11 @@ export function deriveRunPresentation(
   };
 }
 
-export function formatRunDuration(milliseconds: number): string {
+export function formatRunDuration(
+  milliseconds: number,
+  locale?: AppLocale,
+): string {
+  if (locale) return formatWorkedDuration(milliseconds, locale);
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1_000));
   const seconds = totalSeconds % 60;
   const totalMinutes = Math.floor(totalSeconds / 60);

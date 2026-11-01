@@ -1,5 +1,7 @@
 export const SKIN_ICON_NAMES = [
   "message",
+  "chat",
+  "pr",
   "mobile",
   "monitor",
   "agent-configuration",

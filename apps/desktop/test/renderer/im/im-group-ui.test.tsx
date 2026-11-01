@@ -226,7 +226,7 @@ describe("group collaboration UI", () => {
     expect(
       screen.queryByText("已加入此 Artemis 空间的成员"),
     ).not.toBeInTheDocument();
-    expect(within(rows[1]!).getByText("本任务执行者")).toBeVisible();
+    expect(within(rows[1]!).getByText("执行此任务")).toBeVisible();
     rerender(
       <ImGroupMembers
         managePermissions

@@ -8413,6 +8413,7 @@ function registerIpc(): void {
               {
                 id: "artemis-smoke-wait",
                 state: "waiting",
+                deadline: Date.now() + 300_000,
                 taskIds: ["artemis-smoke-remote-task"],
                 continuation: "Review the synthetic changes",
               },
@@ -14987,18 +14988,17 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
   store.createThread({
     id: threadId,
     projectId,
-    title:
-      view === "conversation-timeline-empty"
-        ? "Empty conversation"
-        : view === "conversation-timeline-failed"
-          ? "Interrupted conversation"
-          : "Conversation timeline migration",
+    title: view.startsWith("conversation-timeline-empty")
+      ? "Empty conversation"
+      : view === "conversation-timeline-failed"
+        ? "Interrupted conversation"
+        : "Conversation timeline migration",
     mode: "work",
     target: "local",
     status:
       view === "conversation-timeline-failed"
         ? "failed"
-        : view === "conversation-timeline-empty"
+        : view.startsWith("conversation-timeline-empty")
           ? "idle"
           : "running",
     pinned: false,
@@ -15006,7 +15006,106 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
-  if (view === "conversation-timeline-empty") return;
+  if (view.startsWith("conversation-timeline-empty")) {
+    if (view.endsWith("-one") || view.endsWith("-three")) {
+      store.createThread({
+        id: "artemis-smoke-resume-thread",
+        projectId,
+        title: "Resume the release review",
+        mode: "work",
+        target: "local",
+        status: "failed",
+        pinned: false,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      store.appendEvent(
+        "resume-failure",
+        "artemis-smoke-resume-thread",
+        "resume-turn",
+        {
+          type: "turn.failed",
+          message: "The model service is temporarily unavailable.",
+        },
+      );
+    }
+    if (view.endsWith("-three")) {
+      store.createAutomation({
+        id: "artemis-smoke-resume-automation",
+        projectId,
+        name: "Weekly project review",
+        prompt: "Review the project changes.",
+        mode: "plan",
+        target: "local",
+        enabled: false,
+        authorizationState: "not-required",
+        schedule: {
+          kind: "weekly",
+          daysOfWeek: [5],
+          localTime: "09:00",
+          timeZone: "UTC",
+        },
+        createdAt: now,
+        updatedAt: now,
+      });
+      // An isolated repository exercises the existing Git status reader.
+      const git = (...args: string[]) =>
+        execFileAsync("git", args, {
+          cwd: fixturePath,
+          timeout: 15_000,
+        });
+      await git("init", "-b", "main");
+      await writeFile(join(fixturePath, "README.md"), "# Welcome fixture\n");
+      await git("add", "README.md");
+      await git(
+        "-c",
+        "user.name=Artemis Smoke",
+        "-c",
+        "user.email=smoke@example.test",
+        "commit",
+        "-m",
+        "Initial fixture",
+      );
+      await writeFile(
+        join(fixturePath, "README.md"),
+        "# Welcome fixture\n\nReview these changes.\n",
+      );
+    }
+    return;
+  }
+
+  if (view === "conversation-timeline-plan") {
+    const turnId = "artemis-smoke-plan-turn";
+    const payloads: AgentPayload[] = [
+      {
+        type: "user.message",
+        messageId: "review02-plan-request",
+        text: "Plan the release layout verification.",
+      },
+      { type: "turn.started", mode: "plan" },
+      {
+        type: "plan.proposed",
+        planId: "artemis-smoke-plan",
+        revision: 1,
+        sourceTurnId: turnId,
+        title: "Verify the release layout",
+        markdown:
+          "1. Compare the main surfaces.\n2. Run the existing verification scripts.",
+        actionable: true,
+      },
+      { type: "turn.completed", reason: "completed" },
+    ];
+    store.appendEvents(
+      threadId,
+      payloads.map((payload, index) => ({
+        eventId: `review02-plan-${index}`,
+        turnId,
+        payload,
+      })),
+    );
+    return;
+  }
 
   if (view === "conversation-timeline-im") {
     const provenance = JSON.stringify({
@@ -16007,7 +16106,7 @@ const analyzeSmokeFocusPixels = ({
 async function driveSmokeFormControlsEvidence(
   window: BrowserWindow,
   view: string | undefined,
-): Promise<void> {
+): Promise<boolean> {
   const targets = {
     "form-controls-archive": {
       selector:
@@ -16039,7 +16138,7 @@ async function driveSmokeFormControlsEvidence(
     },
   } as const;
   const target = view ? targets[view as keyof typeof targets] : undefined;
-  if (!target) return;
+  if (!target) return false;
 
   const contents = window.webContents;
   const wait = (milliseconds: number) =>
@@ -16066,9 +16165,7 @@ async function driveSmokeFormControlsEvidence(
     });
   };
 
-  if (process.platform === "darwin") app.focus({ steal: true });
-  window.focus();
-  contents.focus();
+  await ensureSmokeWindowFocus(window);
   let targetFocused = false;
   for (let presses = 0; presses < 200; presses += 1) {
     targetFocused = await evaluate<boolean>(
@@ -16111,7 +16208,7 @@ async function driveSmokeFormControlsEvidence(
         tabIndex: button.tabIndex, width: button.getBoundingClientRect().width,
       })),
     }`);
-    return;
+    return true;
   }
 
   if (view === "turn-changes-form-controls") {
@@ -16149,7 +16246,7 @@ async function driveSmokeFormControlsEvidence(
       await pressKey("Tab", 9);
       await wait(15);
     }
-    return;
+    return true;
   }
 
   if ("rootSelector" in target) {
@@ -16188,12 +16285,16 @@ async function driveSmokeFormControlsEvidence(
   await evaluate(`new Promise((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(resolve)),
   )`);
+  return true;
 }
 
 async function ensureSmokeWindowFocus(window: BrowserWindow): Promise<void> {
   const contents = window.webContents;
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (await contents.executeJavaScript("document.hasFocus()")) {
+    if (
+      window.isFocused() &&
+      (await contents.executeJavaScript("document.hasFocus()"))
+    ) {
       await contents.executeJavaScript(`new Promise((resolve) =>
         requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
       return;
@@ -16212,11 +16313,12 @@ async function driveSmokeNavigationControlsEvidence(
 ): Promise<boolean> {
   const targets = {
     "navigation-token-usage": {
-      activation: "ArrowRight",
+      activation: "Space",
       expectedLabel: "Weekly",
-      rootSelector: '.token-usage-tabs[data-artemis-component="tabs"]',
+      rootSelector:
+        '.token-usage-tabs[data-artemis-component="segmented-control"]',
       targetSelector:
-        '.token-usage-tabs[data-artemis-component="tabs"] [data-part="tab"][aria-selected="true"]',
+        '.token-usage-tabs[data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="false"]',
     },
     "markdown-editor-navigation-toolbar": {
       activation: "Space",
@@ -16305,11 +16407,7 @@ async function driveSmokeNavigationControlsEvidence(
     };
   })()`);
 
-  if (target.activation === "ArrowRight") {
-    await pressKey("ArrowRight", "ArrowRight", 39);
-  } else {
-    await pressKey(" ", "Space", 32);
-  }
+  await pressKey(" ", "Space", 32);
   await wait(300);
   const interaction = await evaluate<Record<string, unknown>>(`(() => {
     const root = document.querySelector(${JSON.stringify(target.rootSelector)});
@@ -19052,7 +19150,7 @@ function createMainWindow(): BrowserWindow {
                 if (view.startsWith('conversation-timeline-')) {
                   await openSmokeHistoryThread(
                     'artemis-smoke-conversation-thread',
-                    view === 'conversation-timeline-empty'
+                    view.startsWith('conversation-timeline-empty')
                       ? '[data-artemis-component="conversation-empty-state"]'
                       : '.timeline .user-message',
                   );
@@ -19111,6 +19209,7 @@ function createMainWindow(): BrowserWindow {
                   );
                   let actionOpacity = null;
                   if (assistantAction instanceof HTMLButtonElement) {
+                    const previousFocus = document.activeElement;
                     assistantAction.focus({ preventScroll: true });
                     const actionOpacityDeadline = performance.now() + 1_000;
                     do {
@@ -19120,6 +19219,12 @@ function createMainWindow(): BrowserWindow {
                       if (Number(actionOpacity) >= 0.99) break;
                       await wait(25);
                     } while (performance.now() < actionOpacityDeadline);
+                    // The keyboard evidence must not leave a synthetic focus ring
+                    // on a message action in the final visual fixture.
+                    assistantAction.blur();
+                    if (previousFocus instanceof HTMLElement && previousFocus !== document.body) {
+                      previousFocus.focus({ preventScroll: true, focusVisible: false });
+                    }
                   }
                   const agentButtons = [
                     ...document.querySelectorAll(
@@ -19574,7 +19679,7 @@ function createMainWindow(): BrowserWindow {
                     providersTab.click();
                     if (view === 'form-controls-settings-custom') {
                       const customTab = await waitForElement(
-                        '.provider-sidebar-heading button',
+                        '.provider-sidebar > button:not(.provider-import)',
                       );
                       if (!(customTab instanceof HTMLButtonElement)) {
                         throw new Error('Settings custom providers tab missing.');
@@ -19611,6 +19716,13 @@ function createMainWindow(): BrowserWindow {
                       throw new Error('Settings add model button missing.');
                     }
                     addModel.click();
+                    const catalogModel = await waitForElement(
+                      '.provider-add-model-menu [role="menuitem"]',
+                    );
+                    if (!(catalogModel instanceof HTMLButtonElement)) {
+                      throw new Error('Settings catalog model menu item missing.');
+                    }
+                    catalogModel.click();
                     const field = await waitForElement(
                       '.provider-add-model [data-artemis-component="text-field"] input[type="number"]',
                     );
@@ -20204,7 +20316,7 @@ function createMainWindow(): BrowserWindow {
                     const mcpTab = await waitFor('#resource-management-tab-mcp');
                     mcpTab?.click();
                     const selectedMcpTab = await waitFor(
-                      '#resource-management-tab-mcp[aria-selected="true"]',
+                      '#resource-management-tab-mcp[aria-pressed="true"]',
                     );
                     const mcpPanel = await waitFor('#resource-management-panel-mcp:not([hidden])');
                     if (!selectedMcpTab || !mcpPanel) {
@@ -21340,14 +21452,19 @@ function createMainWindow(): BrowserWindow {
             });
             await new Promise((resolve) => setTimeout(resolve, 1_100));
           }
-          let navigationFocusEvidence = false;
+          let keyboardFocusEvidence = false;
           if (smokeMode) {
-            await driveSmokeFormControlsEvidence(window, requestedSmokeView);
-            navigationFocusEvidence =
+            const formFocusEvidence = await driveSmokeFormControlsEvidence(
+              window,
+              requestedSmokeView,
+            );
+            const navigationFocusEvidence =
               await driveSmokeNavigationControlsEvidence(
                 window,
                 requestedSmokeView,
               );
+            keyboardFocusEvidence =
+              formFocusEvidence || navigationFocusEvidence;
             await driveSmokeWorkspaceDockEvidence(
               window,
               requestedSmokeView,
@@ -21365,7 +21482,7 @@ function createMainWindow(): BrowserWindow {
             // Native focus can be lost after keyboard activation while another
             // desktop app is active. Reacquire it before recording evidence;
             // keep the actual Tab/Space result and the focus assertions intact.
-            if (navigationFocusEvidence) await ensureSmokeWindowFocus(window);
+            if (keyboardFocusEvidence) await ensureSmokeWindowFocus(window);
             const image = await window.webContents.capturePage();
             await writeFile(smokeScreenshot, image.toPNG());
           }
@@ -21480,7 +21597,7 @@ function createMainWindow(): BrowserWindow {
             await new Promise((resolve) => setTimeout(resolve, 25));
           }
           if (smokeAccessibility) {
-            if (navigationFocusEvidence) await ensureSmokeWindowFocus(window);
+            if (keyboardFocusEvidence) await ensureSmokeWindowFocus(window);
             const result = (await window.webContents.executeJavaScript(`
               (() => {
                 const issues = [];
@@ -21823,7 +21940,7 @@ function createMainWindow(): BrowserWindow {
                     : null,
                   environmentCheckStatuses: [
                     ...document.querySelectorAll(
-                      ".environment-check-indicator[data-status], .environment-check-ring[data-status]",
+                      ".environment-check-indicator[data-status], .environment-check-status[data-status]",
                     ),
                   ].map((indicator) => indicator.getAttribute("data-status")),
                   environmentPanel: environmentBounds
@@ -23746,6 +23863,13 @@ function createMainWindow(): BrowserWindow {
                             viewport:
                               viewport instanceof HTMLElement
                                 ? {
+                                    parent: viewport.parentElement ? {
+                                      ...describe(viewport.parentElement),
+                                      className: viewport.parentElement.className,
+                                    } : null,
+                                    header: document.querySelector('.workspace-header')
+                                      ? describe(document.querySelector('.workspace-header'))
+                                      : null,
                                     parentComponent: viewport.parentElement?.getAttribute(
                                       'data-artemis-component',
                                     ) ?? null,

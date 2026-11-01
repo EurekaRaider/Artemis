@@ -204,7 +204,15 @@ export function SidebarUpdateControl({
             )}
             {status.message && (
               <details>
-                <summary>{uiText(locale, "Review01.viewDetails")}</summary>
+                <summary>
+                  <ArtemisIcon
+                    className="disclosure-chevron"
+                    name="chevron"
+                    width={12}
+                    height={12}
+                  />
+                  {uiText(locale, "Review01.viewDetails")}
+                </summary>
                 <p>{status.message}</p>
               </details>
             )}

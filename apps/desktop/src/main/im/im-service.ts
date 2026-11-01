@@ -1191,6 +1191,7 @@ export class ImService {
           ...this.delegationWaits.interrupted(b.threadId),
         ].map((w) => ({
           id: w.id,
+          deadline: w.deadline,
           state: w.state as "waiting" | "ready" | "interrupted",
           ...(w.state === "interrupted"
             ? {

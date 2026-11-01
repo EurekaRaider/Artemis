@@ -1,5 +1,6 @@
+import { formatWorkedDuration } from "../conversation/turn-timeline.js";
 import { ArtemisIcon, RunningArc } from "@artemis/ui/icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AppLocale, ImStatus } from "@artemis/protocol";
 import { uiText, type UiMessageKey } from "../../shared/i18n/ui-text.js";
 
@@ -13,6 +14,15 @@ export function ImDelegationWaitStatus({
   waits: Wait[];
   locale: AppLocale;
 }) {
+  const [now, setNow] = useState(Date.now);
+  const counting = waits.some(
+    (wait) => wait.state === "waiting" && wait.deadline !== undefined,
+  );
+  useEffect(() => {
+    if (!counting) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [counting]);
   const [pending, setPending] = useState<string>();
   const [notice, setNotice] = useState<
     { key: UiMessageKey } | { error: string }
@@ -62,6 +72,17 @@ export function ImDelegationWaitStatus({
                 >
                   · {wait.reason || wait.continuation}
                 </span>
+              )}
+              {wait.state === "waiting" && wait.deadline !== undefined && (
+                <time
+                  className="im-delegation-countdown"
+                  title={uiText(locale, "Review02.waitRemaining")}
+                >
+                  {formatWorkedDuration(
+                    Math.max(0, wait.deadline - now),
+                    locale,
+                  )}
+                </time>
               )}
               <ArtemisIcon name="chevron" width={12} height={12} />
             </summary>

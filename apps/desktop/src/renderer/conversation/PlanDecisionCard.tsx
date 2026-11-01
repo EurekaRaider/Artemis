@@ -68,12 +68,13 @@ export function PlanDecisionCard({
       state={busy ? "busy" : "pending"}
     >
       <header>
-        <strong>{plan.title}</strong>
+        <strong>{uiText(locale, "Review02.planReady")}</strong>
         <span className="decision-waiting">
           v{plan.revision} ·{" "}
           {uiText(locale, plan.actionable ? "Plan.waiting" : "Plan.noAction")}
         </span>
       </header>
+      <h3 className="decision-title">{plan.title}</h3>
       <DecisionOptions
         options={options}
         locale={locale}

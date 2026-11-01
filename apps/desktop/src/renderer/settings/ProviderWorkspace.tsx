@@ -111,16 +111,7 @@ export function ProviderWorkspace({
     <div className="provider-workspace">
       <aside className="provider-sidebar" aria-label={t.configuredProviders}>
         <div className="provider-sidebar-heading">
-          <strong>{uiText(locale, "Providers.list")}</strong>
-          <Button
-            size="compact"
-            variant="quiet"
-            disabled={locked}
-            icon={<Plus size={20} aria-hidden="true" />}
-            onClick={onAdd}
-          >
-            {uiText(locale, "Providers.add")}
-          </Button>
+          <strong>{t.tabProviders}</strong>
         </div>
         <TextField
           className="provider-search"
@@ -147,12 +138,14 @@ export function ProviderWorkspace({
               selected={!creating && id === selectedProviderId}
               onClick={() => onSelect(id)}
             >
-              <ProviderIcon
-                providerId={id}
-                custom={settings.providers.some(
-                  (provider) => provider.id === id,
-                )}
-              />
+              <span className="provider-icon-tile">
+                <ProviderIcon
+                  providerId={id}
+                  custom={settings.providers.some(
+                    (provider) => provider.id === id,
+                  )}
+                />
+              </span>
               <span className="provider-navigation-copy">
                 <span className="provider-navigation-name">{name}</span>
                 <span
@@ -161,12 +154,21 @@ export function ProviderWorkspace({
                     (item) => item.providerId === id,
                   )}
                 >
-                  {status(id)}
+                  <span className="sr-only">{status(id)}</span>
                 </span>
               </span>
             </Button>
           ))}
         </div>
+        <Button
+          size="compact"
+          variant="quiet"
+          disabled={locked}
+          icon={<Plus size={20} aria-hidden="true" />}
+          onClick={onAdd}
+        >
+          {uiText(locale, "Providers.add")}
+        </Button>
         <Button
           className="provider-import"
           icon={<ArrowsDownUp size={22} aria-hidden="true" />}
@@ -243,9 +245,13 @@ export function ProviderWorkspace({
             {connection && (
               <div className="provider-connection-summary">
                 <div>
-                  <strong>{t.baseUrl}</strong>
-                  <p>{connection.baseUrl}</p>
-                  <span>{connection.api}</span>
+                  <TextField
+                    label="Base URL"
+                    value={connection.baseUrl}
+                    onValueChange={() => {}}
+                    readOnly
+                    size="compact"
+                  />
                 </div>
                 <Button
                   variant="quiet"
@@ -329,10 +335,11 @@ function ProviderCredentials({
       className="provider-credentials"
       aria-label={uiText(locale, "Providers.credentials")}
     >
-      <h3>{uiText(locale, "Providers.credentials")}</h3>
-      <p className="settings-row-description">
-        {uiText(locale, "Providers.sharedCredentials")}
-      </p>
+      <h3>
+        {activeMethod === "api_key"
+          ? t.apiKey
+          : uiText(locale, "Providers.account")}
+      </h3>
       {supportsKey && oauth && (
         <Tabs
           className="provider-auth-tabs"
@@ -401,65 +408,74 @@ function ProviderCredentials({
                 );
             }}
           >
-            {settings.encryptionAvailable && (
-              <span className="provider-key-storage">
-                <ArtemisIcon name="lock" />
-                {settings.platform === "darwin"
-                  ? uiText(locale, "Providers.keychain")
-                  : t.encrypted}
-              </span>
-            )}
-            <TextField
-              className="provider-api-key"
-              size="compact"
-              label={`${t.apiKey} · ${providerId}`}
-              type="password"
-              autoComplete="off"
-              value={apiKey}
-              onValueChange={(value) => {
-                setApiKey(value);
-                setSaved(false);
-              }}
-              disabled={disabled || !settings.encryptionAvailable}
-              placeholder={
-                credential?.type === "api_key" ? "••••••••••••••••" : t.apiKey
-              }
-              description={
-                settings.encryptionAvailable
-                  ? `${credential?.type === "api_key" ? `${t.storedApiKey} · ` : ""}${uiText(locale, "Providers.keyHint")}`
-                  : t.unavailable
-              }
-            />
-            <div className="provider-form-actions">
-              {credential?.type === "api_key" && (
-                <Button
-                  variant="secondary"
-                  size="compact"
-                  disabled={disabled}
-                  onClick={() => setRemove(true)}
-                >
-                  {uiText(locale, "Providers.removeKey")}
-                </Button>
+            <div className="provider-key-field">
+              <ArtemisIcon name="key" width={14} height={14} />
+              {settings.encryptionAvailable && (
+                <span className="provider-key-storage">
+                  <ArtemisIcon name="lock" />
+                  {settings.platform === "darwin"
+                    ? uiText(locale, "Providers.keychain")
+                    : t.encrypted}
+                </span>
               )}
-              <Button
-                type="submit"
+              <TextField
+                className="provider-api-key"
                 size="compact"
-                variant="primary"
-                disabled={
-                  disabled || !settings.encryptionAvailable || !apiKey.trim()
+                label={`${t.apiKey} · ${providerId}`}
+                labelVisibility="hidden"
+                type="password"
+                autoComplete="off"
+                value={apiKey}
+                onValueChange={(value) => {
+                  setApiKey(value);
+                  setSaved(false);
+                }}
+                disabled={disabled || !settings.encryptionAvailable}
+                placeholder={
+                  credential?.type === "api_key" ? "••••••••••••••••" : t.apiKey
                 }
-              >
-                {uiText(
-                  locale,
-                  credential?.type === "api_key"
-                    ? "Providers.updateKey"
-                    : "Providers.saveKey",
+                description={
+                  settings.encryptionAvailable ? undefined : t.unavailable
+                }
+              />
+              <div className="provider-form-actions">
+                {credential?.type === "api_key" && (
+                  <Button
+                    variant="secondary"
+                    size="compact"
+                    disabled={disabled}
+                    onClick={() => setRemove(true)}
+                  >
+                    {uiText(locale, "Providers.removeKey")}
+                  </Button>
                 )}
-              </Button>
+                {apiKey.trim() && (
+                  <Button
+                    type="submit"
+                    size="compact"
+                    variant="primary"
+                    disabled={
+                      disabled ||
+                      !settings.encryptionAvailable ||
+                      !apiKey.trim()
+                    }
+                  >
+                    {uiText(
+                      locale,
+                      credential?.type === "api_key"
+                        ? "Providers.updateKey"
+                        : "Providers.saveKey",
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
             {keyFlow && (
               <details>
-                <summary>{uiText(locale, "Providers.guidedKey")}</summary>
+                <summary>
+                  <ArtemisIcon className="disclosure-chevron" name="chevron" />
+                  {uiText(locale, "Providers.guidedKey")}
+                </summary>
                 <ProviderLogin
                   onBusy={onBusy}
                   providerId={providerId}

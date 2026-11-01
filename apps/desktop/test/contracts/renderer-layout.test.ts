@@ -61,6 +61,10 @@ const nocturneStylesSource = readFileSync(
   new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
   "utf8",
 );
+const compositionStylesSource = readFileSync(
+  new URL("../../src/renderer/styles/prototype-migration.css", import.meta.url),
+  "utf8",
+);
 const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
@@ -405,7 +409,9 @@ describe("renderer layout contract", () => {
 
   it("keeps the workspace and conversation height-constrained", () => {
     expect(cssRule(".workspace")).toMatch(/\bheight:\s*100%/u);
-    expect(cssRule(".workspace")).toMatch(/\boverflow:\s*hidden/u);
+    expect(
+      findCssDeclarations(compositionStylesSource, ".app-shell .workspace"),
+    ).toContain("overflow: visible");
     expect(cssRule(".workspace-content")).toMatch(/\boverflow:\s*hidden/u);
     const conversation = publicUiCssRule(
       '[data-artemis-component="conversation-surface"]',
@@ -437,10 +443,10 @@ describe("renderer layout contract", () => {
     expect(composition).toContain("-webkit-app-region: no-drag");
     expect(
       findCssDeclarations(
-        composition,
+        nocturneStylesSource,
         '.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top',
       ),
-    ).toContain("padding-block-start: 38px");
+    ).toContain("padding-block-start: 7px");
     // 新建会话与项目列表之间不再画分隔线，列表上移。
     const sidebarTop = findCssDeclarations(composition, ".sidebar-top");
     expect(sidebarTop).toContain("padding: 10px 10px 2px");
@@ -630,9 +636,7 @@ describe("renderer layout contract", () => {
         ".app-shell .sidebar .app-version",
       ),
     ).toContain("font-size: 11.5px");
-    expect(nocturneStylesSource).toContain(
-      "color: var(--artemis-color-text-tertiary)",
-    );
+    expect(nocturneStylesSource).toContain("color: var(--muted-2)");
     expect(cssRule(".app-version")).toMatch(/\bbackground:\s*transparent/u);
     expect(nocturneStylesSource).toContain("padding: 8px 10px");
   });
@@ -738,7 +742,9 @@ describe("renderer layout contract", () => {
     expect(cssRule(".composer-context-menu")).toMatch(
       /\bdisplay:\s*flex[\s\S]*\bwidth:\s*min\(280px,\s*calc\(100cqi\s*-\s*64px\)\)/u,
     );
-    expect(cssRule(".composer-wrap")).toMatch(/\bz-index:\s*20/u);
+    expect(
+      findCssDeclarations(compositionStylesSource, ".composer-wrap"),
+    ).toMatch(/\bz-index:\s*20/u);
     expect(composerContextSource).toContain(
       "new ResizeObserver(updateMenuLayout)",
     );
@@ -1103,7 +1109,7 @@ describe("renderer layout contract", () => {
     expect(rendererSources).not.toMatch(/<select\b/gu);
     expect(settingsSource).toContain('from "@artemis/ui/forms"');
     expect(mcpServerEditorSource).toContain('from "@artemis/ui/forms"');
-    expect(settingsSelectors).toHaveLength(8);
+    expect(settingsSelectors).toHaveLength(9);
     expect(mcpEditorSelectors).toHaveLength(1);
     expect(uiFormsSource).toContain('data-artemis-component="select"');
     expect(codexSelectSource).toContain('size = "comfortable"');
@@ -1197,8 +1203,13 @@ describe("renderer layout contract", () => {
     expect(
       publicUiCssRule('[data-artemis-component="conversation-surface"]'),
     ).toMatch(/\bcontainer-type:\s*inline-size/u);
-    expect(taskPlanList).toMatch(
-      /\bwidth:\s*min\(520px,\s*72vw,\s*calc\(100cqw\s*-\s*40px\)\)/u,
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        '.app-shell .task-plan-progress [data-part="steps"]',
+      ),
+    ).toContain(
+      "width: min(520px, calc(var(--conversation-column-width, 100cqi) - 40px))",
     );
     expect(taskPlanList).not.toMatch(/100vw/u);
     expect(taskPlanList).toMatch(/\bz-index:\s*1/u);
@@ -1298,16 +1309,14 @@ describe("renderer layout contract", () => {
       nocturneStylesSource,
       ".tool-step-verb",
     );
-    expect(failedToolRule).toContain(
-      "color: var(--artemis-color-text-secondary)",
-    );
+    expect(failedToolRule).toContain("color: var(--muted)");
     expect(failedToolRule).not.toContain("--artemis-color-status-danger");
     expect(
       findCssDeclarations(
         nocturneStylesSource,
         '.tool-step-status[data-status="failed"]',
       ),
-    ).toContain("--artemis-color-status-danger");
+    ).toContain("var(--danger)");
     expect(uiText("en", "App_copy.failed")).toBe("Failed");
     expect(appSource).toContain("formatToolOutput(tool.name, tool.output)");
   });
@@ -1679,10 +1688,10 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain('activeTab === "capabilities"');
     expect(settingsSource).toContain('activeTab === "maintenance"');
     expect(uiText("en", "SettingsPanel_labels.tabProviders")).toBe(
-      "Providers & models",
+      "Model services",
     );
     expect(uiText("zh-CN", "SettingsPanel_labels.tabProviders")).toBe(
-      "供应商及模型配置",
+      "模型服务",
     );
     expect(settingsSource).toContain("<ProviderWorkspace");
     expect(providerWorkspaceSource).toContain('className="provider-sidebar"');
@@ -2407,7 +2416,9 @@ describe("renderer layout contract", () => {
       /\bpadding:\s*calc\(var\(--artemis-space-6\) \+ var\(--artemis-space-2\) \+ 2px\)\s+var\(--artemis-space-5\) var\(--artemis-space-6\)/u,
     );
     expect(composerWrap).toMatch(/\bmax-width:\s*960px/u);
-    expect(composerWrap).toMatch(/\bpadding:\s*0\s+20px\s+18px/u);
+    expect(
+      findCssDeclarations(compositionStylesSource, ".composer-wrap"),
+    ).toContain("padding: 0 var(--conversation-padding) 14px");
   });
 
   it("keeps PowerShell input legible and prevents an xterm horizontal scrollbar", () => {
@@ -2486,7 +2497,7 @@ describe("renderer layout contract", () => {
       'className="resource-installed-overview"',
     );
     expect(resourceCenterSource).toContain(
-      'className="resource-management-tabs resource-category-tabs"',
+      'className="resource-category-tabs"',
     );
     expect(resourceCenterSource).toContain("value={selectedMarketplaceView}");
     expect(resourceCenterSource).toContain("options={managementTabOptions}");

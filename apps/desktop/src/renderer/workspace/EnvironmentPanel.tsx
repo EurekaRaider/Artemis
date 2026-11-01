@@ -403,7 +403,6 @@ function PullRequestIcon() {
 export function PullRequestChecksSummary({
   checkSummary,
   checksOpen,
-  chevronIcon,
   onBlurredOut,
   onOpenUrl,
   onShowChecks,
@@ -445,14 +444,6 @@ export function PullRequestChecksSummary({
         : check.status;
     counts[status] += 1;
   }
-  let offset = 0;
-  const segments = Object.entries(counts).map(([status, count]) => {
-    const start = offset;
-    offset += pullRequest.checks.length
-      ? (count / pullRequest.checks.length) * 100
-      : 0;
-    return { status, count, start, end: offset };
-  });
   return (
     <div className="environment-pr-card">
       <button
@@ -512,24 +503,29 @@ export function PullRequestChecksSummary({
       >
         <span
           aria-hidden="true"
-          className="environment-check-ring"
+          className="environment-check-status"
           data-status={checkSummary}
         >
-          {segments
-            .filter((segment) => segment.count > 0)
-            .map((segment) => (
-              <span
-                key={segment.status}
-                className="environment-check-segment"
-                data-status={segment.status}
-                style={{
-                  backgroundImage: `conic-gradient(transparent 0% ${segment.start}%, currentColor ${segment.start}% ${segment.end}%, transparent ${segment.end}% 100%)`,
-                }}
-              />
-            ))}
+          {checkSummary === "pending" ? (
+            <RunningArc size={14} />
+          ) : (
+            <ArtemisIcon
+              name={
+                checkSummary === "failed"
+                  ? "x-circle"
+                  : checkSummary === "passed"
+                    ? "check"
+                    : "circle"
+              }
+              width={14}
+              height={14}
+            />
+          )}
         </span>
         <span>{summaryLabel}</span>
-        {chevronIcon}
+        <small>
+          {counts.passed}/{pullRequest.checks.length}
+        </small>
       </button>
       {warningLabel && <p className="environment-pr-warning">{warningLabel}</p>}
       {staleLabel && staleTitle && (
@@ -1992,10 +1988,7 @@ export function EnvironmentPanel({
                     title="GitHub"
                     action={
                       <button
-                        aria-label={uiText(
-                          locale,
-                          "ResourceCenter_labels.refresh",
-                        )}
+                        aria-label={uiText(locale, "Review02.refreshGithub")}
                         className="environment-header-action"
                         disabled={pullRequestLoading}
                         onClick={() => void loadPullRequest()}
@@ -2266,7 +2259,7 @@ export function EnvironmentPanel({
                         onClick={viewAllSources}
                         type="button"
                       >
-                        <EnvironmentSearchIcon />
+                        <ArtemisIcon name="web" />
                         <span>{t.webSearch}</span>
                         <small>{webSearchCount}</small>
                       </button>
@@ -2408,7 +2401,11 @@ export function EnvironmentPanel({
                         type="button"
                       >
                         <BranchIcon />
-                        <span>{environmentBranchDisplayName(branch)}</span>
+                        <span title={branch.name}>
+                          {environmentBranchDisplayName(branch).length > 32
+                            ? `${environmentBranchDisplayName(branch).slice(0, 15)}…${environmentBranchDisplayName(branch).slice(-15)}`
+                            : environmentBranchDisplayName(branch)}
+                        </span>
                         <i aria-hidden="true">
                           {branch.current ? <EnvironmentCheckIcon /> : null}
                         </i>

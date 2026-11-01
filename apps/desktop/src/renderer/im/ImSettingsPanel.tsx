@@ -59,7 +59,6 @@ import {
 import { ImPlatformSetup } from "./ImPlatformSetup";
 import feishuChannelIcon from "../assets/feishu-channel.png";
 import slackChannelIcon from "../assets/slack-channel.svg";
-import groupChannelIcon from "../assets/im-group-icon.svg";
 import { ImFeishuScan } from "./ImFeishuScan";
 import { ImLegacyImport } from "./ImLegacyImport";
 import { ImConnectionRemoval } from "./ImConnectionRemoval";
@@ -635,7 +634,15 @@ export function ImSettingsPanel({
       typeof value.name !== "string"
     )
       return [];
-    return [{ id: value.id, name: value.name }];
+    const native =
+      "nativeGroup" in value &&
+      value.nativeGroup &&
+      typeof value.nativeGroup === "object" &&
+      "projectId" in value.nativeGroup &&
+      typeof value.nativeGroup.projectId === "string"
+        ? { projectId: value.nativeGroup.projectId }
+        : undefined;
+    return [{ id: value.id, name: value.name, nativeGroup: native }];
   });
   /** 显式完成动作（批准配对、保存启用成功）后解除钉住，交回自动跟随显示最早缺步卡。 */
   function flowAdvanceFrom() {
@@ -732,22 +739,9 @@ export function ImSettingsPanel({
                 })
               }
             >
-              {t("ImSetupGuide.message1")}
+              {t("Review02.startService")}
             </Button>
           )}
-          <aside className="im-tip-card">
-            <p className="im-tip-card-head">
-              <ArtemisIcon
-                aria-hidden="true"
-                name="lightbulb"
-                width={14}
-                height={14}
-              />
-              {t("ImSetupGuide.message25")}
-            </p>
-            <p>{t("ImSetupGuide.message3")}</p>
-            <p>{t("ImSetupGuide.message26")}</p>
-          </aside>
         </div>
       </>
     );
@@ -1854,11 +1848,14 @@ export function ImSettingsPanel({
             <div className="im-service-head">
               <ArtemisIcon
                 aria-hidden="true"
-                name="connector"
+                name="chat"
                 width={24}
                 height={24}
               />
-              <strong>{t("ImSettingsPanel.message180")}</strong>
+              <span className="im-local-service-copy">
+                <strong>{t("Review02.localMessageService")}</strong>
+                <small>{t("Review02.localMessageServiceHint")}</small>
+              </span>
               {(activeScreen === "overview" ||
                 (activeScreen === "flow" && !!status?.settings.deviceId)) && (
                 <span
@@ -1927,51 +1924,17 @@ export function ImSettingsPanel({
                         })
                       }
                     >
-                      {/* 电源符号（正向态）：就绪=绿+连接，断开=红+斜杠+断开；线宽 1.5 对齐全库。 */}
-                      {settings.enabled || status?.settings.enabled ? (
-                        <>
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            width={16}
-                            height={16}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M12 2.5v7.5" />
-                            <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
-                          </svg>
-                          <span>{t("ImSettingsPanel.powerStop")}</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 24 24"
-                            width={16}
-                            height={16}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M12 2.5v7.5" />
-                            <path d="M17.7 6a7.75 7.75 0 1 1-11.4 0" />
-                            <path d="m3.5 3.5 17 17" />
-                          </svg>
-                          <span>{t("ImSettingsPanel.powerConnected")}</span>
-                        </>
-                      )}
+                      <span>
+                        {settings.enabled || status?.settings.enabled
+                          ? t("ImSettingsPanel.powerStop")
+                          : t("ImSettingsPanel.powerConnected")}
+                      </span>
                     </button>
                   </>
                 )}
               </div>
+              {renderGatewayBody()}
             </div>
-            <div className="im-service-body">{renderGatewayBody()}</div>
           </section>
         </div>
         {/* 右栏：门（渠道）。渠道与群聊授权卡片↔ 详情下钻。 */}
@@ -1992,37 +1955,68 @@ export function ImSettingsPanel({
             {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
               channelRow,
             )}
-            {/* 群协作（对所有渠道生效，独立于单渠道接入）。 */}
-            <button
-              type="button"
-              className="im-channel-row im-channel-group-row"
-              onClick={(event) => {
-                groupDialogTrigger.current = event.currentTarget;
-                setChannelDetail(false);
-                setGroupDetail(true);
-              }}
-            >
-              <img
-                alt=""
-                aria-hidden="true"
-                className="im-channel-logo"
-                height={20}
-                src={groupChannelIcon}
-                width={20}
-              />
-              <span className="im-channel-row-copy">
-                <strong>{t("ImSettingsPanel.message165")}</strong>
-                <span className="im-channel-row-summary">
-                  {t("ImSettingsPanel.message166")}
+          </section>
+          <section className="im-group-authorization-summary">
+            <h3>{t("ImSettingsPanel.message165")}</h3>
+            {availableSpaces
+              .filter((space) => space.nativeGroup)
+              .map((space) => (
+                <button
+                  key={space.id}
+                  type="button"
+                  className="im-channel-row im-channel-group-row"
+                  onClick={(event) => {
+                    groupDialogTrigger.current = event.currentTarget;
+                    setChannelDetail(false);
+                    setGroupDetail(true);
+                  }}
+                >
+                  <ArtemisIcon name="agents" width={16} height={16} />
+                  <span className="im-channel-row-copy">
+                    <strong>
+                      {space.name} →{" "}
+                      {projects.find(
+                        (project) =>
+                          project.id === space.nativeGroup?.projectId,
+                      )?.name ?? space.nativeGroup?.projectId}
+                    </strong>
+                  </span>
+                  <span className="im-capsule-btn">
+                    {t("ImSettingsPanel.goManage")}
+                  </span>
+                </button>
+              ))}
+            {!availableSpaces.some((space) => space.nativeGroup) && (
+              <button
+                type="button"
+                className="im-channel-row im-channel-group-row"
+                onClick={(event) => {
+                  groupDialogTrigger.current = event.currentTarget;
+                  setChannelDetail(false);
+                  setGroupDetail(true);
+                }}
+              >
+                <ArtemisIcon name="agents" width={16} height={16} />
+                <span className="im-channel-row-copy">
+                  <small>{t("ImSettingsPanel.message166")}</small>
                 </span>
-              </span>
-              <span aria-hidden="true" className="im-capsule-btn">
-                {t("ImSettingsPanel.goGrant")}
-              </span>
-            </button>
+                <span className="im-capsule-btn">
+                  {t("Review02.addAuthorization")}
+                </span>
+              </button>
+            )}
           </section>
         </div>
-        <div className="im-advanced-entries">
+        <details className="im-advanced-entries">
+          <summary>
+            <ArtemisIcon
+              className="disclosure-chevron"
+              name="chevron"
+              width={12}
+              height={12}
+            />
+            {t("Review02.imAdvanced")}
+          </summary>
           <section id="im-prepare" tabIndex={-1}>
             <ImGatewayInstructions
               t={t}
@@ -2048,7 +2042,7 @@ export function ImSettingsPanel({
               </span>
             </button>
           </section>
-        </div>
+        </details>
       </div>
     );
   }
@@ -2077,7 +2071,7 @@ export function ImSettingsPanel({
         </span>
         <div className="im-header-copy">
           <h2>{t("ImSettingsPanel.message191")}</h2>{" "}
-          <p>{t("ImSettingsPanel.message192")}</p>
+          <p>{t("Review02.imDescription")}</p>
         </div>
       </header>
       {message && (

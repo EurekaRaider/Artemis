@@ -81,7 +81,7 @@ describe("PullRequestChecksSummary", () => {
     },
   );
 
-  it("shows proportional passed, failed and pending segments even when the summary is failed", () => {
+  it("shows a single failure icon and the passed / total count", () => {
     renderSummary({
       checkSummary: "failed",
       pullRequest: {
@@ -92,45 +92,33 @@ describe("PullRequestChecksSummary", () => {
         })),
       },
     });
-    const ring = document.querySelector(".environment-check-ring")!;
-    expect(ring.children).toHaveLength(3);
-    expect(ring.querySelector('[data-status="passed"]')).toHaveStyle({
-      backgroundImage:
-        "conic-gradient(transparent 0% 0%, currentColor 0% 50%, transparent 50% 100%)",
-    });
-    expect(ring.querySelector('[data-status="failed"]')).toHaveStyle({
-      backgroundImage:
-        "conic-gradient(transparent 0% 50%, currentColor 50% 75%, transparent 75% 100%)",
-    });
-    expect(ring.querySelector('[data-status="pending"]')).toHaveStyle({
-      backgroundImage:
-        "conic-gradient(transparent 0% 75%, currentColor 75% 100%, transparent 100% 100%)",
-    });
+    const status = document.querySelector(".environment-check-status")!;
+    expect(status).toHaveAttribute("data-status", "failed");
+    expect(status.querySelectorAll("svg")).toHaveLength(1);
+    expect(document.querySelector(".environment-check-ring")).toBeNull();
+    expect(screen.getByText("2/4")).toBeInTheDocument();
   });
 
   it.each([
-    [[], []],
-    [["passed", "passed"], ["passed"]],
-    [["failed"], ["failed"]],
-    [["pending"], ["pending"]],
-    [["skipped", "cancelled"], ["neutral"]],
-    [
-      ["passed", "skipped"],
-      ["passed", "neutral"],
-    ],
+    [[], "0/0"],
+    [["passed", "passed"], "2/2"],
+    [["failed"], "0/1"],
+    [["pending"], "0/1"],
+    [["skipped", "cancelled"], "0/2"],
+    [["passed", "skipped"], "1/2"],
   ])(
-    "handles terminal, empty and neutral check sets %j",
+    "counts successful checks without treating skipped or cancelled checks as passed: %j",
     (statuses, expected) => {
       renderSummary({
         pullRequest: {
           ...pullRequest,
-          checks: statuses.map((status, i) => ({ name: `check-${i}`, status })),
+          checks: (statuses as string[]).map((status, i) => ({
+            name: `check-${i}`,
+            status,
+          })),
         },
       });
-      const segments = document.querySelectorAll(".environment-check-segment");
-      expect(
-        [...segments].map((segment) => segment.getAttribute("data-status")),
-      ).toEqual(expected);
+      expect(screen.getByText(expected as string)).toBeInTheDocument();
     },
   );
 

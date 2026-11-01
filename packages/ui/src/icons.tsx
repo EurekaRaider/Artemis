@@ -10,6 +10,8 @@ export const ARTEMIS_ICON_SOURCE = "nocturne:Icons.dc.html" as const;
 export { ARTEMIS_MARKDOWN_ICON_PATH } from "./editor-icon-paths.js";
 
 export const ARTEMIS_ICON_NAMES = [
+  "pr",
+  "chat",
   "at",
   "cursor",
   "frame",
@@ -173,6 +175,12 @@ export type ArtemisIconName =
   | (typeof ARTEMIS_VISUAL_ICON_NAMES)[number];
 
 const ARTEMIS_ICON_GLYPHS = {
+  pr: (
+    <path d="M4 6a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M4 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M16 18a2 2 0 1 0 4 0a2 2 0 1 0-4 0 M6 8v8 M18 16V9.5a3 3 0 0 0-3-3h-4.5 M12.5 4L10 6.5 12.5 9" />
+  ),
+  chat: (
+    <path d="M5.5 4.5h13a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H12l-4.5 3.5v-3.5h-2A1.5 1.5 0 0 1 4 15V6a1.5 1.5 0 0 1 1.5-1.5z" />
+  ),
   at: (
     <path d="M15.5 12a3.5 3.5 0 1 1-7 0a3.5 3.5 0 1 1 7 0z M15.5 8.5v4.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7" />
   ),
@@ -257,8 +265,8 @@ const ARTEMIS_ICON_GLYPHS = {
   markdown: (
     <path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h14A1.5 1.5 0 0 1 20.5 7v10a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 17z M7 15V9l2.5 3L12 9v6 M16 9v6 M14 13l2 2 2-2" />
   ),
-  plus: <path d="M12 5.5v13M5.5 12h13" />,
-  close: <path d="M6 6l12 12M18 6L6 18" />,
+  plus: <path d="M12 5v14 M5 12h14" />,
+  close: <path d="M6.5 6.5l11 11 M17.5 6.5l-11 11" />,
   search: (
     <path d="M4.5 11a6.5 6.5 0 1 0 13 0a6.5 6.5 0 1 0-13 0 M20 20l-4.4-4.4" />
   ),
@@ -274,9 +282,9 @@ const ARTEMIS_ICON_GLYPHS = {
   refresh: (
     <path d="M19.5 12a7.5 7.5 0 0 1-13.3 4.8 M4.5 12a7.5 7.5 0 0 1 13.3-4.8 M18.2 3.8v3.4h-3.4 M5.8 20.2v-3.4h3.4" />
   ),
-  chevron: <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />,
-  "chev-left": <path d="M14.5 6.5L9 12l5.5 5.5" />,
-  "chev-right": <path d="M9.5 6.5l5.5 5.5-5.5 5.5" />,
+  chevron: <path d="M7 10l5 5 5-5" />,
+  "chev-left": <path d="M14 7l-5 5 5 5" />,
+  "chev-right": <path d="M10 7l5 5-5 5" />,
   queue: (
     <>
       <path d="M8 6.5h12M8 12h12M8 17.5h8" />
@@ -423,7 +431,7 @@ const ARTEMIS_ICON_GLYPHS = {
   context: (
     <path d="M12 4l8.5 4.5L12 13 3.5 8.5z M3.5 12.5L12 17l8.5-4.5 M3.5 16.5L12 21l8.5-4.5" />
   ),
-  check: <path d="M4.5 12.5l5 5 10-11" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   approval: (
     <path d="M12 3.5l7 2.6v5.4c0 4.2-2.9 7.6-7 9-4.1-1.4-7-4.8-7-9V6.1z" />
   ),
@@ -727,7 +735,7 @@ const ARTEMIS_ICON_GLYPHS = {
     <path d="M3.5 12a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0-17 0 M9.6 9.5a2.5 2.5 0 0 1 4.8.8c0 1.7-2.4 2.2-2.4 3.7 M12 16.9v.1" />
   ),
   eye: (
-    <path d="M3 12s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6z M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0" />
+    <path d="M2.5 12C5 7.5 8.2 5.5 12 5.5s7 2 9.5 6.5c-2.5 4.5-5.7 6.5-9.5 6.5s-7-2-9.5-6.5z M9.5 12a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0" />
   ),
 } satisfies Readonly<Record<ArtemisIconName, ReactNode>>;
 

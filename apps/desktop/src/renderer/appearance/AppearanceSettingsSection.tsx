@@ -22,9 +22,10 @@ function ConnectedAppearanceSettingsSection({
   const controller = getAppearanceController();
   const view = useSyncExternalStore(controller.subscribe, controller.snapshot);
   const [error, setError] = useState("");
+  const [draft, setDraft] = useState<string>();
   const selected =
     view.preview === undefined ? view.state?.selection : view.preview;
-  const value = selected
+  const currentValue = selected
     ? `${selected.pluginId}/${selected.skinId}`
     : "default";
   useEffect(
@@ -57,7 +58,7 @@ function ConnectedAppearanceSettingsSection({
         <Select<string>
           label={uiText(locale, "Appearance.visualSkin")}
           labelVisibility="hidden"
-          value={value}
+          value={draft ?? currentValue}
           disabled={view.busy}
           options={[
             {
@@ -70,38 +71,52 @@ function ConnectedAppearanceSettingsSection({
               disabled: !s.available,
             })),
           ]}
-          onValueChange={(key) =>
-            void run(() => {
-              const skin = view.state?.catalog.find(
-                (s) => `${s.pluginId}/${s.id}` === key,
-              );
-              return controller.preview(
-                skin ? { pluginId: skin.pluginId, skinId: skin.id } : null,
-              );
-            })
-          }
+          onValueChange={(key) => {
+            setDraft(key);
+            if (view.preview !== undefined)
+              void run(() => controller.cancelPreview());
+          }}
         />
         <div className="appearance-settings-actions">
           <Button
-            disabled={view.busy || view.preview === undefined}
-            onClick={() => void run(() => controller.confirmPreview())}
-          >
-            {uiText(locale, "Appearance.applySkin")}
-          </Button>
-          <Button
-            disabled={view.busy || view.preview === undefined}
-            variant="quiet"
-            onClick={() => void run(() => controller.cancelPreview())}
-          >
-            {uiText(locale, "Appearance.cancelPreview")}
-          </Button>
-          <Button
             disabled={view.busy}
-            variant="quiet"
-            onClick={() => void run(() => controller.reset())}
+            onClick={() =>
+              void run(async () => {
+                if (view.preview !== undefined) {
+                  await controller.confirmPreview();
+                  setDraft(undefined);
+                } else {
+                  const skin = view.state?.catalog.find(
+                    (s) => `${s.pluginId}/${s.id}` === (draft ?? currentValue),
+                  );
+                  await controller.preview(
+                    skin ? { pluginId: skin.pluginId, skinId: skin.id } : null,
+                  );
+                }
+              })
+            }
           >
-            {uiText(locale, "Appearance.restoreDefault")}
+            {uiText(
+              locale,
+              view.preview === undefined
+                ? "Review02.preview"
+                : "Review02.apply",
+            )}
           </Button>
+          {view.preview !== undefined && (
+            <Button
+              disabled={view.busy}
+              variant="quiet"
+              onClick={() =>
+                void run(async () => {
+                  await controller.cancelPreview();
+                  setDraft(undefined);
+                })
+              }
+            >
+              {uiText(locale, "App_copy.renameCancel")}
+            </Button>
+          )}
         </div>
       </div>
       {error ? <InlineNotice tone="danger">{error}</InlineNotice> : null}

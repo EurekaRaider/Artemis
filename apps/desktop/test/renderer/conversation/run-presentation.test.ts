@@ -343,3 +343,16 @@ describe("deriveRunPresentation multi-question aggregation (D#76 PR10C obligatio
     ).toMatchObject({ status: "running" });
   });
 });
+
+describe("waiting status without a loaded turn start", () => {
+  it.each(["waiting-user-input", "waiting-approval"] as const)(
+    "never presents %s as idle",
+    (status) => {
+      expect(deriveRunPresentation([], Date.now(), status).status).toBe(status);
+    },
+  );
+  it("localizes compact elapsed time", () => {
+    expect(formatRunDuration(134_000, "zh-CN")).toBe("2 分 14 秒");
+    expect(formatRunDuration(134_000, "en")).toBe("2m 14s");
+  });
+});

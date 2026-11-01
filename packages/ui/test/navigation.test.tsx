@@ -482,11 +482,17 @@ it("keeps segmented option icons decorative while preserving keyboard selection"
       onValueChange={change}
       options={[
         { value: "light", label: "Light", icon: <span>Decorative sun</span> },
-        { value: "dark", label: "Dark", icon: <span>Decorative moon</span> },
+        {
+          id: "theme-dark",
+          value: "dark",
+          label: "Dark",
+          icon: <span>Decorative moon</span>,
+        },
       ]}
     />,
   );
   const dark = screen.getByRole("button", { name: "Dark", exact: true });
+  expect(dark.id).toBe("theme-dark");
   dark.focus();
   await userEvent.setup().keyboard("{Enter}");
   expect(change).toHaveBeenCalledWith("dark");

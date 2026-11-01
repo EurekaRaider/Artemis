@@ -1,3 +1,4 @@
+import { WelcomeResume } from "../conversation/WelcomeResume.js";
 import {
   SidebarUpdateControl,
   sidebarUpdateSubtitle,
@@ -76,7 +77,7 @@ import {
   type WorkspaceTabMenuEntry,
 } from "../workspace/workspace-tab-menu-html.js";
 import { ThreadStatusIndicator } from "../conversation/ThreadStatusIndicator.js";
-import { useAutomationCount } from "../automation/useAutomationCount.js";
+import { useAutomations } from "../automation/useAutomationCount.js";
 import { useTaskNotificationRead } from "../conversation/task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "../conversation/turn-failure.js";
@@ -198,6 +199,7 @@ import {
 
 import type {
   DesktopSnapshot,
+  ProjectGitInfo,
   InstalledArtemisPlugin,
   InstalledSkill,
   McpServerStatus,
@@ -945,7 +947,13 @@ function synchronizeTurnIndicator(event: ReactAnimationEvent<HTMLElement>) {
 
 export function App() {
   const imThreadStatus = useImThreadStatus();
-  const automationCount = useAutomationCount();
+  const automations = useAutomations();
+  const automationCount = automations?.length;
+  const [welcomeAutomationId, setWelcomeAutomationId] = useState<string>();
+  const [welcomeGit, setWelcomeGit] = useState<{
+    key: string;
+    info: ProjectGitInfo | undefined;
+  }>();
   const { i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [windowMaterial, setWindowMaterial] = useState<WindowMaterial>();
@@ -1099,7 +1107,7 @@ export function App() {
   const workspaceDockToggleElement = useRef<HTMLButtonElement>(null);
   const focusWorkspaceTab = useCallback((tabId: string | undefined) => {
     if (!tabId) return;
-    workspaceTabButtons.current.get(tabId)?.focus();
+    workspaceTabButtons.current.get(tabId)?.focus({ preventScroll: true });
   }, []);
   const workspaceContent = useRef<HTMLDivElement>(null);
   const workspaceDock = useRef<HTMLElement>(null);
@@ -2371,7 +2379,9 @@ export function App() {
       if (activeThreadIdRef.current !== activeThreadId) return;
       if (closesLastTab) {
         if (options?.moveFocus) {
-          workspaceDockToggleElement.current?.focus();
+          requestAnimationFrame(() => {
+            workspaceDockToggleElement.current?.focus({ preventScroll: true });
+          });
         }
         return;
       }
@@ -4004,6 +4014,12 @@ export function App() {
     environmentWorktree?.id,
     environmentWorktree?.path,
   ]);
+  const receiveWelcomeGit = useCallback(
+    (info: ProjectGitInfo | undefined) => {
+      setWelcomeGit({ key: environmentWorkspaceKey, info });
+    },
+    [environmentWorkspaceKey],
+  );
   const refreshWorkspaceSnapshot = async () => {
     const refreshed = await window.artemis.getSnapshot();
     setSnapshot((current) => preserveLoadedEvents(refreshed, current));
@@ -4395,10 +4411,13 @@ export function App() {
   const remoteWaiting = delegationWaiting || (!turnActive && !!permissionBlock);
   const statusDotStatus = remoteWaiting
     ? "waiting-approval"
-    : threadState?.status === "running" &&
-        threadState.activity?.phase === "queued"
-      ? "queued"
-      : runPresentation.status;
+    : threadState?.status === "waiting-user-input" ||
+        threadState?.status === "waiting-approval"
+      ? threadState.status
+      : threadState?.status === "running" &&
+          threadState.activity?.phase === "queued"
+        ? "queued"
+        : runPresentation.status;
   const taskPlan = useMemo(
     () => deriveTaskPlan(activeEvents, turnActive),
     [activeEvents, turnActive],
@@ -6094,6 +6113,24 @@ export function App() {
     toggleTerminalPanel,
   ]);
 
+  const taskShortcut = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    thread: Thread,
+  ) => {
+    if (event.key === "F2") {
+      event.preventDefault();
+      beginRenameThread(thread);
+    } else if (
+      (event.metaKey || event.ctrlKey) &&
+      event.key === "Backspace" &&
+      thread.status !== "running" &&
+      thread.status !== "waiting-approval"
+    ) {
+      event.preventDefault();
+      void setThreadArchived(thread, true);
+    }
+  };
+
   if (!snapshot) {
     return (
       <main className="loading-shell">
@@ -6102,6 +6139,27 @@ export function App() {
       </main>
     );
   }
+
+  const conversationEmpty =
+    !activeThread ||
+    (!activeThread.archived &&
+      loadedEventThreads.current.has(activeThread.id) &&
+      activeEvents.length === 0 &&
+      !activeHistory?.state.order.length &&
+      !busy);
+  const composerPlaceholder = visibleComposerPrediction
+    ? ""
+    : activeThread && imThreadStatus[activeThread.id]?.group
+      ? uiText(locale, "App.inline12")
+      : hasOfficeAnnotations
+        ? officeAnnotationCopy(locale).placeholder
+        : designDocBinding
+          ? uiText(locale, "AppDesign.askArtemisToEditName", {
+              name: designDocBinding.name,
+            })
+          : pendingComposerDecision
+            ? uiText(locale, "Review01.waitingPrompt")
+            : t.prompt;
 
   const navigationItems = [
     ["resources", uiText(locale, "App.inline5"), <ResourceIcon />],
@@ -6366,15 +6424,16 @@ export function App() {
                 >
                   {icon}
                   <span>{label}</span>
-                  {view === "archive" && (
-                    <span className="sidebar-nav-count" aria-hidden="true">
-                      {
-                        snapshot.threads.filter((thread) => thread.archived)
-                          .length
-                      }
-                    </span>
-                  )}
-                  {view === "automations" && automationCount !== undefined && (
+                  {view === "archive" &&
+                    snapshot.threads.some((thread) => thread.archived) && (
+                      <span className="sidebar-nav-count" aria-hidden="true">
+                        {
+                          snapshot.threads.filter((thread) => thread.archived)
+                            .length
+                        }
+                      </span>
+                    )}
+                  {view === "automations" && Boolean(automationCount) && (
                     <span className="sidebar-nav-count" aria-hidden="true">
                       {automationCount}
                     </span>
@@ -6839,6 +6898,9 @@ export function App() {
                             <>
                               <button
                                 className="thread-select"
+                                onKeyDown={(event) =>
+                                  taskShortcut(event, thread)
+                                }
                                 onClick={() => {
                                   discardNewConversationDraft();
                                   setActiveView("workspace");
@@ -6932,6 +6994,9 @@ export function App() {
                                   anchorRef={threadMenuAnchor}
                                   align="end"
                                   className="thread-menu"
+                                  onKeyDown={(event) =>
+                                    taskShortcut(event, thread)
+                                  }
                                   label={t.moreActions}
                                   onOpenChange={(open) => {
                                     if (!open) setThreadMenuId(undefined);
@@ -6949,20 +7014,7 @@ export function App() {
                                       height={16}
                                     />
                                     <span>{t.renameTask}</span>
-                                  </button>
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => {
-                                      setThreadMenuId(undefined);
-                                      setSharingThreadId(thread.id);
-                                    }}
-                                  >
-                                    <ArtemisIcon
-                                      name="external"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>{uiText(locale, "Share.title")}</span>
+                                    <kbd>F2</kbd>
                                   </button>
                                   <button
                                     role="menuitem"
@@ -6973,12 +7025,28 @@ export function App() {
                                     onClick={() => void forkThread(thread)}
                                   >
                                     <ArtemisIcon
-                                      name="branch"
+                                      name="fork"
                                       width={16}
                                       height={16}
                                     />
                                     <span>{t.forkTask}</span>
                                   </button>
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setThreadMenuId(undefined);
+                                      setSharingThreadId(thread.id);
+                                    }}
+                                  >
+                                    <ArtemisIcon
+                                      name="share"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>{uiText(locale, "Share.title")}</span>
+                                  </button>
+
+                                  <div role="separator" />
                                   <button
                                     role="menuitem"
                                     disabled={
@@ -6995,6 +7063,11 @@ export function App() {
                                       height={16}
                                     />
                                     <span>{t.archiveTask}</span>
+                                    <kbd>
+                                      {snapshot.platform === "darwin"
+                                        ? "⌘⌫"
+                                        : "Ctrl+Backspace"}
+                                    </kbd>
                                   </button>
                                   <button
                                     role="menuitem"
@@ -7127,6 +7200,7 @@ export function App() {
                   <>
                     <button
                       className="thread-select"
+                      onKeyDown={(event) => taskShortcut(event, thread)}
                       onClick={() => {
                         discardNewConversationDraft();
                         setActiveView("workspace");
@@ -7208,6 +7282,7 @@ export function App() {
                         anchorRef={threadMenuAnchor}
                         align="end"
                         className="thread-menu"
+                        onKeyDown={(event) => taskShortcut(event, thread)}
                         label={t.moreActions}
                         onOpenChange={(open) => {
                           if (!open) setThreadMenuId(undefined);
@@ -7221,16 +7296,7 @@ export function App() {
                         >
                           <ArtemisIcon name="edit" width={16} height={16} />
                           <span>{t.renameTask}</span>
-                        </button>
-                        <button
-                          role="menuitem"
-                          onClick={() => {
-                            setThreadMenuId(undefined);
-                            setSharingThreadId(thread.id);
-                          }}
-                        >
-                          <ArtemisIcon name="external" width={16} height={16} />
-                          <span>{uiText(locale, "Share.title")}</span>
+                          <kbd>F2</kbd>
                         </button>
                         <button
                           role="menuitem"
@@ -7240,9 +7306,21 @@ export function App() {
                           }
                           onClick={() => void forkThread(thread)}
                         >
-                          <ArtemisIcon name="branch" width={16} height={16} />
+                          <ArtemisIcon name="fork" width={16} height={16} />
                           <span>{t.forkTask}</span>
                         </button>
+                        <button
+                          role="menuitem"
+                          onClick={() => {
+                            setThreadMenuId(undefined);
+                            setSharingThreadId(thread.id);
+                          }}
+                        >
+                          <ArtemisIcon name="share" width={16} height={16} />
+                          <span>{uiText(locale, "Share.title")}</span>
+                        </button>
+
+                        <div role="separator" />
                         <button
                           role="menuitem"
                           disabled={
@@ -7253,6 +7331,11 @@ export function App() {
                         >
                           <ArtemisIcon name="archive" width={16} height={16} />
                           <span>{t.archiveTask}</span>
+                          <kbd>
+                            {snapshot.platform === "darwin"
+                              ? "⌘⌫"
+                              : "Ctrl+Backspace"}
+                          </kbd>
                         </button>
                         <button
                           role="menuitem"
@@ -7358,6 +7441,7 @@ export function App() {
         ) : activeView === "automations" ? (
           <Suspense fallback={<div className="view-loading">…</div>}>
             <AutomationPage
+              initialAutomationId={welcomeAutomationId}
               headerActionTarget={managementActionTarget}
               locale={locale}
               settings={runtimeSettings}
@@ -7368,6 +7452,13 @@ export function App() {
           </Suspense>
         ) : activeView === "archive" ? (
           <ArchivePage
+            groupThreadIds={
+              new Set(
+                Object.entries(imThreadStatus)
+                  .filter(([, status]) => status.group)
+                  .map(([id]) => id),
+              )
+            }
             locale={locale}
             onOpen={(thread) => {
               discardNewConversationDraft();
@@ -7420,16 +7511,7 @@ export function App() {
                 className="conversation"
                 id="conversation"
                 label={t.conversation}
-                state={
-                  !activeThread ||
-                  (!activeThread.archived &&
-                    loadedEventThreads.current.has(activeThread.id) &&
-                    activeEvents.length === 0 &&
-                    !activeHistory?.state.order.length &&
-                    !busy)
-                    ? "empty"
-                    : "ready"
-                }
+                state={conversationEmpty ? "empty" : "ready"}
               >
                 <Toolbar
                   actions={
@@ -7468,7 +7550,10 @@ export function App() {
                             <time
                               dateTime={`PT${Math.floor(runPresentation.elapsedMs / 1_000)}S`}
                             >
-                              {formatRunDuration(runPresentation.elapsedMs)}
+                              {formatRunDuration(
+                                runPresentation.elapsedMs,
+                                locale,
+                              )}
                             </time>
                           )}
                       </span>
@@ -7480,7 +7565,7 @@ export function App() {
                           title={uiText(locale, "Share.title")}
                           onClick={() => setSharingThreadId(activeThread.id)}
                         >
-                          <ArtemisIcon name="external" width={16} height={16} />
+                          <ArtemisIcon name="share" width={16} height={16} />
                         </button>
                       )}
                       {activeProject && (
@@ -7604,1492 +7689,1561 @@ export function App() {
                   </div>
                 </Toolbar>
 
-                <div
-                  className="update-notice-slot"
-                  ref={setUpdateNoticeTarget}
-                />
+                <div className="conversation-body">
+                  <div
+                    className="update-notice-slot"
+                    ref={setUpdateNoticeTarget}
+                  />
 
-                <TimelineViewport
-                  className="timeline-scroll"
-                  label={t.conversationHistory}
-                  onPointerDown={(event) => {
-                    const container = event.currentTarget;
-                    const bounds = container.getBoundingClientRect();
-                    const scrollbarEdge = Math.max(
-                      container.offsetWidth - container.clientWidth,
-                      12,
-                    );
-                    const direction =
-                      window.getComputedStyle(container).direction;
-                    const overScrollbar =
-                      direction === "rtl"
-                        ? event.clientX <= bounds.left + scrollbarEdge
-                        : event.clientX >= bounds.right - scrollbarEdge;
-                    timelineScrollbarPointerActive.current = overScrollbar;
-                  }}
-                  onScroll={(event) => {
-                    const container = event.currentTarget;
-                    if (
-                      container.scrollTop < 240 &&
-                      (timelineScrollIntent.current ||
-                        timelineScrollbarPointerActive.current)
-                    )
-                      loadEarlierHistory();
-                    timelinePinned.current = resolveTimelinePinned({
-                      clientHeight: container.clientHeight,
-                      pinned: timelinePinned.current,
-                      scrollHeight: container.scrollHeight,
-                      scrollTop: container.scrollTop,
-                      userInitiated:
-                        timelineScrollIntent.current ||
-                        timelineScrollbarPointerActive.current,
-                    });
-                    const threadId = activeThreadIdRef.current;
-                    if (
-                      threadId &&
-                      pendingTimelineRestore.current?.threadId !== threadId
-                    ) {
-                      timelineScrollSnapshots.current.set(threadId, {
+                  <TimelineViewport
+                    className="timeline-scroll"
+                    label={t.conversationHistory}
+                    onPointerDown={(event) => {
+                      const container = event.currentTarget;
+                      const bounds = container.getBoundingClientRect();
+                      const scrollbarEdge = Math.max(
+                        container.offsetWidth - container.clientWidth,
+                        12,
+                      );
+                      const direction =
+                        window.getComputedStyle(container).direction;
+                      const overScrollbar =
+                        direction === "rtl"
+                          ? event.clientX <= bounds.left + scrollbarEdge
+                          : event.clientX >= bounds.right - scrollbarEdge;
+                      timelineScrollbarPointerActive.current = overScrollbar;
+                    }}
+                    onScroll={(event) => {
+                      const container = event.currentTarget;
+                      if (
+                        container.scrollTop < 240 &&
+                        (timelineScrollIntent.current ||
+                          timelineScrollbarPointerActive.current)
+                      )
+                        loadEarlierHistory();
+                      timelinePinned.current = resolveTimelinePinned({
+                        clientHeight: container.clientHeight,
                         pinned: timelinePinned.current,
+                        scrollHeight: container.scrollHeight,
                         scrollTop: container.scrollTop,
+                        userInitiated:
+                          timelineScrollIntent.current ||
+                          timelineScrollbarPointerActive.current,
                       });
-                    }
-                    timelineScrollIntent.current = false;
-                  }}
-                  onWheel={() => {
-                    timelineScrollIntent.current = true;
-                    window.requestAnimationFrame(() => {
+                      const threadId = activeThreadIdRef.current;
+                      if (
+                        threadId &&
+                        pendingTimelineRestore.current?.threadId !== threadId
+                      ) {
+                        timelineScrollSnapshots.current.set(threadId, {
+                          pinned: timelinePinned.current,
+                          scrollTop: container.scrollTop,
+                        });
+                      }
                       timelineScrollIntent.current = false;
-                    });
-                  }}
-                  ref={timelineScroll}
-                >
-                  {activeHistoryPending ? (
-                    activeHistoryError !== undefined ? (
-                      <ErrorState
-                        className="conversation-history-feedback"
-                        action={
-                          <Button
-                            onClick={() => {
-                              if (!activeThreadId) return;
-                              setHistoryLoadErrors((current) => {
-                                const next = { ...current };
-                                delete next[activeThreadId];
-                                return next;
-                              });
-                              setHistoryRetry((current) => current + 1);
-                            }}
-                          >
-                            {uiText(locale, "App_copy.historyRetry")}
-                          </Button>
-                        }
-                      >
-                        {uiText(locale, "App_copy.historyLoadFailed")}
-                      </ErrorState>
-                    ) : (
-                      <LoadingState
-                        className="conversation-history-feedback"
-                        label={uiText(locale, "App_copy.loadingHistory")}
-                        lines={3}
-                      />
-                    )
-                  ) : !activeThread ||
-                    (!activeThread.archived &&
-                      loadedEventThreads.current.has(activeThread.id) &&
-                      activeEvents.length === 0 &&
-                      !activeHistory?.state.order.length &&
-                      !busy) ? (
-                    <ConversationEmptyState
-                      className="conversation-empty-state"
-                      icon={<ArtemisMark />}
-                      label={`${emptyConversationGreeting.title}. ${emptyConversationLabel}`}
-                      title={<h1>{emptyConversationGreeting.title}</h1>}
-                      detail={
-                        <p className="conversation-greeting-detail">
-                          {activeProject ? (
-                            <>
-                              {emptyConversationPrefix}
-                              <bdi className="conversation-project-name">
-                                {activeProject.name}
-                              </bdi>
-                              {emptyConversationSuffix}
-                            </>
-                          ) : (
-                            emptyConversationGreeting.temporaryPrompt
-                          )}
-                        </p>
-                      }
-                    />
-                  ) : (
-                    <Fragment>
-                      {activeHistory?.cursor ? (
-                        <button type="button" onClick={loadEarlierHistory}>
-                          {uiText(locale, "App_copy.loadEarlierMessages")}
-                        </button>
-                      ) : null}
-                      <Timeline
-                        events={activeEvents}
-                        imChannel={
-                          activeThread
-                            ? imThreadStatus[activeThread.id]?.channel
-                            : undefined
-                        }
-                        imGroup={
-                          activeThread
-                            ? imThreadStatus[activeThread.id]?.group
-                            : undefined
-                        }
-                        installedPlugins={installedPlugins}
-                        installedSkills={installedSkills}
-                        mcpServers={runtimeSettings?.mcpServers}
-                        locale={locale}
-                        onExternalLink={openConversationExternalLink}
-                        onFileLink={openConversationFileLink}
-                        onFileLinkContextMenu={openConversationFileLinkMenu}
-                        onOpenChildAgent={openChildAgentPanel}
-                        onOpenTurnReview={openReviewTurnPanel}
-                        onCopyText={copyConversationText}
-                        onFork={
-                          activeThread && !turnActive && !activeThread.archived
-                            ? () => void forkThread(activeThread)
-                            : undefined
-                        }
-                        onShare={
-                          activeProject && activeThread
-                            ? () => setSharingThreadId(activeThread.id)
-                            : undefined
-                        }
-                        onEditUserMessage={
-                          activeThread?.archived
-                            ? undefined
-                            : editConversationMessage
-                        }
-                        onResolve={resolveApprovalRequest}
-                        onResolveUserInput={resolveUserInputRequest}
-                        onUndoTurnChanges={(turnId) =>
-                          void undoTurnChanges(turnId)
-                        }
-                        state={threadState!}
-                      />
-                    </Fragment>
-                  )}
-                  {activeThread &&
-                    runPresentation.status === "running" &&
-                    !remoteWaiting &&
-                    !threadState?.turnOrder.some(
-                      (id) => threadState.turns[id]?.status === "running",
-                    ) &&
-                    !latestTimelineEntryIsCompaction && (
-                      <div className="turn-status running" role="status">
-                        <RunningArc size={16} />
-                        <span>{statusLabel(threadState, locale, clockMs)}</span>
-                        <time>
-                          {formatRunDuration(runPresentation.elapsedMs)}
-                        </time>
-                      </div>
-                    )}
-                  {turnFailureBanner}
-                  <div className="timeline-decision" ref={setDecisionTarget} />
-                </TimelineViewport>
-
-                {activeThread?.archived && (
-                  <div className="archived-readonly" role="status">
-                    <ArchiveIcon />
-                    <span>
-                      <strong>{t.archivedReadOnly}</strong>
-                      <small>{t.archivedReadOnlyDetail}</small>
-                    </span>
-                    <button
-                      onClick={() =>
-                        void setThreadArchived(activeThread, false)
-                      }
-                    >
-                      {t.restoreTask}
-                    </button>
-                  </div>
-                )}
-
-                {retiredGroup && (
-                  <div className="composer-wrap">
-                    <div className="im-retired-notice" role="status">
-                      <ArtemisIcon name="agents" width={18} height={18} />
-                      <span>
-                        {uiText(
-                          locale,
-                          retiredGroup === "dissolved"
-                            ? "ImThreadConnection.dissolvedDetail"
-                            : "ImThreadConnection.archivedDetail",
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {!activeThread?.archived && !retiredGroup && (
-                  <div className="composer-wrap">
-                    <Suspense fallback={null}>
-                      <ComputerUseControls
-                        locale={locale}
-                        nativeGlass={windowMaterial === "acrylic"}
-                      />
-                      <ComputerPreview
-                        locale={locale}
-                        threadId={activeThreadId}
-                        dockOpen={workspaceDockOpen}
-                      />
-                    </Suspense>
-                    <Suspense fallback={null}>
-                      <HookTaskNotice
-                        locale={locale}
-                        {...(activeThreadId
-                          ? { threadId: activeThreadId }
-                          : {})}
-                        {...(activeProjectId
-                          ? { projectId: activeProjectId }
-                          : {})}
-                        mode={mode}
-                        onReview={(trigger) => {
-                          setHooksQuery({
-                            ...(activeThreadId
-                              ? { threadId: activeThreadId }
-                              : {}),
-                            ...(activeProjectId
-                              ? { projectId: activeProjectId }
-                              : {}),
-                          });
-                          openSettings("hooks", trigger);
-                        }}
-                      />
-                    </Suspense>
-                    {permissionBlock && (
-                      <div className="sandbox-notice" role="status">
-                        <span>{permissionBlock}</span>
-                        <button
-                          type="button"
-                          onClick={(event) =>
-                            openSettings("general", event.currentTarget)
+                    }}
+                    onWheel={() => {
+                      timelineScrollIntent.current = true;
+                      window.requestAnimationFrame(() => {
+                        timelineScrollIntent.current = false;
+                      });
+                    }}
+                    ref={timelineScroll}
+                  >
+                    {activeHistoryPending ? (
+                      activeHistoryError !== undefined ? (
+                        <ErrorState
+                          className="conversation-history-feedback"
+                          action={
+                            <Button
+                              onClick={() => {
+                                if (!activeThreadId) return;
+                                setHistoryLoadErrors((current) => {
+                                  const next = { ...current };
+                                  delete next[activeThreadId];
+                                  return next;
+                                });
+                                setHistoryRetry((current) => current + 1);
+                              }}
+                            >
+                              {uiText(locale, "App_copy.historyRetry")}
+                            </Button>
                           }
                         >
-                          {uiText(locale, "ImPermission.settings")}
-                        </button>
-                      </div>
-                    )}
-                    {activeThread && (
-                      <ImDelegationWaitStatus
-                        key={activeThread.id}
-                        waits={
-                          imThreadStatus[activeThread.id]?.delegationWaits ?? []
-                        }
-                        locale={locale}
-                      />
-                    )}
-                    <div className="composer-status-row">
-                      {activeThread?.goal && (
-                        <GoalBar
-                          clockMs={clockMs}
-                          disabled={goalMutationPending}
-                          goal={activeThread.goal}
-                          locale={locale}
-                          onClear={() => void updateActiveGoal("clear")}
-                          onEdit={openGoalEditor}
-                          onPause={() => void updateActiveGoal("pause")}
-                          onResume={() => void updateActiveGoal("resume")}
+                          {uiText(locale, "App_copy.historyLoadFailed")}
+                        </ErrorState>
+                      ) : (
+                        <LoadingState
+                          className="conversation-history-feedback"
+                          label={uiText(locale, "App_copy.loadingHistory")}
+                          lines={3}
                         />
-                      )}
-                      {taskPlan && (
-                        <TaskPlanProgress locale={locale} plan={taskPlan} />
-                      )}
-                      {queuedFollowUps.length > 0 && (
-                        <details className="composer-queue">
-                          <summary>
-                            <QueueIcon />
-                            {t.queuedMessages.replace(
-                              "{{count}}",
-                              String(queuedFollowUps.length),
-                            )}
-                          </summary>
-                          <QueuedMessageGroup
-                            className="queued-message-bar"
-                            heading={
+                      )
+                    ) : !activeThread ||
+                      (!activeThread.archived &&
+                        loadedEventThreads.current.has(activeThread.id) &&
+                        activeEvents.length === 0 &&
+                        !activeHistory?.state.order.length &&
+                        !busy) ? (
+                      <ConversationEmptyState
+                        className="conversation-empty-state"
+                        icon={<ArtemisMark />}
+                        label={`${emptyConversationGreeting.title}. ${emptyConversationLabel}`}
+                        title={<h1>{emptyConversationGreeting.title}</h1>}
+                        detail={
+                          <p className="conversation-greeting-detail">
+                            {activeProject ? (
                               <>
-                                <QueueIcon />
-                                <strong>
-                                  {t.queuedMessages.replace(
-                                    "{{count}}",
-                                    String(queuedFollowUps.length),
-                                  )}
-                                </strong>
+                                {emptyConversationPrefix}
+                                <bdi className="conversation-project-name">
+                                  {activeProject.name}
+                                </bdi>
+                                {emptyConversationSuffix}
                               </>
-                            }
-                            label={t.queuedMessages.replace(
-                              "{{count}}",
-                              String(queuedFollowUps.length),
+                            ) : (
+                              emptyConversationGreeting.temporaryPrompt
                             )}
-                            state={busy ? "busy" : "queued"}
-                          >
-                            {queuedFollowUps.map((message, index) => {
-                              const editing =
-                                editingQueuedMessage?.index === index;
-                              const itemLabel = t.queueItem.replace(
-                                "{{number}}",
-                                String(index + 1),
-                              );
-                              return (
-                                <QueuedMessageItem
-                                  actions={
-                                    editing ? undefined : (
-                                      <>
-                                        <button
-                                          aria-label={`${t.queueSteer}: ${itemLabel}`}
-                                          className="queued-message-steer"
-                                          disabled={busy || contextCompacting}
-                                          onClick={() =>
-                                            void steerQueuedMessage(index)
-                                          }
-                                          title={t.queueSteerHint}
-                                          type="button"
-                                        >
-                                          <SteerIcon />
-                                          <span>{t.queueSteer}</span>
-                                        </button>
-                                        {index > 0 && (
-                                          <button
-                                            aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
-                                            className="queued-message-prioritize"
-                                            disabled={busy}
-                                            onClick={() =>
-                                              void moveQueuedMessageToFront(
-                                                index,
-                                              )
-                                            }
-                                            title={t.queueMoveToFrontHint}
-                                            type="button"
-                                          >
-                                            <MoveToFrontIcon />
-                                          </button>
-                                        )}
-                                        <button
-                                          aria-label={`${t.queueEdit}: ${itemLabel}`}
-                                          className="queued-message-edit"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            setEditingQueuedMessage({
-                                              index,
-                                              value: message,
-                                            })
-                                          }
-                                          title={t.queueEdit}
-                                          type="button"
-                                        >
-                                          <EditIcon />
-                                        </button>
-                                        <button
-                                          aria-label={`${t.queueDelete}: ${itemLabel}`}
-                                          className="queued-message-delete"
-                                          disabled={busy}
-                                          onClick={() =>
-                                            void deleteQueuedMessage(index)
-                                          }
-                                          title={t.queueDelete}
-                                          type="button"
-                                        >
-                                          <TrashIcon />
-                                        </button>
-                                      </>
-                                    )
-                                  }
-                                  className="queued-message-item"
-                                  data-queued-index={index}
-                                  index={index + 1}
-                                  key={String(index)}
-                                  state={busy ? "busy" : "queued"}
-                                >
-                                  {editing ? (
-                                    <QueuedMessageEditor
-                                      busy={busy}
-                                      cancelLabel={t.queueCancel}
-                                      errorDetail={queuedSaveErrorDetail}
-                                      errorLabel={t.queueSaveError}
-                                      retryLabel={t.queueRetry}
-                                      saveLabel={t.queueSave}
-                                      textareaLabel={t.queueEdit}
-                                      value={editingQueuedMessage.value}
-                                      focusReturnTarget={() =>
-                                        document.querySelector<HTMLElement>(
-                                          `[data-queued-index="${index}"] .queued-message-steer`,
-                                        )
-                                      }
-                                      onCancel={() =>
-                                        setEditingQueuedMessage(undefined)
-                                      }
-                                      onSave={async () =>
-                                        (await saveQueuedMessage(
-                                          index,
-                                          editingQueuedMessage.value,
-                                        )) === true
-                                      }
-                                      onSuccess={() =>
-                                        setEditingQueuedMessage(undefined)
-                                      }
-                                      onValueChange={(value) =>
-                                        setEditingQueuedMessage({
-                                          index,
-                                          value,
-                                        })
-                                      }
-                                    />
-                                  ) : (
-                                    <span
-                                      className="queued-message-content"
-                                      title={message}
-                                    >
-                                      {message}
-                                    </span>
-                                  )}
-                                </QueuedMessageItem>
-                              );
-                            })}
-                          </QueuedMessageGroup>
-                        </details>
-                      )}
-                    </div>
-                    {toast && (
-                      <TransientNotice
-                        dismissLabel={t.dismissNotice}
-                        notice={toast}
-                        onDismiss={() => setToast(undefined)}
-                        placement="composer"
+                          </p>
+                        }
                       />
+                    ) : (
+                      <Fragment>
+                        {activeHistory?.cursor ? (
+                          <button type="button" onClick={loadEarlierHistory}>
+                            {uiText(locale, "App_copy.loadEarlierMessages")}
+                          </button>
+                        ) : null}
+                        <Timeline
+                          events={activeEvents}
+                          imChannel={
+                            activeThread
+                              ? imThreadStatus[activeThread.id]?.channel
+                              : undefined
+                          }
+                          imGroup={
+                            activeThread
+                              ? imThreadStatus[activeThread.id]?.group
+                              : undefined
+                          }
+                          installedPlugins={installedPlugins}
+                          installedSkills={installedSkills}
+                          mcpServers={runtimeSettings?.mcpServers}
+                          locale={locale}
+                          onExternalLink={openConversationExternalLink}
+                          onFileLink={openConversationFileLink}
+                          onFileLinkContextMenu={openConversationFileLinkMenu}
+                          onOpenChildAgent={openChildAgentPanel}
+                          onOpenTurnReview={openReviewTurnPanel}
+                          onCopyText={copyConversationText}
+                          onFork={
+                            activeThread &&
+                            !turnActive &&
+                            !activeThread.archived
+                              ? () => void forkThread(activeThread)
+                              : undefined
+                          }
+                          onShare={
+                            activeProject && activeThread
+                              ? () => setSharingThreadId(activeThread.id)
+                              : undefined
+                          }
+                          onEditUserMessage={
+                            activeThread?.archived
+                              ? undefined
+                              : editConversationMessage
+                          }
+                          onResolve={resolveApprovalRequest}
+                          onResolveUserInput={resolveUserInputRequest}
+                          onUndoTurnChanges={(turnId) =>
+                            void undoTurnChanges(turnId)
+                          }
+                          state={threadState!}
+                        />
+                      </Fragment>
                     )}
-                    <>
-                      {!snapshot.sandbox.available && (
-                        <div className="sandbox-notice">
-                          <ArtemisIcon
-                            className="icon"
-                            height={16}
-                            name="warning"
-                            width={16}
-                          />
+                    {activeThread &&
+                      runPresentation.status === "running" &&
+                      !remoteWaiting &&
+                      !threadState?.turnOrder.some(
+                        (id) => threadState.turns[id]?.status === "running",
+                      ) &&
+                      !latestTimelineEntryIsCompaction && (
+                        <div className="turn-status running" role="status">
+                          <RunningArc size={16} />
                           <span>
-                            <strong>{t.sandboxUnavailable}</strong>
-                            <small>{t.sandboxDetail}</small>
+                            {statusLabel(threadState, locale, clockMs)}
                           </span>
+                          <time>
+                            {formatRunDuration(
+                              runPresentation.elapsedMs,
+                              locale,
+                            )}
+                          </time>
                         </div>
                       )}
+                    {turnFailureBanner}
+                    <div
+                      className="timeline-decision"
+                      ref={setDecisionTarget}
+                    />
+                  </TimelineViewport>
 
-                      <DecisionComposer
-                        decision={pendingComposerDecision}
-                        decisionTarget={decisionTarget}
-                        locale={locale}
-                        onResolveApproval={resolveApprovalRequest}
-                        onResolveUserInput={resolveUserInputRequest}
-                        onAcceptPlan={
-                          activeThread?.archived
-                            ? undefined
-                            : async (plan, executionMode) => {
-                                const result = await window.artemis.acceptPlan({
-                                  threadId: threadState!.threadId,
-                                  planId: plan.planId,
-                                  revision: plan.revision,
-                                  mode: executionMode,
-                                });
-                                setMode(executionMode);
-                                updateThreadInSnapshot(result.thread);
-                              }
+                  {activeThread?.archived && (
+                    <div className="archived-readonly" role="status">
+                      <ArchiveIcon />
+                      <span>
+                        <strong>{t.archivedReadOnly}</strong>
+                        <small>{t.archivedReadOnlyDetail}</small>
+                      </span>
+                      <button
+                        onClick={() =>
+                          void setThreadArchived(activeThread, false)
                         }
-                        onRevisePlan={
-                          activeThread?.archived
-                            ? undefined
-                            : async (text) => {
-                                const result = await window.artemis.revisePlan({
-                                  threadId: threadState!.threadId,
-                                  text,
-                                });
-                                setMode("plan");
-                                updateThreadInSnapshot(result.thread);
-                              }
-                        }
-                        context={
-                          <div className="composer-context-row">
-                            <ComposerContextBar
-                              key={environmentWorkspaceKey}
-                              threadId={activeThread?.id}
-                              {...(activeProject ? { activeProject } : {})}
-                              projectActionsDisabled={
-                                busy ||
-                                turnActive ||
-                                Boolean(
-                                  activeThread &&
-                                  (!loadedEventThreads.current.has(
-                                    activeThread.id,
-                                  ) ||
-                                    (threadState?.order.length ?? 0) > 0),
-                                )
-                              }
-                              branchActionsDisabled={
-                                projectBranchActionsDisabled
-                              }
-                              locale={locale}
-                              mode={mode}
-                              showMode={false}
-                              workspaceControl={
-                                activeProject ? (
-                                  <EnvironmentWorkspaceMenu
-                                    locale={locale}
-                                    path={
-                                      environmentWorktree?.path ??
-                                      activeProject.path
-                                    }
-                                    worktree={Boolean(
-                                      activeThread &&
-                                      activeThread.target !== "local",
+                      >
+                        {t.restoreTask}
+                      </button>
+                    </div>
+                  )}
+
+                  {retiredGroup && (
+                    <div className="composer-wrap">
+                      <div className="im-retired-notice" role="status">
+                        <ArtemisIcon name="agents" width={18} height={18} />
+                        <span>
+                          {uiText(
+                            locale,
+                            retiredGroup === "dissolved"
+                              ? "ImThreadConnection.dissolvedDetail"
+                              : "ImThreadConnection.archivedDetail",
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {!activeThread?.archived && !retiredGroup && (
+                    <div className="composer-wrap">
+                      <Suspense fallback={null}>
+                        <ComputerUseControls
+                          locale={locale}
+                          nativeGlass={windowMaterial === "acrylic"}
+                        />
+                        <ComputerPreview
+                          locale={locale}
+                          threadId={activeThreadId}
+                          dockOpen={workspaceDockOpen}
+                        />
+                      </Suspense>
+                      <Suspense fallback={null}>
+                        <HookTaskNotice
+                          locale={locale}
+                          {...(activeThreadId
+                            ? { threadId: activeThreadId }
+                            : {})}
+                          {...(activeProjectId
+                            ? { projectId: activeProjectId }
+                            : {})}
+                          mode={mode}
+                          onReview={(trigger) => {
+                            setHooksQuery({
+                              ...(activeThreadId
+                                ? { threadId: activeThreadId }
+                                : {}),
+                              ...(activeProjectId
+                                ? { projectId: activeProjectId }
+                                : {}),
+                            });
+                            openSettings("hooks", trigger);
+                          }}
+                        />
+                      </Suspense>
+                      {permissionBlock && (
+                        <div className="sandbox-notice" role="status">
+                          <span>{permissionBlock}</span>
+                          <button
+                            type="button"
+                            onClick={(event) =>
+                              openSettings("general", event.currentTarget)
+                            }
+                          >
+                            {uiText(locale, "ImPermission.settings")}
+                          </button>
+                        </div>
+                      )}
+                      {activeThread && (
+                        <ImDelegationWaitStatus
+                          key={activeThread.id}
+                          waits={
+                            imThreadStatus[activeThread.id]?.delegationWaits ??
+                            []
+                          }
+                          locale={locale}
+                        />
+                      )}
+                      <div className="composer-status-row">
+                        {activeThread?.goal && (
+                          <GoalBar
+                            clockMs={clockMs}
+                            disabled={goalMutationPending}
+                            goal={activeThread.goal}
+                            locale={locale}
+                            onClear={() => void updateActiveGoal("clear")}
+                            onEdit={openGoalEditor}
+                            onPause={() => void updateActiveGoal("pause")}
+                            onResume={() => void updateActiveGoal("resume")}
+                          />
+                        )}
+                        {taskPlan && (
+                          <TaskPlanProgress locale={locale} plan={taskPlan} />
+                        )}
+                        {queuedFollowUps.length > 0 && (
+                          <details className="composer-queue">
+                            <summary>
+                              {t.queuedMessages.replace(
+                                "{{count}}",
+                                String(queuedFollowUps.length),
+                              )}
+                            </summary>
+                            <QueuedMessageGroup
+                              className="queued-message-bar"
+                              heading={
+                                <>
+                                  <QueueIcon />
+                                  <strong>
+                                    {t.queuedMessages.replace(
+                                      "{{count}}",
+                                      String(queuedFollowUps.length),
                                     )}
-                                    disabled={
-                                      projectBranchActionsDisabled ||
-                                      Boolean(activeThread?.archived)
-                                    }
-                                    placement="block-start"
-                                    onHandoff={handoffActiveWorkspace}
-                                    onWorktreesChanged={
-                                      refreshWorkspaceSnapshot
-                                    }
-                                    onOpenUsage={() =>
-                                      setActiveView("token-usage")
-                                    }
-                                    onMessage={(message, error) =>
-                                      setToast(
-                                        error
-                                          ? { error: true, message }
-                                          : message,
+                                  </strong>
+                                </>
+                              }
+                              label={t.queuedMessages.replace(
+                                "{{count}}",
+                                String(queuedFollowUps.length),
+                              )}
+                              state={busy ? "busy" : "queued"}
+                            >
+                              {queuedFollowUps.map((message, index) => {
+                                const editing =
+                                  editingQueuedMessage?.index === index;
+                                const itemLabel = t.queueItem.replace(
+                                  "{{number}}",
+                                  String(index + 1),
+                                );
+                                return (
+                                  <QueuedMessageItem
+                                    actions={
+                                      editing ? undefined : (
+                                        <>
+                                          <button
+                                            aria-label={`${t.queueSteer}: ${itemLabel}`}
+                                            className="queued-message-steer"
+                                            disabled={busy || contextCompacting}
+                                            onClick={() =>
+                                              void steerQueuedMessage(index)
+                                            }
+                                            title={t.queueSteerHint}
+                                            type="button"
+                                          >
+                                            <SteerIcon />
+                                            <span>{t.queueSteer}</span>
+                                          </button>
+                                          {index > 0 && (
+                                            <button
+                                              aria-label={`${t.queueMoveToFront}: ${itemLabel}`}
+                                              className="queued-message-prioritize"
+                                              disabled={busy}
+                                              onClick={() =>
+                                                void moveQueuedMessageToFront(
+                                                  index,
+                                                )
+                                              }
+                                              title={t.queueMoveToFrontHint}
+                                              type="button"
+                                            >
+                                              <MoveToFrontIcon />
+                                            </button>
+                                          )}
+                                          <button
+                                            aria-label={`${t.queueEdit}: ${itemLabel}`}
+                                            className="queued-message-edit"
+                                            disabled={busy}
+                                            onClick={() =>
+                                              setEditingQueuedMessage({
+                                                index,
+                                                value: message,
+                                              })
+                                            }
+                                            title={t.queueEdit}
+                                            type="button"
+                                          >
+                                            <EditIcon />
+                                          </button>
+                                          <button
+                                            aria-label={`${t.queueDelete}: ${itemLabel}`}
+                                            className="queued-message-delete"
+                                            disabled={busy}
+                                            onClick={() =>
+                                              void deleteQueuedMessage(index)
+                                            }
+                                            title={t.queueDelete}
+                                            type="button"
+                                          >
+                                            <TrashIcon />
+                                          </button>
+                                        </>
                                       )
                                     }
-                                  />
-                                ) : undefined
-                              }
-                              modeActionsDisabled={
-                                turnActive ||
-                                busy ||
-                                pendingComposerDecision?.kind === "plan"
-                              }
-                              onClearProject={() => {
-                                discardNewConversationDraft();
-                                beginTemporaryConversation();
-                              }}
-                              onError={(message) =>
-                                setToast({ error: true, message })
-                              }
-                              onModeChange={(nextMode) =>
-                                void selectMode(nextMode)
-                              }
-                              onOpenProject={openProject}
-                              onSelectProject={(project) => {
-                                discardNewConversationDraft();
-                                beginNewConversation(project.id);
-                              }}
-                              projects={projects}
+                                    className="queued-message-item"
+                                    data-queued-index={index}
+                                    index={index + 1}
+                                    key={String(index)}
+                                    state={busy ? "busy" : "queued"}
+                                  >
+                                    {editing ? (
+                                      <QueuedMessageEditor
+                                        busy={busy}
+                                        cancelLabel={t.queueCancel}
+                                        errorDetail={queuedSaveErrorDetail}
+                                        errorLabel={t.queueSaveError}
+                                        retryLabel={t.queueRetry}
+                                        saveLabel={t.queueSave}
+                                        textareaLabel={t.queueEdit}
+                                        value={editingQueuedMessage.value}
+                                        focusReturnTarget={() =>
+                                          document.querySelector<HTMLElement>(
+                                            `[data-queued-index="${index}"] .queued-message-steer`,
+                                          )
+                                        }
+                                        onCancel={() =>
+                                          setEditingQueuedMessage(undefined)
+                                        }
+                                        onSave={async () =>
+                                          (await saveQueuedMessage(
+                                            index,
+                                            editingQueuedMessage.value,
+                                          )) === true
+                                        }
+                                        onSuccess={() =>
+                                          setEditingQueuedMessage(undefined)
+                                        }
+                                        onValueChange={(value) =>
+                                          setEditingQueuedMessage({
+                                            index,
+                                            value,
+                                          })
+                                        }
+                                      />
+                                    ) : (
+                                      <span
+                                        className="queued-message-content"
+                                        title={message}
+                                      >
+                                        {message}
+                                      </span>
+                                    )}
+                                  </QueuedMessageItem>
+                                );
+                              })}
+                            </QueuedMessageGroup>
+                          </details>
+                        )}
+                      </div>
+                      {toast && (
+                        <TransientNotice
+                          dismissLabel={t.dismissNotice}
+                          notice={toast}
+                          onDismiss={() => setToast(undefined)}
+                          placement="composer"
+                        />
+                      )}
+                      <>
+                        {!snapshot.sandbox.available && (
+                          <div className="sandbox-notice">
+                            <ArtemisIcon
+                              className="icon"
+                              height={16}
+                              name="warning"
+                              width={16}
                             />
-                            <small className="composer-send-hint">
-                              <kbd>↵</kbd> {t.send}　<kbd>⇧↵</kbd>{" "}
-                              {uiText(locale, "Review01.newline")}
-                            </small>
-                          </div>
-                        }
-                        className="composer"
-                        label={t.prompt}
-                        onDragEnter={handleAttachmentDragEnter}
-                        onDragLeave={handleAttachmentDragLeave}
-                        onDragOver={handleAttachmentDragOver}
-                        onDrop={handleAttachmentDrop}
-                      >
-                        {attachmentDragActive && (
-                          <div className="composer-drop-overlay">
-                            <PlusIcon />
-                            <strong>{t.dropAttachments}</strong>
-                            <small>{t.dropAttachmentsDetail}</small>
+                            <span>
+                              <strong>{t.sandboxUnavailable}</strong>
+                              <small>{t.sandboxDetail}</small>
+                            </span>
                           </div>
                         )}
-                        {skillCommandMenuOpen && (
-                          <div
-                            aria-label={t.installedSkills}
-                            className="slash-command-menu"
-                            id="skill-command-menu"
-                            ref={slashCommandMenu}
-                            role="listbox"
-                          >
-                            {goalSuggestionIndex >= 0 && (
-                              <button
-                                aria-selected={
-                                  goalSuggestionIndex === activeSlashSuggestion
+
+                        <DecisionComposer
+                          decision={pendingComposerDecision}
+                          decisionTarget={decisionTarget}
+                          locale={locale}
+                          onResolveApproval={resolveApprovalRequest}
+                          onResolveUserInput={resolveUserInputRequest}
+                          onAcceptPlan={
+                            activeThread?.archived
+                              ? undefined
+                              : async (plan, executionMode) => {
+                                  const result =
+                                    await window.artemis.acceptPlan({
+                                      threadId: threadState!.threadId,
+                                      planId: plan.planId,
+                                      revision: plan.revision,
+                                      mode: executionMode,
+                                    });
+                                  setMode(executionMode);
+                                  updateThreadInSnapshot(result.thread);
                                 }
-                                className={`slash-command-suggestion${goalSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
-                                id={`skill-command-option-${goalSuggestionIndex}`}
-                                onClick={() => selectComposerCommand("/goal ")}
-                                role="option"
-                                tabIndex={-1}
-                              >
-                                <CommandArtwork command="goal" />
-                                <span>
-                                  <strong>{t.goalCommand}</strong>
-                                  <small>{t.goalCommandDetail}</small>
-                                </span>
-                              </button>
-                            )}
-                            {compactSuggestionIndex >= 0 && (
-                              <button
-                                aria-selected={
-                                  compactSuggestionIndex ===
-                                  activeSlashSuggestion
+                          }
+                          onRevisePlan={
+                            activeThread?.archived
+                              ? undefined
+                              : async (text) => {
+                                  const result =
+                                    await window.artemis.revisePlan({
+                                      threadId: threadState!.threadId,
+                                      text,
+                                    });
+                                  setMode("plan");
+                                  updateThreadInSnapshot(result.thread);
                                 }
-                                className={`slash-command-suggestion${compactSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
-                                id={`skill-command-option-${compactSuggestionIndex}`}
-                                onClick={() =>
-                                  selectComposerCommand("/compact")
+                          }
+                          context={
+                            <div className="composer-context-row">
+                              <ComposerContextBar
+                                onGitInfo={receiveWelcomeGit}
+                                key={environmentWorkspaceKey}
+                                threadId={activeThread?.id}
+                                {...(activeProject ? { activeProject } : {})}
+                                projectActionsDisabled={
+                                  busy ||
+                                  turnActive ||
+                                  Boolean(
+                                    activeThread &&
+                                    (!loadedEventThreads.current.has(
+                                      activeThread.id,
+                                    ) ||
+                                      (threadState?.order.length ?? 0) > 0),
+                                  )
                                 }
-                                role="option"
-                                tabIndex={-1}
-                              >
-                                <CommandArtwork command="compact" />
-                                <span>
-                                  <strong>{t.compactCommand}</strong>
-                                  <small>{t.compactCommandDetail}</small>
-                                </span>
-                              </button>
-                            )}
-                            {initSuggestionIndex >= 0 && (
-                              <button
-                                aria-selected={
-                                  initSuggestionIndex === activeSlashSuggestion
+                                branchActionsDisabled={
+                                  projectBranchActionsDisabled
                                 }
-                                className={`slash-command-suggestion${initSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
-                                id={`skill-command-option-${initSuggestionIndex}`}
-                                onClick={() => selectComposerCommand("/init")}
-                                role="option"
-                                tabIndex={-1}
-                              >
-                                <CommandArtwork command="init" />
-                                <span>
-                                  <strong>{t.initCommand}</strong>
-                                  <small>{t.initCommandDetail}</small>
-                                </span>
-                              </button>
-                            )}
-                            {modeSuggestions.map(({ index, mode }) => {
-                              const commandLabel = `/${mode}`;
-                              const commandDetail =
-                                mode === "plan"
-                                  ? t.planCommandDetail
-                                  : mode === "work"
-                                    ? uiText(locale, "Plan.workDetail")
-                                    : uiText(locale, "Plan.codemodeDetail");
-                              return (
+                                locale={locale}
+                                mode={mode}
+                                showMode={false}
+                                workspaceControl={
+                                  activeProject ? (
+                                    <EnvironmentWorkspaceMenu
+                                      locale={locale}
+                                      path={
+                                        environmentWorktree?.path ??
+                                        activeProject.path
+                                      }
+                                      worktree={Boolean(
+                                        activeThread &&
+                                        activeThread.target !== "local",
+                                      )}
+                                      disabled={
+                                        projectBranchActionsDisabled ||
+                                        Boolean(activeThread?.archived)
+                                      }
+                                      placement="block-start"
+                                      onHandoff={handoffActiveWorkspace}
+                                      onWorktreesChanged={
+                                        refreshWorkspaceSnapshot
+                                      }
+                                      onOpenUsage={() =>
+                                        setActiveView("token-usage")
+                                      }
+                                      onMessage={(message, error) =>
+                                        setToast(
+                                          error
+                                            ? { error: true, message }
+                                            : message,
+                                        )
+                                      }
+                                    />
+                                  ) : undefined
+                                }
+                                modeActionsDisabled={
+                                  turnActive ||
+                                  busy ||
+                                  pendingComposerDecision?.kind === "plan"
+                                }
+                                onClearProject={() => {
+                                  discardNewConversationDraft();
+                                  beginTemporaryConversation();
+                                }}
+                                onError={(message) =>
+                                  setToast({ error: true, message })
+                                }
+                                onModeChange={(nextMode) =>
+                                  void selectMode(nextMode)
+                                }
+                                onOpenProject={openProject}
+                                onSelectProject={(project) => {
+                                  discardNewConversationDraft();
+                                  beginNewConversation(project.id);
+                                }}
+                                projects={projects}
+                              />
+                              <small className="composer-send-hint">
+                                <kbd>↵</kbd> {t.send}　<kbd>⇧↵</kbd>{" "}
+                                {uiText(locale, "Review01.newline")}
+                              </small>
+                            </div>
+                          }
+                          className="composer"
+                          label={t.prompt}
+                          onDragEnter={handleAttachmentDragEnter}
+                          onDragLeave={handleAttachmentDragLeave}
+                          onDragOver={handleAttachmentDragOver}
+                          onDrop={handleAttachmentDrop}
+                        >
+                          {attachmentDragActive && (
+                            <div className="composer-drop-overlay">
+                              <PlusIcon />
+                              <strong>{t.dropAttachments}</strong>
+                              <small>{t.dropAttachmentsDetail}</small>
+                            </div>
+                          )}
+                          {skillCommandMenuOpen && (
+                            <div
+                              aria-label={t.installedSkills}
+                              className="slash-command-menu"
+                              id="skill-command-menu"
+                              ref={slashCommandMenu}
+                              role="listbox"
+                            >
+                              {goalSuggestionIndex >= 0 && (
                                 <button
                                   aria-selected={
-                                    index === activeSlashSuggestion
+                                    goalSuggestionIndex ===
+                                    activeSlashSuggestion
                                   }
-                                  className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                  id={`skill-command-option-${index}`}
-                                  key={mode}
-                                  onClick={() => void selectModeCommand(mode)}
+                                  className={`slash-command-suggestion${goalSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${goalSuggestionIndex}`}
+                                  onClick={() =>
+                                    selectComposerCommand("/goal ")
+                                  }
                                   role="option"
                                   tabIndex={-1}
                                 >
-                                  <CommandArtwork command={mode} />
+                                  <CommandArtwork command="goal" />
                                   <span>
-                                    <strong>{commandLabel}</strong>
-                                    <small>{commandDetail}</small>
+                                    <strong>{t.goalCommand}</strong>
+                                    <small>{t.goalCommandDetail}</small>
                                   </span>
                                 </button>
-                              );
-                            })}
-                            {skillsLoading ? (
-                              <div className="slash-command-status">
-                                {t.loadingSkills}
-                              </div>
-                            ) : skillsError ? (
-                              <div className="slash-command-status error">
-                                {skillsError}
-                              </div>
-                            ) : skillSuggestions.length > 0 ? (
-                              <>
-                                {skillSuggestions.length > 0 && (
-                                  <div className="slash-command-heading">
-                                    {t.installedSkills}
-                                  </div>
-                                )}
-                                {skillSuggestions.map(({ index, skill }) => (
+                              )}
+                              {compactSuggestionIndex >= 0 && (
+                                <button
+                                  aria-selected={
+                                    compactSuggestionIndex ===
+                                    activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${compactSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${compactSuggestionIndex}`}
+                                  onClick={() =>
+                                    selectComposerCommand("/compact")
+                                  }
+                                  role="option"
+                                  tabIndex={-1}
+                                >
+                                  <CommandArtwork command="compact" />
+                                  <span>
+                                    <strong>{t.compactCommand}</strong>
+                                    <small>{t.compactCommandDetail}</small>
+                                  </span>
+                                </button>
+                              )}
+                              {initSuggestionIndex >= 0 && (
+                                <button
+                                  aria-selected={
+                                    initSuggestionIndex ===
+                                    activeSlashSuggestion
+                                  }
+                                  className={`slash-command-suggestion${initSuggestionIndex === activeSlashSuggestion ? " active" : ""}`}
+                                  id={`skill-command-option-${initSuggestionIndex}`}
+                                  onClick={() => selectComposerCommand("/init")}
+                                  role="option"
+                                  tabIndex={-1}
+                                >
+                                  <CommandArtwork command="init" />
+                                  <span>
+                                    <strong>{t.initCommand}</strong>
+                                    <small>{t.initCommandDetail}</small>
+                                  </span>
+                                </button>
+                              )}
+                              {modeSuggestions.map(({ index, mode }) => {
+                                const commandLabel = `/${mode}`;
+                                const commandDetail =
+                                  mode === "plan"
+                                    ? t.planCommandDetail
+                                    : mode === "work"
+                                      ? uiText(locale, "Plan.workDetail")
+                                      : uiText(locale, "Plan.codemodeDetail");
+                                return (
                                   <button
                                     aria-selected={
                                       index === activeSlashSuggestion
                                     }
                                     className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
                                     id={`skill-command-option-${index}`}
-                                    key={skill.id}
-                                    onClick={() => selectSkillCommand(skill)}
+                                    key={mode}
+                                    onClick={() => void selectModeCommand(mode)}
                                     role="option"
                                     tabIndex={-1}
                                   >
-                                    <ResourceAvatar
-                                      kind="skill"
-                                      name={skill.name}
-                                    />
+                                    <CommandArtwork command={mode} />
                                     <span>
-                                      <strong>{skill.name}</strong>
-                                      <small>{skill.description}</small>
+                                      <strong>{commandLabel}</strong>
+                                      <small>{commandDetail}</small>
                                     </span>
                                   </button>
-                                ))}
-                              </>
-                            ) : (
-                              <div className="slash-command-status">
-                                {installedSkills.some((skill) => skill.enabled)
-                                  ? t.noMatchingSkills
-                                  : t.noInstalledSkills}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {designDocBinding && (
-                          <div
-                            className="composer-active-file"
-                            title={designDocBinding.name}
-                          >
-                            <span className="composer-active-file-label">
-                              {uiText(locale, "AppDesign.editing")}
-                            </span>
-                            <span className="composer-active-file-name">
-                              {designDocBinding.name}
-                            </span>
-                          </div>
-                        )}
-                        {((!skillCommandMenuOpen &&
-                          selectedSkills.length > 0) ||
-                          hasRegularAttachments) && (
-                          <div className="composer-resource-strip">
-                            {!skillCommandMenuOpen &&
-                              selectedSkills.map((skill) => (
-                                <ComposerSkillChip
-                                  key={skill.id}
-                                  skill={skill}
-                                  plugin={installedPluginBySkillName.get(
-                                    skill.name,
-                                  )}
-                                  removeLabel={t.removeSelectedSkill}
-                                  onRemove={() =>
-                                    removeSelectedSkill(skill.name)
-                                  }
-                                />
-                              ))}
-                            <AttachmentImportProgress
-                              locale={locale}
-                              onImported={addPromptAttachments}
-                            />
-                            {hasRegularAttachments && (
-                              <ComposerAttachments
-                                key={activeComposerDraftKey}
-                                attachments={attachments}
-                                threadId={activeThreadId}
-                                locale={locale}
-                                onRemove={(index) => {
-                                  const attachment = attachments[index];
-                                  if (
-                                    attachment &&
-                                    isAttachmentReference(attachment)
-                                  )
-                                    void window.artemis.cancelPromptAttachment(
-                                      attachment.id,
-                                    );
-                                  setAttachments((current) =>
-                                    current.filter(
-                                      (_item, itemIndex) => itemIndex !== index,
-                                    ),
-                                  );
-                                }}
-                              />
-                            )}
-                          </div>
-                        )}
-                        {hasOfficeAnnotations && (
-                          <OfficeAnnotationCards
-                            key={activeComposerDraftKey}
-                            attachments={attachments}
-                            locale={locale}
-                            disabled={busy}
-                            onChange={(index, id, text) => {
-                              const next = changeOfficeAnnotation(
-                                draftAttachments.current.get(
-                                  activeComposerDraftKey,
-                                ) ?? [],
-                                index,
-                                id,
-                                text,
-                              );
-                              if (!next) {
-                                setToast(t.attachmentLimit);
-                                return false;
-                              }
-                              setAttachments(next);
-                              return true;
-                            }}
-                            onLocate={({ path, annotation }) => {
-                              if (!activeThreadId) return;
-                              setOfficeAnnotationFocus({
-                                threadId: activeThreadId,
-                                path,
-                                annotation: { ...annotation },
-                              });
-                              openWorkspaceTab("office", { path });
-                            }}
-                          />
-                        )}
-                        {customAgentTasks.length > 0 && (
-                          <CustomAgentTaskBlocks
-                            tasks={customAgentTasks}
-                            focusTaskId={focusAgentTaskId}
-                            locale={locale}
-                            onChange={(id, text) =>
-                              setCustomAgentTasks(
-                                customAgentTasks.map((task) =>
-                                  task.id === id ? { ...task, text } : task,
-                                ),
-                              )
-                            }
-                            onRemove={(id) => {
-                              setCustomAgentTasks(
-                                customAgentTasks.filter(
-                                  (task) => task.id !== id,
-                                ),
-                              );
-                              promptInput.current?.focus();
-                            }}
-                          />
-                        )}
-                        <CustomAgentMentionMenu
-                          mention={customAgentMention}
-                          locale={locale}
-                        />
-                        <div className="composer-input">
-                          {visibleComposerPrediction && (
-                            <div className="composer-prediction" role="status">
-                              <span>{visibleComposerPrediction}</span>
-                              <small>
-                                {uiText(locale, "ComposerPrediction.accept")}
-                              </small>
-                            </div>
-                          )}
-                          {customAgentTasks.length > 0 && (
-                            <div className="composer-agent-main-label">
-                              {uiText(locale, "App.inline11")}
-                            </div>
-                          )}
-                          <textarea
-                            aria-activedescendant={
-                              customAgentMention.open
-                                ? `custom-agent-mention-${customAgentMention.activeIndex}`
-                                : skillCommandMenuOpen &&
-                                    slashCommandSuggestions.length > 0
-                                  ? `skill-command-option-${activeSlashSuggestion}`
-                                  : undefined
-                            }
-                            aria-autocomplete="list"
-                            aria-controls={
-                              customAgentMention.open
-                                ? "custom-agent-mention-menu"
-                                : skillCommandMenuOpen
-                                  ? "skill-command-menu"
-                                  : undefined
-                            }
-                            aria-expanded={
-                              customAgentMention.open || skillCommandMenuOpen
-                            }
-                            aria-label={t.prompt}
-                            disabled={Boolean(pendingComposerDecision)}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              composerPrediction.changed(value);
-                              groupMentions.changed(
-                                event.target.selectionStart,
-                              );
-                              customAgentMention.changed(
-                                event.target.selectionStart,
-                              );
-                              setPrompt(value);
-                              setSkillMenuDismissed(false);
-                              promptHistoryNavigation.current = {
-                                index: -1,
-                                draft: value,
-                              };
-                            }}
-                            onSelect={(event) => {
-                              groupMentions.selected(
-                                event.currentTarget.selectionStart,
-                              );
-                              customAgentMention.selected(
-                                event.currentTarget.selectionStart,
-                              );
-                            }}
-                            onKeyDown={(event) => {
-                              if (customAgentMention.keyDown(event)) return;
-                              if (
-                                event.key === "Tab" &&
-                                event.shiftKey &&
-                                !event.nativeEvent.isComposing &&
-                                !turnActive &&
-                                !busy
-                              ) {
-                                event.preventDefault();
-                                void selectMode(nextRunMode(mode));
-                                return;
-                              }
-                              if (
-                                skillCommandMenuOpen &&
-                                slashCommandSuggestions.length > 0 &&
-                                !event.nativeEvent.isComposing
-                              ) {
-                                if (event.key === "ArrowDown") {
-                                  event.preventDefault();
-                                  setActiveSlashSuggestion(
-                                    (current) =>
-                                      (current + 1) %
-                                      slashCommandSuggestions.length,
-                                  );
-                                  return;
-                                }
-                                if (event.key === "ArrowUp") {
-                                  event.preventDefault();
-                                  setActiveSlashSuggestion(
-                                    (current) =>
-                                      (current -
-                                        1 +
-                                        slashCommandSuggestions.length) %
-                                      slashCommandSuggestions.length,
-                                  );
-                                  return;
-                                }
-                                if (
-                                  (event.key === "Enter" ||
-                                    event.key === "Tab") &&
-                                  !event.shiftKey
-                                ) {
-                                  event.preventDefault();
-                                  const suggestion =
-                                    slashCommandSuggestions[
-                                      activeSlashSuggestion
-                                    ];
-                                  if (suggestion?.kind === "goal") {
-                                    selectComposerCommand("/goal ");
-                                  } else if (suggestion?.kind === "compact") {
-                                    selectComposerCommand("/compact");
-                                  } else if (suggestion?.kind === "init") {
-                                    selectComposerCommand("/init");
-                                  } else if (
-                                    suggestion?.kind === "plan" ||
-                                    suggestion?.kind === "work" ||
-                                    suggestion?.kind === "codemode"
-                                  ) {
-                                    void selectModeCommand(suggestion.kind);
-                                  } else if (suggestion?.kind === "skill") {
-                                    selectSkillCommand(suggestion.skill);
-                                  }
-                                  return;
-                                }
-                              }
-                              if (
-                                skillCommandMenuOpen &&
-                                event.key === "Escape"
-                              ) {
-                                event.preventDefault();
-                                setSkillMenuDismissed(true);
-                                return;
-                              }
-                              if (
-                                visibleComposerPrediction &&
-                                composerPrediction.keyDown(event, setPrompt)
-                              )
-                                return;
-                              if (
-                                !skillCommandMenuOpen &&
-                                !event.nativeEvent.isComposing &&
-                                (event.key === "ArrowUp" ||
-                                  event.key === "ArrowDown")
-                              ) {
-                                const navigation = navigatePromptHistory(
-                                  activePromptHistory,
-                                  prompt,
-                                  promptHistoryNavigation.current,
-                                  event.key === "ArrowUp" ? "previous" : "next",
                                 );
-                                if (navigation) {
-                                  event.preventDefault();
-                                  promptHistoryNavigation.current = navigation;
-                                  setPrompt(navigation.value);
-                                  setSkillMenuDismissed(true);
-                                  window.requestAnimationFrame(() => {
-                                    promptInput.current?.setSelectionRange(
-                                      navigation.value.length,
-                                      navigation.value.length,
-                                    );
-                                  });
-                                  return;
-                                }
-                              }
-                              if (
-                                event.key === "Enter" &&
-                                !event.shiftKey &&
-                                !event.nativeEvent.isComposing
-                              ) {
-                                event.preventDefault();
-                                void sendPrompt();
-                              }
-                            }}
-                            onCompositionStart={
-                              composerPrediction.compositionStart
-                            }
-                            onCompositionEnd={(event) =>
-                              composerPrediction.compositionEnd(
-                                event.currentTarget.value,
-                              )
-                            }
-                            onPaste={(event) => {
-                              composerPrediction.dismiss();
-                              handleAttachmentPaste(event);
-                            }}
-                            placeholder={
-                              visibleComposerPrediction
-                                ? ""
-                                : activeThread &&
-                                    imThreadStatus[activeThread.id]?.group
-                                  ? uiText(locale, "App.inline12")
-                                  : hasOfficeAnnotations
-                                    ? officeAnnotationCopy(locale).placeholder
-                                    : designDocBinding
-                                      ? uiText(
-                                          locale,
-                                          "AppDesign.askArtemisToEditName",
-                                          { name: designDocBinding.name },
-                                        )
-                                      : pendingComposerDecision
-                                        ? uiText(
-                                            locale,
-                                            "Review01.waitingPrompt",
-                                          )
-                                        : t.prompt
-                            }
-                            ref={promptInput}
-                            rows={1}
-                            value={prompt}
-                          />
-                          {!prompt && !visibleComposerPrediction && (
-                            <small className="composer-empty-hint">
-                              {uiText(locale, "Review01.composerHint")}
-                            </small>
-                          )}
-                        </div>
-                        <div className="composer-toolbar">
-                          <div className="composer-leading">
-                            <button
-                              aria-label={t.addAttachments}
-                              className="composer-icon-button"
-                              disabled={Boolean(pendingComposerDecision)}
-                              onClick={() => void selectPromptAttachments()}
-                              title={t.addAttachments}
-                            >
-                              <PlusIcon />
-                            </button>
-                            <ComposerRunModeControl
-                              locale={locale}
-                              mode={mode}
-                              disabled={
-                                turnActive ||
-                                busy ||
-                                pendingComposerDecision?.kind === "plan"
-                              }
-                              onModeChange={(nextMode) =>
-                                void selectMode(nextMode)
-                              }
-                            />
-                            <div
-                              className="approval-policy-control"
-                              ref={approvalPolicyRoot}
-                            >
-                              <button
-                                aria-expanded={approvalMenuOpen}
-                                aria-haspopup="menu"
-                                className="approval-policy-trigger"
-                                disabled={approvalChangeLocked}
-                                onClick={() => {
-                                  setModelPickerOpen(false);
-                                  setApprovalMenuOpen((current) => !current);
-                                }}
-                                title={t.approvalPolicy}
-                              >
-                                <ArtemisIcon
-                                  className="icon"
-                                  name={approvalPolicyIcon}
-                                  width={18}
-                                  height={18}
-                                />
-                                <span>{approvalPolicyLabel}</span>
-                                <ChevronIcon />
-                              </button>
-                              {approvalMenuOpen && (
-                                <div
-                                  aria-label={t.approvalPolicy}
-                                  className="approval-policy-menu"
-                                  role="menu"
-                                >
-                                  <strong className="approval-policy-heading">
-                                    {t.approvalPolicy}
-                                  </strong>
-                                  <button
-                                    aria-checked={approvalPolicy === "ask"}
-                                    className={
-                                      approvalPolicy === "ask" ? "selected" : ""
-                                    }
-                                    disabled={approvalChangeLocked}
-                                    onClick={() =>
-                                      void changeApprovalPolicy("ask")
-                                    }
-                                    role="menuitemradio"
-                                  >
-                                    <ArtemisIcon
-                                      className="icon"
-                                      name="approval-ask"
-                                      width={18}
-                                      height={18}
-                                    />
-                                    <span>
-                                      <strong>{t.askApproval}</strong>
-                                      <small>{t.askApprovalDetail}</small>
-                                    </span>
-                                    <b aria-hidden="true">
-                                      {approvalPolicy === "ask" ? "✓" : ""}
-                                    </b>
-                                  </button>
-                                  <button
-                                    aria-checked={approvalPolicy === "agent"}
-                                    className={
-                                      approvalPolicy === "agent"
-                                        ? "selected"
-                                        : ""
-                                    }
-                                    disabled={approvalChangeLocked}
-                                    onClick={() =>
-                                      void changeApprovalPolicy("agent")
-                                    }
-                                    role="menuitemradio"
-                                  >
-                                    <ArtemisIcon
-                                      className="icon"
-                                      name="approval-agent"
-                                      width={18}
-                                      height={18}
-                                    />
-                                    <span>
-                                      <strong>{t.agentApproval}</strong>
-                                      <small>{t.agentApprovalDetail}</small>
-                                    </span>
-                                    <b aria-hidden="true">
-                                      {approvalPolicy === "agent" ? "✓" : ""}
-                                    </b>
-                                  </button>
-                                  <button
-                                    aria-checked={
-                                      approvalPolicy === "full-access"
-                                    }
-                                    className={`danger ${
-                                      approvalPolicy === "full-access"
-                                        ? "selected"
-                                        : ""
-                                    }`}
-                                    disabled={
-                                      approvalChangeLocked ||
-                                      !snapshot.sandbox.available
-                                    }
-                                    onClick={() =>
-                                      void changeApprovalPolicy("full-access")
-                                    }
-                                    role="menuitemradio"
-                                  >
-                                    <ArtemisIcon
-                                      className="icon"
-                                      name="approval-full"
-                                      width={18}
-                                      height={18}
-                                    />
-                                    <span>
-                                      <strong>{t.fullAccess}</strong>
-                                      <small>
-                                        {snapshot.sandbox.available
-                                          ? t.fullAccessDetail
-                                          : t.fullAccessUnavailable}
-                                      </small>
-                                    </span>
-                                    <b aria-hidden="true">
-                                      {approvalPolicy === "full-access"
-                                        ? "✓"
-                                        : ""}
-                                    </b>
-                                  </button>
+                              })}
+                              {skillsLoading ? (
+                                <div className="slash-command-status">
+                                  {t.loadingSkills}
+                                </div>
+                              ) : skillsError ? (
+                                <div className="slash-command-status error">
+                                  {skillsError}
+                                </div>
+                              ) : skillSuggestions.length > 0 ? (
+                                <>
+                                  {skillSuggestions.length > 0 && (
+                                    <div className="slash-command-heading">
+                                      {t.installedSkills}
+                                    </div>
+                                  )}
+                                  {skillSuggestions.map(({ index, skill }) => (
+                                    <button
+                                      aria-selected={
+                                        index === activeSlashSuggestion
+                                      }
+                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                      id={`skill-command-option-${index}`}
+                                      key={skill.id}
+                                      onClick={() => selectSkillCommand(skill)}
+                                      role="option"
+                                      tabIndex={-1}
+                                    >
+                                      <ResourceAvatar
+                                        kind="skill"
+                                        name={skill.name}
+                                      />
+                                      <span>
+                                        <strong>{skill.name}</strong>
+                                        <small>{skill.description}</small>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </>
+                              ) : (
+                                <div className="slash-command-status">
+                                  {installedSkills.some(
+                                    (skill) => skill.enabled,
+                                  )
+                                    ? t.noMatchingSkills
+                                    : t.noInstalledSkills}
                                 </div>
                               )}
                             </div>
-                          </div>
-                          <div className="composer-trailing">
-                            <ContextUsageIndicator
-                              contextWindow={
-                                runtimeSettings?.contextWindow ??
-                                activeModel?.contextWindow
-                              }
-                              locale={locale}
-                              usage={threadState?.contextUsage}
-                            />
+                          )}
+                          {designDocBinding && (
                             <div
-                              className="model-picker-control"
-                              ref={modelPickerRoot}
+                              className="composer-active-file"
+                              title={designDocBinding.name}
                             >
-                              <button
-                                aria-expanded={modelPickerOpen}
-                                aria-haspopup="menu"
-                                aria-label={t.modelPicker}
-                                className="model-button"
-                                disabled={
-                                  busy ||
-                                  turnActive ||
-                                  switchableModels.length === 0
-                                }
-                                onClick={() => {
-                                  setApprovalMenuOpen(false);
-                                  setModelPickerSection("model");
-                                  setModelFilter("");
-                                  setModelPickerOpen((current) => !current);
-                                }}
-                                title={t.modelPicker}
-                                type="button"
-                              >
-                                <span
-                                  aria-hidden="true"
-                                  className="model-compact-icon"
-                                >
-                                  <ModelIcon />
-                                </span>
-                                <span className="model-information">
-                                  <strong>{activeModelLabel}</strong>
-                                  {activeThinkingLevel && (
-                                    <small>· {activeThinkingLevel}</small>
-                                  )}
-                                </span>
-                                <ChevronIcon />
-                              </button>
-                              {modelPickerOpen && (
-                                <div
-                                  aria-label={t.modelPicker}
-                                  className="model-picker-menu"
-                                  data-section={modelPickerSection}
-                                  onMouseEnter={cancelModelPickerHoverClose}
-                                  onMouseLeave={scheduleModelPickerHoverClose}
-                                  role="menu"
-                                >
-                                  <div className="model-picker-navigation">
-                                    <button
-                                      className={
-                                        modelPickerSection === "model"
-                                          ? "selected"
-                                          : ""
-                                      }
-                                      onClick={() =>
-                                        setModelPickerSection("model")
-                                      }
-                                      onMouseEnter={() =>
-                                        setModelPickerSection("model")
-                                      }
-                                      role="menuitem"
-                                      type="button"
-                                    >
-                                      <strong>{t.modelPickerModel}</strong>
-                                      <span>{activeModelLabel}</span>
-                                      <i aria-hidden="true">
-                                        <ChevronIcon />
-                                      </i>
-                                    </button>
-                                    <button
-                                      className={
-                                        modelPickerSection === "thinking"
-                                          ? "selected"
-                                          : ""
-                                      }
-                                      disabled={
-                                        !activeSelection ||
-                                        !activeModelSupportsReasoning
-                                      }
-                                      onClick={() =>
-                                        setModelPickerSection("thinking")
-                                      }
-                                      onMouseEnter={() =>
-                                        setModelPickerSection("thinking")
-                                      }
-                                      role="menuitem"
-                                      type="button"
-                                    >
-                                      <strong>{t.thinking}</strong>
-                                      <span>{activeThinkingLevel ?? "—"}</span>
-                                      <i aria-hidden="true">
-                                        <ChevronIcon />
-                                      </i>
-                                    </button>
-                                  </div>
-                                  {modelPickerSection === "model" && (
-                                    <label className="model-picker-search">
-                                      <SearchIcon />
-                                      <input
-                                        aria-label={uiText(
-                                          locale,
-                                          "SettingsPanel_labels.modelSearch",
-                                        )}
-                                        placeholder={uiText(
-                                          locale,
-                                          "SettingsPanel_labels.modelSearch",
-                                        )}
-                                        value={modelFilter}
-                                        onChange={(event) =>
-                                          setModelFilter(event.target.value)
-                                        }
-                                        onKeyDown={(event) => {
-                                          if (
-                                            event.key !== "Escape" &&
-                                            event.key !== "Tab"
-                                          )
-                                            event.stopPropagation();
-                                        }}
-                                      />
-                                    </label>
-                                  )}
-                                  {modelPickerSection === "model" &&
-                                    filteredModels.length === 0 && (
-                                      <span
-                                        className="model-picker-empty"
-                                        role="status"
-                                      >
-                                        {uiText(
-                                          locale,
-                                          "SettingsPanel_labels.modelSearchEmpty",
-                                        )}
-                                      </span>
+                              <span className="composer-active-file-label">
+                                {uiText(locale, "AppDesign.editing")}
+                              </span>
+                              <span className="composer-active-file-name">
+                                {designDocBinding.name}
+                              </span>
+                            </div>
+                          )}
+                          {((!skillCommandMenuOpen &&
+                            selectedSkills.length > 0) ||
+                            hasRegularAttachments) && (
+                            <div className="composer-resource-strip">
+                              {!skillCommandMenuOpen &&
+                                selectedSkills.map((skill) => (
+                                  <ComposerSkillChip
+                                    key={skill.id}
+                                    skill={skill}
+                                    plugin={installedPluginBySkillName.get(
+                                      skill.name,
                                     )}
-                                  <div
-                                    aria-label={
-                                      modelPickerSection === "model"
-                                        ? t.modelPickerModel
-                                        : t.thinking
+                                    removeLabel={t.removeSelectedSkill}
+                                    onRemove={() =>
+                                      removeSelectedSkill(skill.name)
                                     }
-                                    className="model-picker-options"
+                                  />
+                                ))}
+                              <AttachmentImportProgress
+                                locale={locale}
+                                onImported={addPromptAttachments}
+                              />
+                              {hasRegularAttachments && (
+                                <ComposerAttachments
+                                  key={activeComposerDraftKey}
+                                  attachments={attachments}
+                                  threadId={activeThreadId}
+                                  locale={locale}
+                                  onRemove={(index) => {
+                                    const attachment = attachments[index];
+                                    if (
+                                      attachment &&
+                                      isAttachmentReference(attachment)
+                                    )
+                                      void window.artemis.cancelPromptAttachment(
+                                        attachment.id,
+                                      );
+                                    setAttachments((current) =>
+                                      current.filter(
+                                        (_item, itemIndex) =>
+                                          itemIndex !== index,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              )}
+                            </div>
+                          )}
+                          {hasOfficeAnnotations && (
+                            <OfficeAnnotationCards
+                              key={activeComposerDraftKey}
+                              attachments={attachments}
+                              locale={locale}
+                              disabled={busy}
+                              onChange={(index, id, text) => {
+                                const next = changeOfficeAnnotation(
+                                  draftAttachments.current.get(
+                                    activeComposerDraftKey,
+                                  ) ?? [],
+                                  index,
+                                  id,
+                                  text,
+                                );
+                                if (!next) {
+                                  setToast(t.attachmentLimit);
+                                  return false;
+                                }
+                                setAttachments(next);
+                                return true;
+                              }}
+                              onLocate={({ path, annotation }) => {
+                                if (!activeThreadId) return;
+                                setOfficeAnnotationFocus({
+                                  threadId: activeThreadId,
+                                  path,
+                                  annotation: { ...annotation },
+                                });
+                                openWorkspaceTab("office", { path });
+                              }}
+                            />
+                          )}
+                          {customAgentTasks.length > 0 && (
+                            <CustomAgentTaskBlocks
+                              tasks={customAgentTasks}
+                              focusTaskId={focusAgentTaskId}
+                              locale={locale}
+                              onChange={(id, text) =>
+                                setCustomAgentTasks(
+                                  customAgentTasks.map((task) =>
+                                    task.id === id ? { ...task, text } : task,
+                                  ),
+                                )
+                              }
+                              onRemove={(id) => {
+                                setCustomAgentTasks(
+                                  customAgentTasks.filter(
+                                    (task) => task.id !== id,
+                                  ),
+                                );
+                                promptInput.current?.focus();
+                              }}
+                            />
+                          )}
+                          <CustomAgentMentionMenu
+                            mention={customAgentMention}
+                            locale={locale}
+                          />
+                          <div className="composer-input">
+                            {visibleComposerPrediction && (
+                              <div
+                                className="composer-prediction"
+                                role="status"
+                              >
+                                <span>{visibleComposerPrediction}</span>
+                                <small>
+                                  {uiText(locale, "ComposerPrediction.accept")}
+                                </small>
+                              </div>
+                            )}
+                            {customAgentTasks.length > 0 && (
+                              <div className="composer-agent-main-label">
+                                {uiText(locale, "App.inline11")}
+                              </div>
+                            )}
+                            <textarea
+                              aria-activedescendant={
+                                customAgentMention.open
+                                  ? `custom-agent-mention-${customAgentMention.activeIndex}`
+                                  : skillCommandMenuOpen &&
+                                      slashCommandSuggestions.length > 0
+                                    ? `skill-command-option-${activeSlashSuggestion}`
+                                    : undefined
+                              }
+                              aria-autocomplete="list"
+                              aria-controls={
+                                customAgentMention.open
+                                  ? "custom-agent-mention-menu"
+                                  : skillCommandMenuOpen
+                                    ? "skill-command-menu"
+                                    : undefined
+                              }
+                              aria-expanded={
+                                customAgentMention.open || skillCommandMenuOpen
+                              }
+                              aria-label={t.prompt}
+                              disabled={Boolean(pendingComposerDecision)}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                composerPrediction.changed(value);
+                                groupMentions.changed(
+                                  event.target.selectionStart,
+                                );
+                                customAgentMention.changed(
+                                  event.target.selectionStart,
+                                );
+                                setPrompt(value);
+                                setSkillMenuDismissed(false);
+                                promptHistoryNavigation.current = {
+                                  index: -1,
+                                  draft: value,
+                                };
+                              }}
+                              onSelect={(event) => {
+                                groupMentions.selected(
+                                  event.currentTarget.selectionStart,
+                                );
+                                customAgentMention.selected(
+                                  event.currentTarget.selectionStart,
+                                );
+                              }}
+                              onKeyDown={(event) => {
+                                if (customAgentMention.keyDown(event)) return;
+                                if (
+                                  event.key === "Tab" &&
+                                  event.shiftKey &&
+                                  !event.nativeEvent.isComposing &&
+                                  !turnActive &&
+                                  !busy
+                                ) {
+                                  event.preventDefault();
+                                  void selectMode(nextRunMode(mode));
+                                  return;
+                                }
+                                if (
+                                  skillCommandMenuOpen &&
+                                  slashCommandSuggestions.length > 0 &&
+                                  !event.nativeEvent.isComposing
+                                ) {
+                                  if (event.key === "ArrowDown") {
+                                    event.preventDefault();
+                                    setActiveSlashSuggestion(
+                                      (current) =>
+                                        (current + 1) %
+                                        slashCommandSuggestions.length,
+                                    );
+                                    return;
+                                  }
+                                  if (event.key === "ArrowUp") {
+                                    event.preventDefault();
+                                    setActiveSlashSuggestion(
+                                      (current) =>
+                                        (current -
+                                          1 +
+                                          slashCommandSuggestions.length) %
+                                        slashCommandSuggestions.length,
+                                    );
+                                    return;
+                                  }
+                                  if (
+                                    (event.key === "Enter" ||
+                                      event.key === "Tab") &&
+                                    !event.shiftKey
+                                  ) {
+                                    event.preventDefault();
+                                    const suggestion =
+                                      slashCommandSuggestions[
+                                        activeSlashSuggestion
+                                      ];
+                                    if (suggestion?.kind === "goal") {
+                                      selectComposerCommand("/goal ");
+                                    } else if (suggestion?.kind === "compact") {
+                                      selectComposerCommand("/compact");
+                                    } else if (suggestion?.kind === "init") {
+                                      selectComposerCommand("/init");
+                                    } else if (
+                                      suggestion?.kind === "plan" ||
+                                      suggestion?.kind === "work" ||
+                                      suggestion?.kind === "codemode"
+                                    ) {
+                                      void selectModeCommand(suggestion.kind);
+                                    } else if (suggestion?.kind === "skill") {
+                                      selectSkillCommand(suggestion.skill);
+                                    }
+                                    return;
+                                  }
+                                }
+                                if (
+                                  skillCommandMenuOpen &&
+                                  event.key === "Escape"
+                                ) {
+                                  event.preventDefault();
+                                  setSkillMenuDismissed(true);
+                                  return;
+                                }
+                                if (
+                                  visibleComposerPrediction &&
+                                  composerPrediction.keyDown(event, setPrompt)
+                                )
+                                  return;
+                                if (
+                                  !skillCommandMenuOpen &&
+                                  !event.nativeEvent.isComposing &&
+                                  (event.key === "ArrowUp" ||
+                                    event.key === "ArrowDown")
+                                ) {
+                                  const navigation = navigatePromptHistory(
+                                    activePromptHistory,
+                                    prompt,
+                                    promptHistoryNavigation.current,
+                                    event.key === "ArrowUp"
+                                      ? "previous"
+                                      : "next",
+                                  );
+                                  if (navigation) {
+                                    event.preventDefault();
+                                    promptHistoryNavigation.current =
+                                      navigation;
+                                    setPrompt(navigation.value);
+                                    setSkillMenuDismissed(true);
+                                    window.requestAnimationFrame(() => {
+                                      promptInput.current?.setSelectionRange(
+                                        navigation.value.length,
+                                        navigation.value.length,
+                                      );
+                                    });
+                                    return;
+                                  }
+                                }
+                                if (
+                                  event.key === "Enter" &&
+                                  !event.shiftKey &&
+                                  !event.nativeEvent.isComposing
+                                ) {
+                                  event.preventDefault();
+                                  void sendPrompt();
+                                }
+                              }}
+                              onCompositionStart={
+                                composerPrediction.compositionStart
+                              }
+                              onCompositionEnd={(event) =>
+                                composerPrediction.compositionEnd(
+                                  event.currentTarget.value,
+                                )
+                              }
+                              onPaste={(event) => {
+                                composerPrediction.dismiss();
+                                handleAttachmentPaste(event);
+                              }}
+                              placeholder={
+                                !prompt &&
+                                !visibleComposerPrediction &&
+                                !pendingComposerDecision
+                                  ? ""
+                                  : composerPlaceholder
+                              }
+                              ref={promptInput}
+                              rows={1}
+                              value={prompt}
+                            />
+                            {!prompt &&
+                              !visibleComposerPrediction &&
+                              !pendingComposerDecision && (
+                                <small className="composer-empty-hint">
+                                  <span className="composer-placeholder">
+                                    {composerPlaceholder}
+                                  </span>{" "}
+                                  <span>
+                                    {uiText(locale, "Review01.composerHint")}
+                                  </span>
+                                </small>
+                              )}
+                          </div>
+                          <div className="composer-toolbar">
+                            <div className="composer-leading">
+                              <button
+                                aria-label={t.addAttachments}
+                                className="composer-icon-button"
+                                disabled={Boolean(pendingComposerDecision)}
+                                onClick={() => void selectPromptAttachments()}
+                                title={t.addAttachments}
+                              >
+                                <PlusIcon />
+                              </button>
+                              <ComposerRunModeControl
+                                locale={locale}
+                                mode={mode}
+                                disabled={
+                                  turnActive ||
+                                  busy ||
+                                  pendingComposerDecision?.kind === "plan"
+                                }
+                                onModeChange={(nextMode) =>
+                                  void selectMode(nextMode)
+                                }
+                              />
+                              <div
+                                className="approval-policy-control"
+                                ref={approvalPolicyRoot}
+                              >
+                                <button
+                                  aria-expanded={approvalMenuOpen}
+                                  aria-haspopup="menu"
+                                  className="approval-policy-trigger"
+                                  disabled={approvalChangeLocked}
+                                  onClick={() => {
+                                    setModelPickerOpen(false);
+                                    setApprovalMenuOpen((current) => !current);
+                                  }}
+                                  title={t.approvalPolicy}
+                                >
+                                  <ArtemisIcon
+                                    className="icon"
+                                    name={approvalPolicyIcon}
+                                    width={18}
+                                    height={18}
+                                  />
+                                  <span>{approvalPolicyLabel}</span>
+                                  <ChevronIcon />
+                                </button>
+                                {approvalMenuOpen && (
+                                  <div
+                                    aria-label={t.approvalPolicy}
+                                    className="approval-policy-menu"
                                     role="menu"
                                   >
-                                    {modelPickerSection === "thinking" && (
-                                      <div className="model-picker-options-heading">
-                                        {t.thinking}
-                                      </div>
+                                    <strong className="approval-policy-heading">
+                                      {t.approvalPolicy}
+                                    </strong>
+                                    <button
+                                      aria-checked={approvalPolicy === "ask"}
+                                      className={
+                                        approvalPolicy === "ask"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={approvalChangeLocked}
+                                      onClick={() =>
+                                        void changeApprovalPolicy("ask")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ArtemisIcon
+                                        className="icon"
+                                        name="approval-ask"
+                                        width={18}
+                                        height={18}
+                                      />
+                                      <span>
+                                        <strong>{t.askApproval}</strong>
+                                        <small>{t.askApprovalDetail}</small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "ask" ? "✓" : ""}
+                                      </b>
+                                    </button>
+                                    <button
+                                      aria-checked={approvalPolicy === "agent"}
+                                      className={
+                                        approvalPolicy === "agent"
+                                          ? "selected"
+                                          : ""
+                                      }
+                                      disabled={approvalChangeLocked}
+                                      onClick={() =>
+                                        void changeApprovalPolicy("agent")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ArtemisIcon
+                                        className="icon"
+                                        name="approval-agent"
+                                        width={18}
+                                        height={18}
+                                      />
+                                      <span>
+                                        <strong>{t.agentApproval}</strong>
+                                        <small>{t.agentApprovalDetail}</small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "agent" ? "✓" : ""}
+                                      </b>
+                                    </button>
+                                    <button
+                                      aria-checked={
+                                        approvalPolicy === "full-access"
+                                      }
+                                      className={`danger ${
+                                        approvalPolicy === "full-access"
+                                          ? "selected"
+                                          : ""
+                                      }`}
+                                      disabled={
+                                        approvalChangeLocked ||
+                                        !snapshot.sandbox.available
+                                      }
+                                      onClick={() =>
+                                        void changeApprovalPolicy("full-access")
+                                      }
+                                      role="menuitemradio"
+                                    >
+                                      <ArtemisIcon
+                                        className="icon"
+                                        name="approval-full"
+                                        width={18}
+                                        height={18}
+                                      />
+                                      <span>
+                                        <strong>{t.fullAccess}</strong>
+                                        <small>
+                                          {snapshot.sandbox.available
+                                            ? t.fullAccessDetail
+                                            : t.fullAccessUnavailable}
+                                        </small>
+                                      </span>
+                                      <b aria-hidden="true">
+                                        {approvalPolicy === "full-access"
+                                          ? "✓"
+                                          : ""}
+                                      </b>
+                                    </button>
+                                    <small className="approval-policy-note">
+                                      {uiText(
+                                        locale,
+                                        "Review02.approvalMenuNote",
+                                      )}
+                                    </small>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="composer-trailing">
+                              <ContextUsageIndicator
+                                contextWindow={
+                                  runtimeSettings?.contextWindow ??
+                                  activeModel?.contextWindow
+                                }
+                                locale={locale}
+                                usage={threadState?.contextUsage}
+                              />
+                              <div
+                                className="model-picker-control"
+                                ref={modelPickerRoot}
+                              >
+                                <button
+                                  aria-expanded={modelPickerOpen}
+                                  aria-haspopup="menu"
+                                  aria-label={t.modelPicker}
+                                  className="model-button"
+                                  disabled={
+                                    busy ||
+                                    turnActive ||
+                                    switchableModels.length === 0
+                                  }
+                                  onClick={() => {
+                                    setApprovalMenuOpen(false);
+                                    setModelPickerSection("model");
+                                    setModelFilter("");
+                                    setModelPickerOpen((current) => !current);
+                                  }}
+                                  title={t.modelPicker}
+                                  type="button"
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className="model-compact-icon"
+                                  >
+                                    <ModelIcon />
+                                  </span>
+                                  <span className="model-information">
+                                    <strong>{activeModelLabel}</strong>
+                                    {activeThinkingLevel && (
+                                      <small>· {activeThinkingLevel}</small>
                                     )}
-                                    {modelPickerSection === "model"
-                                      ? filteredModels.map((model) => {
-                                          const selected =
-                                            model.providerId ===
-                                              activeSelection?.providerId &&
-                                            model.modelId ===
-                                              activeSelection.modelId;
-                                          return (
-                                            <button
-                                              aria-checked={selected}
-                                              className={
-                                                selected ? "selected" : ""
-                                              }
-                                              key={modelIdentity(
-                                                model.providerId,
-                                                model.modelId,
-                                              )}
-                                              onClick={() =>
-                                                void switchComposerModel(model)
-                                              }
-                                              role="menuitemradio"
-                                              title={`${model.name}
-${model.providerId} · ${model.modelId}`}
-                                              type="button"
-                                            >
-                                              <span>
-                                                <strong>{model.name}</strong>
-                                              </span>
-                                              <b aria-hidden="true">
-                                                {selected ? "✓" : ""}
-                                              </b>
-                                            </button>
-                                          );
-                                        })
-                                      : modelPickerThinkingLevels.map(
-                                          (level) => {
+                                  </span>
+                                  <ChevronIcon />
+                                </button>
+                                {modelPickerOpen && (
+                                  <div
+                                    aria-label={t.modelPicker}
+                                    className="model-picker-menu"
+                                    data-section={modelPickerSection}
+                                    onMouseEnter={cancelModelPickerHoverClose}
+                                    onMouseLeave={scheduleModelPickerHoverClose}
+                                    role="menu"
+                                  >
+                                    <div className="model-picker-navigation">
+                                      <button
+                                        className={
+                                          modelPickerSection === "model"
+                                            ? "selected"
+                                            : ""
+                                        }
+                                        onClick={() =>
+                                          setModelPickerSection("model")
+                                        }
+                                        onMouseEnter={() =>
+                                          setModelPickerSection("model")
+                                        }
+                                        role="menuitem"
+                                        type="button"
+                                      >
+                                        <strong>{t.modelPickerModel}</strong>
+                                        <span>{activeModelLabel}</span>
+                                        <i aria-hidden="true">
+                                          <ChevronIcon />
+                                        </i>
+                                      </button>
+                                      <button
+                                        className={
+                                          modelPickerSection === "thinking"
+                                            ? "selected"
+                                            : ""
+                                        }
+                                        disabled={
+                                          !activeSelection ||
+                                          !activeModelSupportsReasoning
+                                        }
+                                        onClick={() =>
+                                          setModelPickerSection("thinking")
+                                        }
+                                        onMouseEnter={() =>
+                                          setModelPickerSection("thinking")
+                                        }
+                                        role="menuitem"
+                                        type="button"
+                                      >
+                                        <strong>{t.thinking}</strong>
+                                        <span>
+                                          {activeThinkingLevel ?? "—"}
+                                        </span>
+                                        <i aria-hidden="true">
+                                          <ChevronIcon />
+                                        </i>
+                                      </button>
+                                    </div>
+                                    {modelPickerSection === "model" && (
+                                      <label className="model-picker-search">
+                                        <SearchIcon />
+                                        <input
+                                          aria-label={uiText(
+                                            locale,
+                                            "SettingsPanel_labels.modelSearch",
+                                          )}
+                                          placeholder={uiText(
+                                            locale,
+                                            "SettingsPanel_labels.modelSearch",
+                                          )}
+                                          value={modelFilter}
+                                          onChange={(event) =>
+                                            setModelFilter(event.target.value)
+                                          }
+                                          onKeyDown={(event) => {
+                                            if (
+                                              event.key !== "Escape" &&
+                                              event.key !== "Tab"
+                                            )
+                                              event.stopPropagation();
+                                          }}
+                                        />
+                                      </label>
+                                    )}
+                                    {modelPickerSection === "model" &&
+                                      filteredModels.length === 0 && (
+                                        <span
+                                          className="model-picker-empty"
+                                          role="status"
+                                        >
+                                          {uiText(
+                                            locale,
+                                            "SettingsPanel_labels.modelSearchEmpty",
+                                          )}
+                                        </span>
+                                      )}
+                                    <div
+                                      aria-label={
+                                        modelPickerSection === "model"
+                                          ? t.modelPickerModel
+                                          : t.thinking
+                                      }
+                                      className="model-picker-options"
+                                      role="menu"
+                                    >
+                                      {modelPickerSection === "thinking" && (
+                                        <div className="model-picker-options-heading">
+                                          {t.thinking}
+                                        </div>
+                                      )}
+                                      {modelPickerSection === "model"
+                                        ? filteredModels.map((model) => {
                                             const selected =
-                                              activeSelection?.ultraMode !==
-                                                true &&
-                                              level ===
-                                                activeSelection?.thinkingLevel;
+                                              model.providerId ===
+                                                activeSelection?.providerId &&
+                                              model.modelId ===
+                                                activeSelection.modelId;
                                             return (
                                               <button
                                                 aria-checked={selected}
                                                 className={
                                                   selected ? "selected" : ""
                                                 }
-                                                key={level}
+                                                key={modelIdentity(
+                                                  model.providerId,
+                                                  model.modelId,
+                                                )}
                                                 onClick={() =>
-                                                  void switchComposerThinking(
-                                                    level,
+                                                  void switchComposerModel(
+                                                    model,
                                                   )
                                                 }
                                                 role="menuitemradio"
+                                                title={`${model.name}
+${model.providerId} · ${model.modelId}`}
                                                 type="button"
                                               >
                                                 <span>
-                                                  <strong>
-                                                    {thinkingLevelLabel(
-                                                      level,
-                                                      locale,
-                                                    )}
-                                                  </strong>
+                                                  <strong>{model.name}</strong>
                                                 </span>
                                                 <b aria-hidden="true">
                                                   {selected ? "✓" : ""}
                                                 </b>
                                               </button>
                                             );
-                                          },
+                                          })
+                                        : modelPickerThinkingLevels.map(
+                                            (level) => {
+                                              const selected =
+                                                activeSelection?.ultraMode !==
+                                                  true &&
+                                                level ===
+                                                  activeSelection?.thinkingLevel;
+                                              return (
+                                                <button
+                                                  aria-checked={selected}
+                                                  className={
+                                                    selected ? "selected" : ""
+                                                  }
+                                                  key={level}
+                                                  onClick={() =>
+                                                    void switchComposerThinking(
+                                                      level,
+                                                    )
+                                                  }
+                                                  role="menuitemradio"
+                                                  type="button"
+                                                >
+                                                  <span>
+                                                    <strong>
+                                                      {thinkingLevelLabel(
+                                                        level,
+                                                        locale,
+                                                      )}
+                                                    </strong>
+                                                  </span>
+                                                  <b aria-hidden="true">
+                                                    {selected ? "✓" : ""}
+                                                  </b>
+                                                </button>
+                                              );
+                                            },
+                                          )}
+                                      {modelPickerSection === "thinking" &&
+                                        activeModelSupportsReasoning && (
+                                          <button
+                                            aria-checked={activeUltraMode}
+                                            className={`ultra-mode-option${
+                                              activeUltraMode ? " selected" : ""
+                                            }`}
+                                            onClick={() =>
+                                              void switchComposerThinking(
+                                                activeModelHighestThinkingLevel,
+                                                true,
+                                              )
+                                            }
+                                            role="menuitemradio"
+                                            type="button"
+                                          >
+                                            <span>
+                                              <strong>{t.ultraMode}</strong>
+                                              <small>{t.ultraModeQuota}</small>
+                                            </span>
+                                            <b aria-hidden="true">
+                                              {activeUltraMode ? "✓" : ""}
+                                            </b>
+                                          </button>
                                         )}
-                                    {modelPickerSection === "thinking" &&
-                                      activeModelSupportsReasoning && (
-                                        <button
-                                          aria-checked={activeUltraMode}
-                                          className={`ultra-mode-option${
-                                            activeUltraMode ? " selected" : ""
-                                          }`}
-                                          onClick={() =>
-                                            void switchComposerThinking(
-                                              activeModelHighestThinkingLevel,
-                                              true,
-                                            )
-                                          }
-                                          role="menuitemradio"
-                                          type="button"
-                                        >
-                                          <span>
-                                            <strong>{t.ultraMode}</strong>
-                                            <small>{t.ultraModeQuota}</small>
-                                          </span>
-                                          <b aria-hidden="true">
-                                            {activeUltraMode ? "✓" : ""}
-                                          </b>
-                                        </button>
-                                      )}
+                                    </div>
                                   </div>
+                                )}
+                              </div>
+                              {turnActive ? (
+                                <div className="run-actions">
+                                  <button
+                                    className="send-button"
+                                    disabled={
+                                      (customAgentTasks.length === 0 &&
+                                        !prompt.trim() &&
+                                        attachments.length === 0 &&
+                                        selectedSkills.length === 0) ||
+                                      busy
+                                    }
+                                    onClick={() => void sendPrompt()}
+                                    title={t.followUp}
+                                  >
+                                    <ArtemisIcon
+                                      className="icon"
+                                      height={17}
+                                      name="send"
+                                      width={17}
+                                      strokeWidth={1.8}
+                                      fallback={
+                                        <path d="m6 12 6-6 6 6m-6-6v12" />
+                                      }
+                                    />
+                                  </button>
+                                  <button
+                                    className="send-button stop"
+                                    disabled={!turnRunning}
+                                    onClick={() => void cancelActiveTurn()}
+                                    title={t.stop}
+                                  >
+                                    <ArtemisIcon
+                                      height={12}
+                                      name="stop"
+                                      width={12}
+                                    />
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                            {turnActive ? (
-                              <div className="run-actions">
+                              ) : (
                                 <button
                                   className="send-button"
                                   disabled={
@@ -9097,10 +9251,11 @@ ${model.providerId} · ${model.modelId}`}
                                       !prompt.trim() &&
                                       attachments.length === 0 &&
                                       selectedSkills.length === 0) ||
-                                    busy
+                                    busy ||
+                                    Boolean(pendingComposerDecision)
                                   }
                                   onClick={() => void sendPrompt()}
-                                  title={t.followUp}
+                                  title={t.send}
                                 >
                                   <ArtemisIcon
                                     className="icon"
@@ -9113,49 +9268,39 @@ ${model.providerId} · ${model.modelId}`}
                                     }
                                   />
                                 </button>
-                                <button
-                                  className="send-button stop"
-                                  disabled={!turnRunning}
-                                  onClick={() => void cancelActiveTurn()}
-                                  title={t.stop}
-                                >
-                                  <ArtemisIcon
-                                    height={12}
-                                    name="stop"
-                                    width={12}
-                                  />
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                className="send-button"
-                                disabled={
-                                  (customAgentTasks.length === 0 &&
-                                    !prompt.trim() &&
-                                    attachments.length === 0 &&
-                                    selectedSkills.length === 0) ||
-                                  busy ||
-                                  Boolean(pendingComposerDecision)
-                                }
-                                onClick={() => void sendPrompt()}
-                                title={t.send}
-                              >
-                                <ArtemisIcon
-                                  className="icon"
-                                  height={17}
-                                  name="send"
-                                  width={17}
-                                  strokeWidth={1.8}
-                                  fallback={<path d="m6 12 6-6 6 6m-6-6v12" />}
-                                />
-                              </button>
-                            )}
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </DecisionComposer>
-                    </>
-                  </div>
-                )}
+                        </DecisionComposer>
+                      </>
+                    </div>
+                  )}
+                  {conversationEmpty && activeProject && (
+                    <WelcomeResume
+                      locale={locale}
+                      projectId={activeProject.id}
+                      threads={snapshot.threads}
+                      events={snapshot.events}
+                      automations={automations ?? []}
+                      gitInfo={
+                        welcomeGit?.key === environmentWorkspaceKey
+                          ? welcomeGit.info
+                          : undefined
+                      }
+                      onOpenThread={(thread) => {
+                        discardNewConversationDraft();
+                        setActiveView("workspace");
+                        setActiveThreadId(thread.id);
+                        setMode(thread.mode);
+                      }}
+                      onOpenReview={openReviewPanel}
+                      onOpenAutomation={(id) => {
+                        setWelcomeAutomationId(id);
+                        setActiveView("automations");
+                      }}
+                    />
+                  )}
+                </div>
               </ConversationSurface>
 
               {!activeThread?.archived && (
@@ -9365,14 +9510,20 @@ ${model.providerId} · ${model.modelId}`}
                               icon={<WorkspaceLauncherIcon kind="review" />}
                               label={t.reviewPanel}
                               onActivate={openReviewPanel}
-                              shortcut="Ctrl+Alt+B"
+                              shortcut={
+                                snapshot.platform === "darwin"
+                                  ? "⌘⌥B"
+                                  : "Ctrl+Alt+B"
+                              }
                             />
                           )}
                           <WorkspaceLauncherAction
                             icon={<WorkspaceLauncherIcon kind="terminal" />}
                             label={t.terminal}
                             onActivate={openTerminalPanel}
-                            shortcut="Ctrl+J"
+                            shortcut={
+                              snapshot.platform === "darwin" ? "⌘J" : "Ctrl+J"
+                            }
                           />
                           <WorkspaceLauncherAction
                             icon={<WorkspaceLauncherIcon kind="browser" />}
@@ -11115,7 +11266,7 @@ export function ChildAgentPanel({
       ? labels.justNow
       : labels.ago.replace(
           "{{duration}}",
-          formatRunDuration(silentMilliseconds),
+          formatRunDuration(silentMilliseconds, locale),
         );
   const currentToolElapsed = child?.currentToolStartedAt
     ? Math.max(0, clockMs - Date.parse(child.currentToolStartedAt))
@@ -11202,7 +11353,7 @@ export function ChildAgentPanel({
           <dl className="child-agent-panel-runtime">
             <div>
               <dt>{labels.elapsed}</dt>
-              <dd>{formatRunDuration(elapsedMilliseconds)}</dd>
+              <dd>{formatRunDuration(elapsedMilliseconds, locale)}</dd>
             </div>
             <div>
               <dt>{labels.lastActivity}</dt>
@@ -11213,7 +11364,7 @@ export function ChildAgentPanel({
               <dd>
                 {child.currentTool ?? "—"}
                 {child.currentTool && currentToolElapsed !== undefined
-                  ? ` · ${formatRunDuration(currentToolElapsed)}`
+                  ? ` · ${formatRunDuration(currentToolElapsed, locale)}`
                   : ""}
               </dd>
             </div>
@@ -11722,8 +11873,8 @@ export function Timeline({
     }
     return timestamps;
   }, [events, imGroup]);
-  const renderMessageTime = (entry: string) => {
-    const timestamp = messageTimestamps.get(entry);
+  const renderMessageTime = (entry: string, savedTimestamp?: string) => {
+    const timestamp = savedTimestamp ?? messageTimestamps.get(entry);
     return timestamp ? (
       <time
         dateTime={timestamp}
@@ -11923,14 +12074,14 @@ export function Timeline({
           >
             {imGroup && (
               <div className="group-message-heading">
-                <span className="group-message-avatar">
-                  <ArtemisIcon name="user" />
+                <span className="group-message-avatar" aria-hidden="true">
+                  {Array.from(uiText(locale, "ImGroupMembers.message13"))[0]}
                 </span>
                 <strong>{uiText(locale, "ImGroupMembers.message13")}</strong>
                 {imChannel && (
                   <span>{imChannelDisplayName(imChannel, locale)}</span>
                 )}
-                {renderMessageTime(entry)}
+                {renderMessageTime(entry, message.timestamp)}
               </div>
             )}
             {imGroup && imageAttachments}
@@ -11973,45 +12124,47 @@ export function Timeline({
       return (
         <ConversationMessage
           actions={
-            <>
-              <Tooltip label={t.copyMessage}>
-                <button
-                  aria-label={t.copyMessage}
-                  className="message-action"
-                  onClick={() => void onCopyText(part.text)}
-                  type="button"
-                >
-                  <CopyIcon />
-                </button>
-              </Tooltip>
-              {onFork && (
-                <button
-                  className="message-action"
-                  aria-label={t.forkTask}
-                  title={t.forkTask}
-                  type="button"
-                  onClick={onFork}
-                >
-                  <ArtemisIcon name="branch" width={14} height={14} />
-                </button>
-              )}
-              {onShare && (
-                <button
-                  className="message-action"
-                  aria-label={uiText(locale, "Share.title")}
-                  title={uiText(locale, "Share.title")}
-                  type="button"
-                  onClick={onShare}
-                >
-                  <ArtemisIcon name="external" width={14} height={14} />
-                </button>
-              )}
-              {turn?.finalPartId === id && (
-                <span className="message-usage-meta">
-                  {turnUsageLabel(events ?? [], turn.id, locale)}
-                </span>
-              )}
-            </>
+            turn?.status !== "running" ? (
+              <>
+                <Tooltip label={t.copyMessage}>
+                  <button
+                    aria-label={t.copyMessage}
+                    className="message-action"
+                    onClick={() => void onCopyText(part.text)}
+                    type="button"
+                  >
+                    <CopyIcon />
+                  </button>
+                </Tooltip>
+                {onFork && (
+                  <button
+                    className="message-action"
+                    aria-label={t.forkTask}
+                    title={t.forkTask}
+                    type="button"
+                    onClick={onFork}
+                  >
+                    <ArtemisIcon name="fork" width={14} height={14} />
+                  </button>
+                )}
+                {onShare && (
+                  <button
+                    className="message-action"
+                    aria-label={uiText(locale, "Share.title")}
+                    title={uiText(locale, "Share.title")}
+                    type="button"
+                    onClick={onShare}
+                  >
+                    <ArtemisIcon name="share" width={14} height={14} />
+                  </button>
+                )}
+                {turn?.finalPartId === id && (
+                  <span className="message-usage-meta">
+                    {turnUsageLabel(events ?? [], turn.id, locale)}
+                  </span>
+                )}
+              </>
+            ) : undefined
           }
           className="assistant-message"
           key={entry}
@@ -12027,7 +12180,7 @@ export function Timeline({
               <span className="group-agent-identity">
                 {uiText(locale, "Review01.localArtemis")}
               </span>
-              {renderMessageTime(entry)}
+              {renderMessageTime(entry, part.timestamp)}
             </div>
           )}
           <MarkdownContent

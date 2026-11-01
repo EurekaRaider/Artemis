@@ -26,6 +26,38 @@ function event(
 }
 
 describe("reduceAgentEvent", () => {
+  it("retains message times in serialized history and keeps the first delta time", () => {
+    const user = event("user-time", 1, {
+      type: "user.message",
+      messageId: "user",
+      text: "Review this.",
+    });
+    const first = event("first-time", 2, {
+      type: "message.part.delta",
+      partId: "answer",
+      partType: "text",
+      delta: "First",
+    });
+    first.timestamp = "2026-07-26T00:01:00.000Z";
+    const next = event("next-time", 3, {
+      type: "message.part.delta",
+      partId: "answer",
+      partType: "text",
+      delta: " answer",
+    });
+    next.timestamp = "2026-07-26T00:02:00.000Z";
+    const history = JSON.parse(
+      JSON.stringify(reduceAgentEvents("thread-1", [user, first])),
+    );
+    const state = reduceAgentEvent(history, next);
+    expect(state.userMessages.user?.timestamp).toBe(user.timestamp);
+    expect(state.messageParts.answer).toMatchObject({
+      text: "First answer",
+      timestamp: first.timestamp,
+    });
+    expect(reduceAgentEvent(state, next)).toEqual(state);
+  });
+
   it("hides legacy internal handoffs that were persisted as user messages", () => {
     const state = reduceAgentEvents("thread-1", [
       event("user", 1, {
@@ -42,7 +74,11 @@ describe("reduceAgentEvent", () => {
 
     expect(state.order).toEqual(["user:user-1"]);
     expect(state.userMessages).toEqual({
-      "user-1": { id: "user-1", text: "Run the task." },
+      "user-1": {
+        id: "user-1",
+        text: "Run the task.",
+        timestamp: "2026-07-26T00:00:00.000Z",
+      },
     });
   });
 

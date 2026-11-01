@@ -805,43 +805,26 @@ const expectedCssRules = new Map([
       "box-sizing": "border-box",
       display: "inline-flex",
       "align-items": "center",
-      "inline-size": "calc(var(--artemis-space-4) * 3)",
-      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-3))",
-      padding:
-        "calc( (var(--artemis-space-2) - var(--artemis-border-width-default) * 2) / 2 )",
+      "inline-size": "32px",
+      "block-size": "18px",
+      padding: "2px",
       background: "var(--artemis-color-surface-sunken)",
-      border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      border: "0",
       "border-radius": "var(--artemis-radius-pill)",
       transition:
         "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
     },
   ],
   [
-    'normal|[data-artemis-component="switch"][data-size="compact"] [data-part="track"]',
-    {
-      "inline-size":
-        "calc(var(--artemis-space-4) * 2 + var(--artemis-space-2))",
-      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-2))",
-    },
-  ],
-  [
     'normal|[data-artemis-component="switch"] [data-part="thumb"]',
     {
-      "inline-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
-      "block-size": "calc(var(--artemis-space-4) + var(--artemis-space-1))",
-      background: "var(--artemis-color-text-secondary)",
+      "inline-size": "14px",
+      "block-size": "14px",
+      background: "#fff",
       "border-radius": "var(--artemis-radius-pill)",
       transform: "translateX(0)",
       transition:
         "background var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard), transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
-    },
-  ],
-  [
-    'normal|[data-artemis-component="switch"][data-size="compact"] [data-part="thumb"]',
-    {
-      "inline-size": "var(--artemis-space-4)",
-      "block-size": "var(--artemis-space-4)",
     },
   ],
   [
@@ -858,26 +841,13 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="switch"]:has([data-part="control"]:checked) [data-part="thumb"]',
     {
-      /* 恒白圆钮（iOS 范式）：accent 轨道深浅主题都用白，见 ui-convergence 允许清单。 */
-      background: "#fff",
-      transform:
-        "translateX( calc(var(--artemis-space-4) + var(--artemis-space-1)) )",
+      background: "var(--artemis-color-accent-on-primary)",
+      transform: "translateX(14px)",
     },
-  ],
-  [
-    'normal|[data-artemis-component="switch"][data-size="compact"]:has([data-part="control"]:checked) [data-part="thumb"]',
-    { transform: "translateX(var(--artemis-space-4))" },
   ],
   [
     'normal|[dir="rtl"] [data-artemis-component="switch"]:has([data-part="control"]:checked) [data-part="thumb"]',
-    {
-      transform:
-        "translateX( calc((var(--artemis-space-4) + var(--artemis-space-1)) * -1) )",
-    },
-  ],
-  [
-    'normal|[dir="rtl"] [data-artemis-component="switch"][data-size="compact"]:has([data-part="control"]:checked) [data-part="thumb"]',
-    { transform: "translateX(calc(var(--artemis-space-4) * -1))" },
+    { transform: "translateX(-14px)" },
   ],
   [
     'normal|[data-artemis-component="checkbox"] [data-part="control"]:focus-visible + [data-part="indicator"], [data-artemis-component="switch"] [data-part="control"]:focus-visible + [data-part="track"]',
@@ -1111,7 +1081,7 @@ const CL3_EXPECTED_CSS_RULES = [
     'normal|[data-artemis-component="dialog"]::backdrop',
     {
       background: "var(--artemis-color-overlay-scrim)",
-      "backdrop-filter": "blur(3px)",
+      "backdrop-filter": "none",
     },
   ],
   [

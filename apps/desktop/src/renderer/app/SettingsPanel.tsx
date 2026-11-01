@@ -19,6 +19,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -43,6 +44,7 @@ import {
   ErrorState,
   InlineNotice,
   LoadingState,
+  Popover,
 } from "@artemis/ui/feedback";
 import {
   Checkbox,
@@ -205,6 +207,11 @@ export function SettingsPanel({
   returnFocusRef,
 }: SettingsPanelProps) {
   const t = labels[locale];
+  const initialFocus = useRef<HTMLDivElement>(null);
+  const pointerOpening = useRef(
+    !returnFocusRef?.current?.matches(":focus-visible"),
+  );
+  const [importOpen, setImportOpen] = useState(false);
   const [narrowNavigation, setNarrowNavigation] = useState(
     () => window.matchMedia?.("(max-width: 720px)").matches ?? false,
   );
@@ -219,6 +226,9 @@ export function SettingsPanel({
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [settingsSearch, setSettingsSearch] = useState("");
   const [addModelProviderId, setAddModelProviderId] = useState<string>();
+  const [addModelMenuOpen, setAddModelMenuOpen] = useState(false);
+  const addModelMenuId = useId();
+  const addModelMenuAnchor = useRef<HTMLButtonElement>(null);
   const [selectedProviderId, setSelectedProviderId] = useState(
     () =>
       initialSettings?.selection?.providerId ??
@@ -886,6 +896,7 @@ ${model.providerId} · ${model.modelId}`,
     <>
       <Dialog
         className="settings-panel"
+        initialFocusRef={pointerOpening.current ? initialFocus : undefined}
         data-tab={activeTab}
         label={t.title}
         onOpenChange={(open) => {
@@ -910,13 +921,17 @@ ${model.providerId} · ${model.modelId}`,
               }
               className="settings-header"
               headingLevel={3}
-              title={activeTabLabel[activeTab]}
+              title={`${t.title} / ${activeTabLabel[activeTab]}`}
             />
           }
           label={`${t.title} · ${activeTabLabel[activeTab]}`}
           navigation={
             settings ? (
-              <div className="settings-navigation-content">
+              <div
+                className="settings-navigation-content"
+                ref={initialFocus}
+                tabIndex={-1}
+              >
                 <h2 className="settings-navigation-title">{t.title}</h2>
                 <SearchField
                   className="settings-search"
@@ -942,14 +957,14 @@ ${model.providerId} · ${model.modelId}`,
                       },
                       {
                         id: "settings-tab-providers-button",
-                        icon: <ArtemisIcon name="database" />,
+                        icon: <ArtemisIcon name="model" />,
                         label: t.tabProviders,
                         panelId: "settings-tab-providers",
                         value: "providers",
                       },
                       {
                         id: "settings-tab-agents-button",
-                        icon: <ArtemisIcon name="agents" />,
+                        icon: <ArtemisIcon name="agent-configuration" />,
                         label: t.tabAgents,
                         panelId: "settings-tab-agents",
                         value: "agents",
@@ -970,7 +985,7 @@ ${model.providerId} · ${model.modelId}`,
                       },
                       {
                         id: "settings-tab-hooks-button",
-                        icon: <ArtemisIcon name="connector" />,
+                        icon: <ArtemisIcon name="hooks" />,
                         label: uiText(locale, "Hooks.title"),
                         panelId: "settings-tab-hooks",
                         value: "hooks",
@@ -1002,15 +1017,16 @@ ${model.providerId} · ${model.modelId}`,
                   onClick={() => {
                     setSettingsSearch("");
                     setActiveTab("agents");
+                    setImportOpen(true);
+                    void scanConfigurationImports();
                     window.requestAnimationFrame(() =>
                       document
                         .querySelector(".configuration-import-section")
-                        ?.scrollIntoView({ block: "start" }),
+                        ?.scrollIntoView?.({ block: "start" }),
                     );
                   }}
                 >
-                  {t.configurationImport}
-                  <span>Codex · Claude · OpenCode</span>
+                  {uiText(locale, "Review02.importConfiguration")}
                 </Button>
               </div>
             ) : (
@@ -1116,49 +1132,79 @@ ${model.providerId} · ${model.modelId}`,
                         className="settings-section provider-models"
                         title={t.addedModels}
                         actions={
-                          <Button
-                            variant="quiet"
-                            disabled={busy}
-                            aria-expanded={
-                              addModelProviderId === selectedProviderId
-                            }
-                            onClick={() =>
-                              setAddModelProviderId(
-                                addModelProviderId === selectedProviderId
-                                  ? undefined
-                                  : selectedProviderId,
-                              )
-                            }
-                            icon={<ArtemisIcon name="plus" />}
-                          >
-                            {t.saveModel}
-                          </Button>
+                          <>
+                            <button
+                              ref={addModelMenuAnchor}
+                              className="provider-add-model-trigger"
+                              type="button"
+                              disabled={busy}
+                              aria-haspopup="menu"
+                              aria-controls={addModelMenuId}
+                              aria-expanded={addModelMenuOpen}
+                              onClick={() =>
+                                setAddModelMenuOpen(!addModelMenuOpen)
+                              }
+                            >
+                              <ArtemisIcon name="plus" width={14} height={14} />
+                              {t.saveModel}
+                            </button>
+                            <Popover
+                              anchorRef={addModelMenuAnchor}
+                              portalContainer={addModelMenuAnchor.current?.closest(
+                                "dialog",
+                              )}
+                              open={addModelMenuOpen}
+                              onOpenChange={setAddModelMenuOpen}
+                              role="menu"
+                              id={addModelMenuId}
+                              label={t.saveModel}
+                              className="provider-add-model-menu"
+                            >
+                              <button
+                                role="menuitem"
+                                type="button"
+                                onClick={() => {
+                                  addModelMenuAnchor.current?.focus({
+                                    preventScroll: true,
+                                  });
+                                  setAddModelMenuOpen(false);
+                                  setAddModelProviderId(selectedProviderId);
+                                }}
+                              >
+                                {uiText(locale, "Review02.catalogModel")}
+                              </button>
+                              {settings.providers.some(
+                                (item) => item.id === selectedProviderId,
+                              ) && (
+                                <button
+                                  role="menuitem"
+                                  type="button"
+                                  onClick={() => {
+                                    const provider = settings.providers.find(
+                                      (item) => item.id === selectedProviderId,
+                                    )!;
+                                    addModelMenuAnchor.current?.focus({
+                                      preventScroll: true,
+                                    });
+                                    setAddModelMenuOpen(false);
+                                    resetProviderForm();
+                                    setShowProviderForm(true);
+                                    setEditingProviderId(provider.id);
+                                    setProviderId(provider.id);
+                                    setProviderName(provider.name);
+                                    setBaseUrl(provider.baseUrl);
+                                    setProviderApi(
+                                      provider.api ?? "openai-completions",
+                                    );
+                                  }}
+                                >
+                                  {uiText(locale, "Providers.defineModel")}
+                                </button>
+                              )}
+                            </Popover>
+                          </>
                         }
                       >
-                        {settings.providers.some(
-                          (item) => item.id === selectedProviderId,
-                        ) && (
-                          <Button
-                            variant="quiet"
-                            disabled={busy}
-                            onClick={() => {
-                              const provider = settings.providers.find(
-                                (item) => item.id === selectedProviderId,
-                              )!;
-                              resetProviderForm();
-                              setShowProviderForm(true);
-                              setEditingProviderId(provider.id);
-                              setProviderId(provider.id);
-                              setProviderName(provider.name);
-                              setBaseUrl(provider.baseUrl);
-                              setProviderApi(
-                                provider.api ?? "openai-completions",
-                              );
-                            }}
-                          >
-                            {uiText(locale, "Providers.defineModel")}
-                          </Button>
-                        )}
                         {addModelProviderId === selectedProviderId && (
                           <div
                             className="provider-add-model"
@@ -1413,10 +1459,9 @@ ${model.providerId} · ${model.modelId}`,
                           {!settings.addedModels.some(
                             (model) => model.providerId === selectedProviderId,
                           ) && (
-                            <EmptyState
-                              className="settings-empty"
-                              title={t.noAddedModels}
-                            />
+                            <p className="settings-empty-inline">
+                              {t.noAddedModels}
+                            </p>
                           )}
                         </div>
                       </ManagementSection>
@@ -1486,6 +1531,9 @@ ${model.providerId} · ${model.modelId}`,
                               }}
                             />
                           )}
+                        <p className="settings-hint provider-defaults-note">
+                          {uiText(locale, "Review02.existingTaskDefaults")}
+                        </p>
                       </ManagementSection>
                     )}
                     {showProviderForm && (
@@ -1839,13 +1887,16 @@ ${model.providerId} · ${model.modelId}`,
                   <ManagementSection
                     className="settings-section settings-global-agents"
                     title={t.globalAgents}
+                    actions={
+                      <small
+                        className="settings-hint"
+                        title={settings.globalAgents.path}
+                      >
+                        {t.globalAgentsHint}
+                      </small>
+                    }
                   >
-                    <p className="settings-hint">
-                      {uiText(locale, "SettingsPanel.inline3")}{" "}
-                      <code>{settings.globalAgents.path}</code>
-                    </p>
                     <TextAreaField
-                      description={t.globalAgentsHint}
                       disabled={busy}
                       label={t.globalAgents}
                       labelVisibility="hidden"
@@ -1853,16 +1904,15 @@ ${model.providerId} · ${model.modelId}`,
                       rows={8}
                       value={globalAgentsContent}
                     />
-                    <Button
-                      disabled={
-                        busy ||
-                        globalAgentsContent === settings.globalAgents.content
-                      }
-                      onClick={() => void saveGlobalAgents()}
-                      variant="primary"
-                    >
-                      {t.saveGlobalAgents}
-                    </Button>
+                    {globalAgentsContent !== settings.globalAgents.content && (
+                      <Button
+                        disabled={busy}
+                        onClick={() => void saveGlobalAgents()}
+                        variant="primary"
+                      >
+                        {t.saveGlobalAgents}
+                      </Button>
+                    )}
                   </ManagementSection>
                   <CustomAgentsSettingsSection
                     applySettings={(updated) => {
@@ -1875,233 +1925,253 @@ ${model.providerId} · ${model.modelId}`,
                     setBusy={setBusy}
                     settings={settings}
                   />
-                  <ManagementSection
-                    className="settings-section"
-                    title={t.agentConcurrency}
-                  >
-                    <SettingsRow
-                      label={t.concurrencyMode}
-                      description={t.agentConcurrencyHint}
+                  <details className="settings-advanced">
+                    <summary>
+                      <ArtemisIcon
+                        className="disclosure-chevron"
+                        name="chevron"
+                      />
+                      {uiText(locale, "Review02.advancedConcurrency")}
+                    </summary>
+                    <ManagementSection
+                      className="settings-section"
+                      title={t.agentConcurrency}
                     >
-                      <Select<"auto" | "manual">
-                        size="compact"
+                      <SettingsRow
                         label={t.concurrencyMode}
-                        disabled={busy}
-                        onValueChange={(mode) =>
-                          void setAgentConcurrencyMode(mode)
-                        }
-                        options={[
-                          {
-                            value: "auto",
-                            label: t.concurrencyAutomatic,
-                          },
-                          {
-                            value: "manual",
-                            label: t.concurrencyManual,
-                          },
-                        ]}
-                        value={settings.agentConcurrency.preference.mode}
-                      />
-                    </SettingsRow>
-                    {settings.agentConcurrency.preference.mode === "manual" && (
-                      <TextField
-                        className="settings-field"
-                        disabled={busy}
-                        label={t.concurrencyManualLimit}
-                        max={settings.agentConcurrency.hardLimit}
-                        min={2}
-                        onValueChange={setAgentConcurrencyLimit}
-                        step={1}
-                        type="number"
-                        value={agentConcurrencyLimit}
-                      />
-                    )}
-                    {settings.agentConcurrency.preference.mode === "manual" && (
-                      <Button
-                        disabled={
-                          busy ||
-                          !agentConcurrencyLimitValid ||
-                          parsedAgentConcurrencyLimit ===
-                            settings.agentConcurrency.configuredLimit
-                        }
-                        onClick={() => void applyAgentConcurrencyLimit()}
-                        variant="primary"
+                        description={t.agentConcurrencyHint}
                       >
-                        {t.concurrencyApply}
-                      </Button>
-                    )}
-                    <dl className="agent-concurrency-status">
-                      <div>
-                        <dt>{t.concurrencyLogical}</dt>
-                        <dd>{settings.agentConcurrency.logicalLimit}</dd>
-                      </div>
-                      <div>
-                        <dt>{t.concurrencyConfigured}</dt>
-                        <dd>{settings.agentConcurrency.configuredLimit}</dd>
-                      </div>
-                      <div>
-                        <dt>{t.concurrencyAutomaticSafe}</dt>
-                        <dd>{settings.agentConcurrency.automaticSafeLimit}</dd>
-                      </div>
-                      <div>
-                        <dt>{t.concurrencyEffective}</dt>
-                        <dd>{settings.agentConcurrency.effectiveLimit}</dd>
-                      </div>
-                      <div>
-                        <dt>{t.concurrencyActive}</dt>
-                        <dd>{settings.agentConcurrency.active}</dd>
-                      </div>
-                      <div>
-                        <dt>{t.concurrencyQueued}</dt>
-                        <dd>{settings.agentConcurrency.queued}</dd>
-                      </div>
-                      <div>
-                        <dt>{t.concurrencyWaiting}</dt>
-                        <dd>{settings.agentConcurrency.waiting}</dd>
-                      </div>
-                    </dl>
-                    <dl className="agent-concurrency-hardware">
-                      <div>
-                        <dt>{t.concurrencyHardware}</dt>
-                        <dd>
-                          {t.concurrencyHardwareValue
-                            .replace(
-                              "{cores}",
-                              String(settings.agentConcurrency.parallelism),
-                            )
-                            .replace(
-                              "{memory}",
-                              String(settings.agentConcurrency.totalMemoryGiB),
-                            )}
-                        </dd>
-                      </div>
-                    </dl>
-                    {settings.agentConcurrency.throttled && (
-                      <InlineNotice
-                        className="settings-security"
-                        tone="warning"
-                      >
-                        {t.concurrencyThrottled.replace(
-                          "{reasons}",
-                          settings.agentConcurrency.pressureReasons
-                            .map((reason) =>
-                              reason === "cpu"
-                                ? t.concurrencyCpu
-                                : reason === "memory"
-                                  ? t.concurrencyMemory
-                                  : t.concurrencyEventLoop,
-                            )
-                            .join(", "),
-                        )}
-                      </InlineNotice>
-                    )}
-                    {settings.agentConcurrency.preference.mode === "manual" &&
-                      settings.agentConcurrency.configuredLimit >
-                        settings.agentConcurrency.automaticSafeLimit && (
+                        <Select<"auto" | "manual">
+                          size="compact"
+                          label={t.concurrencyMode}
+                          disabled={busy}
+                          onValueChange={(mode) =>
+                            void setAgentConcurrencyMode(mode)
+                          }
+                          options={[
+                            {
+                              value: "auto",
+                              label: t.concurrencyAutomatic,
+                            },
+                            {
+                              value: "manual",
+                              label: t.concurrencyManual,
+                            },
+                          ]}
+                          value={settings.agentConcurrency.preference.mode}
+                        />
+                      </SettingsRow>
+                      {settings.agentConcurrency.preference.mode ===
+                        "manual" && (
+                        <TextField
+                          className="settings-field"
+                          disabled={busy}
+                          label={t.concurrencyManualLimit}
+                          max={settings.agentConcurrency.hardLimit}
+                          min={2}
+                          onValueChange={setAgentConcurrencyLimit}
+                          step={1}
+                          type="number"
+                          value={agentConcurrencyLimit}
+                        />
+                      )}
+                      {settings.agentConcurrency.preference.mode ===
+                        "manual" && (
+                        <Button
+                          disabled={
+                            busy ||
+                            !agentConcurrencyLimitValid ||
+                            parsedAgentConcurrencyLimit ===
+                              settings.agentConcurrency.configuredLimit
+                          }
+                          onClick={() => void applyAgentConcurrencyLimit()}
+                          variant="primary"
+                        >
+                          {t.concurrencyApply}
+                        </Button>
+                      )}
+                      <dl className="agent-concurrency-status">
+                        <div>
+                          <dt>{t.concurrencyLogical}</dt>
+                          <dd>{settings.agentConcurrency.logicalLimit}</dd>
+                        </div>
+                        <div>
+                          <dt>{t.concurrencyConfigured}</dt>
+                          <dd>{settings.agentConcurrency.configuredLimit}</dd>
+                        </div>
+                        <div>
+                          <dt>{t.concurrencyAutomaticSafe}</dt>
+                          <dd>
+                            {settings.agentConcurrency.automaticSafeLimit}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>{t.concurrencyEffective}</dt>
+                          <dd>{settings.agentConcurrency.effectiveLimit}</dd>
+                        </div>
+                        <div>
+                          <dt>{t.concurrencyActive}</dt>
+                          <dd>{settings.agentConcurrency.active}</dd>
+                        </div>
+                        <div>
+                          <dt>{t.concurrencyQueued}</dt>
+                          <dd>{settings.agentConcurrency.queued}</dd>
+                        </div>
+                        <div>
+                          <dt>{t.concurrencyWaiting}</dt>
+                          <dd>{settings.agentConcurrency.waiting}</dd>
+                        </div>
+                      </dl>
+                      <dl className="agent-concurrency-hardware">
+                        <div>
+                          <dt>{t.concurrencyHardware}</dt>
+                          <dd>
+                            {t.concurrencyHardwareValue
+                              .replace(
+                                "{cores}",
+                                String(settings.agentConcurrency.parallelism),
+                              )
+                              .replace(
+                                "{memory}",
+                                String(
+                                  settings.agentConcurrency.totalMemoryGiB,
+                                ),
+                              )}
+                          </dd>
+                        </div>
+                      </dl>
+                      {settings.agentConcurrency.throttled && (
                         <InlineNotice
                           className="settings-security"
                           tone="warning"
                         >
-                          {t.concurrencyHighWarning}
+                          {t.concurrencyThrottled.replace(
+                            "{reasons}",
+                            settings.agentConcurrency.pressureReasons
+                              .map((reason) =>
+                                reason === "cpu"
+                                  ? t.concurrencyCpu
+                                  : reason === "memory"
+                                    ? t.concurrencyMemory
+                                    : t.concurrencyEventLoop,
+                              )
+                              .join(", "),
+                          )}
                         </InlineNotice>
                       )}
-                  </ManagementSection>
-                  <ManagementSection
-                    actions={
-                      <Button
-                        disabled={busy}
-                        onClick={() => void scanConfigurationImports()}
-                      >
-                        <ArtemisIcon name="refresh" />
-                        {t.scanImports}
-                      </Button>
-                    }
-                    className="settings-section configuration-import-section"
-                    description={t.configurationImportHint}
-                    title={t.configurationImport}
-                  >
-                    {importPreview && (
-                      <div className="configuration-import">
-                        <div className="configuration-import-categories">
-                          {(
-                            [
-                              ["instructions", t.importInstructions],
-                              ["skills", t.importSkills],
-                              ["mcp", t.importMcp],
-                            ] as const
-                          ).map(([category, label]) => (
-                            <Checkbox
-                              checked={importCategories.includes(category)}
-                              disabled={busy}
-                              key={category}
-                              label={label}
-                              onCheckedChange={(checked) =>
-                                toggleImportCategory(category, checked)
-                              }
-                            />
-                          ))}
-                        </div>
-                        <div className="configuration-import-sources">
-                          {importPreview.sources.map((source) => {
-                            const sourceLabel =
-                              source.source === "claude"
-                                ? "Claude Code"
-                                : source.source === "opencode"
-                                  ? "OpenCode"
-                                  : "Codex";
-                            return (
-                              <ManagementRow
-                                leading={
-                                  <Checkbox
-                                    checked={importSources.includes(
-                                      source.source,
-                                    )}
-                                    disabled={busy || !source.detected}
-                                    label={`${sourceLabel}: ${source.detected ? t.detected : t.notDetected}`}
-                                    labelVisibility="hidden"
-                                    onCheckedChange={(checked) =>
-                                      toggleImportSource(source.source, checked)
-                                    }
-                                  />
-                                }
-                                className="configuration-import-source"
-                                description={
-                                  <>
-                                    <span>{`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}</span>
-                                    {source.warnings.map((warning, index) => (
-                                      <InlineNotice
-                                        className="configuration-import-warning"
-                                        key={`${source.source}-${index}`}
-                                        tone="warning"
-                                      >
-                                        {warning}
-                                      </InlineNotice>
-                                    ))}
-                                  </>
-                                }
-                                key={source.source}
-                                state={source.detected ? "ready" : "disabled"}
-                                title={sourceLabel}
-                              />
-                            );
-                          })}
-                        </div>
+                      {settings.agentConcurrency.preference.mode === "manual" &&
+                        settings.agentConcurrency.configuredLimit >
+                          settings.agentConcurrency.automaticSafeLimit && (
+                          <InlineNotice
+                            className="settings-security"
+                            tone="warning"
+                          >
+                            {t.concurrencyHighWarning}
+                          </InlineNotice>
+                        )}
+                    </ManagementSection>
+                  </details>
+                  {importOpen && (
+                    <ManagementSection
+                      actions={
                         <Button
-                          disabled={
-                            busy ||
-                            importSources.length === 0 ||
-                            importCategories.length === 0
-                          }
-                          className="configuration-import-apply"
-                          onClick={() => void importConfiguration()}
-                          variant="primary"
+                          disabled={busy}
+                          onClick={() => void scanConfigurationImports()}
                         >
-                          <ArtemisIcon name="download" />
-                          {t.applyImports}
+                          <ArtemisIcon name="refresh" />
+                          {t.scanImports}
                         </Button>
-                      </div>
-                    )}
-                  </ManagementSection>
+                      }
+                      className="settings-section configuration-import-section"
+                      description={t.configurationImportHint}
+                      title={t.configurationImport}
+                    >
+                      {importPreview && (
+                        <div className="configuration-import">
+                          <div className="configuration-import-categories">
+                            {(
+                              [
+                                ["instructions", t.importInstructions],
+                                ["skills", t.importSkills],
+                                ["mcp", t.importMcp],
+                              ] as const
+                            ).map(([category, label]) => (
+                              <Checkbox
+                                checked={importCategories.includes(category)}
+                                disabled={busy}
+                                key={category}
+                                label={label}
+                                onCheckedChange={(checked) =>
+                                  toggleImportCategory(category, checked)
+                                }
+                              />
+                            ))}
+                          </div>
+                          <div className="configuration-import-sources">
+                            {importPreview.sources.map((source) => {
+                              const sourceLabel =
+                                source.source === "claude"
+                                  ? "Claude Code"
+                                  : source.source === "opencode"
+                                    ? "OpenCode"
+                                    : "Codex";
+                              return (
+                                <ManagementRow
+                                  leading={
+                                    <Checkbox
+                                      checked={importSources.includes(
+                                        source.source,
+                                      )}
+                                      disabled={busy || !source.detected}
+                                      label={`${sourceLabel}: ${source.detected ? t.detected : t.notDetected}`}
+                                      labelVisibility="hidden"
+                                      onCheckedChange={(checked) =>
+                                        toggleImportSource(
+                                          source.source,
+                                          checked,
+                                        )
+                                      }
+                                    />
+                                  }
+                                  className="configuration-import-source"
+                                  description={
+                                    <>
+                                      <span>{`${source.detected ? t.detected : t.notDetected} · ${t.importInstructions} ${source.counts.instructions} · ${t.importSkills} ${source.counts.skills} · ${t.importMcp} ${source.counts.mcp}`}</span>
+                                      {source.warnings.map((warning, index) => (
+                                        <InlineNotice
+                                          className="configuration-import-warning"
+                                          key={`${source.source}-${index}`}
+                                          tone="warning"
+                                        >
+                                          {warning}
+                                        </InlineNotice>
+                                      ))}
+                                    </>
+                                  }
+                                  key={source.source}
+                                  state={source.detected ? "ready" : "disabled"}
+                                  title={sourceLabel}
+                                />
+                              );
+                            })}
+                          </div>
+                          <Button
+                            disabled={
+                              busy ||
+                              importSources.length === 0 ||
+                              importCategories.length === 0
+                            }
+                            className="configuration-import-apply"
+                            onClick={() => void importConfiguration()}
+                            variant="primary"
+                          >
+                            <ArtemisIcon name="download" />
+                            {t.applyImports}
+                          </Button>
+                        </div>
+                      )}
+                    </ManagementSection>
+                  )}
                 </>
               )}
 
@@ -2111,49 +2181,105 @@ ${model.providerId} · ${model.modelId}`,
                     className="settings-section"
                     title={t.tabCapabilities}
                   >
+                    <p className="settings-hint">
+                      {uiText(locale, "Review02.modeDescription")}
+                    </p>
                     <table className="settings-mode-capabilities">
                       <thead>
                         <tr>
-                          <th>{uiText(locale, "AutomationPage_text.mode")}</th>
-                          <th>{t.shellRuntime}</th>
-                          <th>MCP</th>
-                          <th>{uiText(locale, "App_copy.taskMode")}</th>
+                          <th />
+                          {(["plan", "work", "codemode"] as const).map(
+                            (mode) => (
+                              <th key={mode}>
+                                <ArtemisIcon
+                                  name={mode === "codemode" ? "code" : mode}
+                                />
+                                {uiText(locale, `ComposerMode.${mode}`)}
+                              </th>
+                            ),
+                          )}
                         </tr>
                       </thead>
                       <tbody>
-                        {(["plan", "work", "codemode"] as const).map((mode) => (
-                          <tr key={mode}>
+                        {(
+                          [
+                            "readWorkspace",
+                            "writeFiles",
+                            "shellAccess",
+                            "mcpSandbox",
+                            "singleEscalation",
+                          ] as const
+                        ).map((capability, index) => (
+                          <tr key={capability}>
                             <th scope="row">
-                              {uiText(locale, `ComposerMode.${mode}`)}
+                              {uiText(locale, `Review02.${capability}`)}
                             </th>
-                            {["shell", "mcp"].map((capability) => (
-                              <td
-                                key={capability}
-                                aria-label={uiText(
-                                  locale,
-                                  mode === "plan"
-                                    ? "CustomAgentsSettingsSection_labels.disabledBadge"
-                                    : "CustomAgentsSettingsSection_labels.enabledLabel",
-                                )}
-                              >
-                                {mode === "plan" ? (
-                                  "—"
-                                ) : (
-                                  <ArtemisIcon name="check" />
-                                )}
-                              </td>
-                            ))}
-                            <td>{uiText(locale, `Mode.${mode}Description`)}</td>
+                            {(["plan", "work", "codemode"] as const).map(
+                              (mode) => (
+                                <td
+                                  key={mode}
+                                  data-capability-state={
+                                    mode === "plan" && index > 0
+                                      ? "unavailable"
+                                      : index === 4
+                                        ? "approval"
+                                        : "allowed"
+                                  }
+                                >
+                                  {mode === "plan" && index > 0 ? (
+                                    "—"
+                                  ) : index === 4 ? (
+                                    uiText(locale, "Review02.approvalRequired")
+                                  ) : (
+                                    <ArtemisIcon name="check" />
+                                  )}
+                                </td>
+                              ),
+                            )}
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    <p className="settings-hint">
-                      {uiText(
-                        locale,
-                        "ResourceCenter_labels.installMcpLocalWarning",
-                      )}
-                    </p>
+                    <SettingsRow
+                      label={uiText(locale, "Review02.defaultApproval")}
+                      description={uiText(locale, "Review02.approvalNote")}
+                    >
+                      <Select
+                        label={uiText(locale, "Review02.defaultApproval")}
+                        labelVisibility="hidden"
+                        value={settings.approvalPolicy}
+                        disabled={busy}
+                        options={[
+                          {
+                            value: "ask",
+                            label: UI_COPY.App_copy[locale].askApproval,
+                          },
+                          {
+                            value: "agent",
+                            label: UI_COPY.App_copy[locale].agentApproval,
+                          },
+                          {
+                            value: "full-access",
+                            label: UI_COPY.App_copy[locale].fullAccess,
+                            disabled: !settings.fullAccessAvailable,
+                          },
+                        ]}
+                        onValueChange={(value) =>
+                          void run(async () => {
+                            const updated =
+                              await window.artemis.setApprovalPolicy(value);
+                            setSettings(updated);
+                            onSettingsChange(updated);
+                          })
+                        }
+                      />
+                    </SettingsRow>
+                    <SettingsRow label={uiText(locale, "Review02.mcpSandbox")}>
+                      <span className="settings-readonly-status">
+                        <ArtemisIcon name="sandbox" width={14} height={14} />
+                        {uiText(locale, "Review02.defaultEnabled")}
+                      </span>
+                    </SettingsRow>
                   </ManagementSection>
                   <ManagementSection
                     className="settings-section"
@@ -2274,14 +2400,15 @@ ${model.providerId} · ${model.modelId}`,
                         <ArtemisLogo size={36} />
                       </span>
                       <SettingsRow
-                        label="Artemis"
+                        label={`Artemis ${settings.update.currentVersion}`}
                         description={
                           <>
-                            {settings.update.currentVersion} ·{" "}
-                            {settings.update.state === "idle" &&
-                            settings.update.upToDate
-                              ? uiText(locale, "Update.upToDate")
-                              : statusText(locale, settings.update.state)}
+                            {settings.update.state === "disabled"
+                              ? uiText(locale, "Review02.developmentUpdates")
+                              : settings.update.state === "idle" &&
+                                  settings.update.upToDate
+                                ? uiText(locale, "Update.upToDate")
+                                : statusText(locale, settings.update.state)}
                             {settings.update.availableVersion
                               ? ` → ${settings.update.availableVersion}`
                               : ""}
@@ -2396,18 +2523,19 @@ ${model.providerId} · ${model.modelId}`,
                         {t.rollbackReady}
                       </InlineNotice>
                     )}
-                    {settings.update.message && (
-                      <InlineNotice
-                        tone={
-                          settings.update.state === "error" ||
-                          settings.update.state === "downloaded"
-                            ? "danger"
-                            : "neutral"
-                        }
-                      >
-                        {settings.update.message}
-                      </InlineNotice>
-                    )}
+                    {settings.update.message &&
+                      settings.update.state !== "disabled" && (
+                        <InlineNotice
+                          tone={
+                            settings.update.state === "error" ||
+                            settings.update.state === "downloaded"
+                              ? "danger"
+                              : "neutral"
+                          }
+                        >
+                          {settings.update.message}
+                        </InlineNotice>
+                      )}
                   </ManagementSection>
                   <ManagementSection
                     actions={

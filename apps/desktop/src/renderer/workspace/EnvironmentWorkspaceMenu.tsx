@@ -67,6 +67,7 @@ export function EnvironmentWorkspaceMenu({
     <>
       <button
         className="environment-workspace-trigger"
+        aria-label={label}
         type="button"
         ref={anchor}
         title={path}
@@ -77,6 +78,9 @@ export function EnvironmentWorkspaceMenu({
       >
         {worktree ? <EnvironmentWorktreeIcon /> : <EnvironmentLocalIcon />}
         <span>{label}</span>
+        <small className="environment-workspace-path" title={path}>
+          {path.length > 38 ? `${path.slice(0, 18)}…${path.slice(-18)}` : path}
+        </small>
         <EnvironmentChevronIcon />
       </button>
       <Popover
@@ -153,18 +157,21 @@ export function EnvironmentWorkspaceMenu({
           <span>{t("EnvironmentWorkspaceMenu.message9")}</span>
         </button>
         {onOpenUsage && (
-          <button
-            className="environment-workspace-usage"
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onOpenUsage();
-            }}
-          >
-            <ArtemisIcon name="token-usage" data-environment-tone="purple" />
-            <span>{t("App_copy.tokenUsage")}</span>
-          </button>
+          <>
+            <div role="separator" />
+            <button
+              className="environment-workspace-usage"
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onOpenUsage();
+              }}
+            >
+              <ArtemisIcon name="token-usage" />
+              <span>{t("App_copy.tokenUsage")}</span>
+            </button>
+          </>
         )}
         {(disabled || !onHandoff) && (
           <p className="environment-branch-hint">

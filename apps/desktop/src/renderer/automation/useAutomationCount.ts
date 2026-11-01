@@ -1,8 +1,9 @@
+import type { Automation } from "@artemis/protocol";
 import { useEffect, useState } from "react";
 
 /** The navigation badge follows the stored list, without background polling. */
-export function useAutomationCount(): number | undefined {
-  const [count, setCount] = useState<number>();
+export function useAutomations(): Automation[] | undefined {
+  const [automations, setAutomations] = useState<Automation[]>();
   useEffect(() => {
     let mounted = true;
     let revision = 0;
@@ -11,10 +12,10 @@ export function useAutomationCount(): number | undefined {
       void window.artemis
         .listAutomations()
         .then((automations) => {
-          if (mounted && request === revision) setCount(automations.length);
+          if (mounted && request === revision) setAutomations(automations);
         })
         .catch(() => {
-          if (mounted && request === revision) setCount(undefined);
+          if (mounted && request === revision) setAutomations(undefined);
         });
     };
     const unsubscribe = window.artemis.onAutomationEvent((event) => {
@@ -26,5 +27,9 @@ export function useAutomationCount(): number | undefined {
       unsubscribe();
     };
   }, []);
-  return count;
+  return automations;
+}
+
+export function useAutomationCount(): number | undefined {
+  return useAutomations()?.length;
 }

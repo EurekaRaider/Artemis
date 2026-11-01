@@ -211,13 +211,13 @@ describe("approval and single question cards", () => {
     const { rerender } = render(
       <ThreadWaitingBadge thread={thread} locale="zh-CN" />,
     );
-    expect(screen.getByText("等待选择")).toBeInTheDocument();
+    expect(screen.getByText("待决定")).toBeInTheDocument();
     rerender(
       <ThreadWaitingBadge
         thread={{ ...thread, status: "running" }}
         locale="zh-CN"
       />,
     );
-    expect(screen.queryByText("等待选择")).toBeNull();
+    expect(screen.queryByText("待决定")).toBeNull();
   });
 });

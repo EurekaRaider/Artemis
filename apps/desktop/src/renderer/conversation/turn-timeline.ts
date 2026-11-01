@@ -1,4 +1,4 @@
-import type { ThreadViewState } from "@artemis/protocol";
+import type { AppLocale, ThreadViewState } from "@artemis/protocol";
 
 // Initial attachments are persisted as sources alongside the first user message
 // in a turn. Later steering messages must not repeat those attachments.
@@ -21,12 +21,28 @@ export function userMessageAttachments(
   });
 }
 
-export function formatWorkedDuration(durationMs: number | undefined): string {
+export function formatWorkedDuration(
+  durationMs: number | undefined,
+  locale: AppLocale = "en",
+): string {
   const totalSeconds = Math.max(0, Math.floor((durationMs ?? 0) / 1_000));
   const hours = Math.floor(totalSeconds / 3_600);
   const minutes = Math.floor((totalSeconds % 3_600) / 60);
   const seconds = totalSeconds % 60;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  const unit = (value: number, name: "hour" | "minute" | "second") => {
+    if (locale === "zh-CN" || locale === "zh-TW")
+      return `${value} ${{ hour: locale === "zh-CN" ? "小时" : "小時", minute: "分", second: "秒" }[name]}`;
+    return new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: name,
+      unitDisplay: "narrow",
+    }).format(value);
+  };
+  return [
+    hours > 0 ? unit(hours, "hour") : undefined,
+    totalSeconds >= 60 ? unit(minutes, "minute") : undefined,
+    unit(seconds, "second"),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
