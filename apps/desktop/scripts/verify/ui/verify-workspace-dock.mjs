@@ -278,6 +278,13 @@ try {
         return;
       }
       assert(
+        `${name}-model-name-remains-visible`,
+        snapshot?.modelLabel?.text?.length > 0 &&
+          snapshot.modelLabel.width >= 24,
+        snapshot?.modelLabel ?? null,
+        "nonempty model name with at least 24px of visible text",
+      );
+      assert(
         `${name}-resizer-pixel-geometry`,
         snapshot?.viewport?.compactMedia === false &&
           snapshot?.resizer?.display !== "none" &&

@@ -68,6 +68,7 @@ export async function driveSmokeWorkspaceDockEvidence(
         '[data-artemis-component="conversation-surface"]',
       );
       const workspaceContent = document.querySelector('.workspace-content');
+      const modelLabel = document.querySelector('.model-information strong');
       const timeline = document.querySelector('.timeline-scroll');
       const browserSurface = document.querySelector(
         '[data-artemis-component="browser-surface"]',
@@ -111,6 +112,10 @@ export async function driveSmokeWorkspaceDockEvidence(
       });
       return {
         direction: getComputedStyle(document.documentElement).direction,
+        modelLabel: {
+          text: modelLabel?.textContent ?? '',
+          width: modelLabel?.getBoundingClientRect().width ?? 0,
+        },
         viewport: {
           compactMedia: matchMedia('(max-width: 820px)').matches,
           devicePixelRatio: window.devicePixelRatio,

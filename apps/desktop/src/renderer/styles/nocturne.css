@@ -546,6 +546,12 @@
     .composer-trailing {
       gap: 3px;
     }
+    .composer-toolbar {
+      flex-wrap: wrap;
+    }
+    .composer-trailing {
+      min-inline-size: min(100%, 200px);
+    }
     .composer-trailing .model-button {
       max-inline-size: 105px;
     }
