@@ -2252,6 +2252,7 @@
     gap: 12px;
   }
   .plugin-market-card {
+    display: flex;
     border-radius: 12px;
     padding: 0;
   }

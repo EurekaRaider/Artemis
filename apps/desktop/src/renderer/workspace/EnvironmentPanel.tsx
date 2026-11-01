@@ -393,15 +393,7 @@ function ChangesIcon() {
 }
 
 function PushIcon() {
-  return (
-    <ArtemisIcon
-      name="push"
-      data-environment-tone="mint"
-      fallback={
-        <path d="M7 17a5 5 0 0 1-1-10 6 6 0 0 1 11 0 5 5 0 0 1 1 10M12 21V11m-4 4 4-4 4 4" />
-      }
-    />
-  );
+  return <ArtemisIcon name="push" data-environment-tone="mint" />;
 }
 
 function PullRequestIcon() {
