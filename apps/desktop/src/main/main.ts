@@ -23426,6 +23426,7 @@ function createMainWindow(): BrowserWindow {
                               outlineColor: focusStyle.outlineColor,
                               outlineStyle: focusStyle.outlineStyle,
                               outlineWidth: focusStyle.outlineWidth,
+                              visualOutlineColor: style?.outlineColor ?? null,
                               visualOutlineStyle: style?.outlineStyle ?? null,
                               visualOutlineWidth: style?.outlineWidth ?? null,
                           }
@@ -23475,8 +23476,12 @@ function createMainWindow(): BrowserWindow {
                     return {
                       interaction: window.__formControlsInteraction ?? null,
                       documentHasFocus: document.hasFocus(),
+                      forcedColors: matchMedia('(forced-colors: active)').matches,
                       components: roots.map(describe),
                       rootTokens: {
+                        focusRing: getComputedStyle(document.documentElement)
+                          .getPropertyValue('--artemis-color-focus-ring')
+                          .trim(),
                         surfaceBase: getComputedStyle(
                           document.documentElement,
                         )

@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { evaluateFormControlFocusEvidence } from "./form-controls-focus-evidence.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "../../..");
@@ -33,7 +34,7 @@ const steps = [
     id: "archive",
     view: "form-controls-archive",
     scenario:
-      "Archive renders the public SearchField, accepts a controlled query, and retains keyboard focus with the approved no-halo appearance.",
+      "Archive renders the public SearchField, accepts a controlled query, and retains native keyboard focus with the theme focus ring.",
   },
   {
     id: "settings",
@@ -69,7 +70,7 @@ const steps = [
     id: "review",
     view: "turn-changes-form-controls",
     scenario:
-      "Review renders its compact public Select and keyboard-opens an in-viewport, left-aligned menu without remounting.",
+      "Review renders its public SegmentedControl and changes scope with the keyboard without remounting.",
   },
 ];
 const cases = steps.flatMap((step) =>
@@ -298,41 +299,20 @@ try {
         "resolved background and non-zero solid border",
       );
     };
-    const verifyFocusEvidence = (
-      prefix,
-      found,
-      visual = false,
-      noHalo = false,
-    ) => {
-      const outlineStyle = visual
-        ? found.focus.visualOutlineStyle
-        : found.focus.outlineStyle;
-      const outlineWidth = visual
-        ? found.focus.visualOutlineWidth
-        : found.focus.outlineWidth;
-      const activeWithExpectedAppearance =
-        formControls.documentHasFocus === true &&
-        found.control.documentActive === true &&
-        (noHalo
-          ? outlineStyle === "none" && outlineWidth === "0px"
-          : outlineStyle !== "none" && outlineWidth !== "0px");
-      const foregroundUnavailable =
-        audit.windowFocused === false &&
-        formControls.documentHasFocus === false &&
-        found.control.tabIndex >= 0;
+    const verifyFocusEvidence = (prefix, found, visual = false) => {
+      const evidence = evaluateFormControlFocusEvidence({
+        windowFocused: audit.windowFocused,
+        documentHasFocus: formControls.documentHasFocus,
+        component: found,
+        focusRing: formControls.rootTokens.focusRing,
+        forcedColors: formControls.forcedColors,
+        visual,
+      });
       assert(
         `${prefix}-focus-evidence`,
-        activeWithExpectedAppearance || foregroundUnavailable,
-        {
-          windowFocused: audit.windowFocused,
-          documentHasFocus: formControls.documentHasFocus,
-          documentActive: found.control.documentActive,
-          tabIndex: found.control.tabIndex,
-          outlineStyle,
-          outlineWidth,
-          noHalo,
-        },
-        `active target with ${noHalo ? "the approved no-halo appearance" : "visible outline"}, or an explicitly inactive OS foreground with a focusable target`,
+        evidence.pass,
+        evidence.actual,
+        "focused native window, document, and tabbable target with a visible theme focus ring (system color only in forced-colors mode)",
       );
     };
 
@@ -367,7 +347,7 @@ try {
         formControls.interaction,
         true,
       );
-      verifyFocusEvidence("archive", search, false, true);
+      verifyFocusEvidence("archive", search);
     } else if (id === "settings") {
       const field = verifyComponent(
         "text-field",
@@ -506,25 +486,18 @@ try {
         "keyboard selection on a stable segmented control",
       );
       verifyFocusEvidence("review-scope", scope);
-    } else {
-      const context =
-        id === "composer"
-          ? "composer"
-          : id === "mcp-editor"
-            ? "mcp-editor"
-            : "review";
+    } else if (id === "mcp-editor") {
       const select = verifyComponent(
         "select",
         ["root", "label", "trigger", "value", "indicator", "menu", "listbox"],
-        id === "mcp-editor" ? undefined : "codex-select",
-        context,
+        undefined,
+        "mcp-editor",
       );
-      const expectedSize = id === "mcp-editor" ? "comfortable" : "compact";
       assert(
         `${id}-size-contract`,
-        select.size === expectedSize,
+        select.size === "comfortable",
         select.size,
-        expectedSize,
+        "comfortable",
       );
       assert(
         `${id}-keyboard-open-stable`,
@@ -539,22 +512,6 @@ try {
         "keyboard opened, menu open, root stable, aria-expanded true",
       );
       verifyOpenMenu(id, select.menu);
-      if (id === "composer") {
-        assert(
-          "composer-menu-right-aligned",
-          select.menu?.inlineEndDelta <= 1,
-          select.menu?.inlineEndDelta ?? null,
-          "<= 1px",
-        );
-      }
-      if (id === "review") {
-        assert(
-          "review-menu-left-aligned",
-          select.menu?.inlineStartDelta <= 1,
-          select.menu?.inlineStartDelta ?? null,
-          "<= 1px",
-        );
-      }
     }
 
     results.push({
