@@ -23,14 +23,12 @@ it.each(["inline-start", "block-start"] as const)(
     const { rerender } = render(<EnvironmentWorkspaceMenu {...props} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "本地检出" }));
-    expect(screen.getByRole("menuitemradio", { name: "本地检出" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    expect(screen.getByRole("menuitemradio", { name: "本地检出" })).toHaveAttribute(
-      "aria-description",
-      "/fixture",
-    );
+    expect(
+      screen.getByRole("menuitemradio", { name: "本地检出" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menuitemradio", { name: "本地检出" }),
+    ).toHaveAttribute("aria-description", "/fixture");
     expect(screen.getAllByRole("separator")).toHaveLength(1);
     expect(screen.getByRole("separator")).toBeVisible();
     expect(screen.getByRole("separator").nextElementSibling).toBe(

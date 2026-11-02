@@ -1693,7 +1693,6 @@ button.environment-row:disabled {
   scrollbar-width: none;
 }
 
-
 .environment-branch-list > button,
 .environment-branch-actions > button {
   align-items: center;
@@ -7951,8 +7950,6 @@ button.sources-panel-entry.attachment:focus-visible {
   font-size: 12.5px;
 }
 
-
-
 .automation-actions {
   display: flex;
   flex-wrap: wrap;
@@ -11822,8 +11819,6 @@ button.sources-panel-entry.attachment:focus-visible {
   line-height: 16.5px;
 }
 
-
-
 .environment-branch-menu {
   font: 13px/1.5 var(--font);
 }
@@ -11844,7 +11839,9 @@ button.sources-panel-entry.attachment:focus-visible {
   padding: 0 10px;
   margin: -5px -5px 5px;
 }
-.environment-branch-search > input { font: 13px/1.5 var(--font); }
+.environment-branch-search > input {
+  font: 13px/1.5 var(--font);
+}
 .environment-branch-list {
   padding: 0;
 }

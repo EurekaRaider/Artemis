@@ -60,7 +60,9 @@ it("cancels a deferred restart when Later is selected", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Later" }));
   await act(async () => rendered.rerender(view(0)));
   expect(installUpdate).not.toHaveBeenCalled();
-  expect(screen.getByRole("button", { name: "Restart and install" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Restart and install" }),
+  ).toBeEnabled();
 });
 
 it("places the ready notice under the header and lets Later dismiss it before scheduling", () => {
@@ -83,7 +85,9 @@ it("places the ready notice under the header and lets Later dismiss it before sc
   fireEvent.click(within(target).getByRole("button", { name: "Later" }));
   expect(target).toBeEmptyDOMElement();
   expect(
-    within(rendered.container).getByRole("button", { name: "Restart and install" }),
+    within(rendered.container).getByRole("button", {
+      name: "Restart and install",
+    }),
   ).toBeEnabled();
   expect(installUpdate).not.toHaveBeenCalled();
   rendered.unmount();

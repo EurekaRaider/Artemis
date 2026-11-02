@@ -181,7 +181,8 @@ try {
           return path.join(" > ");
         };
         return {
-          baseline: "1440px outer frame; full-page boards define containers; standalone boards define inner component metrics",
+          baseline:
+            "1440px outer frame; full-page boards define containers; standalone boards define inner component metrics",
           viewport: { width: innerWidth, height: innerHeight },
           root: root.getBoundingClientRect().toJSON(),
           nodes: nodes.map((element, index) => {

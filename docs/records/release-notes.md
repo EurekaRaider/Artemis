@@ -1,15 +1,19 @@
-# Artemis v1.7.20
+# Artemis v1.7.21
 
 ## 中文
 
-- 修复浏览历史对话时的滚动顿挫：由历史轮次组件统一管理离屏内容高度，避免重复的尺寸估算引起页面跳动，即使没有任务运行也能稳定滚动。
-- 修复 macOS 浏览器连续滚动时回落到 60 帧的问题。浏览器改用与真实显示器刷新率同步的原生视图，本地 120 Hz 屏幕验证中，连续 2,500 次滚轮输入的合成帧率保持约 120 帧。
-- 保留浏览器弹层、响应式尺寸、中文输入、元素批注和截图操作。弹层遮挡页面时保留可截图的渲染状态，并串行处理截图与视口变更，避免标注截图超时或尺寸冲突。
-- 浏览器画中画按可见状态管理采集资源，隐藏后释放采集轨道；普通浏览器面板无需持续采集。其他平台保留共享纹理预览，并按所在显示器配置刷新率、保留精细滚轮增量。
+- 更新 Nocturne 界面，统一侧边栏、会话、设置、资源中心和自动化页面的布局、图标与字体；支持持久保存玻璃或纯色界面偏好，并完善键盘焦点与菜单导航。
+- 改进任务执行展示：结构化工作记录、计划与待确认操作更清晰，保留中断回复和任务终态；完善欢迎页继续任务、历史记录、群组上下文和消息时间显示。
+- 优化工作区 Dock、文件与 Markdown 编辑、终端和代码审查布局，改善窄窗口、高缩放及从右到左语言下的显示与操作。
+- 完善本地检出与托管 worktree 的工作区操作，支持在项目界面编辑 AGENTS.md，并通过 Artemis 任务链接打开已有会话。
+- 改进模型选择与配置、归档批量操作和更新提示，修复资源条目重复、状态显示、消息操作及多语言布局问题。
+- 刷新随附 Slack CLI 至 v4.12.0，并补充离线字体授权与界面回归验证。
 
 ## English
 
-- Fix uneven scrolling through conversation history by letting history turns own offscreen height measurements. Removing competing size estimates prevents page jumps even when no task is running.
-- Fix the macOS browser's fallback to 60 FPS during continuous scrolling. Native browser views follow the actual display refresh rate; a local 120 Hz display sustained approximately 120 compositor FPS across 2,500 consecutive wheel inputs.
-- Preserve browser overlays, responsive layouts, Chinese text input, element annotations and screenshots. Covered pages retain a capturable rendering surface, and screenshot and viewport commands run sequentially to prevent annotation timeouts and conflicting dimensions.
-- Manage browser picture-in-picture capture according to visibility and release capture tracks when hidden. Ordinary browser panels need no continuous capture. Other platforms retain shared-texture previews with display-aware frame rates and precise wheel deltas.
+- Introduce the Nocturne interface across the sidebar, conversations, settings, resource center and automations, with consistent layouts, icons and fonts. Save glass or solid appearance preferences and improve keyboard focus and menu navigation.
+- Clarify task progress with structured work records, plans and pending decisions while preserving interrupted replies and final task states. Improve task resumption, history, group context and message timestamps.
+- Refine the workspace dock, file and Markdown editors, terminal and code review layouts for narrow windows, high zoom and right-to-left languages.
+- Improve workspace operations for local checkouts and managed worktrees, add an in-app project AGENTS.md editor, and open existing conversations through Artemis task links.
+- Improve model selection and configuration, batch archive actions and update notices. Fix duplicate resource entries, status presentation, message actions and localized layouts.
+- Refresh the bundled Slack CLI to v4.12.0 and include offline font licensing and additional UI regression verification.

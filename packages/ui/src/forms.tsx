@@ -1042,10 +1042,13 @@ export function Select<Value extends string>({
         );
       }
       const anchorBounds = anchor.getBoundingClientRect();
-      const anchoredSpace = getComputedStyle(anchor).direction === "rtl"
-        ? anchorBounds.right - leftEdge - 8
-        : rightEdge - anchorBounds.left - 8;
-      const available = Math.max(0, Math.min(rightEdge - leftEdge - 16, anchoredSpace)) / (scale || 1);
+      const anchoredSpace =
+        getComputedStyle(anchor).direction === "rtl"
+          ? anchorBounds.right - leftEdge - 8
+          : rightEdge - anchorBounds.left - 8;
+      const available =
+        Math.max(0, Math.min(rightEdge - leftEdge - 16, anchoredSpace)) /
+        (scale || 1);
       element.style.maxInlineSize = `min(20rem, ${available}px)`;
       element.style.minInlineSize = `min(100%, 12rem, ${available}px)`;
       element.style.translate = "0px";
@@ -1290,7 +1293,9 @@ export function Select<Value extends string>({
                       ) : null}
                     </span>
                     <span aria-hidden="true" data-part="check">
-                      {option.value === value ? <ArtemisIcon name="check" width={14} height={14} /> : null}
+                      {option.value === value ? (
+                        <ArtemisIcon name="check" width={14} height={14} />
+                      ) : null}
                     </span>
                   </div>
                 );
@@ -1414,7 +1419,11 @@ function CheckControl({
           </span>
         ) : (
           <span aria-hidden="true" data-part="indicator">
-            {indeterminate ? "−" : resolvedChecked ? <ArtemisIcon name="check" width={12} height={12} /> : null}
+            {indeterminate ? (
+              "−"
+            ) : resolvedChecked ? (
+              <ArtemisIcon name="check" width={12} height={12} />
+            ) : null}
           </span>
         )}
         <span data-part="label">{label}</span>

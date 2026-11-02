@@ -55,10 +55,14 @@ export async function probeControlStates(page, output, record, seen) {
         if (
           hit &&
           !element.contains(hit) &&
-          !element.matches(".project-action, .project-new-thread, .thread-action") &&
-          !element.closest(
-            '[data-artemis-component="checkbox"], [data-artemis-component="switch"]',
-          )?.contains(hit)
+          !element.matches(
+            ".project-action, .project-new-thread, .thread-action",
+          ) &&
+          !element
+            .closest(
+              '[data-artemis-component="checkbox"], [data-artemis-component="switch"]',
+            )
+            ?.contains(hit)
         )
           return null;
         const owner = element.parentElement?.closest(
@@ -91,11 +95,20 @@ export async function probeControlStates(page, output, record, seen) {
             )
             .join(".") ?? "";
         const paintedContext = [];
-        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+        for (
+          let parent = element.parentElement;
+          parent;
+          parent = parent.parentElement
+        ) {
           const style = getComputedStyle(parent);
-          const state = parent.matches('[aria-selected=true],[aria-checked=true],[aria-pressed=true],.active,.selected,[data-state=checked]');
+          const state = parent.matches(
+            "[aria-selected=true],[aria-checked=true],[aria-pressed=true],.active,.selected,[data-state=checked]",
+          );
           if (state || style.backgroundColor !== "rgba(0, 0, 0, 0)")
-            paintedContext.push({ background: style.backgroundColor, selected: state });
+            paintedContext.push({
+              background: style.backgroundColor,
+              selected: state,
+            });
           if (parent.matches(".app-shell")) break;
         }
         return {

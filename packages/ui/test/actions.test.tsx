@@ -276,8 +276,12 @@ describe("Icon, Badge, and Status semantics", () => {
   it("keeps supplied status icons decorative and preserves the live text", () => {
     const { container, unmount } = render(
       <div>
-        <Badge icon={<TestIcon />} tone="success">Saved</Badge>
-        <Status icon={<TestIcon />} live="polite">Running</Status>
+        <Badge icon={<TestIcon />} tone="success">
+          Saved
+        </Badge>
+        <Status icon={<TestIcon />} live="polite">
+          Running
+        </Status>
       </div>,
     );
     const status = container.querySelector('[data-artemis-component="status"]');
@@ -287,7 +291,9 @@ describe("Icon, Badge, and Status semantics", () => {
     for (const icon of container.querySelectorAll("svg")) {
       expect(icon.parentElement?.getAttribute("aria-hidden")).toBe("true");
     }
-    expect(container.querySelector('[data-artemis-component="badge"]')?.textContent).toBe("Saved");
+    expect(
+      container.querySelector('[data-artemis-component="badge"]')?.textContent,
+    ).toBe("Saved");
     unmount();
   });
 

@@ -102,11 +102,22 @@ try {
           await page.locator(".workspace-csv-preview td").first().click();
         }
         if (state === "attachments") {
-          await page.getByText("retrieval-survey.pdf", { exact: false }).waitFor();
-          check("ready attachment and selected skill", {
-            attachments: await page.locator(".composer-image-strip .composer-resource-chip").count(),
-            skills: await page.locator(".composer-selected-skill").count(),
-          }, (await page.locator(".composer-image-strip .composer-resource-chip").count()) === 1 && (await page.locator(".composer-selected-skill").count()) === 1);
+          await page
+            .getByText("retrieval-survey.pdf", { exact: false })
+            .waitFor();
+          check(
+            "ready attachment and selected skill",
+            {
+              attachments: await page
+                .locator(".composer-image-strip .composer-resource-chip")
+                .count(),
+              skills: await page.locator(".composer-selected-skill").count(),
+            },
+            (await page
+              .locator(".composer-image-strip .composer-resource-chip")
+              .count()) === 1 &&
+              (await page.locator(".composer-selected-skill").count()) === 1,
+          );
         }
         if (state === "notifications")
           check(
@@ -195,18 +206,34 @@ try {
         );
         check("console health", record.errors, !record.errors.length);
         if (state === "attachments") {
-          const progress = await page.getByRole("progressbar").evaluate((element) => ({
-            value: element.getAttribute("aria-valuenow"),
-            height: element.getBoundingClientRect().height,
-            ratio: element.firstElementChild.getBoundingClientRect().width / element.getBoundingClientRect().width,
-          }));
-          check("copy progress uses its actual byte ratio", progress,
-            progress.value === "64" && Math.abs(progress.height - 3) < 0.01 && Math.abs(progress.ratio - 0.64) < 0.01);
+          const progress = await page
+            .getByRole("progressbar")
+            .evaluate((element) => ({
+              value: element.getAttribute("aria-valuenow"),
+              height: element.getBoundingClientRect().height,
+              ratio:
+                element.firstElementChild.getBoundingClientRect().width /
+                element.getBoundingClientRect().width,
+            }));
+          check(
+            "copy progress uses its actual byte ratio",
+            progress,
+            progress.value === "64" &&
+              Math.abs(progress.height - 3) < 0.01 &&
+              Math.abs(progress.ratio - 0.64) < 0.01,
+          );
           await page.locator(".attachment-import-item button").click();
-          await page.waitForFunction(() => !document.querySelector(".attachment-import-item"));
-          const cancellations = await page.evaluate(() => window.fixtureAttachmentCancellations);
-          check("cancel calls the supplied local fixture API once", cancellations,
-            JSON.stringify(cancellations) === JSON.stringify(["local-copy"]));
+          await page.waitForFunction(
+            () => !document.querySelector(".attachment-import-item"),
+          );
+          const cancellations = await page.evaluate(
+            () => window.fixtureAttachmentCancellations,
+          );
+          check(
+            "cancel calls the supplied local fixture API once",
+            cancellations,
+            JSON.stringify(cancellations) === JSON.stringify(["local-copy"]),
+          );
           const after = `${id}-cancelled.png`;
           await page.screenshot({ path: join(output, after), scale: "css" });
           record.screenshots.push(after);

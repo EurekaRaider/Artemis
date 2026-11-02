@@ -256,7 +256,9 @@ it.each(["plugins", "skills"] as const)(
       fireEvent.click(
         screen.getByRole("button", { name: "Manage installed capabilities" }),
       );
-      fireEvent.click(screen.getByRole("button", { name: /^Skills(?: \d+)?$/ }));
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Skills(?: \d+)?$/ }),
+      );
     }
     const toggles = await screen.findAllByRole("switch");
     expect(toggles).toHaveLength(2);

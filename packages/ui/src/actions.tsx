@@ -528,7 +528,12 @@ interface StatusTextProps {
 
 export type BadgeProps = StatusTextProps;
 
-export function Badge({ children, className, icon, tone = "neutral" }: BadgeProps) {
+export function Badge({
+  children,
+  className,
+  icon,
+  tone = "neutral",
+}: BadgeProps) {
   requireVisibleText(children);
   return (
     <span
@@ -538,7 +543,13 @@ export function Badge({ children, className, icon, tone = "neutral" }: BadgeProp
       data-state="ready"
       data-tone={tone}
     >
-      <span aria-hidden="true" data-part="indicator" data-icon={icon ? "true" : undefined}>{icon}</span>
+      <span
+        aria-hidden="true"
+        data-part="indicator"
+        data-icon={icon ? "true" : undefined}
+      >
+        {icon}
+      </span>
       <span data-part="label">{children}</span>
     </span>
   );
@@ -566,7 +577,13 @@ export function Status({
       data-tone={tone}
       role={live === undefined ? undefined : "status"}
     >
-      <span aria-hidden="true" data-part="indicator" data-icon={icon ? "true" : undefined}>{icon}</span>
+      <span
+        aria-hidden="true"
+        data-part="indicator"
+        data-icon={icon ? "true" : undefined}
+      >
+        {icon}
+      </span>
       <span data-part="label">{children}</span>
     </span>
   );

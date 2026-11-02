@@ -15321,13 +15321,13 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
       delta: review06BoardData
         ? "搜索已改为先规范化查询，再同时匹配标题与标签；空查询直接返回全部笔记。12 项测试全部通过，README 也补上了用法说明。\n\n接下来我想把 `feature/search` 推送到远程，方便你开 PR。"
         : [
-        "## Timeline migration verified",
-        "",
-        "- Public user and assistant message anatomy is active.",
-        "- [Conversation source](packages/ui/src/conversation.tsx) remains keyboard reachable.",
-        "",
-        `\`${longToken}\``,
-      ].join("\n"),
+            "## Timeline migration verified",
+            "",
+            "- Public user and assistant message anatomy is active.",
+            "- [Conversation source](packages/ui/src/conversation.tsx) remains keyboard reachable.",
+            "",
+            `\`${longToken}\``,
+          ].join("\n"),
     },
     {
       type: "turn.completed",

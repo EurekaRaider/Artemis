@@ -2,22 +2,10 @@
   "dynamicClassConsumers": [
     {
       "classNameSets": [
-        [
-          "nested-project",
-          "drop-before"
-        ],
-        [
-          "nested-project",
-          "drop-after"
-        ],
-        [
-          "project-thread-row",
-          "drop-before"
-        ],
-        [
-          "project-thread-row",
-          "drop-after"
-        ]
+        ["nested-project", "drop-before"],
+        ["nested-project", "drop-after"],
+        ["project-thread-row", "drop-before"],
+        ["project-thread-row", "drop-after"]
       ],
       "owner": "Desktop project and task drag ordering",
       "reason": "The finite before/after edge is appended to both draggable row class lists at runtime.",
@@ -41,14 +29,7 @@
       ]
     },
     {
-      "classNameSets": [
-        [
-          "composer-notice"
-        ],
-        [
-          "view-notice"
-        ]
-      ],
+      "classNameSets": [["composer-notice"], ["view-notice"]],
       "owner": "Desktop transient notices",
       "reason": "TransientNotice appends the finite composer/view placement to the shared notice class.",
       "sources": [
@@ -64,30 +45,12 @@
     },
     {
       "classNameSets": [
-        [
-          "automation-run-dot",
-          "starting"
-        ],
-        [
-          "automation-run-dot",
-          "running"
-        ],
-        [
-          "automation-run-dot",
-          "waiting-approval"
-        ],
-        [
-          "automation-run-dot",
-          "completed"
-        ],
-        [
-          "automation-run-dot",
-          "failed"
-        ],
-        [
-          "automation-run-dot",
-          "skipped"
-        ]
+        ["automation-run-dot", "starting"],
+        ["automation-run-dot", "running"],
+        ["automation-run-dot", "waiting-approval"],
+        ["automation-run-dot", "completed"],
+        ["automation-run-dot", "failed"],
+        ["automation-run-dot", "skipped"]
       ],
       "owner": "Desktop automation run status",
       "reason": "Automation rows append the protocol-owned finite run state to the status dot class.",
@@ -104,14 +67,8 @@
     },
     {
       "classNameSets": [
-        [
-          "agent-team-message",
-          "blocker"
-        ],
-        [
-          "agent-team-message",
-          "handoff"
-        ]
+        ["agent-team-message", "blocker"],
+        ["agent-team-message", "handoff"]
       ],
       "owner": "Desktop agent-team collaboration log",
       "reason": "Agent-team messages append the protocol-owned finite message kind to the collaboration row class.",
@@ -128,30 +85,12 @@
     },
     {
       "classNameSets": [
-        [
-          "status-dot",
-          "completed"
-        ],
-        [
-          "status-dot",
-          "running"
-        ],
-        [
-          "status-dot",
-          "queued"
-        ],
-        [
-          "status-dot",
-          "waiting-approval"
-        ],
-        [
-          "status-dot",
-          "waiting-user-input"
-        ],
-        [
-          "status-dot",
-          "failed"
-        ]
+        ["status-dot", "completed"],
+        ["status-dot", "running"],
+        ["status-dot", "queued"],
+        ["status-dot", "waiting-approval"],
+        ["status-dot", "waiting-user-input"],
+        ["status-dot", "failed"]
       ],
       "owner": "Desktop task status indicators",
       "reason": "Task and presentation status unions are appended to the shared status-dot class at runtime.",
@@ -167,12 +106,7 @@
       ]
     },
     {
-      "classNameSets": [
-        [
-          "turn-status",
-          "running"
-        ]
-      ],
+      "classNameSets": [["turn-status", "running"]],
       "owner": "Desktop active turn status",
       "reason": "The initial active turn uses a running status row until a work record is available.",
       "sources": [
@@ -184,14 +118,8 @@
     },
     {
       "classNameSets": [
-        [
-          "child-agent-card",
-          "suspect"
-        ],
-        [
-          "child-agent-card",
-          "stalled"
-        ]
+        ["child-agent-card", "suspect"],
+        ["child-agent-card", "stalled"]
       ],
       "owner": "Desktop child-agent status surfaces",
       "reason": "Child status and health finite domains are appended to card and panel classes at runtime.",
@@ -208,14 +136,8 @@
     },
     {
       "classNameSets": [
-        [
-          "review-line",
-          "addition"
-        ],
-        [
-          "review-line",
-          "deletion"
-        ]
+        ["review-line", "addition"],
+        ["review-line", "deletion"]
       ],
       "owner": "Public Review diff lines",
       "reason": "ReviewDiffLine appends its finite line kind to the review-line class at runtime.",
@@ -228,42 +150,15 @@
     },
     {
       "classNameSets": [
-        [
-          "syntax-token",
-          "keyword"
-        ],
-        [
-          "syntax-token",
-          "type"
-        ],
-        [
-          "syntax-token",
-          "function"
-        ],
-        [
-          "syntax-token",
-          "string"
-        ],
-        [
-          "syntax-token",
-          "comment"
-        ],
-        [
-          "syntax-token",
-          "number"
-        ],
-        [
-          "syntax-token",
-          "variable"
-        ],
-        [
-          "syntax-token",
-          "operator"
-        ],
-        [
-          "syntax-token",
-          "punctuation"
-        ]
+        ["syntax-token", "keyword"],
+        ["syntax-token", "type"],
+        ["syntax-token", "function"],
+        ["syntax-token", "string"],
+        ["syntax-token", "comment"],
+        ["syntax-token", "number"],
+        ["syntax-token", "variable"],
+        ["syntax-token", "operator"],
+        ["syntax-token", "punctuation"]
       ],
       "owner": "Desktop workspace syntax preview",
       "reason": "The finite tokenizer kind is appended to syntax-token spans at runtime.",
@@ -276,14 +171,8 @@
     },
     {
       "classNameSets": [
-        [
-          "sources-panel-entry",
-          "attachment"
-        ],
-        [
-          "sources-panel-icon",
-          "web"
-        ]
+        ["sources-panel-entry", "attachment"],
+        ["sources-panel-icon", "web"]
       ],
       "owner": "Public Sources surface composition",
       "reason": "Desktop caller classes are composed with the public Source entry and icon base classes.",
@@ -307,12 +196,7 @@
       ]
     },
     {
-      "classNameSets": [
-        [
-          "external-link-icon",
-          "favicon-loaded"
-        ]
-      ],
+      "classNameSets": [["external-link-icon", "favicon-loaded"]],
       "owner": "Desktop Markdown external-link icons",
       "reason": "The favicon-loaded state is added to the generated external-link icon after its image loads.",
       "sources": [
@@ -328,33 +212,15 @@
     },
     {
       "classNameSets": [
-        [
-          "custom-agent-color-gray"
-        ],
-        [
-          "custom-agent-color-red"
-        ],
-        [
-          "custom-agent-color-orange"
-        ],
-        [
-          "custom-agent-color-yellow"
-        ],
-        [
-          "custom-agent-color-green"
-        ],
-        [
-          "custom-agent-color-teal"
-        ],
-        [
-          "custom-agent-color-blue"
-        ],
-        [
-          "custom-agent-color-purple"
-        ],
-        [
-          "custom-agent-color-pink"
-        ]
+        ["custom-agent-color-gray"],
+        ["custom-agent-color-red"],
+        ["custom-agent-color-orange"],
+        ["custom-agent-color-yellow"],
+        ["custom-agent-color-green"],
+        ["custom-agent-color-teal"],
+        ["custom-agent-color-blue"],
+        ["custom-agent-color-purple"],
+        ["custom-agent-color-pink"]
       ],
       "owner": "Desktop custom sub-agent identity dots (D#152)",
       "reason": "The definition color is one of nine fixed tokens appended to the shared dot class at runtime; the token set is pinned by customAgentColorToken.",

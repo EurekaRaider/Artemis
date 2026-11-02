@@ -109,8 +109,11 @@ it.each(["completed", "cancelled", "failed"] as const)(
     if (status === "completed") {
       expect(container.querySelector(".work-record-summary")).toBeNull();
     } else {
-      expect(container.querySelector(".work-record-summary > svg")).toHaveAttribute(
-        "data-artemis-icon", status === "failed" ? "alert" : "stop",
+      expect(
+        container.querySelector(".work-record-summary > svg"),
+      ).toHaveAttribute(
+        "data-artemis-icon",
+        status === "failed" ? "alert" : "stop",
       );
     }
     expect(container.querySelector("details.work-record")).toBeNull();

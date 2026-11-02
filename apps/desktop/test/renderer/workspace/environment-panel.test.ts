@@ -191,7 +191,9 @@ describe("task environment panel state", () => {
       'className="environment-agent-team-trigger"',
     );
     expect(panelSource).toContain("data-status={agent.status}");
-    expect(panelSource).toContain("<AgentActivityStatus child={agent} locale={locale} />");
+    expect(panelSource).toContain(
+      "<AgentActivityStatus child={agent} locale={locale} />",
+    );
     expect(panelSource).not.toContain("function AgentIcon(");
     expect(stylesSource).toContain(
       ".environment-row-icon svg:not(.child-agent-mark)",

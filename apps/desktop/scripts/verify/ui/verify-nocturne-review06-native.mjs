@@ -138,19 +138,21 @@ const baseline = await page.evaluate(async () => {
     ),
   };
 });
-const metadata = await application.evaluate(({ app, BrowserWindow, nativeTheme }) => ({
-  packaged: app.isPackaged,
-  arch: process.arch,
-  platform: process.platform,
-  executable: process.execPath,
-  profile: app.getPath("userData"),
-  protocol: app.isDefaultProtocolClient("artemis"),
-  reducedTransparency: nativeTheme.prefersReducedTransparency,
-  pid: process.pid,
-  windowId: BrowserWindow.getAllWindows()[0].id,
-  mediaSourceId: BrowserWindow.getAllWindows()[0].getMediaSourceId(),
-  bounds: BrowserWindow.getAllWindows()[0].getBounds(),
-}));
+const metadata = await application.evaluate(
+  ({ app, BrowserWindow, nativeTheme }) => ({
+    packaged: app.isPackaged,
+    arch: process.arch,
+    platform: process.platform,
+    executable: process.execPath,
+    profile: app.getPath("userData"),
+    protocol: app.isDefaultProtocolClient("artemis"),
+    reducedTransparency: nativeTheme.prefersReducedTransparency,
+    pid: process.pid,
+    windowId: BrowserWindow.getAllWindows()[0].id,
+    mediaSourceId: BrowserWindow.getAllWindows()[0].getMediaSourceId(),
+    bounds: BrowserWindow.getAllWindows()[0].getBounds(),
+  }),
+);
 checks.push({
   name: "actual packaged arm64 application",
   actual: metadata,
@@ -159,7 +161,11 @@ checks.push({
     metadata.arch === "arm64" &&
     metadata.platform === "darwin",
 });
-checks.push({ name: "packaged app registered as the macOS task URL handler", actual: metadata.protocol, pass: metadata.protocol });
+checks.push({
+  name: "packaged app registered as the macOS task URL handler",
+  actual: metadata.protocol,
+  pass: metadata.protocol,
+});
 const missing = "artemis://thread/5529457e-48aa-4e0d-938e-d77e3d9c250e";
 const html = `<!doctype html><meta charset="utf-8"><title>Artemis local link verification</title><body style="font:18px system-ui;padding:32px"><h1>Artemis 本地任务链接验证</h1>${cases.map((item) => `<p><a target="_blank" href="artemis://thread/${item.id}">${item.archived ? "打开本地归档任务" : "打开本地任务"}</a></p>`).join("")}<p><a target="_blank" href="${missing}">打开不存在的任务</a></p><p>只使用本地合成任务；没有上传、发布或模型调用。</p></body>`;
 const server = createServer((_request, response) => {
@@ -179,11 +185,25 @@ console.log(
 // three known links are handed to macOS; it never calls Artemis IPC or its URL
 // callback directly. This is not a Safari/Chrome certification.
 const browserEntry = join(profile, "link-browser.cjs");
-await writeFile(browserEntry, `const {app,BrowserWindow,shell}=require('electron');app.setPath('userData',${JSON.stringify(join(profile, "link-browser-profile"))});app.whenReady().then(()=>{const w=new BrowserWindow({width:540,height:440,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});const allowed=new Set(${JSON.stringify([...cases.map(item => `artemis://thread/${item.id}`), missing])});w.webContents.setWindowOpenHandler(({url})=>{if(allowed.has(url))void shell.openExternal(url);return {action:'deny'};});w.loadURL(${JSON.stringify(url)});});`);
-const linkBrowser = await _electron.launch({ executablePath: require("electron"), args: [browserEntry], env });
+await writeFile(
+  browserEntry,
+  `const {app,BrowserWindow,shell}=require('electron');app.setPath('userData',${JSON.stringify(join(profile, "link-browser-profile"))});app.whenReady().then(()=>{const w=new BrowserWindow({width:540,height:440,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});const allowed=new Set(${JSON.stringify([...cases.map((item) => `artemis://thread/${item.id}`), missing])});w.webContents.setWindowOpenHandler(({url})=>{if(allowed.has(url))void shell.openExternal(url);return {action:'deny'};});w.loadURL(${JSON.stringify(url)});});`,
+);
+const linkBrowser = await _electron.launch({
+  executablePath: require("electron"),
+  args: [browserEntry],
+  env,
+});
 const linkPage = await linkBrowser.firstWindow();
-await linkPage.getByRole("heading", { name: "Artemis 本地任务链接验证" }).waitFor();
-checks.push({ name: "external input path", actual: "real HTML pointer click → Electron shell.openExternal → macOS URL handler → packaged Artemis", pass: true });
+await linkPage
+  .getByRole("heading", { name: "Artemis 本地任务链接验证" })
+  .waitFor();
+checks.push({
+  name: "external input path",
+  actual:
+    "real HTML pointer click → Electron shell.openExternal → macOS URL handler → packaged Artemis",
+  pass: true,
+});
 try {
   for (const item of cases) {
     await linkPage.locator(`a[href="artemis://thread/${item.id}"]`).click();
@@ -223,11 +243,31 @@ try {
     .getByText("找不到这个任务", { exact: true })
     .waitFor({ timeout: 300000 });
   checks.push({ name: "missing task notification", pass: true });
-  const noticePosition = await page.locator(".transient-notice").evaluate((notice) => {
-    const rect = notice.getBoundingClientRect(), footer = document.querySelector(".archived-readonly").getBoundingClientRect();
-    return { notice: rect.toJSON(), footer: footer.toJSON(), insideComposerColumn: !!notice.closest(".composer-wrap"), gap: footer.top - rect.bottom, headerTop: document.querySelector(".workspace-header").getBoundingClientRect().top };
+  const noticePosition = await page
+    .locator(".transient-notice")
+    .evaluate((notice) => {
+      const rect = notice.getBoundingClientRect(),
+        footer = document
+          .querySelector(".archived-readonly")
+          .getBoundingClientRect();
+      return {
+        notice: rect.toJSON(),
+        footer: footer.toJSON(),
+        insideComposerColumn: !!notice.closest(".composer-wrap"),
+        gap: footer.top - rect.bottom,
+        headerTop: document
+          .querySelector(".workspace-header")
+          .getBoundingClientRect().top,
+      };
+    });
+  checks.push({
+    name: "missing-task notice stays above read-only footer",
+    actual: noticePosition,
+    pass:
+      noticePosition.insideComposerColumn &&
+      Math.abs(noticePosition.gap - 10) <= 1 &&
+      noticePosition.headerTop < 1,
   });
-  checks.push({ name: "missing-task notice stays above read-only footer", actual: noticePosition, pass: noticePosition.insideComposerColumn && Math.abs(noticePosition.gap - 10) <= 1 && noticePosition.headerTop < 1 });
   const after = await page.evaluate(async () => {
     const snapshot = await window.artemis.getSnapshot();
     return {
@@ -251,84 +291,242 @@ try {
   });
   await linkBrowser.close();
   const materials = [];
-  for (const variant of [{ theme: "dark", locale: "zh-CN" }, { theme: "light", locale: "zh-CN" }, { theme: "dark", locale: "ar" }]) {
-    await application.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id).setContentSize(1440, 900), metadata.windowId);
+  for (const variant of [
+    { theme: "dark", locale: "zh-CN" },
+    { theme: "light", locale: "zh-CN" },
+    { theme: "dark", locale: "ar" },
+  ]) {
+    await application.evaluate(
+      ({ BrowserWindow }, id) =>
+        BrowserWindow.fromId(id).setContentSize(1440, 900),
+      metadata.windowId,
+    );
     await page.evaluate(async ({ theme, locale }) => {
       await window.artemis.setLanguage(locale);
       await window.artemis.setTheme(theme);
     }, variant);
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.waitForFunction(({ locale, theme }) => {
-      const sidebar = document.querySelector('.sidebar > [data-part="main"]');
-      if (!sidebar) return false;
-      const background = getComputedStyle(sidebar).backgroundColor;
-      return document.documentElement.lang === locale &&
-        document.documentElement.dir === (locale === "ar" ? "rtl" : "ltr") &&
-        background.includes(theme === "dark" ? "14, 15, 19" : "244, 245, 248");
-    }, variant, { timeout: 15000 });
+    await page.waitForFunction(
+      ({ locale, theme }) => {
+        const sidebar = document.querySelector('.sidebar > [data-part="main"]');
+        if (!sidebar) return false;
+        const background = getComputedStyle(sidebar).backgroundColor;
+        return (
+          document.documentElement.lang === locale &&
+          document.documentElement.dir === (locale === "ar" ? "rtl" : "ltr") &&
+          background.includes(theme === "dark" ? "14, 15, 19" : "244, 245, 248")
+        );
+      },
+      variant,
+      { timeout: 15000 },
+    );
     const state = await page.locator(".app-shell").evaluate((shell) => ({
       language: document.documentElement.lang,
       material: shell.dataset.windowMaterial,
       direction: document.documentElement.dir,
-      sidebar: document.querySelector(".sidebar").getBoundingClientRect().toJSON(),
-        sidebarBackground: getComputedStyle(document.querySelector('.sidebar > [data-part="main"]')).backgroundColor,
+      sidebar: document
+        .querySelector(".sidebar")
+        .getBoundingClientRect()
+        .toJSON(),
+      sidebarBackground: getComputedStyle(
+        document.querySelector('.sidebar > [data-part="main"]'),
+      ).backgroundColor,
     }));
-    checks.push({ name: `native material locale/theme ${variant.locale}/${variant.theme}`, actual: state,
-      pass: state.language === variant.locale && state.direction === (variant.locale === "ar" ? "rtl" : "ltr") && state.material === "vibrancy" });
-    for (const [name, color] of [["blue", "#2563a8"], ["gold", "#b86b20"]]) {
-      await application.evaluate(async ({ app, BrowserWindow }, { color, id }) => {
-        const main = BrowserWindow.fromId(id);
-        const bounds = main.getBounds();
-        app.__reviewBackdrop ??= new BrowserWindow({ ...bounds, frame: false, focusable: false, show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
-        app.__reviewBackdrop.setBounds(bounds);
-        await app.__reviewBackdrop.loadURL(`data:text/html,<body style="margin:0;background:${color.replace("#", "%23")};height:100vh"></body>`);
-        app.__reviewBackdrop.showInactive();
-        main.show();
-        main.focus();
-      }, { color, id: metadata.windowId });
+    checks.push({
+      name: `native material locale/theme ${variant.locale}/${variant.theme}`,
+      actual: state,
+      pass:
+        state.language === variant.locale &&
+        state.direction === (variant.locale === "ar" ? "rtl" : "ltr") &&
+        state.material === "vibrancy",
+    });
+    for (const [name, color] of [
+      ["blue", "#2563a8"],
+      ["gold", "#b86b20"],
+    ]) {
+      await application.evaluate(
+        async ({ app, BrowserWindow }, { color, id }) => {
+          const main = BrowserWindow.fromId(id);
+          const bounds = main.getBounds();
+          app.__reviewBackdrop ??= new BrowserWindow({
+            ...bounds,
+            frame: false,
+            focusable: false,
+            show: false,
+            webPreferences: {
+              sandbox: true,
+              contextIsolation: true,
+              nodeIntegration: false,
+            },
+          });
+          app.__reviewBackdrop.setBounds(bounds);
+          await app.__reviewBackdrop.loadURL(
+            `data:text/html,<body style="margin:0;background:${color.replace("#", "%23")};height:100vh"></body>`,
+          );
+          app.__reviewBackdrop.showInactive();
+          main.show();
+          main.focus();
+        },
+        { color, id: metadata.windowId },
+      );
       await page.waitForTimeout(600);
-      const captured = await application.evaluate(async ({ BrowserWindow, desktopCapturer, screen }, windowId) => {
-        const window = BrowserWindow.fromId(windowId);
-        if (!window.isFocused()) throw new Error("Native app lost foreground focus before compositor capture");
-        if (!window.webContents.getURL().includes("/dist-renderer/index.html")) throw new Error("Capture target is not the packaged Artemis renderer");
-        const id = window.getMediaSourceId();
-        const sources = await desktopCapturer.getSources({ types: ["window"], thumbnailSize: { width: 1440, height: 900 } });
-        const source = sources.find((item) => item.id === id || item.id.split(":")[1] === id.split(":")[1]);
-        if (!source || source.thumbnail.isEmpty()) throw new Error("The OS did not supply the packaged window's composited thumbnail");
-        const bounds = window.getBounds(), display = screen.getDisplayMatching(bounds);
-        const desktops = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: display.size.width * display.scaleFactor, height: display.size.height * display.scaleFactor } });
-        const desktop = desktops.find((item) => item.display_id === String(display.id)) ?? (desktops.length === 1 ? desktops[0] : undefined);
-        if (!desktop || desktop.thumbnail.isEmpty()) throw new Error("The OS did not supply the composited display capture");
-        return { size: source.thumbnail.getSize(), sourceId: source.id, png: source.thumbnail.toPNG().toString("base64"), desktopPng: desktop.thumbnail.toPNG().toString("base64"), bounds, display: { bounds: display.bounds, scaleFactor: display.scaleFactor } };
-      }, metadata.windowId);
-      if (captured.sourceId.split(":")[1] !== metadata.mediaSourceId.split(":")[1]) throw new Error("OS capture source changed to a different native window");
+      const captured = await application.evaluate(
+        async ({ BrowserWindow, desktopCapturer, screen }, windowId) => {
+          const window = BrowserWindow.fromId(windowId);
+          if (!window.isFocused())
+            throw new Error(
+              "Native app lost foreground focus before compositor capture",
+            );
+          if (
+            !window.webContents.getURL().includes("/dist-renderer/index.html")
+          )
+            throw new Error(
+              "Capture target is not the packaged Artemis renderer",
+            );
+          const id = window.getMediaSourceId();
+          const sources = await desktopCapturer.getSources({
+            types: ["window"],
+            thumbnailSize: { width: 1440, height: 900 },
+          });
+          const source = sources.find(
+            (item) =>
+              item.id === id || item.id.split(":")[1] === id.split(":")[1],
+          );
+          if (!source || source.thumbnail.isEmpty())
+            throw new Error(
+              "The OS did not supply the packaged window's composited thumbnail",
+            );
+          const bounds = window.getBounds(),
+            display = screen.getDisplayMatching(bounds);
+          const desktops = await desktopCapturer.getSources({
+            types: ["screen"],
+            thumbnailSize: {
+              width: display.size.width * display.scaleFactor,
+              height: display.size.height * display.scaleFactor,
+            },
+          });
+          const desktop =
+            desktops.find((item) => item.display_id === String(display.id)) ??
+            (desktops.length === 1 ? desktops[0] : undefined);
+          if (!desktop || desktop.thumbnail.isEmpty())
+            throw new Error(
+              "The OS did not supply the composited display capture",
+            );
+          return {
+            size: source.thumbnail.getSize(),
+            sourceId: source.id,
+            png: source.thumbnail.toPNG().toString("base64"),
+            desktopPng: desktop.thumbnail.toPNG().toString("base64"),
+            bounds,
+            display: {
+              bounds: display.bounds,
+              scaleFactor: display.scaleFactor,
+            },
+          };
+        },
+        metadata.windowId,
+      );
+      if (
+        captured.sourceId.split(":")[1] !== metadata.mediaSourceId.split(":")[1]
+      )
+        throw new Error(
+          "OS capture source changed to a different native window",
+        );
       const { createCanvas, loadImage } = require("@napi-rs/canvas");
       const image = await loadImage(Buffer.from(captured.png, "base64"));
-      const canvas = createCanvas(image.width, image.height), context = canvas.getContext("2d");
+      const canvas = createCanvas(image.width, image.height),
+        context = canvas.getContext("2d");
       context.drawImage(image, 0, 0);
       const colors = new Set();
-      for (let y = 40; y < image.height; y += 16) for (let x = 10; x < image.width; x += 16) colors.add([...context.getImageData(x, y, 1, 1).data].join(","));
-      if (colors.size < 30) throw new Error("Native screenshot lacks the application's visible UI; reject a uniform backdrop capture");
+      for (let y = 40; y < image.height; y += 16)
+        for (let x = 10; x < image.width; x += 16)
+          colors.add([...context.getImageData(x, y, 1, 1).data].join(","));
+      if (colors.size < 30)
+        throw new Error(
+          "Native screenshot lacks the application's visible UI; reject a uniform backdrop capture",
+        );
       // Persist only our app's rectangle, never the rest of the user's desktop.
-      const desktop = await loadImage(Buffer.from(captured.desktopPng, "base64"));
-      const sx = desktop.width / captured.display.bounds.width, sy = desktop.height / captured.display.bounds.height;
-      const crop = { x: (captured.bounds.x - captured.display.bounds.x) * sx, y: (captured.bounds.y - captured.display.bounds.y) * sy, width: captured.bounds.width * sx, height: captured.bounds.height * sy };
-      if (crop.x < 0 || crop.y < 0 || crop.x + crop.width > desktop.width || crop.y + crop.height > desktop.height) throw new Error("The native app is clipped by the display; compositor proof must show the whole app");
-      const composited = createCanvas(captured.bounds.width, captured.bounds.height);
+      const desktop = await loadImage(
+        Buffer.from(captured.desktopPng, "base64"),
+      );
+      const sx = desktop.width / captured.display.bounds.width,
+        sy = desktop.height / captured.display.bounds.height;
+      const crop = {
+        x: (captured.bounds.x - captured.display.bounds.x) * sx,
+        y: (captured.bounds.y - captured.display.bounds.y) * sy,
+        width: captured.bounds.width * sx,
+        height: captured.bounds.height * sy,
+      };
+      if (
+        crop.x < 0 ||
+        crop.y < 0 ||
+        crop.x + crop.width > desktop.width ||
+        crop.y + crop.height > desktop.height
+      )
+        throw new Error(
+          "The native app is clipped by the display; compositor proof must show the whole app",
+        );
+      const composited = createCanvas(
+        captured.bounds.width,
+        captured.bounds.height,
+      );
       const compositedContext = composited.getContext("2d");
-      compositedContext.drawImage(desktop, crop.x, crop.y, crop.width, crop.height, 0, 0, composited.width, composited.height);
+      compositedContext.drawImage(
+        desktop,
+        crop.x,
+        crop.y,
+        crop.width,
+        crop.height,
+        0,
+        0,
+        composited.width,
+        composited.height,
+      );
       const screenColors = new Set();
-      for (let y = 40; y < composited.height; y += 16) for (let x = 10; x < composited.width; x += 16) screenColors.add([...compositedContext.getImageData(x, y, 1, 1).data].join(","));
-      if (screenColors.size < 30) throw new Error("Composited display capture lacks the app UI; permission/occlusion must be resolved before accepting it");
+      for (let y = 40; y < composited.height; y += 16)
+        for (let x = 10; x < composited.width; x += 16)
+          screenColors.add(
+            [...compositedContext.getImageData(x, y, 1, 1).data].join(","),
+          );
+      if (screenColors.size < 30)
+        throw new Error(
+          "Composited display capture lacks the app UI; permission/occlusion must be resolved before accepting it",
+        );
       const filename = `native-glass-${variant.theme}-${variant.locale}-${name}.png`;
-      await writeFile(join(output, filename), Buffer.from(captured.png, "base64"));
-      const screenFilename = filename.replace("native-glass", "native-screen-glass");
-      await writeFile(join(output, screenFilename), composited.toBuffer("image/png"));
-      materials.push({ ...variant, backdrop: name, screenshot: screenFilename, windowThumbnail: filename, state, size: { width: composited.width, height: composited.height }, sourceId: captured.sourceId, sampledColors: screenColors.size, display: captured.display, kind: "app rectangle cropped from the actual macOS display compositor; window thumbnail retained separately" });
+      await writeFile(
+        join(output, filename),
+        Buffer.from(captured.png, "base64"),
+      );
+      const screenFilename = filename.replace(
+        "native-glass",
+        "native-screen-glass",
+      );
+      await writeFile(
+        join(output, screenFilename),
+        composited.toBuffer("image/png"),
+      );
+      materials.push({
+        ...variant,
+        backdrop: name,
+        screenshot: screenFilename,
+        windowThumbnail: filename,
+        state,
+        size: { width: composited.width, height: composited.height },
+        sourceId: captured.sourceId,
+        sampledColors: screenColors.size,
+        display: captured.display,
+        kind: "app rectangle cropped from the actual macOS display compositor; window thumbnail retained separately",
+      });
     }
   }
-  await writeFile(join(output, "native-materials.json"), JSON.stringify(materials, null, 2));
-  await writeFile(join(output, "native-report.json"), JSON.stringify({ metadata, checks, errors, materials }, null, 2));
+  await writeFile(
+    join(output, "native-materials.json"),
+    JSON.stringify(materials, null, 2),
+  );
+  await writeFile(
+    join(output, "native-report.json"),
+    JSON.stringify({ metadata, checks, errors, materials }, null, 2),
+  );
   console.log("LINK CHECKS AND NATIVE COMPOSITOR CAPTURES COMPLETE");
 } finally {
   await linkBrowser.close().catch(() => {});

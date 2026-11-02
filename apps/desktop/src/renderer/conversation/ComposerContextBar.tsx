@@ -479,7 +479,9 @@ export function ComposerContextBar({
                         {selected ? (
                           <CheckIcon />
                         ) : (
-                          <bdi className="composer-project-path">{project.path}</bdi>
+                          <bdi className="composer-project-path">
+                            {project.path}
+                          </bdi>
                         )}
                       </i>
                     </button>

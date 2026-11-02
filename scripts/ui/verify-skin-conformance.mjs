@@ -431,23 +431,42 @@ const expectedCssRules = new Map([
   ],
   [
     `normal|${BADGE} [data-part="indicator"][data-icon="true"], ${STATUS} [data-part="indicator"][data-icon="true"]`,
-    { display: "inline-flex", "align-items": "center", "inline-size": "auto", "block-size": "auto", background: "transparent", "border-radius": "0" },
+    {
+      display: "inline-flex",
+      "align-items": "center",
+      "inline-size": "auto",
+      "block-size": "auto",
+      background: "transparent",
+      "border-radius": "0",
+    },
   ],
   [
     `normal|${BADGE}[data-tone="info"], ${STATUS}[data-tone="info"]`,
-    { color: "var(--artemis-color-status-info)", background: "var(--artemis-color-status-info-subtle)" },
+    {
+      color: "var(--artemis-color-status-info)",
+      background: "var(--artemis-color-status-info-subtle)",
+    },
   ],
   [
     `normal|${BADGE}[data-tone="success"], ${STATUS}[data-tone="success"]`,
-    { color: "var(--artemis-color-status-success-text)", background: "var(--artemis-color-status-success-subtle)" },
+    {
+      color: "var(--artemis-color-status-success-text)",
+      background: "var(--artemis-color-status-success-subtle)",
+    },
   ],
   [
     `normal|${BADGE}[data-tone="warning"], ${STATUS}[data-tone="warning"]`,
-    { color: "var(--artemis-color-status-warning-text)", background: "var(--artemis-color-status-warning-subtle)" },
+    {
+      color: "var(--artemis-color-status-warning-text)",
+      background: "var(--artemis-color-status-warning-subtle)",
+    },
   ],
   [
     `normal|${BADGE}[data-tone="danger"], ${STATUS}[data-tone="danger"]`,
-    { color: "var(--artemis-color-status-danger-text)", background: "var(--artemis-color-status-danger-subtle)" },
+    {
+      color: "var(--artemis-color-status-danger-text)",
+      background: "var(--artemis-color-status-danger-subtle)",
+    },
   ],
   [
     `normal|${BADGE}[data-tone="info"] [data-part="indicator"], ${STATUS}[data-tone="info"] [data-part="indicator"]`,
@@ -657,8 +676,7 @@ const expectedCssRules = new Map([
     {
       position: "absolute",
       "z-index": "20",
-      "inset-block-start":
-        "calc(var(--select-anchor-end, 100%) + 10px)",
+      "inset-block-start": "calc(var(--select-anchor-end, 100%) + 10px)",
       "inset-inline-start": "0",
       "box-sizing": "border-box",
       "inline-size": "max-content",

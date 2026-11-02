@@ -236,8 +236,7 @@ try {
     assert(
       "conversation-landmarks",
       components("conversation-surface")[0]?.ariaLabel === "Task" &&
-        components("timeline-viewport")[0]?.ariaLabel ===
-          "Task history",
+        components("timeline-viewport")[0]?.ariaLabel === "Task history",
       {
         conversation: components("conversation-surface")[0]?.ariaLabel,
         timeline: components("timeline-viewport")[0]?.ariaLabel,

@@ -85,7 +85,9 @@ it("shows localized provenance and the Windows skill parent directory in RTL", a
       />
     </div>,
   );
-  await userEvent.click(screen.getByRole("button", { name: /^技能(?: \d+)?$/ }));
+  await userEvent.click(
+    screen.getByRole("button", { name: /^技能(?: \d+)?$/ }),
+  );
   await screen.findByText("document-helper");
   const sources = [...container.querySelectorAll(".resource-skill-source")].map(
     (element) => element.textContent,

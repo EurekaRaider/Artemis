@@ -57,24 +57,53 @@ try {
   const { createCanvas, loadImage } = require("@napi-rs/canvas");
   const source = await readFile(sourcePath, "utf8");
   const render = async (svg, size) => {
-    const image = await loadImage(Buffer.from(svg.replace('width="1024" height="1024"', `width="${size}" height="${size}"`)));
+    const image = await loadImage(
+      Buffer.from(
+        svg.replace(
+          'width="1024" height="1024"',
+          `width="${size}" height="${size}"`,
+        ),
+      ),
+    );
     const canvas = createCanvas(size, size);
     canvas.getContext("2d").drawImage(image, 0, 0, size, size);
     return canvas.toBuffer("image/png");
   };
   const fullIcon = await render(source, 1024);
   await writeFile(join(desktopRoot, "build", "icon-macos.png"), fullIcon);
-  await writeFile(join(desktopRoot, "build", "icon.icon", "Assets", "Artemis.png"), fullIcon);
-  for (const [group, filename] of [["background", "ArtemisBackground.png"], ["foreground", "ArtemisForeground-v2.png"]]) {
-    const layer = source.replace(/<g id="(background|foreground)"[\s\S]*?<\/g>/gu, (match, id) => id === group ? match : "");
-    await writeFile(join(desktopRoot, "build", "icon.icon", "Assets", filename), await render(layer, 1024));
+  await writeFile(
+    join(desktopRoot, "build", "icon.icon", "Assets", "Artemis.png"),
+    fullIcon,
+  );
+  for (const [group, filename] of [
+    ["background", "ArtemisBackground.png"],
+    ["foreground", "ArtemisForeground-v2.png"],
+  ]) {
+    const layer = source.replace(
+      /<g id="(background|foreground)"[\s\S]*?<\/g>/gu,
+      (match, id) => (id === group ? match : ""),
+    );
+    await writeFile(
+      join(desktopRoot, "build", "icon.icon", "Assets", filename),
+      await render(layer, 1024),
+    );
   }
-  await writeFile(join(desktopRoot, "build", "icon.png"), await render(await readFile(join(desktopRoot, "build", "icon.svg"), "utf8"), 1024));
+  await writeFile(
+    join(desktopRoot, "build", "icon.png"),
+    await render(
+      await readFile(join(desktopRoot, "build", "icon.svg"), "utf8"),
+      1024,
+    ),
+  );
   const pngBySize = new Map();
   for (const size of new Set(representations.map((item) => item.size))) {
     let svg = source;
-    if (size < 128) svg = svg.replace(/<rect data-outline-detail="true"[^>]*\/>/u, "");
-    if (size <= 32) svg = svg.replace(/<path data-large-detail="true"[^>]*\/>/u, "").replace("scale(0.62)", size === 16 ? "scale(0.7)" : "scale(0.66)");
+    if (size < 128)
+      svg = svg.replace(/<rect data-outline-detail="true"[^>]*\/>/u, "");
+    if (size <= 32)
+      svg = svg
+        .replace(/<path data-large-detail="true"[^>]*\/>/u, "")
+        .replace("scale(0.62)", size === 16 ? "scale(0.7)" : "scale(0.66)");
     pngBySize.set(size, await render(svg, size));
   }
 

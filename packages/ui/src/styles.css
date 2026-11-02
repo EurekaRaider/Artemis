@@ -166,7 +166,9 @@
   }
 
   [data-artemis-component="button"][data-variant="quiet"]:hover:not(:disabled),
-  [data-artemis-component="icon-button"][data-variant="quiet"]:hover:not(:disabled) {
+  [data-artemis-component="icon-button"][data-variant="quiet"]:hover:not(
+      :disabled
+    ) {
     background: var(--artemis-color-surface-sunken);
     border-color: transparent;
     color: var(--artemis-color-text-primary);
@@ -559,7 +561,9 @@
   }
 
   [data-artemis-component="select"] [data-part="value"],
-  [data-artemis-component="select"] [data-part="option"] > span:not([data-part="check"]) {
+  [data-artemis-component="select"]
+    [data-part="option"]
+    > span:not([data-part="check"]) {
     min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -588,9 +592,7 @@
   [data-artemis-component="select"] [data-part="menu"] {
     position: absolute;
     z-index: 20;
-    inset-block-start: calc(
-      var(--select-anchor-end, 100%) + 10px
-    );
+    inset-block-start: calc(var(--select-anchor-end, 100%) + 10px);
     inset-inline-start: 0;
     box-sizing: border-box;
     inline-size: max-content;

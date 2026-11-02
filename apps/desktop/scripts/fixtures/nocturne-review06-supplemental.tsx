@@ -54,12 +54,30 @@ if (view === "attachments") {
     artemis: {
       onAttachmentImportProgress(callback: (item: ImportProgress) => void) {
         listener = callback;
-        queueMicrotask(() => callback({ id: "local-copy", name: "retrieval-survey.pdf", status: "saving", copied: 64, total: 100 }));
-        return () => { listener = undefined; };
+        queueMicrotask(() =>
+          callback({
+            id: "local-copy",
+            name: "retrieval-survey.pdf",
+            status: "saving",
+            copied: 64,
+            total: 100,
+          }),
+        );
+        return () => {
+          listener = undefined;
+        };
       },
       async cancelPromptAttachment(id: string) {
-        (window as unknown as { fixtureAttachmentCancellations: string[] }).fixtureAttachmentCancellations.push(id);
-        listener?.({ id, name: "retrieval-survey.pdf", status: "saved", copied: 64, total: 100 });
+        (
+          window as unknown as { fixtureAttachmentCancellations: string[] }
+        ).fixtureAttachmentCancellations.push(id);
+        listener?.({
+          id,
+          name: "retrieval-survey.pdf",
+          status: "saved",
+          copied: 64,
+          total: 100,
+        });
       },
     },
   });
@@ -73,7 +91,12 @@ function Fixture() {
   const [messages, setMessages] = useState(["Task A", "Task B", "Task C"]);
   const [checked, setChecked] = useState(true);
   const [attachments, setAttachments] = useState<PromptAttachment[]>([
-    { type: "file", name: "notes.md", mimeType: "text/markdown", content: "Local UI fixture. No file is imported or sent." },
+    {
+      type: "file",
+      name: "notes.md",
+      mimeType: "text/markdown",
+      content: "Local UI fixture. No file is imported or sent.",
+    },
   ]);
   const [skill, setSkill] = useState(true);
   return (
@@ -195,15 +218,36 @@ function Fixture() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {(["primary", "secondary", "quiet", "danger"] as const).map(
               (variant, index) => (
-                <Button key={variant} size="comfortable" variant={variant} iconSize="sm" icon={index === 0 ? <ArtemisIcon name="edit-square" width={14} height={14} /> : undefined}>
-                  {(locale.startsWith("zh") ? ["新任务", "评审变更", "取消", "还原文件"] : ["New task", "Review changes", "Cancel", "Restore file"])[index]}
+                <Button
+                  key={variant}
+                  size="comfortable"
+                  variant={variant}
+                  iconSize="sm"
+                  icon={
+                    index === 0 ? (
+                      <ArtemisIcon name="edit-square" width={14} height={14} />
+                    ) : undefined
+                  }
+                >
+                  {
+                    (locale.startsWith("zh")
+                      ? ["新任务", "评审变更", "取消", "还原文件"]
+                      : [
+                          "New task",
+                          "Review changes",
+                          "Cancel",
+                          "Restore file",
+                        ])[index]
+                  }
                 </Button>
               ),
             )}
             <Button disabled size="comfortable">
               Disabled
             </Button>
-            <Button size="compact">{locale.startsWith("zh") ? "暂存" : "Stage"}</Button>
+            <Button size="compact">
+              {locale.startsWith("zh") ? "暂存" : "Stage"}
+            </Button>
             <IconButton
               label="More"
               size="comfortable"
@@ -216,7 +260,11 @@ function Fixture() {
             checked={checked}
             onCheckedChange={setChecked}
           />
-          <Checkbox label="Unchecked checkbox" checked={false} onCheckedChange={() => {}} />
+          <Checkbox
+            label="Unchecked checkbox"
+            checked={false}
+            onCheckedChange={() => {}}
+          />
           <Checkbox label="Disabled checkbox" checked disabled />
           <Switch
             label="Switch"
@@ -225,22 +273,70 @@ function Fixture() {
           />
           <Switch label="Disabled switch" checked disabled />
           <TextField label="Name" value="Local fixture" onChange={() => {}} />
-          <Select label="Model" labelVisibility="hidden" value="local" options={[{ value: "local", label: "Opus 5.5 · 思考 高" }]} onValueChange={() => {}} />
+          <Select
+            label="Model"
+            labelVisibility="hidden"
+            value="local"
+            options={[{ value: "local", label: "Opus 5.5 · 思考 高" }]}
+            onValueChange={() => {}}
+          />
           <div style={{ display: "flex", gap: 8 }}>
-            <Badge tone="warning" icon={<RunningArc size={12} />}>运行中 2:14</Badge>
+            <Badge tone="warning" icon={<RunningArc size={12} />}>
+              运行中 2:14
+            </Badge>
             <Badge tone="warning">等待你的决定</Badge>
-            <Badge tone="success" icon={<ArtemisIcon name="check" width={12} height={12} />}>已完成</Badge>
-            <Badge tone="danger" icon={<ArtemisIcon name="alert" width={12} height={12} />}>失败</Badge>
-            <Badge icon={<ArtemisIcon name="pause" width={12} height={12} />}>已暂停</Badge>
+            <Badge
+              tone="success"
+              icon={<ArtemisIcon name="check" width={12} height={12} />}
+            >
+              已完成
+            </Badge>
+            <Badge
+              tone="danger"
+              icon={<ArtemisIcon name="alert" width={12} height={12} />}
+            >
+              失败
+            </Badge>
+            <Badge icon={<ArtemisIcon name="pause" width={12} height={12} />}>
+              已暂停
+            </Badge>
           </div>
         </section>
       )}
       {view === "attachments" && (
-        <section className="composer" style={{ width: 700, margin: "80px auto", padding: 12 }}>
+        <section
+          className="composer"
+          style={{ width: 700, margin: "80px auto", padding: 12 }}
+        >
           <div className="composer-resource-strip">
-            {skill && <ComposerSkillChip skill={{ id: "local-skill", name: "头脑风暴", description: "Local UI fixture", path: "/local/fixture", enabled: true }} removeLabel="Remove skill" onRemove={() => setSkill(false)} />}
-            <ComposerAttachments attachments={attachments} locale={locale} onRemove={(index) => setAttachments((items) => items.filter((_, itemIndex) => itemIndex !== index))} />
-            <AttachmentImportProgress locale={locale} onImported={(items) => setAttachments((current) => [...current, ...items])} />
+            {skill && (
+              <ComposerSkillChip
+                skill={{
+                  id: "local-skill",
+                  name: "头脑风暴",
+                  description: "Local UI fixture",
+                  path: "/local/fixture",
+                  enabled: true,
+                }}
+                removeLabel="Remove skill"
+                onRemove={() => setSkill(false)}
+              />
+            )}
+            <ComposerAttachments
+              attachments={attachments}
+              locale={locale}
+              onRemove={(index) =>
+                setAttachments((items) =>
+                  items.filter((_, itemIndex) => itemIndex !== index),
+                )
+              }
+            />
+            <AttachmentImportProgress
+              locale={locale}
+              onImported={(items) =>
+                setAttachments((current) => [...current, ...items])
+              }
+            />
           </div>
         </section>
       )}

@@ -1766,7 +1766,9 @@ ${model.providerId} · ${model.modelId}`,
                       labelVisibility="hidden"
                       label={t.language}
                       disabled={busy}
-                      footer={uiText(locale, "Review06.languageCount", { count: SUPPORTED_LOCALES.length })}
+                      footer={uiText(locale, "Review06.languageCount", {
+                        count: SUPPORTED_LOCALES.length,
+                      })}
                       onValueChange={(language) => void setLanguage(language)}
                       options={[
                         { value: "system", label: t.languageSystem },
@@ -2478,7 +2480,10 @@ ${model.providerId} · ${model.modelId}`,
                                 void run(() => window.artemis.installUpdate())
                               }
                             >
-                              {UI_COPY.SettingsPanel_labels[locale].installUpdate}
+                              {
+                                UI_COPY.SettingsPanel_labels[locale]
+                                  .installUpdate
+                              }
                             </Button>
                           )}
                         </span>

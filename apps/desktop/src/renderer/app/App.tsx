@@ -6372,7 +6372,9 @@ export function App() {
                 type="button"
                 aria-label={t.settings}
                 title={t.settings}
-                onClick={(event) => openSettings("general", event.currentTarget)}
+                onClick={(event) =>
+                  openSettings("general", event.currentTarget)
+                }
               >
                 <SettingsIcon />
               </button>
@@ -8277,7 +8279,11 @@ export function App() {
                                     className="queued-message-item"
                                     data-queued-index={index}
                                     index={
-                                      <ArtemisIcon name="clock" width={14} height={14} />
+                                      <ArtemisIcon
+                                        name="clock"
+                                        width={14}
+                                        height={14}
+                                      />
                                     }
                                     key={String(index)}
                                     state={busy ? "busy" : "queued"}
@@ -8318,7 +8324,12 @@ export function App() {
                                       />
                                     ) : (
                                       <div className="queued-message-content">
-                                        <small>{uiText(locale, "Review06.queuedAfterTurn")}</small>
+                                        <small>
+                                          {uiText(
+                                            locale,
+                                            "Review06.queuedAfterTurn",
+                                          )}
+                                        </small>
                                         <span title={message}>{message}</span>
                                       </div>
                                     )}
