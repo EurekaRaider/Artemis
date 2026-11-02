@@ -200,7 +200,10 @@ export class BrowserSessionHost {
       return { action: "deny" };
     });
     const publish = () => {
-      if (!window.isDestroyed()) this.options.changed(this.snapshot(tab));
+      // The first loading event can precede about:blank. Do not start renderer
+      // preview tools until Chromium has a document they can inspect.
+      if (!window.isDestroyed() && contents.getURL())
+        this.options.changed(this.snapshot(tab));
     };
     contents.on("did-start-loading", () => {
       if (!stream.stopped()) delete tab.error;

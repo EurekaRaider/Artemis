@@ -303,6 +303,34 @@ it("keeps the original browser instance through remounts and isolates other task
   f.host.dispose();
 });
 
+it("waits for a document URL before publishing a newly loading browser", async () => {
+  const f = fixture();
+  const tab = await f.host.open("one", "browser");
+  const contents = tab.window.webContents;
+  const url = vi.spyOn(contents, "getURL").mockReturnValue("");
+  f.changed.mockClear();
+  contents.emit("did-start-loading");
+  expect(f.changed).not.toHaveBeenCalled();
+  url.mockReturnValue("about:blank");
+  contents.emit("did-navigate");
+  expect(f.changed).toHaveBeenLastCalledWith(
+    expect.objectContaining({ url: "about:blank" }),
+  );
+  contents.emit(
+    "did-fail-load",
+    {},
+    -105,
+    "ERR_NAME_NOT_RESOLVED",
+    "https://missing.test",
+    true,
+  );
+  expect(f.changed).toHaveBeenLastCalledWith(
+    expect.objectContaining({ error: "ERR_NAME_NOT_RESOLVED (-105)" }),
+  );
+  url.mockRestore();
+  f.host.dispose();
+});
+
 it("rejects foreign tokens before resizing and cancels queued input when its surface disappears", async () => {
   const f = fixture(),
     sender = owner(1),

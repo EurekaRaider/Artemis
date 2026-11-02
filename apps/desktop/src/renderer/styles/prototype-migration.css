@@ -832,6 +832,22 @@ body:has(.app-shell[data-platform="darwin"]),
   /* Native macOS controls extend farther than the prototype's simulated lights. */
   padding-inline-start: 104px;
 }
+.app-shell[data-platform="darwin"]:is(
+    [data-sidebar-open="false"],
+    [data-sidebar-animating="true"]
+  )::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 104px;
+  height: 46px;
+  box-sizing: border-box;
+  border-block-end: 1px solid var(--border-soft);
+  z-index: 81;
+  background: var(--artemis-color-surface-header);
+  pointer-events: none;
+}
 .workspace-header
   :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle) {
   inline-size: 36px;
