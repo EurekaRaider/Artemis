@@ -54,7 +54,7 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v2.0.0** · [Release notes](docs/records/release-notes.md).
+Current version: **v2.0.1** · [Release notes](docs/records/release-notes.md).
 
 Artemis 2.0 introduces the Nocturne interface across conversations, the workspace
 dock, settings, resources and automations. Structured work records clarify task
