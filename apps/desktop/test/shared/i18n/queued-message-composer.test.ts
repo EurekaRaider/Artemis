@@ -39,7 +39,7 @@ function sourceForQueuedButton(className: string): string {
 }
 
 describe("Codex-style queued message composer", () => {
-  it("renders queued cards with a clock and keeps numbered action labels", () => {
+  it("renders queued cards with the queue icon and keeps numbered action labels", () => {
     const barIndex = appSource.indexOf("<QueuedMessageGroup");
     const listEnd = appSource.indexOf("</QueuedMessageGroup>", barIndex);
     const barSource = appSource.slice(barIndex, listEnd);
@@ -49,9 +49,12 @@ describe("Codex-style queued message composer", () => {
     expect(barSource).toContain("{queuedFollowUps.map");
     expect(barSource).toContain("heading={");
     expect(barSource).toContain("<QueuedMessageItem");
-    expect(barSource).toContain(
-      '<ArtemisIcon name="clock" width={14} height={14} />',
+    expect(barSource).toContain("<QueueIcon />");
+    const queueIcon = appSource.slice(
+      appSource.indexOf("function QueueIcon()"),
+      appSource.indexOf("function MoveToFrontIcon()"),
     );
+    expect(queueIcon).toContain('name="queue"');
     expect(barSource).toContain("String(index + 1)");
     expect(barSource).toContain('"Review06.queuedAfterTurn"');
     expect(barSource).toContain("actions={");

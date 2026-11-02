@@ -189,7 +189,7 @@ git(["init", "-b", "main"]);
 await mkdir(join(project, "src"));
 await writeFile(
   join(project, "src/search.ts"),
-  `export interface Note {\n  title: string;\n  tags: string[];\n  source: string;\n}\n\nexport function searchNotes(notes: Note[], query: string): Note[] {\n  return notes.filter((note) => note.title.includes(query));\n}\n`,
+  `export interface Note {\n  title: string;\n  tags: string[];\n  source: string;\n}\n\nexport function searchNotes(\n  notes: Note[],\n  query: string,\n): Note[] {\n  return notes.filter((note) =>\n    note.title.includes(query),\n  );\n}\n`,
 );
 await writeFile(
   join(project, "README.md"),
@@ -208,7 +208,7 @@ git([
 git(["checkout", "-b", "search-library"]);
 await writeFile(
   join(project, "src/search.ts"),
-  `export interface Note {\n  title: string;\n  tags: string[];\n  source: string;\n}\n\nexport function searchNotes(notes: Note[], query: string): Note[] {\n  const normalized = query.trim().toLocaleLowerCase();\n  if (!normalized) return notes;\n\n  return notes.filter((note) => {\n    const searchable = [note.title, ...note.tags].join(' ');\n    return searchable.toLocaleLowerCase().includes(normalized);\n  });\n}\n`,
+  `export interface Note {\n  title: string;\n  tags: string[];\n  source: string;\n}\n\nexport function searchNotes(\n  notes: Note[],\n  query: string,\n): Note[] {\n  const normalized = query.trim()\n    .toLocaleLowerCase();\n  if (!normalized) return notes;\n\n  return notes.filter((note) => {\n    const searchable = [\n      note.title,\n      ...note.tags,\n    ].join(' ');\n    return searchable\n      .toLocaleLowerCase()\n      .includes(normalized);\n  });\n}\n`,
 );
 await writeFile(
   join(project, "README.md"),
@@ -289,9 +289,23 @@ async function dock(label) {
   const menuOpened = app.waitForEvent("window");
   await page.locator(".workspace-tab-add").click();
   const menu = await menuOpened;
-  await menu
-    .getByRole("menuitem", { name: label, exact: true })
-    .evaluate((button) => button.click());
+  try {
+    await menu
+      .getByRole("menuitem", { name: label, exact: true })
+      .evaluate((button) => button.click());
+  } catch (error) {
+    // macOS can close the native popup before acknowledging its click.
+    if (!menu.isClosed()) throw error;
+  }
+  await page
+    .locator(
+      {
+        Review: ".review-panel",
+        Files: ".workspace-files-panel",
+        Terminal: ".terminal-host",
+      }[label],
+    )
+    .waitFor();
 }
 async function openEnvironment() {
   const trigger = page.locator(".environment-trigger");
@@ -399,8 +413,32 @@ try {
     .getByRole("button", { name: "Unstaged", exact: true })
     .click();
   await page.waitForTimeout(700);
-  await page.getByText("src/search.ts", { exact: true }).last().click();
+  const resizer = page.locator(
+    '[data-artemis-component="workspace-dock-resizer"]',
+  );
+  const split = await resizer.boundingBox();
+  assert.ok(split);
+  const splitX = split.x + split.width / 2;
+  const splitY = split.y + Math.min(split.height / 2, 200);
+  await page.mouse.move(splitX, splitY);
+  await page.mouse.down();
+  await page.mouse.move(splitX - 180, splitY, { steps: 8 });
+  await page.mouse.up();
+  await page.locator('.review-file-entry[title="src/search.ts"]').click();
+  await page.waitForFunction(() => {
+    const lines = document.querySelector(".review-lines");
+    return lines && lines.scrollWidth <= lines.clientWidth + 1;
+  });
+  await page.locator(".timeline-scroll").evaluate((element) => {
+    element.scrollTop = 0;
+  });
   await capture("git-review");
+  const widenedSplit = await resizer.boundingBox();
+  assert.ok(widenedSplit);
+  await page.mouse.move(widenedSplit.x + widenedSplit.width / 2, splitY);
+  await page.mouse.down();
+  await page.mouse.move(splitX, splitY, { steps: 8 });
+  await page.mouse.up();
   await dock("Files");
   await page
     .locator('[data-artemis-component="workspace-file-tree-row"]:visible')

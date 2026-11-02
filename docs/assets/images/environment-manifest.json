@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "capturedAt": "2026-11-02T07:41:50.872Z",
+  "capturedAt": "2026-11-02T08:05:28.606Z",
   "appVersion": "2.0.0",
-  "sourceHead": "ea430bbbd5e46786ba86699bd93d280194ece56e",
+  "sourceHead": "08ed8c965f458ce569190652c55edcc24d7b425d",
   "sourceState": "Local working tree, including in-progress changes present at capture time.",
   "buildArtifacts": [
     {
       "file": "apps/desktop/dist-electron/main.js",
-      "sha256": "13c7c3f027409679fe3e2db8c4c4ca2923405df516ad12efcb100803c3c84a89"
+      "sha256": "183b2b9f7ea6eef6a5700ef9fa556a43eeadc0e79a9b3d6432fa4da8b638d32a"
     },
     {
       "file": "apps/desktop/dist-electron/preload.cjs",
@@ -42,15 +42,15 @@
       "file": "environment-panel-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 184971,
-      "sha256": "7764c3ee1a4e31daa5a12f9bfd7685bab1a609d9d4d44ccdd0e8680b96bec626"
+      "bytes": 185543,
+      "sha256": "f1ec3717e14dd29c9c3ba04faf6ece186c11547a3b0bd5629835ec71908df956"
     },
     {
       "file": "environment-panel-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 177969,
-      "sha256": "5d48d2031110444b4f15c6cdb7adcc7fced0e46e3a64ca7ee1224ec7c3cc83f1"
+      "bytes": 178520,
+      "sha256": "217d8800f3b01da019fa92858ab0167c1cb4f5e43c8966ba40cbe7072118a0ca"
     }
   ]
 }

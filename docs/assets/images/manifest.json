@@ -1,13 +1,13 @@
 {
   "version": 1,
-  "capturedAt": "2026-11-02T07:41:50.872Z",
+  "capturedAt": "2026-11-02T08:05:28.606Z",
   "appVersion": "2.0.0",
-  "sourceHead": "ea430bbbd5e46786ba86699bd93d280194ece56e",
+  "sourceHead": "08ed8c965f458ce569190652c55edcc24d7b425d",
   "sourceState": "Local working tree, including in-progress changes present at capture time.",
   "buildArtifacts": [
     {
       "file": "apps/desktop/dist-electron/main.js",
-      "sha256": "13c7c3f027409679fe3e2db8c4c4ca2923405df516ad12efcb100803c3c84a89"
+      "sha256": "183b2b9f7ea6eef6a5700ef9fa556a43eeadc0e79a9b3d6432fa4da8b638d32a"
     },
     {
       "file": "apps/desktop/dist-electron/preload.cjs",
@@ -42,43 +42,43 @@
       "file": "workspace-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 139087,
-      "sha256": "ae8d2c38db170cfffd78c2ef1ac069870c46d6248bf57a87d19295b0c6905217"
+      "bytes": 139072,
+      "sha256": "62ee08ec89e4896c9728805b1b0fe095234748f00fe94b9c55789cc2424a7a2d"
     },
     {
       "file": "environment-panel-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 184971,
-      "sha256": "7764c3ee1a4e31daa5a12f9bfd7685bab1a609d9d4d44ccdd0e8680b96bec626"
+      "bytes": 185543,
+      "sha256": "f1ec3717e14dd29c9c3ba04faf6ece186c11547a3b0bd5629835ec71908df956"
     },
     {
       "file": "workspace-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 137709,
-      "sha256": "9d7142ce0cd670aa83682ea239d60b8f14a56fb36ba6aadaf4176a6775ac9875"
+      "bytes": 138028,
+      "sha256": "cdb6c34783b92dcf55153333091167cf692d803840275dfd5b982502bab59fd1"
     },
     {
       "file": "welcome-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 61019,
-      "sha256": "ae3fa896e8b951dd8a3d07426d913dd35adc96bb503f40a38df86c1c20d162ef"
+      "bytes": 61512,
+      "sha256": "67df1d86581b138115740d70a546b3e434eeee8122ef90f8b24038bd19d22ae6"
     },
     {
       "file": "environment-panel-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 177969,
-      "sha256": "5d48d2031110444b4f15c6cdb7adcc7fced0e46e3a64ca7ee1224ec7c3cc83f1"
+      "bytes": 178520,
+      "sha256": "217d8800f3b01da019fa92858ab0167c1cb4f5e43c8966ba40cbe7072118a0ca"
     },
     {
       "file": "git-review.png",
       "width": 1440,
       "height": 850,
-      "bytes": 216501,
-      "sha256": "bd3633529647d12077af732fd0faab764c26a1efca8e9894b9ddb24408427673"
+      "bytes": 205461,
+      "sha256": "3d7141503b68030b760551b0817166c894170e236bfd5092ebd51a5eee8b4568"
     },
     {
       "file": "markdown-files.png",
@@ -112,8 +112,8 @@
       "file": "im-connections.png",
       "width": 1440,
       "height": 850,
-      "bytes": 139998,
-      "sha256": "dd07404138747981b3a65acd7e5a6b872f232f2da66ec9c67c2f0ab81c1833fd"
+      "bytes": 139995,
+      "sha256": "8347b5e3f8e61141aecb2359609e5a19d8287667c5ca2f5707674e15582eb9cc"
     },
     {
       "file": "im-channel-settings.png",
@@ -127,7 +127,7 @@
       "width": 1440,
       "height": 850,
       "bytes": 110578,
-      "sha256": "fd5faa575648087f5575b4ce9d79a611d0399561b2ae567586d5ccfc5e5a7ab1"
+      "sha256": "e8fbabcbe95cee7a972bae1bbed262df53f6a1ec3be5ea577445cf6e5686a7a4"
     },
     {
       "file": "resources.png",
@@ -154,29 +154,29 @@
       "file": "automations.png",
       "width": 1440,
       "height": 850,
-      "bytes": 123651,
-      "sha256": "499603ee6eca714c69e0600fac350a5c881b6cd9376fc241dadabfd2667d41de"
+      "bytes": 123654,
+      "sha256": "8a38fa5833aa17257945a39719b543f4ea92b111f2f1ca033336872909b72126"
     },
     {
       "file": "im-group-chat.png",
       "width": 1440,
       "height": 850,
-      "bytes": 163595,
-      "sha256": "c52309981457b83caa7bf9a9ec99596e4b3e1c1017b5c79073a3d5847f2e2666"
+      "bytes": 163841,
+      "sha256": "b3d0f428f420a8527b31264a8e5de693fe8793e3ee3e692c5f4e59e160dc230d"
     },
     {
       "file": "im-group-chat-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 161467,
-      "sha256": "7eaecbf5adc9bf8c123c45e0a2b70f02b472c6989af5e2ab677471b8ab9321ff"
+      "bytes": 161826,
+      "sha256": "8524610acbdfe896eca5575baaf8275f4a2cce0995a56f9c3292d2282ff68ced"
     },
     {
       "file": "workspace-zh-CN.png",
       "width": 1440,
       "height": 850,
-      "bytes": 133899,
-      "sha256": "4873f18156883ca8993d3a4e093a2eadc1968e12a0357ca25015b07c42ed61f3"
+      "bytes": 133934,
+      "sha256": "4e418817bf24843e8e599b65bf20a17afc9180dfbb0b2f74099d953530779618"
     }
   ]
 }
