@@ -331,6 +331,9 @@ const snapshot = () => {
   const navigationSidebar = document.querySelector(
     '[data-artemis-component="navigation-sidebar"]',
   );
+  const sidebarSurface = navigationSidebar?.dataset.state === "collapsed"
+    ? navigationSidebar.querySelector('.sidebar-rail')
+    : sidebarMain;
   const composerSurface = document.querySelector(
     '[data-artemis-component="composer-surface"]',
   );
@@ -425,7 +428,7 @@ const snapshot = () => {
         rail: navigationSidebar?.querySelectorAll(':scope > [data-part="rail"]').length,
       },
       sidebar: surfaceStyle(
-        sidebarMain,
+        sidebarSurface,
         glassSidebar
           ? "--nocturne-glass-sidebar"
           : "--artemis-color-background-sidebar",
