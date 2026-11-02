@@ -251,7 +251,14 @@
   box-shadow: none;
   border-radius: 0;
 }
-:root[data-artemis-contrast="high"] .app-shell .sidebar > [data-part="main"],
+:root[data-material="glass"] .app-shell .sidebar-rail {
+  background: var(--nocturne-glass-sidebar);
+  backdrop-filter: none;
+}
+:root[data-artemis-contrast="high"]
+  .app-shell
+  .sidebar[data-state]
+  > [data-part="main"],
 :root[data-artemis-contrast="high"] .app-shell .sidebar-rail {
   background: var(--artemis-color-background-sidebar);
   backdrop-filter: none;
@@ -260,8 +267,8 @@
 @media (prefers-reduced-transparency: reduce),
   (prefers-contrast: more),
   (forced-colors: active) {
-  :root .app-shell .sidebar > [data-part="main"],
-  :root .app-shell .sidebar-rail,
+  :root[data-material] .app-shell .sidebar[data-state] > [data-part="main"],
+  :root[data-material] .app-shell .sidebar-rail,
   :root
     .workspace-header
     :is(
@@ -276,10 +283,6 @@
   }
 }
 
-:root[data-material="glass"] .app-shell .sidebar-rail {
-  background: var(--nocturne-glass-sidebar);
-  backdrop-filter: none;
-}
 :root[data-material="solid"]
   .app-shell
   .sidebar[data-state="ready"]
@@ -3258,6 +3261,7 @@
 .app-shell [role="menu"]:not(.approval-policy-menu),
 .app-shell .project-menu,
 [data-artemis-component="popover"][role="menu"],
+.environment-branch-menu,
 .environment-workspace-menu {
   border-radius: 11px;
   padding: 5px;
@@ -3269,6 +3273,7 @@
     .app-shell [role="menu"]:not(.approval-policy-menu),
     .app-shell .project-menu,
     [data-artemis-component="popover"][role="menu"],
+    .environment-branch-menu,
     .environment-workspace-menu
   )
   :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]),

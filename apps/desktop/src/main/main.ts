@@ -22330,6 +22330,9 @@ function createMainWindow(): BrowserWindow {
                       visible: visible(menu),
                       withinViewport: bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0 && bounds.bottom <= window.innerHeight,
                       borderRadius: getComputedStyle(menu).borderRadius,
+                      backgroundColor: getComputedStyle(menu).backgroundColor,
+                      color: getComputedStyle(menu).color,
+                      boxShadow: getComputedStyle(menu).boxShadow,
                       searchPresent: Boolean(menu.querySelector('.composer-context-search input')),
                       firstItemUnobscured: Boolean(first && topItem && first.contains(topItem)),
                       items: items.map((item) => ({
@@ -22338,6 +22341,25 @@ function createMainWindow(): BrowserWindow {
                         checkVisible: Boolean(item.querySelector('i svg')),
                         height: item.getBoundingClientRect().height,
                       })),
+                    };
+                  })(),
+                  environmentBranchMenu: (() => {
+                    const menu = document.querySelector('.environment-branch-menu');
+                    if (!(menu instanceof HTMLElement)) return null;
+                    const style = getComputedStyle(menu);
+                    const bounds = menu.getBoundingClientRect();
+                    const first = menu.querySelector('[role="menuitemradio"]');
+                    const firstBounds = first?.getBoundingClientRect();
+                    const topItem = firstBounds ? document.elementFromPoint(firstBounds.left + firstBounds.width / 2, firstBounds.top + firstBounds.height / 2) : null;
+                    return {
+                      visible: visible(menu),
+                      portalInBody: menu.parentElement === document.body,
+                      backgroundColor: style.backgroundColor,
+                      color: style.color,
+                      borderRadius: style.borderRadius,
+                      boxShadow: style.boxShadow,
+                      withinViewport: bounds.left >= 0 && bounds.right <= window.innerWidth && bounds.top >= 0 && bounds.bottom <= window.innerHeight,
+                      firstItemUnobscured: Boolean(first && topItem && first.contains(topItem)),
                     };
                   })(),
                   goalComposer: composerBounds

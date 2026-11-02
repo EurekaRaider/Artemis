@@ -22,6 +22,40 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function assertOpaqueMenu(menu, name) {
+  const colors = [menu?.backgroundColor, menu?.color].map((color) =>
+    /^rgb\((\d+), (\d+), (\d+)\)$/u
+      .exec(color ?? "")
+      ?.slice(1)
+      .map(Number),
+  );
+  assert(
+    colors.every(Boolean),
+    `${name}: menu must have opaque surface and text colors: ${JSON.stringify(menu)}`,
+  );
+  const luminance = (rgb) =>
+    rgb
+      .map((value) => {
+        const channel = value / 255;
+        return channel <= 0.04045
+          ? channel / 12.92
+          : ((channel + 0.055) / 1.055) ** 2.4;
+      })
+      .reduce(
+        (sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index],
+        0,
+      );
+  const values = colors.map(luminance).sort((left, right) => left - right);
+  assert(
+    (values[1] + 0.05) / (values[0] + 0.05) >= 4.5,
+    `${name}: menu text contrast is below 4.5:1.`,
+  );
+  assert(
+    menu.boxShadow !== "none",
+    `${name}: menu surface has no separation from the page.`,
+  );
+}
+
 async function runCase(
   name,
   width,
@@ -111,6 +145,7 @@ try {
       options,
     );
     const menu = snapshot.composerBranchMenu;
+    assertOpaqueMenu(menu, name);
     assert(
       menu?.expanded && menu.visible && menu.outsideComposer,
       `${name}: the external Composer branch trigger did not open its menu.`,
@@ -138,6 +173,23 @@ try {
         selected[0].label === "main" &&
         selected[0].checkVisible,
       `${name}: search, real fixture branches or the current-branch check is missing.`,
+    );
+  }
+  for (const theme of ["light", "dark"]) {
+    const name = `environment-branch-${theme}`;
+    const snapshot = await runCase(name, 1420, "environment-branch-menu", {
+      theme,
+      material: "glass",
+    });
+    const menu = snapshot.environmentBranchMenu;
+    assertOpaqueMenu(menu, name);
+    assert(
+      menu.visible &&
+        menu.portalInBody &&
+        menu.withinViewport &&
+        menu.firstItemUnobscured &&
+        menu.borderRadius === "11px",
+      `${name}: portaled branch menu is clipped, obscured or missing its surface.`,
     );
   }
   for (const view of [
