@@ -323,9 +323,8 @@ const snapshot = () => {
     '[data-artemis-component="terminal-host"]',
   );
   const appShell = document.querySelector(".app-shell");
-  const nativeSidebar = appShell?.dataset.platform === "darwin";
-  const darkTheme = root.dataset.artemisTheme === "dark";
   const opaqueSidebar = root.dataset.artemisContrast === "high" || matchMedia("(prefers-reduced-transparency: reduce), (forced-colors: active)").matches;
+  const glassSidebar = !opaqueSidebar && root.dataset.material === "glass";
   const sidebarMain = document.querySelector(
     '[data-artemis-component="navigation-sidebar"] > [data-part="main"]',
   );
@@ -345,15 +344,13 @@ const snapshot = () => {
     workspace instanceof HTMLElement ? workspace.getBoundingClientRect() : null;
   const conversationBounds = document.querySelector('[data-artemis-component="conversation-surface"]')?.getBoundingClientRect();
   const environmentBounds = document.querySelector('.environment-popover')?.getBoundingClientRect();
-  const surfaceStyle = (element, tokenName, opacity) => {
+  const surfaceStyle = (element, tokenName) => {
     if (!(element instanceof HTMLElement)) return null;
     const computed = getComputedStyle(element);
     const tokenValue = computed.getPropertyValue(tokenName).trim();
     return {
       tokenValue,
-      resolvedTokenColor: resolvedColor(opacity
-        ? "color-mix(in srgb, " + tokenValue + " " + opacity + "%, transparent)"
-        : tokenValue),
+      resolvedTokenColor: resolvedColor(tokenValue),
       backgroundColor: computed.backgroundColor,
       color: computed.color,
     };
@@ -387,6 +384,7 @@ const snapshot = () => {
       zoomFactor: preload?.zoomFactor() ?? null,
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       opaqueSidebar,
+      glassSidebar,
       sidebarOpen: appShell?.dataset.sidebarOpen ?? null,
       appShellTransitionDuration: appShell
         ? getComputedStyle(appShell).transitionDuration
@@ -428,12 +426,11 @@ const snapshot = () => {
       },
       sidebar: surfaceStyle(
         sidebarMain,
-        nativeSidebar && !darkTheme && !opaqueSidebar
-          ? "--artemis-color-surface-raised"
+        glassSidebar
+          ? "--nocturne-glass-sidebar"
           : "--artemis-color-background-sidebar",
-        opaqueSidebar ? undefined : nativeSidebar ? (darkTheme ? 12 : 80)
-          : navigationSidebar?.dataset.state === "collapsed" ? 78 : 72,
       ),
+      sidebarMaterialToken: getComputedStyle(root).getPropertyValue("--nocturne-glass-sidebar").trim(),
       composer: surfaceStyle(
         composerSurface,
         "--artemis-color-surface-composer",
@@ -1958,13 +1955,9 @@ async function driveElectron() {
           : [[snapshot.surfaces?.shell, snapshot.tokens?.["color.canvas"]]]),
         [
           snapshot.surfaces?.sidebar,
-          snapshot.tokens?.[
-            process.platform === "darwin" &&
-            configuration.theme === "light" &&
-            !snapshot.environment.opaqueSidebar
-              ? "color.surface.raised"
-              : "color.background.sidebar"
-          ],
+          snapshot.environment.glassSidebar
+            ? snapshot.surfaces.sidebarMaterialToken
+            : snapshot.tokens?.["color.background.sidebar"],
         ],
         [
           snapshot.surfaces?.composer,
