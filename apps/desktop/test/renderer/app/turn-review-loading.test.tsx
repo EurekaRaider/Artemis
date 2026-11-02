@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { App } from "../../../src/renderer/app/App.js";
@@ -29,6 +30,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Intel CI needs time for the full App's deferred reviews and live events.
 it("keeps historical review stable during live output while preserving refresh and live scopes", async () => {
   vi.stubGlobal("requestIdleCallback", () => 0);
   vi.stubGlobal("cancelIdleCallback", () => {});
@@ -189,9 +191,12 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(getReviewDiff.mock.calls.map(([query]) => query.scope)).toEqual([
     "turn",
   ]);
-  const file = await screen.findByRole(
-    "button",
-    { name: /^audit\.md/ },
+  const file = await waitFor(
+    () => {
+      const list = document.querySelector<HTMLElement>(".review-file-list");
+      expect(list).not.toBeNull();
+      return within(list!).getByRole("button", { name: /^audit\.md/ });
+    },
     { timeout: 5_000 },
   );
   expect(file).toHaveAttribute("title", "docs/audit.md");
@@ -335,4 +340,4 @@ it("keeps historical review stable during live output while preserving refresh a
   );
   expect(addReviewComment).toHaveBeenCalledOnce();
   expect(composer.value).toBe("");
-});
+}, 15_000);
