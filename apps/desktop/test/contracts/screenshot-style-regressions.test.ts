@@ -163,7 +163,7 @@ describe("screenshot visual contracts", () => {
     });
     expect(declarations(shared, close + " svg").display).toBe("block");
   });
-  it("wraps review text without expanding the reader or clipping highlighted lines", () => {
+  it("scrolls long review lines in the reader without clipping highlighted lines", () => {
     const line = declarations(
       shared,
       '[data-artemis-component="review-diff"][data-part="line"]',
@@ -176,7 +176,13 @@ describe("screenshot visual contracts", () => {
     expect(declarations(desktop, ".review-file")["min-width"]).toBe("0");
     expect(
       findCssDeclarations(nocturneSource, ".app-shell .review-lines"),
-    ).toContain("overflow-x: auto");
+    ).toContain("overflow: visible");
+    expect(
+      declarations(
+        shared,
+        '[data-artemis-component="review-surface"][data-part="reader"]',
+      ),
+    ).toMatchObject({ "min-inline-size": "0", overflow: "auto" });
     expect(
       findCssDeclarations(nocturneSource, ".app-shell .review-line code"),
     ).toContain("white-space: pre");
