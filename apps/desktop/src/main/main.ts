@@ -22350,7 +22350,7 @@ function createMainWindow(): BrowserWindow {
                     : null,
                   goalActionLabels: goalBar
                     ? [...goalBar.querySelectorAll(".goal-bar-actions button")]
-                        .map((button) => button.getAttribute("aria-label"))
+                        .map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())
                     : [],
                   goalSharedComponents: goalBar
                     ? (() => {
@@ -22372,6 +22372,7 @@ function createMainWindow(): BrowserWindow {
                             size: element.getAttribute("data-size"),
                             tone: element.getAttribute("data-tone"),
                             variant: element.getAttribute("data-variant"),
+                            secondary: element.classList.contains("goal-bar-secondary"),
                             display: style.display,
                             backgroundColor: style.backgroundColor,
                             borderColor: style.borderColor,
@@ -22399,7 +22400,7 @@ function createMainWindow(): BrowserWindow {
                               ")",
                             "color:var(" + colorToken + ")",
                             "font-family:var(--artemis-typography-body-family)",
-                            "outline:2px solid Highlight",
+                            "outline:2px solid var(--artemis-color-focus-ring)",
                           ].join(";");
                           document.body.append(probe);
                           const style = getComputedStyle(probe);
@@ -22466,7 +22467,9 @@ function createMainWindow(): BrowserWindow {
                             }
                           : null;
                         const stateProbes = (() => {
-                          const source = actionElements[0];
+                          const source = actionElements.find((element) =>
+                            element.getAttribute("data-artemis-component") === "icon-button",
+                          );
                           if (!(source instanceof HTMLButtonElement)) return [];
                           const host = document.createElement("div");
                           host.style.cssText = [
@@ -22499,6 +22502,7 @@ function createMainWindow(): BrowserWindow {
                                 "disabled",
                               ]) {
                                 const clone = source.cloneNode(true);
+                                clone.classList.remove("goal-bar-secondary");
                                 clone.dataset.size = size;
                                 clone.dataset.variant = variant;
                                 clone.dataset.state = state;
@@ -22561,6 +22565,11 @@ function createMainWindow(): BrowserWindow {
                           return probes;
                         })();
                         return {
+                          goalState: goalBar.getAttribute("data-goal-state"),
+                          stateLabel: goalBar.getAttribute("aria-label"),
+                          stateText: goalBar.querySelector(".goal-bar-status")?.textContent?.trim() ?? null,
+                          completeIcon: Boolean(goalBar.querySelector(".goal-bar-complete")),
+                          actionsRevealed: goalBar.matches(":hover, :focus-within"),
                           main: describe(main),
                           badge: describe(badge),
                           status: describe(status),
@@ -22594,6 +22603,12 @@ function createMainWindow(): BrowserWindow {
                   goalEditorAlert:
                     document.querySelector(".transient-notice[role='alert']")
                       ?.textContent?.trim() ?? null,
+                  goalEditorNotice: (() => {
+                    const notice = document.querySelector(".transient-notice[role='alert']");
+                    return notice && visible(notice)
+                      ? notice.getBoundingClientRect().toJSON()
+                      : null;
+                  })(),
                   queuedSteer: {
                     barVisible: queuedSteerBar ? visible(queuedSteerBar) : false,
                     itemCount: document.querySelectorAll(

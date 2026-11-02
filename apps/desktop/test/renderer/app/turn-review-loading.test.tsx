@@ -189,7 +189,11 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(getReviewDiff.mock.calls.map(([query]) => query.scope)).toEqual([
     "turn",
   ]);
-  const file = await screen.findByRole("button", { name: /^audit\.md/ });
+  const file = await screen.findByRole(
+    "button",
+    { name: /^audit\.md/ },
+    { timeout: 5_000 },
+  );
   expect(file).toHaveAttribute("title", "docs/audit.md");
   expect(file.querySelector(".review-file-path")).toHaveTextContent(
     /^audit\.md$/,

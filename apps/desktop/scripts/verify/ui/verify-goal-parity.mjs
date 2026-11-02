@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { GOAL_RESOURCES } from "../../../src/shared/i18n/goal-resources.ts";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const appDirectory = resolve(scriptDirectory, "../../..");
@@ -39,44 +40,46 @@ const actionLabels = {
     pause: "Pause goal",
     resume: "Resume goal",
     edit: "Edit goal",
+    addBudget: "Add budget",
   },
   "zh-CN": {
     clear: "清除目标",
     pause: "暂停目标",
     resume: "继续目标",
     edit: "编辑目标",
+    addBudget: "追加预算",
   },
 };
 const stateDefinitions = [
   {
     view: "goal-active",
     actions: ["pause", "edit", "clear"],
-    tone: "info",
+    state: "active",
   },
   {
     view: "goal-paused",
     actions: ["resume", "edit", "clear"],
-    tone: "neutral",
+    state: "paused",
   },
   {
     view: "goal-blocked",
     actions: ["resume", "edit", "clear"],
-    tone: "danger",
+    state: "blocked",
   },
   {
     view: "goal-usage-limited",
     actions: ["resume", "edit", "clear"],
-    tone: "warning",
+    state: "usageLimited",
   },
   {
     view: "goal-budget-limited",
-    actions: ["edit", "clear"],
-    tone: "warning",
+    actions: ["addBudget", "edit", "clear"],
+    state: "budgetLimited",
   },
   {
     view: "goal-complete",
     actions: ["edit", "clear"],
-    tone: "success",
+    state: "complete",
   },
 ];
 const dimensions = [];
@@ -118,7 +121,7 @@ for (const mode of [
     width: 1_512,
     scale: 1,
     editorMode: mode,
-    tone: "neutral",
+    state: "paused",
   });
 }
 cases.push({
@@ -130,7 +133,7 @@ cases.push({
   width: 1_512,
   scale: 1,
   reducedMotion: true,
-  tone: "info",
+  state: "active",
 });
 const totalCaseCount = cases.length;
 const shardCount = Number(process.env.ARTEMIS_GOAL_PARITY_SHARD_COUNT ?? "1");
@@ -179,7 +182,7 @@ try {
       scale,
       editorMode,
       reducedMotion = false,
-      tone,
+      state,
     } = testCase;
     const expectedActions = actions.map(
       (action) => actionLabels[locale][action],
@@ -279,7 +282,10 @@ try {
     }
     const leftInset = audit.goalBar.left - audit.goalComposer.left;
     const rightInset = audit.goalComposer.right - audit.goalBar.right;
-    const overlap = audit.goalBar.bottom - audit.goalComposer.top;
+    const notice = audit.goalEditorNotice;
+    const expectNotice = ["load-error", "save-error"].includes(editorMode);
+    const overlap =
+      audit.goalBar.bottom - (notice?.top ?? audit.goalComposer.top);
     const contextRow = audit.goalContextRow;
     if (
       !contextRow ||
@@ -290,10 +296,15 @@ try {
       overlap > -7 ||
       overlap < -9 ||
       Math.abs(audit.goalBar.height - 36) > 1 ||
+      Boolean(notice) !== expectNotice ||
+      (notice &&
+        (notice.bottom > audit.goalComposer.top ||
+          Math.abs(notice.left - audit.goalComposer.left) > 1 ||
+          Math.abs(notice.right - audit.goalComposer.right) > 1)) ||
       contextRow.top < audit.goalComposer.top
     ) {
       throw new Error(
-        `${id} Goal row above composer geometry drifted: ${JSON.stringify({ goalBar: audit.goalBar, contextRow, leftInset, rightInset, overlap })}`,
+        `${id} Goal row above composer geometry drifted: ${JSON.stringify({ goalBar: audit.goalBar, contextRow, notice, leftInset, rightInset, overlap })}`,
       );
     }
     if (
@@ -304,6 +315,15 @@ try {
       );
     }
     const shared = audit.goalSharedComponents;
+    const copy = GOAL_RESOURCES[locale];
+    const expectedStatus =
+      state === "active"
+        ? copy.running
+        : state === "paused"
+          ? copy.statusPaused
+          : state === "complete"
+            ? null
+            : copy[state];
     const visualFields = [
       "backgroundColor",
       "borderColor",
@@ -350,29 +370,35 @@ try {
       shared.main.minBlockSize !== "26px" ||
       shared.main.justifyContent !== "flex-start" ||
       !visualMatches(shared.main, capsuleMainStyle) ||
-      shared?.badge?.component !== "badge" ||
-      shared.badge.tone !== tone ||
-      shared.badge.display !== "flex" ||
-      shared.badge.minBlockSize !== "0px" ||
-      shared.badge.borderWidth !== "0px" ||
-      shared.badge.backgroundColor !== "rgba(0, 0, 0, 0)" ||
+      shared.goalState !== state ||
+      shared.stateLabel !== copy[state] ||
+      shared.stateText !== expectedStatus ||
+      shared.completeIcon !== (state === "complete") ||
+      shared.badge !== null ||
       shared?.status !== null ||
       shared.actions?.length !== expectedActions.length ||
       shared.actions.some(
         (action) =>
-          action?.component !== "icon-button" ||
+          !["button", "icon-button"].includes(action?.component) ||
           action.state !== "ready" ||
           action.size !== "compact" ||
           action.variant !== "quiet" ||
-          action.display !== "flex" ||
-          action.inlineSize !== "24px" ||
-          action.minBlockSize !== "24px" ||
-          !visualMatches(action, railActionStyle),
+          (action.secondary && !shared.actionsRevealed
+            ? action.display !== "none"
+            : !["flex", "inline-flex"].includes(action.display)) ||
+          (action.component === "button"
+            ? state !== "budgetLimited" ||
+              action.secondary ||
+              action.minBlockSize !== "24px" ||
+              !visualMatches(action, shared.contractStyles.secondary)
+            : action.inlineSize !== "26px" ||
+              action.minBlockSize !== "26px" ||
+              !visualMatches(action, railActionStyle)),
       ) ||
       !focusMatches
     ) {
       throw new Error(
-        `${id} shared action component contract drifted: ${JSON.stringify({ shared, tone })}`,
+        `${id} shared action component contract drifted: ${JSON.stringify({ shared, state })}`,
       );
     }
     const stateProbes = shared.stateProbes ?? [];
@@ -386,7 +412,10 @@ try {
       const indicatorExpected = ["selected", "error", "loading"].includes(
         probe.state,
       );
-      const expectedStyle = shared.contractStyles?.[probe.variant];
+      const expectedStyle =
+        probe.variant === "quiet"
+          ? railActionStyle
+          : shared.contractStyles?.[probe.variant];
       if (
         Math.abs(probe.width - expectedSize) > 0.1 ||
         Math.abs(probe.height - expectedSize) > 0.1 ||
@@ -413,12 +442,23 @@ try {
     if (Boolean(audit.goalEditorVisible) !== expectEditor) {
       throw new Error(`${id} editor visibility drifted.`);
     }
-    for (const geometry of audit.goalActionGeometry ?? []) {
+    for (const [index, geometry] of (
+      audit.goalActionGeometry ?? []
+    ).entries()) {
+      const action = shared.actions[index];
+      const hidden = action.display === "none";
+      const textButton = action.component === "button";
       if (
-        Math.abs(geometry.width - 24) > 0.1 ||
-        Math.abs(geometry.height - 24) > 0.1 ||
-        Math.abs(geometry.iconWidth - 14) > 0.1 ||
-        Math.abs(geometry.iconHeight - 14) > 0.1
+        (hidden
+          ? geometry.width !== 0 || geometry.height !== 0
+          : textButton
+            ? geometry.width <= 24 || Math.abs(geometry.height - 24) > 0.1
+            : Math.abs(geometry.width - 26) > 0.1 ||
+              Math.abs(geometry.height - 26) > 0.1) ||
+        (textButton
+          ? geometry.iconWidth !== null || geometry.iconHeight !== null
+          : Math.abs(geometry.iconWidth - (hidden ? 0 : 14)) > 0.1 ||
+            Math.abs(geometry.iconHeight - (hidden ? 0 : 14)) > 0.1)
       ) {
         throw new Error(
           `${id} action geometry drifted: ${JSON.stringify(geometry)}`,

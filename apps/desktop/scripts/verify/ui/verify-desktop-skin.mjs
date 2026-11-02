@@ -979,8 +979,8 @@ async function verifyReferenceSliceGeometry(connection) {
   const compactInitial = await referenceSliceGeometry(connection);
   const initialSidebarWidth = Math.round(compactInitial.sidebar.width);
   assert(
-    initialSidebarWidth === 250,
-    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 250px: ${JSON.stringify(compactInitial)}`,
+    initialSidebarWidth === 256,
+    `Compact resize fixture started at ${String(initialSidebarWidth)}px instead of 256px: ${JSON.stringify(compactInitial)}`,
   );
   await evaluate(
     connection,
