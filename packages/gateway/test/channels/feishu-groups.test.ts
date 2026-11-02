@@ -272,6 +272,10 @@ describe("Feishu and Lark group directories", () => {
 
 it.each(["feishu", "lark"] as const)(
   "replaces historical %s bots in gateway snapshots and collaboration peers",
+  {
+    // This fixture creates, reopens and removes an actual SQLite database.
+    timeout: process.platform === "win32" ? 15_000 : 5_000,
+  },
   async (domain) => {
     const directory = mkdtempSync(join(tmpdir(), "artemis-roster-"));
     const databasePath = join(directory, "gateway.sqlite");
