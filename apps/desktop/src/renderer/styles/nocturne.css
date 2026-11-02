@@ -408,7 +408,7 @@
 }
 .app-shell
   [data-artemis-component="workspace-dock-resizer"]:not([data-state="closed"]) {
-  margin-inline: -2.5px;
+  margin-inline: calc((var(--artemis-space-1) + 1px) / -2);
 }
 .app-shell {
   .composer {
