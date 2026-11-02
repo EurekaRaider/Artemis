@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, type ReactNode } from "react";
 import {
   WorkspaceEditorToolbar,
   WorkspacePreview,
@@ -16,6 +16,7 @@ interface WorkspaceMarkdownEditorProps {
   dirty: boolean;
   imageFailureText?: string;
   path: string;
+  pathIcon?: ReactNode;
   readOnly?: boolean;
   richLabel: string;
   saveError: string | undefined;
@@ -36,6 +37,7 @@ export function WorkspaceMarkdownEditor({
   dirty,
   imageFailureText,
   path,
+  pathIcon,
   readOnly = false,
   richLabel,
   saveError,
@@ -95,6 +97,7 @@ export function WorkspaceMarkdownEditor({
         handleWorkspaceEditorSaveShortcut(event, canSave, onSave)
       }
       path={path}
+      pathIcon={pathIcon}
       readOnly={readOnly}
       {...errorProps}
       saveLabel={saveLabel}

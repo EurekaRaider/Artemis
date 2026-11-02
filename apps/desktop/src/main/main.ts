@@ -4,6 +4,11 @@ import {
   computerPreviewCommandSchema,
 } from "@artemis/protocol";
 import { BrowserSessionHost } from "./workspace/browser-session-host.js";
+import { ProjectInstructions } from "./workspace/project-instructions.js";
+import {
+  dispatchThreadLink,
+  parseThreadLink,
+} from "./conversation/thread-links.js";
 import {
   ConversationShareService,
   shareCommandSchema,
@@ -581,6 +586,9 @@ let panelSendEntry: PanelSendEntryService | undefined;
 let threadHistoryService: ThreadHistoryService | undefined;
 let taskNotifications: TaskNotifications | undefined;
 let pendingNotificationThreadId: string | undefined;
+let pendingThreadLinkId: string | null | undefined;
+let threadLinksReady = false;
+let queuedThreadLink: string | undefined;
 let notificationRendererReady = false;
 let turnChangeSetService: TurnChangeSetService | undefined;
 const automaticTaskTitles = new AutomaticTaskTitles();
@@ -3536,6 +3544,39 @@ function observeTaskNotification(
     if (result.notice) taskNotifications.show(result.notice);
   }
   return result;
+}
+
+export function openThreadLink(url: string): void {
+  if (!parseThreadLink(url)) return;
+  if (!threadLinksReady) {
+    queuedThreadLink = url;
+    return;
+  }
+  const show = (id: string | null) => {
+    pendingThreadLinkId = id;
+    if (!mainWindow || mainWindow.isDestroyed())
+      mainWindow = createMainWindow();
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    if (notificationRendererReady) {
+      mainWindow.webContents.send(IPC.threadLinkOpen, id);
+      pendingThreadLinkId = undefined;
+    }
+  };
+  dispatchThreadLink(url, {
+    lookup: (id) => store?.getThread(id),
+    open: show,
+    missing: () => show(null),
+  });
+}
+function registerThreadLinks(): void {
+  threadLinksReady = true;
+  if (queuedThreadLink) {
+    const url = queuedThreadLink;
+    queuedThreadLink = undefined;
+    openThreadLink(url);
+  }
 }
 
 function openTaskNotification(threadId: string): void {
@@ -8071,6 +8112,28 @@ async function cancelRunningGoalContinuation(threadId: string): Promise<void> {
 }
 
 function registerIpc(): void {
+  const projectInstructions = new ProjectInstructions((id) =>
+    store?.getProject(id),
+  );
+  const assertInstructionsSender = (event: Electron.IpcMainInvokeEvent) => {
+    if (
+      event.sender.id !== mainWindow?.webContents.id ||
+      event.senderFrame !== event.sender.mainFrame
+    )
+      throw new Error("Project instructions require the Artemis main window.");
+  };
+  ipcMain.handle(IPC.projectInstructionsRead, (event, ...args: unknown[]) => {
+    assertInstructionsSender(event);
+    if (args.length !== 1) throw new Error("Expected a project identity only.");
+    return projectInstructions.read(args[0]);
+  });
+  ipcMain.handle(IPC.projectInstructionsWrite, (event, ...args: unknown[]) => {
+    assertInstructionsSender(event);
+    if (args.length !== 2)
+      throw new Error("Expected a project identity and content only.");
+    return projectInstructions.write(args[0], args[1]);
+  });
+
   const assertComputerSender = (sender: Electron.WebContents) => {
     if (sender.id !== mainWindow?.webContents.id)
       throw new Error("Computer Use requires the Artemis window.");
@@ -8391,6 +8454,9 @@ function registerIpc(): void {
               name: "Synthetic review team",
               confirmed: true,
               stale: false,
+              ...(process.env.ARTEMIS_SMOKE_REVIEW06_STATE === "notice-retired"
+                ? { retired: "archived" as const }
+                : {}),
               executingDeviceId: "artemis-smoke-reviewer",
               members: [
                 {
@@ -12337,8 +12403,13 @@ function registerIpc(): void {
             number: 80,
             title: "Stop stalled model streams",
             url: "https://github.com/EurekaRaider/Artemis/pull/80",
-            state: "OPEN",
-            isDraft: false,
+            state:
+              process.env.ARTEMIS_SMOKE_REVIEW06_PR === "merged"
+                ? "MERGED"
+                : process.env.ARTEMIS_SMOKE_REVIEW06_PR === "closed"
+                  ? "CLOSED"
+                  : "OPEN",
+            isDraft: process.env.ARTEMIS_SMOKE_REVIEW06_PR === "draft",
             headRefName: gitInfo.currentBranch ?? "main",
             headRefOid: gitInfo.headOid ?? "0".repeat(40),
             checks,
@@ -14473,28 +14544,30 @@ async function seedSmokeMultiQuestionUiFixture(): Promise<void> {
     // Legacy single-question regression card through the REAL broker
     // handler (validator, registry, five-minute timer, requested payload)
     // alongside the multi card, mirroring the #124 smoke layout.
-    handleUserInputBrokerRequest("artemis-smoke-multi-ui-single-worker", {
-      kind: "user.input",
-      approvalId: "artemis-smoke-multi-ui-single",
-      threadId,
-      turnId,
-      workspacePath: fixtureDirectory,
-      header: "Confirmation",
-      question: "Run the legacy release checklist?",
-      options: [
-        {
-          label: "Yes, run the checklist",
-          description: "Execute every legacy step.",
-          recommended: true,
-        },
-        {
-          label: "Skip the checklist",
-          description: "Continue without the legacy steps.",
-          recommended: false,
-        },
-      ],
-      mode: "work",
-    });
+    if (process.env.ARTEMIS_SMOKE_REVIEW06 !== "1") {
+      handleUserInputBrokerRequest("artemis-smoke-multi-ui-single-worker", {
+        kind: "user.input",
+        approvalId: "artemis-smoke-multi-ui-single",
+        threadId,
+        turnId,
+        workspacePath: fixtureDirectory,
+        header: "Confirmation",
+        question: "Run the legacy release checklist?",
+        options: [
+          {
+            label: "Yes, run the checklist",
+            description: "Execute every legacy step.",
+            recommended: true,
+          },
+          {
+            label: "Skip the checklist",
+            description: "Continue without the legacy steps.",
+            recommended: false,
+          },
+        ],
+        mode: "work",
+      });
+    }
     registerSmokeMultiQuestionUiPendingInput({
       requestId: "artemis-smoke-multi-ui",
       nonce: "artemis-smoke-multi-ui-nonce",
@@ -15014,7 +15087,8 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
         title: "Resume the release review",
         mode: "work",
         target: "local",
-        status: "failed",
+        status:
+          process.env.ARTEMIS_SMOKE_REVIEW06 === "1" ? "running" : "failed",
         pinned: false,
         archived: false,
         createdAt: now,
@@ -15189,6 +15263,7 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
   const cancelledTurnId = "artemis-smoke-conversation-cancelled-turn";
   const activeTurnId = "artemis-smoke-conversation-active-turn";
   const longToken = "migration_contract_".repeat(42);
+  const review06BoardData = process.env.ARTEMIS_SMOKE_REVIEW06 === "1";
   const completedPayloads: AgentPayload[] = [
     {
       type: "user.message",
@@ -15243,7 +15318,9 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
       type: "message.part.delta",
       partId: "artemis-smoke-conversation-final",
       partType: "text",
-      delta: [
+      delta: review06BoardData
+        ? "搜索已改为先规范化查询，再同时匹配标题与标签；空查询直接返回全部笔记。12 项测试全部通过，README 也补上了用法说明。\n\n接下来我想把 `feature/search` 推送到远程，方便你开 PR。"
+        : [
         "## Timeline migration verified",
         "",
         "- Public user and assistant message anatomy is active.",
@@ -15380,11 +15457,20 @@ async function seedSmokeConversationTimelineFixture(): Promise<void> {
       turnId: cancelledTurnId,
       payload,
     })),
-    ...activePayloads.map((payload, index) => ({
-      eventId: `artemis-smoke-conversation-active-${index}`,
-      turnId: activeTurnId,
-      payload,
-    })),
+    ...activePayloads
+      .filter(
+        (payload) =>
+          !(
+            process.env.ARTEMIS_SMOKE_REVIEW06 === "1" &&
+            process.env.ARTEMIS_SMOKE_REVIEW06_STATE?.startsWith("running-") &&
+            payload.type === "user-input.requested"
+          ),
+      )
+      .map((payload, index) => ({
+        eventId: `artemis-smoke-conversation-active-${index}`,
+        turnId: activeTurnId,
+        payload,
+      })),
   ]);
 }
 
@@ -15707,6 +15793,7 @@ function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
   ) {
     return;
   }
+  if (process.env.ARTEMIS_SMOKE_REVIEW06_USAGE === "empty") return;
   const now = new Date();
   const threadId = "artemis-smoke-card-heatmap-thread";
   for (const day of SMOKE_CARD_HEATMAP_USAGE_DAYS) {
@@ -15732,7 +15819,13 @@ function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
         modelId: "card-heatmap-probe",
         inputTokens,
         outputTokens: day.totalTokens - inputTokens,
-        cacheReadTokens: 0,
+        cacheReadTokens:
+          process.env.ARTEMIS_SMOKE_REVIEW06_USAGE === "reported"
+            ? Math.round(inputTokens * 0.63)
+            : 0,
+        ...(process.env.ARTEMIS_SMOKE_REVIEW06_USAGE === "reported"
+          ? { cacheReadReported: true }
+          : {}),
         cacheWriteTokens: 0,
         totalTokens: day.totalTokens,
       },
@@ -15850,10 +15943,111 @@ async function seedSmokeSecondaryPagesFixture(): Promise<void> {
       createdAt: now,
       updatedAt: now,
     });
+    if (process.env.ARTEMIS_SMOKE_REVIEW06 === "1") {
+      for (let index = 1; index <= 6; index++) {
+        const date = new Date(
+          Date.now() - index * 20 * 86_400_000,
+        ).toISOString();
+        store.createThread({
+          id: `artemis-smoke-review06-archive-${index}`,
+          projectId,
+          title: `Archived review task ${index}`,
+          mode: index % 2 ? "work" : "plan",
+          target: "local",
+          status: "idle",
+          pinned: false,
+          archived: true,
+          createdAt: date,
+          updatedAt: date,
+        });
+      }
+    }
     return;
   }
 
   if (view === "secondary-pages-automations") {
+    if (process.env.ARTEMIS_SMOKE_REVIEW06 === "1") {
+      const schedule = {
+        kind: "weekly" as const,
+        daysOfWeek: [5],
+        localTime: "09:00",
+        timeZone: "Asia/Shanghai",
+      };
+      const nextRunAt = nextAutomationOccurrence(
+        schedule,
+        new Date(Date.now() + 86_400_000).toISOString(),
+      );
+      for (const [index, name] of [
+        "01 每周研究简报",
+        "02 依赖安全巡检",
+        "03 评审项目变更",
+      ].entries()) {
+        const id = `artemis-smoke-review06-automation-${index}`;
+        const createdAt = new Date(
+          Date.now() - index * 86_400_000,
+        ).toISOString();
+        store.createAutomation({
+          id,
+          projectId,
+          name,
+          prompt: "Local UI fixture only. No model request is sent.",
+          mode: "plan",
+          target: "local",
+          schedule,
+          enabled: index !== 2,
+          nextRunAt: index !== 2 ? nextRunAt : undefined,
+          lastRunAt:
+            index !== 2
+              ? new Date(Date.now() - 7 * 86_400_000).toISOString()
+              : undefined,
+          authorizationState: "not-required",
+          createdAt,
+          updatedAt: createdAt,
+        });
+        if (index === 2) continue;
+        const runStates =
+          index === 0 ? ["completed", "completed", "failed"] : ["failed"];
+        for (const [runIndex, state] of runStates.entries()) {
+          const date = new Date(
+            Date.now() - (runIndex + 1) * 7 * 86_400_000,
+          ).toISOString();
+          const threadId = `artemis-smoke-review06-automation-run-${index}-${runIndex}`;
+          store.createThread({
+            id: threadId,
+            projectId,
+            title: `${name} · local history fixture`,
+            mode: "plan",
+            target: "local",
+            status: "idle",
+            pinned: false,
+            archived: false,
+            createdAt: date,
+            updatedAt: date,
+          });
+          store.claimAutomationRun(
+            {
+              id: threadId,
+              automationId: id,
+              threadId,
+              scheduledFor: date,
+              trigger: "schedule",
+              state: state as "completed" | "failed",
+              reason:
+                state === "failed" ? "Synthetic local failure" : undefined,
+              createdAt: date,
+              updatedAt: date,
+            },
+            { advanceSchedule: false },
+          );
+        }
+        store.updateAutomation({
+          ...store.getAutomation(id)!,
+          lastRunAt: new Date(Date.now() - 7 * 86_400_000).toISOString(),
+          updatedAt: createdAt,
+        });
+      }
+      return;
+    }
     store.createAutomation({
       id: "artemis-smoke-secondary-pages-automation",
       projectId,
@@ -18152,7 +18346,7 @@ async function driveSmokeUserInputTransportEvidence(
 async function seedSmokeEnvironmentFixture(): Promise<void> {
   const view = process.env.ARTEMIS_SMOKE_VIEW;
   if (smokeMode && view === "nocturne-review-comment-wide") {
-    settingsStore?.setWorkspaceDockWidth(640);
+    settingsStore?.setWorkspaceDockWidth(620);
   }
   // The icon-sizing smoke harness reuses this same synthetic repository
   // fixture so the branch popover, commit dialog, and environment rows all
@@ -18313,7 +18507,9 @@ async function seedSmokeEnvironmentFixture(): Promise<void> {
               type: "agent-team.status",
               teamId: "environment-team",
               mission: "并行验证环境面板",
-              status: "completed",
+              status: process.env.ARTEMIS_SMOKE_REVIEW06
+                ? "running"
+                : "completed",
               memberAgentIds: ["ui-agent", "git-agent", "test-agent"],
               requiredAgentIds: ["ui-agent", "git-agent"],
               maxMembers: 8,
@@ -18842,6 +19038,10 @@ function createMainWindow(): BrowserWindow {
       }
       markStartupStage("renderer-ready");
       notificationRendererReady = true;
+      if (pendingThreadLinkId !== undefined) {
+        window.webContents.send(IPC.threadLinkOpen, pendingThreadLinkId);
+        pendingThreadLinkId = undefined;
+      }
       if (pendingNotificationThreadId) {
         const target = pendingNotificationThreadId;
         pendingNotificationThreadId = undefined;
@@ -19023,13 +19223,18 @@ function createMainWindow(): BrowserWindow {
                     if (view === 'nocturne-project-menu') document.querySelector('.project-action')?.click();
                     if (view === 'nocturne-thread-menu') document.querySelector('.thread-action')?.click();
                     if (view === 'nocturne-workspace-menu') {
-                      const trigger = document.querySelector('.composer-context .environment-workspace-trigger');
-                      if (!(trigger instanceof HTMLButtonElement)) throw new Error('Composer workspace trigger missing');
+                      if (!document.querySelector('.environment-panel')) document.querySelector('.environment-trigger')?.click();
+                      await wait(200);
+                      const trigger = document.querySelector('.environment-panel .environment-workspace-trigger');
+                      if (!(trigger instanceof HTMLButtonElement)) throw new Error('Environment workspace trigger missing');
                       trigger.click();
                       await wait(200);
                       if (!document.querySelector('.environment-workspace-menu')) throw new Error('Workspace menu did not open');
                     }
                     if (view === 'nocturne-branch-menu') {
+                      // The composer workspace row belongs to a new conversation.
+                      // Existing conversations switch Git context in Environment.
+                      document.querySelector('[data-tree-row-id="project:artemis-smoke-environment-project"] .project-new-thread')?.click();
                       const deadline = Date.now() + 10_000;
                       let trigger;
                       while (Date.now() < deadline) {
@@ -24649,7 +24854,8 @@ app
     nativeTheme.on("updated", syncWindowBackgroundColors);
     if (
       smokeMode &&
-      process.env.ARTEMIS_SMOKE_VIEW === "nocturne-settings-providers"
+      (process.env.ARTEMIS_SMOKE_VIEW === "nocturne-settings-providers" ||
+        process.env.ARTEMIS_SMOKE_REVIEW06 === "1")
     ) {
       // An isolated local definition exercises model rows and the saved default
       // without importing credentials or claiming a successful connection.
@@ -24676,6 +24882,34 @@ app
         { providerId, modelId, thinkingLevel: "medium" },
         contextWindow,
       );
+      if (process.env.ARTEMIS_SMOKE_REVIEW06 === "1") {
+        for (const [id, name, reasoning] of [
+          ["review06-reasoning", "Reasoning fixture", true],
+          ["review06-text", "Text fixture", false],
+          ["review06-fast", "Fast fixture", true],
+        ] as const) {
+          await settingsStore.saveProviderConnection({
+            id,
+            name: id === "review06-fast" ? "Second fixture provider" : name,
+            baseUrl: "http://127.0.0.1:65535/v1",
+            models: [
+              {
+                id,
+                name,
+                reasoning,
+                input: ["text"],
+                contextWindow: 200_000,
+                maxTokens: 8_000,
+              },
+            ],
+          });
+          await settingsStore.addModel({
+            providerId: id,
+            modelId: id,
+            contextWindow: 200_000,
+          });
+        }
+      }
     }
     if (smokeMode && process.env.ARTEMIS_SMOKE_MATERIAL) {
       await settingsStore.setMaterialPreference(
@@ -24746,6 +24980,55 @@ app
     await seedSmokeIconSizingFixture();
     await seedSmokeInputFieldsFixture();
     await seedSmokeSecondaryPagesFixture();
+    if (smokeMode && process.env.ARTEMIS_SMOKE_REVIEW06 === "1") {
+      const emptyProjectPath = join(
+        app.getPath("userData"),
+        "fixtures",
+        "review06-empty-project",
+      );
+      await mkdir(emptyProjectPath, { recursive: true });
+      store.upsertProject({
+        id: "artemis-smoke-review06-empty-project",
+        name: "Empty project",
+        path: emptyProjectPath,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      if (process.env.ARTEMIS_SMOKE_REVIEW06_STATE === "thread") {
+        const now = new Date().toISOString();
+        store.createThread({
+          id: "e59ea82c-775a-4a3f-87ab-62c11ac31f3b",
+          projectId: "artemis-smoke-review06-empty-project",
+          title: "Local task link fixture",
+          mode: "plan",
+          target: "local",
+          status: "idle",
+          pinned: false,
+          archived: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+      for (const [name, description] of [
+        ["研究智能体", "检索、对比与引用核对"],
+        ["评审智能体", "代码评审与测试补全"],
+      ]) {
+        store.createCustomAgent({
+          name: name!,
+          description: description!,
+          color: "gray",
+          enabled: true,
+          instructions: "Synthetic local UI fixture. Never execute.",
+          scope: "all",
+          projectIds: [],
+          modelPolicy: { kind: "inherit" },
+          thinkingPolicy: { kind: "inherit" },
+          toolPolicy: { kind: "inherit" },
+          allowAutomaticInvocation: false,
+          triggers: [],
+        });
+      }
+    }
     mcpOAuthStore = new McpOAuthStore(
       join(app.getPath("userData"), "mcp-oauth.json"),
       safeStorage,
@@ -25158,9 +25441,13 @@ app
     // cards from the store on first load.
     await seedSmokeMultiQuestionUiFixture();
     mainWindow = createMainWindow();
+    registerThreadLinks();
     markStartupStage("window-created");
     void optionalCapabilitiesReady
-      .then(() => resumeInterruptedTurns())
+      .then(() => {
+        if (smokeMode && process.env.ARTEMIS_SMOKE_REVIEW06 === "1") return;
+        return resumeInterruptedTurns();
+      })
       .catch((error) => {
         if (shuttingDown) return;
         for (const [threadId, turnId] of [...activeTurns]) {

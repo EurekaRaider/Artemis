@@ -24,9 +24,8 @@ import { officeCopy } from "./office-copy.js";
 import "./office-workbench.css";
 import { officeEditor } from "./office-editor-state.js";
 import { officeEditCopy } from "./office-edit-copy.js";
-import documentsIcon from "../../../resources/bundled-artifact-plugins/plugins/documents/assets/icon.png";
-import presentationsIcon from "../../../resources/bundled-artifact-plugins/plugins/presentations/assets/icon.png";
-import spreadsheetsIcon from "../../../resources/bundled-artifact-plugins/plugins/spreadsheets/assets/icon.png";
+import { WorkspaceFileIcon } from "../workspace/WorkspaceFilesPanel.js";
+import { filePresentation } from "../workspace/workspace-file-presentation.js";
 import {
   readLocalDraft,
   writeLocalDraft,
@@ -534,18 +533,13 @@ function OfficeWorkbenchContent({
       }}
     >
       <header className="office-header">
-        <img
-          className="office-file-icon"
-          alt=""
-          draggable={false}
-          src={
-            isSheet
-              ? spreadsheetsIcon
-              : session.format === "powerpoint"
-                ? presentationsIcon
-                : documentsIcon
-          }
-        />
+        <span className="office-file-icon">
+          <WorkspaceFileIcon
+            path={session.path}
+            presentation={filePresentation(session.path)}
+            symlink={false}
+          />
+        </span>
         <div className="office-file-info">
           <strong title={session.path}>{fileName}</strong>
           <span

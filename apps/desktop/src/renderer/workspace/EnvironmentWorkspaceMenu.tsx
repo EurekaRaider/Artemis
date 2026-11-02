@@ -27,7 +27,7 @@ export function EnvironmentWorkspaceMenu({
   path: string;
   worktreeCount?: number | undefined;
   worktree?: boolean | undefined;
-  placement?: "inline-start" | "block-start";
+  placement?: "inline-start" | "block-start" | "block-end";
   disabled: boolean;
   onHandoff?:
     ((destination: "local" | "managed-worktree") => Promise<void>) | undefined;

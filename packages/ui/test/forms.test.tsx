@@ -971,8 +971,8 @@ describe("Checkbox and Switch", () => {
     expect(
       checkbox
         .closest('[data-artemis-component="checkbox"]')
-        ?.querySelector('[data-part="indicator"]')?.textContent,
-    ).toBe("✓");
+        ?.querySelector('[data-part="indicator"] [data-artemis-icon="check"]'),
+    ).not.toBeNull();
 
     unmount();
     render(

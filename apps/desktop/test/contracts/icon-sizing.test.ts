@@ -311,14 +311,14 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
 
   it("freezes the remaining ✓/✦ text dingbat inventory after icon migration", () => {
     expect(dingbats).toEqual({
-      "app/App.tsx": { check: 6, star: 0 },
+      "app/App.tsx": { check: 3, star: 0 },
       "workspace/WorktreeManager.tsx": { check: 1, star: 0 },
     });
     const total = Object.values(dingbats).reduce(
       (sum, counts) => sum + counts.check + counts.star,
       0,
     );
-    expect(total).toBe(7);
+    expect(total).toBe(4);
     expect(
       readFileSync(resolve(process.cwd(), "src/renderer/app/App.tsx"), "utf8"),
     ).toMatch(/<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u);

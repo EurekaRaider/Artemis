@@ -146,6 +146,18 @@ const api: ArtemisApi = {
   openProject: () => ipcRenderer.invoke(IPC.projectOpen),
   removeProject: (projectId) =>
     ipcRenderer.invoke(IPC.projectRemove, projectId),
+  readProjectInstructions: (projectId) =>
+    ipcRenderer.invoke(IPC.projectInstructionsRead, projectId),
+  writeProjectInstructions: (projectId, content) =>
+    ipcRenderer.invoke(IPC.projectInstructionsWrite, projectId, content),
+  onThreadLinkOpen(listener) {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      threadId: string | null,
+    ) => listener(threadId);
+    ipcRenderer.on(IPC.threadLinkOpen, handler);
+    return () => ipcRenderer.removeListener(IPC.threadLinkOpen, handler);
+  },
   getProjectGitInfo: (projectId, threadId) =>
     ipcRenderer.invoke(IPC.projectGitInfo, projectId, threadId),
   getProjectPullRequest: (projectId, threadId) =>

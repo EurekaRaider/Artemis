@@ -11,6 +11,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import { ArtemisIcon } from "./icons.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -25,12 +26,14 @@ export const FORM_COMPONENT_CONTRACT_SCHEMA_VERSION = 1 as const;
 export const FORM_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-surface-base",
   "--artemis-color-surface-raised",
+  "--artemis-color-surface-popover",
   "--artemis-color-surface-sunken",
   "--artemis-color-interaction-hover",
   "--artemis-color-interaction-selected",
   "--artemis-color-text-primary",
   "--artemis-color-focus-ring",
   "--artemis-color-text-secondary",
+  "--artemis-color-text-tertiary",
   "--artemis-color-border-default",
   "--artemis-color-border-strong",
   "--artemis-color-accent-primary",
@@ -53,6 +56,7 @@ export const FORM_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-motion-duration-fast",
   "--artemis-motion-easing-standard",
   "--artemis-opacity-disabled",
+  "--artemis-shadow-overlay",
 ] as const);
 
 export type FormControlSize = "compact" | "comfortable";
@@ -199,7 +203,7 @@ export const FORM_COMPONENT_CONTRACTS = /* @__PURE__ */ deepFreeze({
       "option",
       "check",
     ],
-    optionalParts: ["description", "error", "search", "empty"],
+    optionalParts: ["description", "error", "search", "empty", "footer"],
     states: ["ready", "open", "error", "disabled"],
     statePriority: SELECT_STATE_PRIORITY,
     sizes: ["compact", "comfortable"],
@@ -878,6 +882,7 @@ export interface SelectProps<Value extends string> {
   readonly description?: string | undefined;
   readonly disabled?: boolean | undefined;
   readonly error?: string | undefined;
+  readonly footer?: string | undefined;
   readonly id?: string | undefined;
   readonly label: string;
   readonly labelVisibility?: "hidden" | "visible" | undefined;
@@ -890,17 +895,7 @@ export interface SelectProps<Value extends string> {
 }
 
 function SelectIndicator() {
-  return (
-    <svg viewBox="0 0 16 16">
-      <path
-        d="m4.5 6.25 3.5 3.5 3.5-3.5"
-        fill="none"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <ArtemisIcon name="chevron" width={14} height={14} />;
 }
 
 export function Select<Value extends string>({
@@ -908,6 +903,7 @@ export function Select<Value extends string>({
   description,
   disabled,
   error,
+  footer,
   id,
   label,
   labelVisibility = "hidden",
@@ -1045,7 +1041,11 @@ export function Select<Value extends string>({
           left + parent.clientWidth * parentScale,
         );
       }
-      const available = Math.max(0, rightEdge - leftEdge - 16) / (scale || 1);
+      const anchorBounds = anchor.getBoundingClientRect();
+      const anchoredSpace = getComputedStyle(anchor).direction === "rtl"
+        ? anchorBounds.right - leftEdge - 8
+        : rightEdge - anchorBounds.left - 8;
+      const available = Math.max(0, Math.min(rightEdge - leftEdge - 16, anchoredSpace)) / (scale || 1);
       element.style.maxInlineSize = `min(20rem, ${available}px)`;
       element.style.minInlineSize = `min(100%, 12rem, ${available}px)`;
       element.style.translate = "0px";
@@ -1283,20 +1283,21 @@ export function Select<Value extends string>({
                     role="option"
                     title={option.title}
                   >
-                    <span aria-hidden="true" data-part="check">
-                      {option.value === value ? "✓" : ""}
-                    </span>
                     <span>
                       {option.label}
                       {option.description ? (
                         <small>{option.description}</small>
                       ) : null}
                     </span>
+                    <span aria-hidden="true" data-part="check">
+                      {option.value === value ? <ArtemisIcon name="check" width={14} height={14} /> : null}
+                    </span>
                   </div>
                 );
               })
             )}
           </div>
+          {footer ? <div data-part="footer">{footer}</div> : null}
         </div>
       ) : null}
     </div>
@@ -1413,7 +1414,7 @@ function CheckControl({
           </span>
         ) : (
           <span aria-hidden="true" data-part="indicator">
-            {indeterminate ? "−" : resolvedChecked ? "✓" : ""}
+            {indeterminate ? "−" : resolvedChecked ? <ArtemisIcon name="check" width={12} height={12} /> : null}
           </span>
         )}
         <span data-part="label">{label}</span>

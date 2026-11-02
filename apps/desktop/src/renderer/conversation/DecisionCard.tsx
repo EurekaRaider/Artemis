@@ -116,7 +116,7 @@ export function DecisionOptions({
                 <strong>{option.label}</strong>
                 {option.description && <small>{option.description}</small>}
               </span>
-              {option.recommended && (
+              {option.recommended && numbered && (
                 <span className="decision-recommended">
                   {uiText(locale, "WorkRecord.recommended")}
                 </span>

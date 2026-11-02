@@ -1,3 +1,7 @@
+import { UpdateAnnouncement } from "../updates/UpdateAnnouncement.js";
+import { ProjectInstructionsDialog } from "../workspace/ProjectInstructionsDialog.js";
+import { ModelPickerMenu } from "../settings/ModelPickerMenu.js";
+import { ModelHoverDetails } from "../settings/ModelHoverDetails.js";
 import { Keycap } from "@artemis/ui/actions";
 import { threadPresentationStatus } from "../conversation/thread-presentation.js";
 import { WelcomeResume } from "../conversation/WelcomeResume.js";
@@ -421,12 +425,14 @@ import {
 } from "../settings/model-selection.js";
 
 type Locale = AppLocale;
-type ModelPickerSection = "model" | "thinking";
 type ActiveView =
   "workspace" | "archive" | "resources" | "token-usage" | "automations";
 type SettingsEntryTab = "general" | "maintenance" | "hooks" | "im";
 type ConfirmationTone = "default" | "danger";
-type ToastContent = string | { error: true; message: string };
+type ToastContent =
+  | string
+  | { error: true; message: string }
+  | { success: true; message: string };
 
 interface ToastState {
   content: ToastContent;
@@ -492,14 +498,16 @@ function TransientNotice({
   onDismiss(): void;
   placement: "composer" | "view";
 }) {
-  const error = typeof notice.content !== "string";
+  const error = typeof notice.content !== "string" && "error" in notice.content;
+  const success =
+    typeof notice.content !== "string" && "success" in notice.content;
   return (
     <Toast
       className={`transient-notice ${placement}-notice${error ? " error" : ""}${notice.fading ? " fading" : ""}`}
       dismissLabel={dismissLabel}
       exiting={notice.fading}
       onDismiss={onDismiss}
-      tone={error ? "danger" : "info"}
+      tone={error ? "danger" : success ? "success" : "info"}
     >
       {typeof notice.content === "string"
         ? notice.content
@@ -586,10 +594,6 @@ function CloseIcon() {
 
 function QueueIcon() {
   return <ArtemisIcon className="icon" height={18} name="queue" width={18} />;
-}
-
-function SteerIcon() {
-  return <ArtemisIcon className="icon" height={18} name="steer" width={18} />;
 }
 
 function MoveToFrontIcon() {
@@ -961,6 +965,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState<DesktopSnapshot>();
   const [windowMaterial, setWindowMaterial] = useState<WindowMaterial>();
   const [activeProjectId, setActiveProjectId] = useState<string>();
+  const linkOpenedThread = useRef<string | undefined>(undefined);
   const [activeThreadId, setActiveThreadId] = useState<string>();
   const [composerDrafts, setComposerDrafts] = useState<ComposerDrafts>({});
   const [promptSubmittedAtByThread, setPromptSubmittedAtByThread] = useState<
@@ -994,8 +999,6 @@ export function App() {
   const [approvalMenuOpen, setApprovalMenuOpen] = useState(false);
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [modelFilter, setModelFilter] = useState("");
-  const [modelPickerSection, setModelPickerSection] =
-    useState<ModelPickerSection>("model");
   const [mode, setMode] = useState<RunMode>("work");
   const [query, setQuery] = useState("");
   const sidebarSearchInput = useRef<HTMLInputElement>(null);
@@ -1075,6 +1078,12 @@ export function App() {
   const [activeView, setActiveView] = useState<ActiveView>("workspace");
   const [managementActionTarget, setManagementActionTarget] =
     useState<HTMLDivElement | null>(null);
+  const [projectInstructionsProject, setProjectInstructionsProject] =
+    useState<Project>();
+  const [automationDraftRequest, setAutomationDraftRequest] = useState<{
+    projectId: string;
+    token: number;
+  }>();
   const [projectMenuId, setProjectMenuId] = useState<string>();
   const projectMenuAnchor = useRef<HTMLButtonElement | null>(null);
   const [threadMenuId, setThreadMenuId] = useState<string>();
@@ -1476,7 +1485,7 @@ export function App() {
   const previousPendingDecisionId = useRef<string | undefined>(undefined);
   const approvalPolicyRoot = useRef<HTMLDivElement>(null);
   const modelPickerRoot = useRef<HTMLDivElement>(null);
-  const modelPickerHoverCloseTimer = useRef<number | undefined>(undefined);
+  const composerBoundary = useRef<HTMLDivElement>(null);
   const slashCommandMenu = useRef<HTMLDivElement>(null);
   const confirmationResolver = useRef<
     ((confirmed: boolean) => void) | undefined
@@ -1705,6 +1714,7 @@ export function App() {
     setText: setPrompt,
     input: promptInput,
     enabled: customAgentTasks.length < AGENT_TEAM_LOGICAL_MAXIMUM,
+    remaining: AGENT_TEAM_LOGICAL_MAXIMUM - customAgentTasks.length,
     members: groupMentions.open ? groupMentions : undefined,
     onSelect: addCustomAgentTask,
     plugins: {
@@ -2023,29 +2033,11 @@ export function App() {
     const closeOutside = (event: PointerEvent) => {
       if (!modelPickerRoot.current?.contains(event.target as Node)) {
         setModelPickerOpen(false);
-        setModelPickerSection("model");
       }
     };
     document.addEventListener("pointerdown", closeOutside);
     return () => document.removeEventListener("pointerdown", closeOutside);
   }, [modelPickerOpen]);
-  const cancelModelPickerHoverClose = useCallback(() => {
-    if (modelPickerHoverCloseTimer.current !== undefined) {
-      window.clearTimeout(modelPickerHoverCloseTimer.current);
-      modelPickerHoverCloseTimer.current = undefined;
-    }
-  }, []);
-  const scheduleModelPickerHoverClose = useCallback(() => {
-    cancelModelPickerHoverClose();
-    modelPickerHoverCloseTimer.current = window.setTimeout(() => {
-      setModelPickerSection("model");
-      modelPickerHoverCloseTimer.current = undefined;
-    }, 160);
-  }, [cancelModelPickerHoverClose]);
-  useEffect(
-    () => () => cancelModelPickerHoverClose(),
-    [cancelModelPickerHoverClose],
-  );
 
   useEffect(() => {
     if (!projectMenuId && !threadMenuId) return;
@@ -2097,6 +2089,7 @@ export function App() {
       ),
     );
     return [
+      ...suggestions.filter((suggestion) => suggestion.kind === "skill"),
       ...suggestions.filter(
         (suggestion) =>
           suggestion.kind !== "skill" &&
@@ -2105,7 +2098,6 @@ export function App() {
             suggestion.kind === "work" ||
             suggestion.kind === "codemode"),
       ),
-      ...suggestions.filter((suggestion) => suggestion.kind === "skill"),
     ];
   }, [
     installedPluginBySkillName,
@@ -3478,6 +3470,21 @@ export function App() {
 
   useEffect(
     () =>
+      window.artemis.onThreadLinkOpen((id) => {
+        if (id) {
+          linkOpenedThread.current = id;
+          void openAutomationThread(id);
+        } else
+          setToast({
+            error: true,
+            message: uiText(locale, "Review06.taskNotFound"),
+          });
+      }),
+    [openAutomationThread, locale],
+  );
+
+  useEffect(
+    () =>
       window.artemis.onAutomationThreadOpen((threadId) => {
         void openAutomationThread(threadId);
       }),
@@ -3630,6 +3637,10 @@ export function App() {
   );
   useEffect(() => {
     if (!activeThreadId) return;
+    if (linkOpenedThread.current === activeThreadId) {
+      linkOpenedThread.current = undefined;
+      return;
+    }
     void window.artemis.prepareThread(activeThreadId).catch(() => {
       // Starting the turn reports an actionable error if background warming failed.
     });
@@ -4152,14 +4163,10 @@ export function App() {
     t.model;
   const activeModelSupportsReasoning =
     activeModel?.reasoning ?? activeProviderModel?.reasoning ?? false;
-  const activeModelHighestThinkingLevel =
-    activeModel?.thinkingLevels?.at(-1) ??
-    activeModel?.highestThinkingLevel ??
-    "high";
   const activeUltraMode =
     activeModelSupportsReasoning && activeSelection?.ultraMode === true;
   const activeThinkingLevel = activeUltraMode
-    ? t.ultraMode
+    ? uiText(locale, "Review06.ultra")
     : activeSelection &&
         activeModelSupportsReasoning &&
         activeSelection.thinkingLevel !== "off"
@@ -4201,7 +4208,6 @@ export function App() {
       ),
     );
   }, [switchableModels, modelFilter, locale]);
-  const modelPickerThinkingLevels = thinkingLevelsForModel(activeModel);
   const activeTurnFailure = activeThreadId
     ? (turnFailureNotices[activeThreadId] ??
       (threadState?.error
@@ -4233,6 +4239,7 @@ export function App() {
                 }
                 onClick={() => editConversationMessage(failedTurnPrompt)}
               >
+                <ArtemisIcon name="edit" width={14} height={14} />
                 {t.editAndResend}
               </button>
             )}
@@ -4247,7 +4254,7 @@ export function App() {
               }
               onClick={() => {
                 setApprovalMenuOpen(false);
-                setModelPickerSection("model");
+
                 setModelFilter("");
                 setModelPickerOpen(true);
               }}
@@ -4961,14 +4968,31 @@ export function App() {
     [t.taskError],
   );
 
+  const copyTaskLink = async (id: string) => {
+    setThreadMenuId(undefined);
+    try {
+      await navigator.clipboard.writeText(`artemis://thread/${id}`);
+      setToast({
+        success: true,
+        message: uiText(locale, "Review06.copiedTaskLink"),
+      });
+    } catch (error) {
+      setToast({ error: true, message: String(error) });
+    }
+  };
+
   const deleteThread = useCallback(
-    async (thread: Thread) => {
-      if (deletingThreadIds.current.has(thread.id)) return;
-      if (!(await requestConfirmation(t.deleteTaskConfirm, "danger"))) return;
+    async (thread: Thread, confirmed = false) => {
+      if (deletingThreadIds.current.has(thread.id)) return false;
+      if (
+        !confirmed &&
+        !(await requestConfirmation(t.deleteTaskConfirm, "danger"))
+      )
+        return false;
       if (deletingThreadIds.current.has(thread.id)) return;
       deletingThreadIds.current.add(thread.id);
       setThreadMenuId(undefined);
-      setToast(uiText(locale, "App.inline1"));
+      if (!confirmed) setToast(uiText(locale, "App.inline1"));
       const siblingThreads = (snapshot?.threads ?? []).filter(
         (item) => item.projectId === thread.projectId && !item.archived,
       );
@@ -5012,11 +5036,13 @@ export function App() {
           setMode(nextThread?.mode ?? "work");
           window.requestAnimationFrame(() => promptInput.current?.focus());
         }
+        return true;
       } catch (error) {
         setToast({
           error: true,
           message: `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         });
+        return false;
       } finally {
         deletingThreadIds.current.delete(thread.id);
         setThreadMenuId(undefined);
@@ -5115,7 +5141,7 @@ export function App() {
   };
 
   const setThreadArchived = useCallback(
-    async (thread: Thread, archived: boolean) => {
+    async (thread: Thread, archived: boolean, bulk = false) => {
       if (archived && !(await requestConfirmation(t.archiveConfirm))) return;
       try {
         const updated = await window.artemis.archiveThread(thread.id, archived);
@@ -5135,17 +5161,19 @@ export function App() {
             }
           }
           setActiveView("workspace");
-        } else {
+        } else if (!bulk) {
           setActiveView("workspace");
           setActiveProjectId(updated.projectId);
           setActiveThreadId(updated.id);
           setMode(updated.mode);
           window.requestAnimationFrame(() => promptInput.current?.focus());
         }
+        return true;
       } catch (error) {
         setToast(
           `${t.taskError} ${error instanceof Error ? error.message : String(error)}`,
         );
+        return false;
       } finally {
         setThreadMenuId(undefined);
       }
@@ -6087,7 +6115,6 @@ export function App() {
       if (event.key === "Escape") {
         setApprovalMenuOpen(false);
         setModelPickerOpen(false);
-        setModelPickerSection("model");
       } else if (modifier && event.altKey && event.key.toLowerCase() === "b") {
         event.preventDefault();
         toggleReviewPanel();
@@ -6142,12 +6169,14 @@ export function App() {
     );
   }
 
+  const hasConversationContent =
+    (threadState?.order.length ?? 0) > 0 ||
+    (activeHistory?.state.order.length ?? 0) > 0;
   const conversationEmpty =
     !activeThread ||
     (!activeThread.archived &&
       loadedEventThreads.current.has(activeThread.id) &&
-      activeEvents.length === 0 &&
-      !activeHistory?.state.order.length &&
+      !hasConversationContent &&
       !busy);
   const composerPlaceholder = visibleComposerPrediction
     ? ""
@@ -6292,37 +6321,12 @@ export function App() {
           </div>
         }
         footer={
-          <div className="sidebar-footer">
-            <span className="local-indicator" title={username}>
-              <span aria-hidden="true" className="sidebar-profile-avatar">
-                {runtimeSettings?.profileAvatar ? (
-                  <img alt="" src={runtimeSettings.profileAvatar} />
-                ) : (
-                  userInitials(username)
-                )}
-              </span>
-              <span className="sidebar-profile-copy">
-                <span className="local-user-name">{username}</span>
-                {runtimeSettings?.update.currentVersion && (
-                  <button
-                    className="app-version"
-                    onClick={(event) =>
-                      openSettings("maintenance", event.currentTarget)
-                    }
-                    title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                    type="button"
-                  >
-                    {sidebarUpdateSubtitle(runtimeSettings.update, locale)}
-                  </button>
-                )}
-              </span>
-            </span>
+          <div className="sidebar-footer-stack">
             {runtimeSettings && (
               <SidebarUpdateControl
                 status={runtimeSettings.update}
                 locale={locale}
                 noticeTarget={updateNoticeTarget}
-                showDownloadProgress={false}
                 activeTaskCount={
                   snapshot?.threads.filter(
                     (thread) =>
@@ -6337,16 +6341,42 @@ export function App() {
                 }
                 onError={(message) => setToast({ error: true, message })}
               />
-            )}{" "}
-            <button
-              className="activity-button foot-icon"
-              type="button"
-              aria-label={t.settings}
-              title={t.settings}
-              onClick={(event) => openSettings("general", event.currentTarget)}
-            >
-              <SettingsIcon />
-            </button>
+            )}
+            <div className="sidebar-footer">
+              <span className="local-indicator" title={username}>
+                <span aria-hidden="true" className="sidebar-profile-avatar">
+                  {runtimeSettings?.profileAvatar ? (
+                    <img alt="" src={runtimeSettings.profileAvatar} />
+                  ) : (
+                    userInitials(username)
+                  )}
+                </span>
+                <span className="sidebar-profile-copy">
+                  <span className="local-user-name">{username}</span>
+                  {runtimeSettings?.update.currentVersion && (
+                    <button
+                      className="app-version"
+                      onClick={(event) =>
+                        openSettings("maintenance", event.currentTarget)
+                      }
+                      title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
+                      type="button"
+                    >
+                      {sidebarUpdateSubtitle(runtimeSettings.update, locale)}
+                    </button>
+                  )}
+                </span>
+              </span>
+              <button
+                className="activity-button foot-icon"
+                type="button"
+                aria-label={t.settings}
+                title={t.settings}
+                onClick={(event) => openSettings("general", event.currentTarget)}
+              >
+                <SettingsIcon />
+              </button>
+            </div>
           </div>
         }
         header={
@@ -6746,6 +6776,42 @@ export function App() {
                           </button>
                           <button
                             role="menuitem"
+                            onClick={() => {
+                              setProjectMenuId(undefined);
+                              setAutomationDraftRequest((previous) => ({
+                                projectId: project.id,
+                                token: (previous?.token ?? 0) + 1,
+                              }));
+                              setActiveView("automations");
+                            }}
+                          >
+                            <ArtemisIcon
+                              name="automation"
+                              width={16}
+                              height={16}
+                            />
+                            <span>
+                              {uiText(locale, "Review06.newProjectAutomation")}
+                            </span>
+                          </button>
+                          <button
+                            role="menuitem"
+                            onClick={() => {
+                              setProjectMenuId(undefined);
+                              setProjectInstructionsProject(project);
+                            }}
+                          >
+                            <ArtemisIcon
+                              name="document"
+                              width={16}
+                              height={16}
+                            />
+                            <span>
+                              {uiText(locale, "Review06.projectInstructions")}
+                            </span>
+                          </button>
+                          <button
+                            role="menuitem"
                             onClick={(event) => {
                               setHooksQuery({ projectId: project.id });
                               setProjectMenuId(undefined);
@@ -7076,6 +7142,20 @@ export function App() {
                                     </span>
                                   </button>
 
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => void copyTaskLink(thread.id)}
+                                  >
+                                    <ArtemisIcon
+                                      name="copy"
+                                      width={16}
+                                      height={16}
+                                    />
+                                    <span>
+                                      {uiText(locale, "Review06.copyTaskLink")}
+                                    </span>
+                                  </button>
+
                                   <div role="separator" />
                                   <button
                                     role="menuitem"
@@ -7355,6 +7435,14 @@ export function App() {
                           <span>{uiText(locale, "Review05.shareTask")}</span>
                         </button>
 
+                        <button
+                          role="menuitem"
+                          onClick={() => void copyTaskLink(thread.id)}
+                        >
+                          <ArtemisIcon name="copy" width={16} height={16} />
+                          <span>{uiText(locale, "Review06.copyTaskLink")}</span>
+                        </button>
+
                         <div role="separator" />
                         <button
                           role="menuitem"
@@ -7455,7 +7543,7 @@ export function App() {
             </div>
           </Toolbar>
         )}
-        {toast && (activeView !== "workspace" || activeThread?.archived) && (
+        {toast && activeView !== "workspace" && (
           <TransientNotice
             dismissLabel={t.dismissNotice}
             notice={toast}
@@ -7477,6 +7565,7 @@ export function App() {
           <Suspense fallback={<div className="view-loading">…</div>}>
             <AutomationPage
               initialAutomationId={welcomeAutomationId}
+              initialDraftRequest={automationDraftRequest}
               headerActionTarget={managementActionTarget}
               locale={locale}
               settings={runtimeSettings}
@@ -7501,6 +7590,27 @@ export function App() {
               setActiveThreadId(thread.id);
               setMode(thread.mode);
               setActiveView("workspace");
+            }}
+            onBatch={async (threads, operation) => {
+              if (
+                operation === "delete" &&
+                !(await requestConfirmation(
+                  uiText(locale, "Review06.bulkDeleteConfirm", {
+                    count: threads.length,
+                  }),
+                  "danger",
+                ))
+              )
+                return undefined;
+              const succeeded: string[] = [];
+              for (const thread of threads) {
+                const ok =
+                  operation === "delete"
+                    ? await deleteThread(thread, true)
+                    : await setThreadArchived(thread, false, true);
+                if (ok) succeeded.push(thread.id);
+              }
+              return succeeded;
             }}
             onDelete={(thread) => void deleteThread(thread)}
             onRestore={(thread) => void setThreadArchived(thread, false)}
@@ -7846,12 +7956,7 @@ export function App() {
                           lines={3}
                         />
                       )
-                    ) : !activeThread ||
-                      (!activeThread.archived &&
-                        loadedEventThreads.current.has(activeThread.id) &&
-                        activeEvents.length === 0 &&
-                        !activeHistory?.state.order.length &&
-                        !busy) ? (
+                    ) : conversationEmpty ? (
                       <ConversationEmptyState
                         className="conversation-empty-state"
                         icon={<ArtemisMark />}
@@ -7955,40 +8060,50 @@ export function App() {
                     />
                   </TimelineViewport>
 
-                  {activeThread?.archived && (
-                    <div className="archived-readonly" role="status">
-                      <ArchiveIcon />
-                      <span>
-                        <strong>{t.archivedReadOnly}</strong>
-                        <small>{t.archivedReadOnlyDetail}</small>
-                      </span>
-                      <button
-                        onClick={() =>
-                          void setThreadArchived(activeThread, false)
-                        }
-                      >
-                        {t.restoreTask}
-                      </button>
-                    </div>
-                  )}
-
-                  {retiredGroup && (
+                  {(activeThread?.archived || retiredGroup) && (
                     <div className="composer-wrap">
-                      <div className="im-retired-notice" role="status">
-                        <ArtemisIcon name="agents" width={18} height={18} />
-                        <span>
-                          {uiText(
-                            locale,
-                            retiredGroup === "dissolved"
-                              ? "ImThreadConnection.dissolvedDetail"
-                              : "ImThreadConnection.archivedDetail",
-                          )}
-                        </span>
-                      </div>
+                      {toast && (
+                        <TransientNotice
+                          dismissLabel={t.dismissNotice}
+                          notice={toast}
+                          onDismiss={() => setToast(undefined)}
+                          placement="composer"
+                        />
+                      )}
+                      {activeThread?.archived && (
+                        <div className="archived-readonly" role="status">
+                          <ArchiveIcon />
+                          <span>
+                            <strong>{t.archivedReadOnly}</strong>
+                            <small>{t.archivedReadOnlyDetail}</small>
+                          </span>
+                          <button
+                            onClick={() =>
+                              void setThreadArchived(activeThread, false)
+                            }
+                          >
+                            {t.restoreTask}
+                          </button>
+                        </div>
+                      )}
+
+                      {retiredGroup && (
+                        <div className="im-retired-notice" role="status">
+                          <ArtemisIcon name="agents" width={18} height={18} />
+                          <span>
+                            {uiText(
+                              locale,
+                              retiredGroup === "dissolved"
+                                ? "ImThreadConnection.dissolvedDetail"
+                                : "ImThreadConnection.archivedDetail",
+                            )}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
                   {!activeThread?.archived && !retiredGroup && (
-                    <div className="composer-wrap">
+                    <div className="composer-wrap" ref={composerBoundary}>
                       <Suspense fallback={null}>
                         <ComputerUseControls
                           locale={locale}
@@ -8111,7 +8226,6 @@ export function App() {
                                             title={t.queueSteerHint}
                                             type="button"
                                           >
-                                            <SteerIcon />
                                             <span>{t.queueSteer}</span>
                                           </button>
                                           {index > 0 && (
@@ -8162,7 +8276,9 @@ export function App() {
                                     }
                                     className="queued-message-item"
                                     data-queued-index={index}
-                                    index={index + 1}
+                                    index={
+                                      <ArtemisIcon name="clock" width={14} height={14} />
+                                    }
                                     key={String(index)}
                                     state={busy ? "busy" : "queued"}
                                   >
@@ -8201,12 +8317,10 @@ export function App() {
                                         }
                                       />
                                     ) : (
-                                      <span
-                                        className="queued-message-content"
-                                        title={message}
-                                      >
-                                        {message}
-                                      </span>
+                                      <div className="queued-message-content">
+                                        <small>{uiText(locale, "Review06.queuedAfterTurn")}</small>
+                                        <span title={message}>{message}</span>
+                                      </div>
                                     )}
                                   </QueuedMessageItem>
                                 );
@@ -8274,8 +8388,16 @@ export function App() {
                                 }
                           }
                           context={
-                            <div className="composer-context-row">
+                            <div
+                              className={
+                                hasConversationContent
+                                  ? undefined
+                                  : "composer-context-row"
+                              }
+                              hidden={hasConversationContent}
+                            >
                               <ComposerContextBar
+                                renderControls={!hasConversationContent}
                                 onGitInfo={receiveWelcomeGit}
                                 key={environmentWorkspaceKey}
                                 threadId={activeThread?.id}
@@ -8389,6 +8511,57 @@ export function App() {
                               ref={slashCommandMenu}
                               role="listbox"
                             >
+                              {skillsLoading ? (
+                                <div className="slash-command-status">
+                                  {t.loadingSkills}
+                                </div>
+                              ) : skillsError ? (
+                                <div className="slash-command-status error">
+                                  {skillsError}
+                                </div>
+                              ) : skillSuggestions.length > 0 ? (
+                                <>
+                                  {skillSuggestions.length > 0 && (
+                                    <div className="slash-command-heading">
+                                      {t.installedSkills}
+                                    </div>
+                                  )}
+                                  {skillSuggestions.map(({ index, skill }) => (
+                                    <button
+                                      aria-selected={
+                                        index === activeSlashSuggestion
+                                      }
+                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
+                                      id={`skill-command-option-${index}`}
+                                      key={skill.id}
+                                      onClick={() => selectSkillCommand(skill)}
+                                      role="option"
+                                      tabIndex={-1}
+                                    >
+                                      <ArtemisIcon
+                                        name="skill"
+                                        width={14}
+                                        height={14}
+                                      />
+                                      <span>
+                                        <strong>{skill.name}</strong>
+                                        <small>{skill.description}</small>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </>
+                              ) : (
+                                <div className="slash-command-status">
+                                  {installedSkills.some(
+                                    (skill) => skill.enabled,
+                                  )
+                                    ? t.noMatchingSkills
+                                    : t.noInstalledSkills}
+                                </div>
+                              )}
+                              <div className="slash-command-heading">
+                                {uiText(locale, "Review06.commands")}
+                              </div>
                               {goalSuggestionIndex >= 0 && (
                                 <button
                                   aria-selected={
@@ -8478,63 +8651,13 @@ export function App() {
                                   </button>
                                 );
                               })}
-                              {skillsLoading ? (
-                                <div className="slash-command-status">
-                                  {t.loadingSkills}
-                                </div>
-                              ) : skillsError ? (
-                                <div className="slash-command-status error">
-                                  {skillsError}
-                                </div>
-                              ) : skillSuggestions.length > 0 ? (
-                                <>
-                                  {skillSuggestions.length > 0 && (
-                                    <div className="slash-command-heading">
-                                      {t.installedSkills}
-                                    </div>
-                                  )}
-                                  {skillSuggestions.map(({ index, skill }) => (
-                                    <button
-                                      aria-selected={
-                                        index === activeSlashSuggestion
-                                      }
-                                      className={`slash-command-suggestion${index === activeSlashSuggestion ? " active" : ""}`}
-                                      id={`skill-command-option-${index}`}
-                                      key={skill.id}
-                                      onClick={() => selectSkillCommand(skill)}
-                                      role="option"
-                                      tabIndex={-1}
-                                    >
-                                      <ResourceAvatar
-                                        kind="skill"
-                                        id={skill.id}
-                                        description={skill.description}
-                                        pluginName={
-                                          installedPlugins.find((plugin) =>
-                                            plugin.skillNames.includes(
-                                              skill.name,
-                                            ),
-                                          )?.name
-                                        }
-                                        name={skill.name}
-                                      />
-                                      <span>
-                                        <strong>{skill.name}</strong>
-                                        <small>{skill.description}</small>
-                                      </span>
-                                    </button>
-                                  ))}
-                                </>
-                              ) : (
-                                <div className="slash-command-status">
-                                  {installedSkills.some(
-                                    (skill) => skill.enabled,
-                                  )
-                                    ? t.noMatchingSkills
-                                    : t.noInstalledSkills}
-                                </div>
-                              )}
                             </div>
+                          )}
+                          {(skillCommandMenuOpen ||
+                            customAgentMention.open) && (
+                            <small className="composer-suggestion-hint">
+                              {uiText(locale, "Review06.slashHint")}
+                            </small>
                           )}
                           {designDocBinding && (
                             <div
@@ -8865,13 +8988,7 @@ export function App() {
                                 <small className="composer-empty-hint">
                                   <span className="composer-placeholder">
                                     {composerPlaceholder}
-                                  </span>{" "}
-                                  {!imThreadStatus[activeThreadId ?? ""]
-                                    ?.group && (
-                                    <span>
-                                      {uiText(locale, "Review01.composerHint")}
-                                    </span>
-                                  )}
+                                  </span>
                                 </small>
                               )}
                           </div>
@@ -8907,7 +9024,18 @@ export function App() {
                                   aria-haspopup="menu"
                                   className="approval-policy-trigger"
                                   disabled={approvalChangeLocked}
-                                  onClick={() => {
+                                  onClick={(event) => {
+                                    const root =
+                                      event.currentTarget.closest<HTMLElement>(
+                                        ".composer",
+                                      )!;
+                                    const rect =
+                                        event.currentTarget.getBoundingClientRect(),
+                                      parent = root.getBoundingClientRect();
+                                    root.style.setProperty(
+                                      "--approval-anchor",
+                                      `${document.documentElement.dir === "rtl" ? parent.right - rect.right : rect.left - parent.left}px`,
+                                    );
                                     setModelPickerOpen(false);
                                     setApprovalMenuOpen((current) => !current);
                                   }}
@@ -8928,9 +9056,6 @@ export function App() {
                                     className="approval-policy-menu"
                                     role="menu"
                                   >
-                                    <strong className="approval-policy-heading">
-                                      {t.approvalPolicy}
-                                    </strong>
                                     <button
                                       aria-checked={approvalPolicy === "ask"}
                                       className={
@@ -9034,6 +9159,25 @@ export function App() {
                               </div>
                             </div>
                             <div className="composer-trailing">
+                              {turnActive && !pendingComposerDecision && (
+                                <span className="composer-running-status">
+                                  <RunningArc size={12} />
+                                  <span>
+                                    {uiText(locale, "App_copy_9734.running")}
+                                  </span>
+                                  <time>
+                                    {Math.floor(
+                                      runPresentation.elapsedMs / 60000,
+                                    )}
+                                    :
+                                    {String(
+                                      Math.floor(
+                                        runPresentation.elapsedMs / 1000,
+                                      ) % 60,
+                                    ).padStart(2, "0")}
+                                  </time>
+                                </span>
+                              )}
                               <ContextUsageIndicator
                                 contextWindow={
                                   runtimeSettings?.contextWindow ??
@@ -9046,250 +9190,94 @@ export function App() {
                                 className="model-picker-control"
                                 ref={modelPickerRoot}
                               >
-                                <button
-                                  aria-expanded={modelPickerOpen}
-                                  aria-haspopup="menu"
-                                  aria-label={t.modelPicker}
-                                  className="model-button"
-                                  disabled={
-                                    busy ||
-                                    turnActive ||
-                                    switchableModels.length === 0
-                                  }
-                                  onClick={() => {
-                                    setApprovalMenuOpen(false);
-                                    setModelPickerSection("model");
-                                    setModelFilter("");
-                                    setModelPickerOpen((current) => !current);
-                                  }}
-                                  title={t.modelPicker}
-                                  type="button"
-                                >
-                                  <span
-                                    aria-hidden="true"
-                                    className="model-compact-icon"
-                                  >
-                                    <ModelIcon />
-                                  </span>
-                                  <span className="model-information">
-                                    <strong>{activeModelLabel}</strong>
-                                    {activeThinkingLevel && (
-                                      <small>· {activeThinkingLevel}</small>
-                                    )}
-                                  </span>
-                                  <ChevronIcon />
-                                </button>
-                                {modelPickerOpen && (
-                                  <div
-                                    aria-label={t.modelPicker}
-                                    className="model-picker-menu"
-                                    data-section={modelPickerSection}
-                                    onMouseEnter={cancelModelPickerHoverClose}
-                                    onMouseLeave={scheduleModelPickerHoverClose}
-                                    role="menu"
-                                  >
-                                    <div className="model-picker-navigation">
-                                      <button
-                                        className={
-                                          modelPickerSection === "model"
-                                            ? "selected"
-                                            : ""
-                                        }
-                                        onClick={() =>
-                                          setModelPickerSection("model")
-                                        }
-                                        onMouseEnter={() =>
-                                          setModelPickerSection("model")
-                                        }
-                                        role="menuitem"
-                                        type="button"
-                                      >
-                                        <strong>{t.modelPickerModel}</strong>
-                                        <span>{activeModelLabel}</span>
-                                        <i aria-hidden="true">
-                                          <ChevronIcon />
-                                        </i>
-                                      </button>
-                                      <button
-                                        className={
-                                          modelPickerSection === "thinking"
-                                            ? "selected"
-                                            : ""
-                                        }
-                                        disabled={
-                                          !activeSelection ||
-                                          !activeModelSupportsReasoning
-                                        }
-                                        onClick={() =>
-                                          setModelPickerSection("thinking")
-                                        }
-                                        onMouseEnter={() =>
-                                          setModelPickerSection("thinking")
-                                        }
-                                        role="menuitem"
-                                        type="button"
-                                      >
-                                        <strong>{t.thinking}</strong>
-                                        <span>
-                                          {activeThinkingLevel ?? "—"}
-                                        </span>
-                                        <i aria-hidden="true">
-                                          <ChevronIcon />
-                                        </i>
-                                      </button>
-                                    </div>
-                                    {modelPickerSection === "model" && (
-                                      <label className="model-picker-search">
-                                        <SearchIcon />
-                                        <input
-                                          aria-label={uiText(
-                                            locale,
-                                            "SettingsPanel_labels.modelSearch",
-                                          )}
-                                          placeholder={uiText(
-                                            locale,
-                                            "SettingsPanel_labels.modelSearch",
-                                          )}
-                                          value={modelFilter}
-                                          onChange={(event) =>
-                                            setModelFilter(event.target.value)
-                                          }
-                                          onKeyDown={(event) => {
-                                            if (
-                                              event.key !== "Escape" &&
-                                              event.key !== "Tab"
-                                            )
-                                              event.stopPropagation();
-                                          }}
-                                        />
-                                      </label>
-                                    )}
-                                    {modelPickerSection === "model" &&
-                                      filteredModels.length === 0 && (
-                                        <span
-                                          className="model-picker-empty"
-                                          role="status"
-                                        >
-                                          {uiText(
-                                            locale,
-                                            "SettingsPanel_labels.modelSearchEmpty",
-                                          )}
-                                        </span>
-                                      )}
-                                    <div
-                                      aria-label={
-                                        modelPickerSection === "model"
-                                          ? t.modelPickerModel
-                                          : t.thinking
+                                <Tooltip
+                                  align="end"
+                                  avoidRef={composerBoundary}
+                                  className="model-hover"
+                                  label={activeModelLabel}
+                                  content={
+                                    <ModelHoverDetails
+                                      context={threadState?.contextUsage}
+                                      contextWindow={
+                                        runtimeSettings?.contextWindow ??
+                                        activeModel?.contextWindow
                                       }
-                                      className="model-picker-options"
-                                      role="menu"
+                                      events={activeEvents}
+                                      locale={locale}
+                                      model={activeModelLabel}
+                                      provider={
+                                        activeProvider?.name ??
+                                        activeSelection?.providerId
+                                      }
+                                      thinking={
+                                        activeModelSupportsReasoning
+                                          ? (activeThinkingLevel ??
+                                            thinkingLevelLabel("off", locale))
+                                          : undefined
+                                      }
+                                    />
+                                  }
+                                >
+                                  <button
+                                    aria-expanded={modelPickerOpen}
+                                    aria-haspopup="menu"
+                                    aria-label={t.modelPicker}
+                                    className="model-button"
+                                    disabled={
+                                      busy ||
+                                      turnActive ||
+                                      switchableModels.length === 0
+                                    }
+                                    onClick={(event) => {
+                                      const root =
+                                        event.currentTarget.closest<HTMLElement>(
+                                          ".composer",
+                                        )!;
+                                      const rect =
+                                          event.currentTarget.getBoundingClientRect(),
+                                        parent = root.getBoundingClientRect();
+                                      root.style.setProperty(
+                                        "--model-anchor",
+                                        `${document.documentElement.dir === "rtl" ? parent.right - rect.right : rect.left - parent.left}px`,
+                                      );
+                                      setApprovalMenuOpen(false);
+
+                                      setModelFilter("");
+                                      setModelPickerOpen((current) => !current);
+                                    }}
+                                    type="button"
+                                  >
+                                    <span
+                                      aria-hidden="true"
+                                      className="model-compact-icon"
                                     >
-                                      {modelPickerSection === "thinking" && (
-                                        <div className="model-picker-options-heading">
-                                          {t.thinking}
-                                        </div>
+                                      <ModelIcon />
+                                    </span>
+                                    <span className="model-information">
+                                      <strong>{activeModelLabel}</strong>
+                                      {activeThinkingLevel && (
+                                        <small>· {activeThinkingLevel}</small>
                                       )}
-                                      {modelPickerSection === "model"
-                                        ? filteredModels.map((model) => {
-                                            const selected =
-                                              model.providerId ===
-                                                activeSelection?.providerId &&
-                                              model.modelId ===
-                                                activeSelection.modelId;
-                                            return (
-                                              <button
-                                                aria-checked={selected}
-                                                className={
-                                                  selected ? "selected" : ""
-                                                }
-                                                key={modelIdentity(
-                                                  model.providerId,
-                                                  model.modelId,
-                                                )}
-                                                onClick={() =>
-                                                  void switchComposerModel(
-                                                    model,
-                                                  )
-                                                }
-                                                role="menuitemradio"
-                                                title={`${model.name}
-${model.providerId} · ${model.modelId}`}
-                                                type="button"
-                                              >
-                                                <span>
-                                                  <strong>{model.name}</strong>
-                                                </span>
-                                                <b aria-hidden="true">
-                                                  {selected ? "✓" : ""}
-                                                </b>
-                                              </button>
-                                            );
-                                          })
-                                        : modelPickerThinkingLevels.map(
-                                            (level) => {
-                                              const selected =
-                                                activeSelection?.ultraMode !==
-                                                  true &&
-                                                level ===
-                                                  activeSelection?.thinkingLevel;
-                                              return (
-                                                <button
-                                                  aria-checked={selected}
-                                                  className={
-                                                    selected ? "selected" : ""
-                                                  }
-                                                  key={level}
-                                                  onClick={() =>
-                                                    void switchComposerThinking(
-                                                      level,
-                                                    )
-                                                  }
-                                                  role="menuitemradio"
-                                                  type="button"
-                                                >
-                                                  <span>
-                                                    <strong>
-                                                      {thinkingLevelLabel(
-                                                        level,
-                                                        locale,
-                                                      )}
-                                                    </strong>
-                                                  </span>
-                                                  <b aria-hidden="true">
-                                                    {selected ? "✓" : ""}
-                                                  </b>
-                                                </button>
-                                              );
-                                            },
-                                          )}
-                                      {modelPickerSection === "thinking" &&
-                                        activeModelSupportsReasoning && (
-                                          <button
-                                            aria-checked={activeUltraMode}
-                                            className={`ultra-mode-option${
-                                              activeUltraMode ? " selected" : ""
-                                            }`}
-                                            onClick={() =>
-                                              void switchComposerThinking(
-                                                activeModelHighestThinkingLevel,
-                                                true,
-                                              )
-                                            }
-                                            role="menuitemradio"
-                                            type="button"
-                                          >
-                                            <span>
-                                              <strong>{t.ultraMode}</strong>
-                                              <small>{t.ultraModeQuota}</small>
-                                            </span>
-                                            <b aria-hidden="true">
-                                              {activeUltraMode ? "✓" : ""}
-                                            </b>
-                                          </button>
-                                        )}
-                                    </div>
-                                  </div>
+                                    </span>
+                                    <ChevronIcon />
+                                  </button>
+                                </Tooltip>
+                                {modelPickerOpen && (
+                                  <ModelPickerMenu
+                                    models={filteredModels}
+                                    providers={runtimeSettings?.providers ?? []}
+                                    activeModel={activeModel}
+                                    selection={activeSelection}
+                                    locale={locale}
+                                    query={modelFilter}
+                                    onQuery={setModelFilter}
+                                    onModel={(model) =>
+                                      void switchComposerModel(model)
+                                    }
+                                    onThinking={(level, ultra) =>
+                                      void switchComposerThinking(level, ultra)
+                                    }
+                                  />
                                 )}
                               </div>
                               {turnActive ? (
@@ -10302,7 +10290,7 @@ ${model.providerId} · ${model.modelId}`}
                                     width={14}
                                     height={14}
                                   />
-                                  {t.undoChanges}
+                                  {uiText(locale, "Review06.restoreSnapshot")}
                                 </button>
                                 <button
                                   className="primary-button compact"
@@ -10325,10 +10313,7 @@ ${model.providerId} · ${model.modelId}`}
                                     width={14}
                                     height={14}
                                   />
-                                  {uiText(
-                                    locale,
-                                    "EnvironmentPanel_labels.commitOrPush",
-                                  )}
+                                  {uiText(locale, "Review06.commit")}
                                 </button>
                               </footer>
                             </ReviewSurface>
@@ -10813,6 +10798,14 @@ ${model.providerId} · ${model.modelId}`}
           </Button>
         </Dialog>
       )}
+      {projectInstructionsProject && (
+        <ProjectInstructionsDialog
+          project={projectInstructionsProject}
+          locale={locale}
+          onConfirm={requestConfirmation}
+          onClose={() => setProjectInstructionsProject(undefined)}
+        />
+      )}
       {sharingThreadId && (
         <ConversationShareDialog
           key={sharingThreadId}
@@ -10889,34 +10882,11 @@ ${model.providerId} · ${model.modelId}`}
       )}
 
       {updateAnnouncement && (
-        <Dialog
-          className="update-announcement"
-          label={uiText(locale, "Update.completed", {
-            version: updateAnnouncement,
-          })}
-          open
-          onOpenChange={(open) => {
-            if (!open) setUpdateAnnouncement(undefined);
-          }}
-        >
-          <ArtemisLogo size={48} />
-          <h2>
-            {uiText(locale, "Update.completed", {
-              version: updateAnnouncement,
-            })}
-          </h2>
-          <a
-            href={`https://github.com/EurekaRaider/Artemis/releases/tag/v${encodeURIComponent(updateAnnouncement)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {uiText(locale, "Update.releaseNotes")}{" "}
-            <ArtemisIcon name="external" />
-          </a>
-          <Button onClick={() => setUpdateAnnouncement(undefined)}>
-            {t.renameClose}
-          </Button>
-        </Dialog>
+        <UpdateAnnouncement
+          version={updateAnnouncement}
+          locale={locale}
+          onClose={() => setUpdateAnnouncement(undefined)}
+        />
       )}
       {settingsOpen && (
         <Suspense
@@ -11002,12 +10972,14 @@ ${model.providerId} · ${model.modelId}`}
           <div className="confirmation-actions">
             <Button
               className="secondary-button"
+              size="compact"
               variant="secondary"
               onClick={() => resolveConfirmation(false)}
             >
               {confirmation.cancelLabel ?? t.confirmationCancel}
             </Button>
             <Button
+              size="compact"
               className={
                 confirmation.tone === "danger"
                   ? "primary-button danger"
@@ -11202,7 +11174,10 @@ export function AgentTeamPanel({
     <section className={`agent-team-panel ${team.status}`}>
       <header className="agent-team-header">
         <div>
-          <span className="agent-team-eyebrow">{labels.title}</span>
+          <span className="agent-team-eyebrow">
+            <ArtemisIcon name="agents" width={14} height={14} />
+            {labels.title}
+          </span>
           <strong title={team.mission}>{team.mission}</strong>
           <Badge
             className="agent-panel-status"

@@ -1,4 +1,5 @@
 import { GOAL_RESOURCES } from "../../shared/i18n/goal-resources.js";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import type { AppLocale, Thread, ThreadGoal } from "@artemis/protocol";
 import {
   GoalEditorFooter,
@@ -252,7 +253,8 @@ export function GoalEditorPanel({
   return (
     <GoalEditorSurface busy={busy} label={copy.goal} state={visualState}>
       <header className="workspace-panel-toolbar">
-        <strong>{copy.taskGoal}</strong>
+        <ArtemisIcon name="target" width={14} height={14} />
+        <strong>{copy.goal}</strong>
         <span className="workspace-panel-status">
           {
             {

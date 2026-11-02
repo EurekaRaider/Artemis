@@ -194,7 +194,7 @@ describe("timeline decisions preserve the composer", () => {
     const composer = screen.getByRole("region", { name: "发送消息" });
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
     expect(composer).not.toContainElement(screen.getByRole("tabpanel"));
-    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /紧凑/ }));
     expect(onResolve).toHaveBeenCalledExactlyOnceWith({
       requestId: input.requestId,

@@ -248,7 +248,7 @@ describe("screenshot visual contracts", () => {
       ),
     ).toMatchObject({
       display: "grid",
-      "grid-template-columns": "var(--artemis-space-4) minmax(0, 1fr)",
+      "grid-template-columns": "minmax(0, 1fr) 14px",
       "text-align": "start",
     });
   });

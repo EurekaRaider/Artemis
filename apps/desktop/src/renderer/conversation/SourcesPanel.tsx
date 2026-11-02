@@ -448,6 +448,7 @@ export function SourcesPanel({
       }
     >
       <header className="workspace-panel-toolbar">
+        <ArtemisIcon name="source" width={14} height={14} />
         <strong>{t.title}</strong>
         <span className="workspace-panel-status">{t.task}</span>
       </header>

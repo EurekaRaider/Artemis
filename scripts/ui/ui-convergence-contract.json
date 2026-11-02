@@ -360,10 +360,6 @@
       "reason": "The definition color is one of nine fixed tokens appended to the shared dot class at runtime; the token set is pinned by customAgentColorToken.",
       "sources": [
         {
-          "path": "apps/desktop/src/renderer/settings/CustomAgentMention.tsx",
-          "contains": "custom-agent-color-${customAgentColorToken(definition.color)}"
-        },
-        {
           "path": "apps/desktop/src/renderer/settings/CustomAgentTaskBlocks.tsx",
           "contains": "custom-agent-color-${customAgentColorToken(task.color)}"
         },
@@ -449,21 +445,12 @@
     },
     {
       "atRules": [],
-      "selector": ":is(.im-settings, .im-bot-dialog, .im-group-dialog) :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "selector": ":is(.im-settings, .im-bot-dialog, .im-group-dialog) [data-artemis-component=\"text-field\"] [data-part=\"control\"]",
       "property": "padding",
       "value": "5px 10px",
       "important": false,
       "owner": "IM settings",
-      "reason": "IM setup text fields and select triggers share the existing compact 32px control geometry with aligned text insets."
-    },
-    {
-      "atRules": [],
-      "selector": ".review-scope-select [data-artemis-component=\"select\"] [data-part=\"menu\"]",
-      "property": "z-index",
-      "value": "80",
-      "important": false,
-      "owner": "Desktop review overlay stacking",
-      "reason": "The public select exposes placement but does not define a skin-controlled overlay layer token."
+      "reason": "IM text inputs retain 32px geometry and aligned text insets; select triggers use the shared design 30px geometry."
     },
     {
       "atRules": [],
@@ -494,12 +481,12 @@
     },
     {
       "atRules": [],
-      "selector": ".settings-section :is([data-artemis-component=\"text-field\"], [data-artemis-component=\"select\"]) :is([data-part=\"control\"], [data-part=\"trigger\"])",
+      "selector": ".settings-section [data-artemis-component=\"text-field\"] [data-part=\"control\"]",
       "property": "padding",
       "value": "5px 10px",
       "important": false,
-      "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Settings controls align with the v69 29px field geometry. Historical source: git show 9556fac:docs/ui-prototype/apple-inspired-ui-validation.md."
+      "owner": "Nocturne settings fields",
+      "reason": "Settings text fields use the design 32px input geometry; selects use the shared 30px select geometry."
     },
     {
       "atRules": [],
@@ -523,10 +510,19 @@
       "atRules": [],
       "selector": ".automation-actions [data-artemis-component=\"button\"]",
       "property": "padding",
-      "value": "5px 10px",
+      "value": "0 12px",
       "important": false,
-      "owner": "Discussion 151 v69 Desktop composition",
-      "reason": "Automation card actions use v69 28px compact controls. Historical source: git show 9556fac:docs/ui-prototype/apple-inspired-ui-validation.md."
+      "owner": "Nocturne review 06 Automation actions",
+      "reason": "Automations.dc.html uses standard 30px buttons with 12px horizontal padding."
+    },
+    {
+      "atRules": [],
+      "selector": ".automation-actions [data-artemis-component=\"button\"]",
+      "property": "border-radius",
+      "value": "8px",
+      "important": false,
+      "owner": "Nocturne review 06 Automation actions",
+      "reason": "Automations.dc.html uses the standard button's 8px radius."
     },
     {
       "atRules": [],
@@ -707,6 +703,15 @@
       "important": false,
       "owner": "Desktop Nocturne switch appearance",
       "reason": "Review 05 keeps switch thumbs white on neutral on-state tracks with at least 3:1 contrast; the global accent-on-primary token and keyboard focus ring retain their existing semantics."
+    },
+    {
+      "atRules": [],
+      "selector": ".confirmation-actions [data-artemis-component=\"button\"]",
+      "property": "padding",
+      "value": "0 9px",
+      "important": false,
+      "owner": "Desktop Nocturne confirmation dialog",
+      "reason": "Review 06 Menus board uses compact buttons with 9px inline padding; the scoped assertion pins the exact override."
     }
   ]
 }

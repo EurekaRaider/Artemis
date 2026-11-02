@@ -904,7 +904,7 @@ export function ArtemisLogo({ size = 48 }: { size?: number }) {
         fill="currentColor"
         stroke="none"
       />
-      {size >= 32 && <path d="M35 9.17V38.83" opacity="0.6" />}
+      {size > 32 && <path d="M35 9.17V38.83" opacity="0.6" />}
     </svg>
   );
 }

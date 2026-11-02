@@ -3,9 +3,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const desktopRoot = join(fileURLToPath(new URL("..", import.meta.url)), "..");
-const sourcePath = join(desktopRoot, "build", "icon-macos.png");
+const sourcePath = join(desktopRoot, "build", "icon-macos.svg");
 const outputPath = join(desktopRoot, "build", "icon.icns");
 const representations = [
   { type: "icp4", size: 16 },
@@ -52,18 +53,29 @@ function chunk(type, payload) {
 
 const temporaryRoot = await mkdtemp(join(tmpdir(), "artemis-macos-icon-"));
 try {
+  const require = createRequire(import.meta.url);
+  const { createCanvas, loadImage } = require("@napi-rs/canvas");
+  const source = await readFile(sourcePath, "utf8");
+  const render = async (svg, size) => {
+    const image = await loadImage(Buffer.from(svg.replace('width="1024" height="1024"', `width="${size}" height="${size}"`)));
+    const canvas = createCanvas(size, size);
+    canvas.getContext("2d").drawImage(image, 0, 0, size, size);
+    return canvas.toBuffer("image/png");
+  };
+  const fullIcon = await render(source, 1024);
+  await writeFile(join(desktopRoot, "build", "icon-macos.png"), fullIcon);
+  await writeFile(join(desktopRoot, "build", "icon.icon", "Assets", "Artemis.png"), fullIcon);
+  for (const [group, filename] of [["background", "ArtemisBackground.png"], ["foreground", "ArtemisForeground-v2.png"]]) {
+    const layer = source.replace(/<g id="(background|foreground)"[\s\S]*?<\/g>/gu, (match, id) => id === group ? match : "");
+    await writeFile(join(desktopRoot, "build", "icon.icon", "Assets", filename), await render(layer, 1024));
+  }
+  await writeFile(join(desktopRoot, "build", "icon.png"), await render(await readFile(join(desktopRoot, "build", "icon.svg"), "utf8"), 1024));
   const pngBySize = new Map();
   for (const size of new Set(representations.map((item) => item.size))) {
-    const resizedPath = join(temporaryRoot, `${size}.png`);
-    await run("/usr/bin/sips", [
-      "-z",
-      String(size),
-      String(size),
-      sourcePath,
-      "--out",
-      resizedPath,
-    ]);
-    pngBySize.set(size, await readFile(resizedPath));
+    let svg = source;
+    if (size < 128) svg = svg.replace(/<rect data-outline-detail="true"[^>]*\/>/u, "");
+    if (size <= 32) svg = svg.replace(/<path data-large-detail="true"[^>]*\/>/u, "").replace("scale(0.62)", size === 16 ? "scale(0.7)" : "scale(0.66)");
+    pngBySize.set(size, await render(svg, size));
   }
 
   const imageChunks = representations.map(({ type, size }) =>

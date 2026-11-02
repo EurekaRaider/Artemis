@@ -298,9 +298,14 @@ try {
   assert(
     Math.abs(
       closed.timelineContent.width -
-        Math.min(960, closed.timelineScroll.width - 8),
+        Math.min(736, closed.timelineScroll.width - 28),
     ) <= 1,
     "Closing the panel did not restore the original reading width.",
+  );
+  assert(
+    Math.abs(closed.goalComposer.width - (closed.timelineContent.width - 36)) <=
+      1,
+    "Closed composer does not retain its 18px reading-column insets.",
   );
   assert(
     wide.timelineContent.left < closed.timelineContent.left &&
@@ -330,7 +335,11 @@ try {
     "Dock case workspace resizer bounds are missing.",
   );
   assert(
-    Math.abs(dock.timelineScroll.right - dock.workspaceDockResizer.left) <= 1,
+    Math.abs(dock.timelineScroll.right - dock.workspaceDock.left) <= 1 &&
+      Math.abs(
+        (dock.workspaceDockResizer.left + dock.workspaceDockResizer.right) / 2 -
+          dock.workspaceDock.left,
+      ) <= 1,
     "Timeline scrollbar is not on the timeline/Tab Dock boundary.",
   );
   assert(

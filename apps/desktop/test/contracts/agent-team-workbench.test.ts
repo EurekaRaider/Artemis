@@ -35,7 +35,7 @@ describe("agent-team workbench", () => {
     expect(appSource).toContain("message.fromAgentId");
     expect(uiText("zh-CN", "App_teamStatusLabels.blocked")).toBe("存在阻塞");
     expect(uiText("zh-CN", "App_teamStatusLabels.integrating")).toBe(
-      "等待主 Agent 集成",
+      "等待主智能体集成",
     );
     expect(uiText("zh-CN", "App_teamStatusLabels.aborted")).toBe("已中止");
     expect(stylesSource).toContain(".agent-team-grid");

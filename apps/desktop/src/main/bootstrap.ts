@@ -5,6 +5,7 @@ import { WORKSPACE_PDF_SCHEME } from "./workspace/workspace-pdf-preview.js";
 import { WORKSPACE_VIDEO_SCHEME } from "../shared/workspace-video.js";
 import { WORKSPACE_HTML_SCHEME } from "../shared/timeline-preview.js";
 import { guardStdio } from "./platform/stdio-guard.js";
+import { parseThreadLink } from "./conversation/thread-links.js";
 
 guardStdio(process.stdout);
 guardStdio(process.stderr);
@@ -46,9 +47,23 @@ if (app.isPackaged) {
   }
 }
 if (process.env.ARTEMIS_SMOKE_SCREENSHOT) app.disableHardwareAcceleration();
+let openLinkedThread: ((url: string) => void) | undefined;
+let pendingThreadLink: string | undefined;
+function receiveThreadLink(url: string): void {
+  if (!parseThreadLink(url)) return;
+  if (openLinkedThread) openLinkedThread(url);
+  else pendingThreadLink = url;
+}
+app.on("open-url", (event, url) => {
+  event.preventDefault();
+  receiveThreadLink(url);
+});
+for (const argument of process.argv) receiveThreadLink(argument);
+if (app.isPackaged) app.setAsDefaultProtocolClient("artemis");
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on("second-instance", () => {
+  app.on("second-instance", (_event, argv) => {
+    for (const argument of argv) receiveThreadLink(argument);
     const window = BrowserWindow.getAllWindows()[0];
     window?.show();
     window?.focus();
@@ -66,7 +81,13 @@ else {
           ),
         });
       }
-      await import("./main.js");
+      const main = await import("./main.js");
+      openLinkedThread = main.openThreadLink;
+      if (pendingThreadLink) {
+        const url = pendingThreadLink;
+        pendingThreadLink = undefined;
+        openLinkedThread(url);
+      }
     })
     .catch((error: unknown) => {
       console.error("Artemis startup failed", error);

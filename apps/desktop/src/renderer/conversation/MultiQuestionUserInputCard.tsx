@@ -415,6 +415,28 @@ export function MultiQuestionUserInputCard({
           : input.status
       }
     >
+      <header>
+        <strong>{uiText(locale, "Review02.multipleQuestions")}</strong>
+        <div className="decision-question-meta">
+          <span className="decision-question-progress">
+            {activeQuestionIndex + 1} / {questionCount}
+          </span>
+          {input.status === "pending" && currentQuestion && (
+            <span className="decision-waiting">
+              <time
+                aria-label={t.timeoutHint}
+                className="user-input-timeout"
+                dateTime={currentQuestion.expiresAt}
+                title={t.timeoutHint}
+              >
+                {formatUserInputCountdown(
+                  Date.parse(currentQuestion.expiresAt) - clock,
+                )}
+              </time>
+            </span>
+          )}
+        </div>
+      </header>
       <div className="user-question-progress-tabs">
         <div
           aria-label={t.questionNavLabel}
@@ -449,31 +471,6 @@ export function MultiQuestionUserInputCard({
           })}
         </div>
       </div>
-      <header>
-        <strong>{uiText(locale, "Review02.multipleQuestions")}</strong>
-        <div className="decision-question-meta">
-          <span className="decision-question-progress">
-            {fill(t.questionProgress, {
-              index: activeQuestionIndex + 1,
-              count: questionCount,
-            })}
-          </span>
-          {input.status === "pending" && currentQuestion && (
-            <span className="decision-waiting">
-              <time
-                aria-label={t.timeoutHint}
-                className="user-input-timeout"
-                dateTime={currentQuestion.expiresAt}
-                title={t.timeoutHint}
-              >
-                {formatUserInputCountdown(
-                  Date.parse(currentQuestion.expiresAt) - clock,
-                )}
-              </time>
-            </span>
-          )}
-        </div>
-      </header>
       <h3 className="decision-title" data-part="question">
         {currentQuestion?.question ?? input.header}
       </h3>
@@ -518,12 +515,6 @@ export function MultiQuestionUserInputCard({
         >
           {uiText(locale, "DecisionCard.previousQuestion")}
         </button>
-        <span className="user-question-progress-text" data-part="status">
-          {fill(t.answeredProgress, {
-            count: answeredCount,
-            total: questionCount,
-          })}
-        </span>
         <button
           type="button"
           disabled={activeQuestionIndex === questionCount - 1}

@@ -1,5 +1,5 @@
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { AppLocale, Project, Thread } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
@@ -7,7 +7,7 @@ import { EmptyState } from "@artemis/ui/feedback";
 import { SegmentedControl } from "@artemis/ui/navigation";
 import { uiText } from "../../shared/i18n/ui-text.js";
 import { statusText } from "../../shared/i18n/status-text.js";
-import { Select, SearchField } from "@artemis/ui/forms";
+import { Checkbox, Select, SearchField } from "@artemis/ui/forms";
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 
@@ -24,6 +24,10 @@ interface ArchivePageProps {
   onOpen(thread: Thread): void;
   onRestore(thread: Thread): void;
   onDelete(thread: Thread): void;
+  onBatch(
+    threads: Thread[],
+    operation: "restore" | "delete",
+  ): Promise<string[] | undefined>;
 }
 
 function visibleThreadTitle(title: string): string {
@@ -44,10 +48,53 @@ export function ArchivePage({
   onOpen,
   onRestore,
   onDelete,
+  onBatch,
 }: ArchivePageProps) {
   const [query, setQuery] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
   const [groupBy, setGroupBy] = useState<"time" | "project">("time");
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchError, setBatchError] = useState("");
+  useEffect(() => {
+    setSelected(new Set());
+    setBatchError("");
+  }, [query, projectFilter, groupBy]);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelected(new Set());
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, []);
+  const batch = async (operation: "restore" | "delete") => {
+    if (batchBusy) return;
+    setBatchBusy(true);
+    setBatchError("");
+    try {
+      const succeeded = await onBatch(
+        threads.filter((thread) => selected.has(thread.id)),
+        operation,
+      );
+      if (!succeeded) return;
+      const remaining = new Set(
+        [...selected].filter((id) => !succeeded.includes(id)),
+      );
+      setSelected(
+        (current) => new Set([...remaining].filter((id) => current.has(id))),
+      );
+      if (remaining.size)
+        setBatchError(
+          uiText(locale, "Review06.bulkFailed", { count: remaining.size }),
+        );
+    } catch {
+      setBatchError(
+        uiText(locale, "Review06.bulkFailed", { count: selected.size }),
+      );
+    } finally {
+      setBatchBusy(false);
+    }
+  };
   const t = labels[locale];
   const projectNames = useMemo(
     () => new Map(projects.map((project) => [project.id, project.name])),
@@ -171,6 +218,21 @@ export function ArchivePage({
                 </h3>
               )}
               <ManagementCard className="archive-card">
+                <Checkbox
+                  className="archive-select"
+                  label={visibleThreadTitle(thread.title)}
+                  labelVisibility="hidden"
+                  checked={selected.has(thread.id)}
+                  disabled={batchBusy}
+                  onCheckedChange={(checked) =>
+                    setSelected((current) => {
+                      const next = new Set(current);
+                      if (checked) next.add(thread.id);
+                      else next.delete(thread.id);
+                      return next;
+                    })
+                  }
+                />
                 <ArtemisIcon
                   className="archive-thread-icon"
                   name={
@@ -261,6 +323,50 @@ export function ArchivePage({
           )}
         </div>
       </div>
+      {batchError && (
+        <p className="archive-batch-error" role="alert">
+          {batchError}
+        </p>
+      )}
+      {selected.size > 0 && (
+        <div
+          className="archive-batch-bar"
+          role="toolbar"
+          aria-label={uiText(locale, "Review06.selectedCount", {
+            count: selected.size,
+          })}
+        >
+          <span>
+            {uiText(locale, "Review06.selectedCount", { count: selected.size })}
+          </span>
+          <i aria-hidden="true" />
+          <Button
+            className="archive-batch-action"
+            size="compact"
+            disabled={batchBusy}
+            onClick={() => void batch("restore")}
+          >
+            <ArtemisIcon name="undo" width={14} height={14} />
+            {UI_COPY.App_copy[locale].restoreTask}
+          </Button>
+          <Button
+            className="archive-batch-action danger"
+            size="compact"
+            disabled={batchBusy}
+            onClick={() => void batch("delete")}
+          >
+            <ArtemisIcon name="trash" width={14} height={14} />
+            {uiText(locale, "Review06.permanentDelete")}
+          </Button>
+          <IconButton
+            size="compact"
+            variant="quiet"
+            icon={<ArtemisIcon name="close" width={14} height={14} />}
+            label={uiText(locale, "Review06.clearSelection")}
+            onClick={() => setSelected(new Set())}
+          />
+        </div>
+      )}
     </DataSurface>
   );
 }

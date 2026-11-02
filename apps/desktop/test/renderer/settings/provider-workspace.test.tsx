@@ -441,8 +441,8 @@ it("saves new-task model defaults without changing credentials and constrains ef
   expect(
     screen.queryByRole("img", { name: "Default model: Synthetic Model" }),
   ).toBeNull();
-  const effort = screen.getByRole("group", { name: "Reasoning effort" });
-  expect(within(effort).getAllByRole("button")).toHaveLength(2);
+  const effort = screen.getByRole("group", { name: "Thinking intensity" });
+  expect(within(effort).getAllByRole("button")).toHaveLength(3);
   await userEvent.click(within(effort).getByRole("button", { name: "Low" }));
   await waitFor(() =>
     expect(save).toHaveBeenLastCalledWith({

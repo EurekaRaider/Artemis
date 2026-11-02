@@ -92,7 +92,7 @@ it("opens the Windows ZIP in the browser and explains manual replacement without
       screen.getByText(/Quit Artemis before switching/),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Install update" }),
+      screen.queryByRole("button", { name: "Restart and install" }),
     ).not.toBeInTheDocument();
     expect(downloadUpdate).not.toHaveBeenCalled();
     expect(installUpdate).not.toHaveBeenCalled();
@@ -183,7 +183,9 @@ it("shows a failed installation in maintenance instead of a successful download 
   expect(
     screen.queryByText("Download complete. Restart to install."),
   ).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Install update" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Restart and install" }),
+  ).toBeEnabled();
 });
 
 it("keeps the sidebar installation failure visible and supports retry", async () => {
@@ -242,9 +244,11 @@ it("keeps the sidebar installation failure visible and supports retry", async ()
   );
   const { container } = render(<App />);
   fireEvent.click(
-    await screen.findByRole("button", { name: "Install update" }),
+    await screen.findByRole("button", { name: "Restart and install" }),
   );
-  const footer = container.querySelector(".sidebar-footer")! as HTMLElement;
+  const footer = container.querySelector(
+    ".sidebar-footer-stack",
+  )! as HTMLElement;
   expect(await within(footer).findByRole("alert")).toHaveTextContent(
     errorMessage,
   );

@@ -56,7 +56,7 @@ function setup(value = input(), onResolve = vi.fn()) {
 describe("sequential single questions", () => {
   it("shows only one active panel, with correctly wired question navigation", () => {
     setup();
-    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
     expect(tabs()).toHaveLength(3);
     expect(tabs()[0]).toHaveAttribute(
       "aria-controls",
@@ -128,7 +128,7 @@ describe("sequential single questions", () => {
     expect(previous).toBeDisabled();
     await user.type(textbox(), "第一题草稿");
     await user.click(next);
-    expect(screen.getByText("第 2/3 题")).toBeInTheDocument();
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
     expect(textbox()).toHaveValue("");
     await user.click(next);
     expect(next).toBeDisabled();
@@ -216,7 +216,7 @@ describe("sequential single questions", () => {
     const state = input();
     const { rerender, onResolve } = setup(state);
     await user.click(choices()[0]);
-    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
     const updated = {
       ...state,
       answers: {
@@ -232,11 +232,11 @@ describe("sequential single questions", () => {
         onResolve={onResolve}
       />,
     );
-    expect(screen.getByText("第 2/3 题")).toBeInTheDocument();
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
     expect(choices()[0]).toHaveFocus();
     await user.click(tabs()[0]);
     expect(panel().queryByRole("textbox")).not.toBeInTheDocument();
-    expect(screen.getByText("第 1/3 题")).toBeInTheDocument();
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
   });
   it("shows each question countdown and clamps expired display", async () => {
     const user = userEvent.setup();

@@ -16,9 +16,11 @@ import {
   type RefObject,
 } from "react";
 import { Button } from "@artemis/ui/actions";
+import { Checkbox } from "@artemis/ui/forms";
+import { Dialog } from "@artemis/ui/feedback";
 
 import type { useImMemberMentions } from "../im/ImMemberMentions.js";
-import { ResourceAvatar } from "../plugins/resource-icons.js";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import type {
   InstalledArtemisPlugin,
   InstalledSkill,
@@ -71,6 +73,7 @@ export function useCustomAgentMention({
   onSelect,
   members,
   plugins,
+  remaining = 1,
 }: {
   definitions: readonly CustomAgentSummary[];
   projectId: string | undefined;
@@ -79,6 +82,7 @@ export function useCustomAgentMention({
   input: RefObject<HTMLTextAreaElement | null>;
   /** Whether more sub-agent task blocks can be added; member targeting stays available. */
   enabled: boolean;
+  remaining?: number;
   onSelect(reference: CustomAgentDraftReference): void;
   plugins?: {
     installed: readonly InstalledArtemisPlugin[];
@@ -93,6 +97,7 @@ export function useCustomAgentMention({
   const [cursor, setCursor] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [active, setActive] = useState(0);
+  const [teamOpen, setTeamOpen] = useState(false);
   const pendingCursor = useRef<number | null>(null);
   useLayoutEffect(() => {
     const position = pendingCursor.current;
@@ -143,8 +148,13 @@ export function useCustomAgentMention({
             ? [{ plugin, skill }]
             : [];
         });
+  const canBuildTeam =
+    enabled && remaining >= 2 && query === "" && candidates.length >= 2;
   const candidateCount =
-    memberCandidates.length + candidates.length + pluginCandidates.length;
+    memberCandidates.length +
+    candidates.length +
+    pluginCandidates.length +
+    (canBuildTeam ? 1 : 0);
   const open = !dismissed && query !== undefined && candidateCount > 0;
   const activeIndex = Math.min(active, Math.max(0, candidateCount - 1));
   useEffect(() => {
@@ -177,6 +187,10 @@ export function useCustomAgentMention({
     members?.insert(token);
     setDismissed(true);
   };
+  const openTeam = () => {
+    setDismissed(true);
+    setTeamOpen(true);
+  };
   return {
     open,
     queryActive: !dismissed && query !== undefined,
@@ -187,6 +201,27 @@ export function useCustomAgentMention({
     candidates,
     activeIndex,
     select,
+    canBuildTeam,
+    teamOpen,
+    openTeam,
+    closeTeam: () => setTeamOpen(false),
+    remaining,
+    selectTeam(ids: string[]) {
+      if (!enabled || ids.length > remaining) return;
+      const selected = candidates.filter((candidate) =>
+        ids.includes(candidate.id),
+      );
+      if (!selected.length) return;
+      removeQuery();
+      for (const definition of selected)
+        onSelect({
+          definitionId: definition.id,
+          revision: definition.revision,
+          name: definition.name,
+          color: definition.color,
+        });
+      setTeamOpen(false);
+    },
     changed(position: number) {
       setCursor(position);
       setDismissed(false);
@@ -216,10 +251,18 @@ export function useCustomAgentMention({
         else {
           const candidate = candidates[activeIndex - memberCandidates.length];
           if (candidate) select(candidate);
+          else if (
+            canBuildTeam &&
+            activeIndex === memberCandidates.length + candidates.length
+          )
+            openTeam();
           else {
             const plugin =
               pluginCandidates[
-                activeIndex - memberCandidates.length - candidates.length
+                activeIndex -
+                  memberCandidates.length -
+                  candidates.length -
+                  (canBuildTeam ? 1 : 0)
               ];
             if (plugin) selectPlugin(plugin.skill);
           }
@@ -239,6 +282,7 @@ export function CustomAgentMentionMenu({
   locale: AppLocale;
 }) {
   const menu = useRef<HTMLDivElement>(null);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
   useLayoutEffect(() => {
     menu.current
       ?.querySelector<HTMLElement>(
@@ -246,6 +290,63 @@ export function CustomAgentMentionMenu({
       )
       ?.scrollIntoView?.({ block: "nearest" });
   }, [mention.open, mention.activeIndex]);
+  if (mention.teamOpen)
+    return (
+      <Dialog
+        open
+        className="custom-agent-team-dialog"
+        label={uiText(locale, "Review06.teamTitle")}
+        onOpenChange={(open) => {
+          if (!open) {
+            mention.closeTeam();
+            setTeamIds([]);
+          }
+        }}
+      >
+        <h2>{uiText(locale, "Review06.teamTitle")}</h2>
+        <p>{uiText(locale, "Review06.teamDetail")}</p>
+        {mention.candidates.map((definition) => (
+          <Checkbox
+            key={definition.id}
+            checked={teamIds.includes(definition.id)}
+            disabled={
+              !teamIds.includes(definition.id) &&
+              teamIds.length >= mention.remaining
+            }
+            label={definition.name}
+            onCheckedChange={(checked) =>
+              setTeamIds((current) =>
+                checked
+                  ? [...current, definition.id]
+                  : current.filter((id) => id !== definition.id),
+              )
+            }
+          />
+        ))}
+        <footer className="confirmation-actions">
+          <Button
+            size="compact"
+            variant="quiet"
+            onClick={() => {
+              mention.closeTeam();
+              setTeamIds([]);
+            }}
+          >
+            {uiText(locale, "App_copy.renameCancel")}
+          </Button>
+          <Button
+            size="compact"
+            disabled={!teamIds.length}
+            onClick={() => {
+              mention.selectTeam(teamIds);
+              setTeamIds([]);
+            }}
+          >
+            {uiText(locale, "Review06.addTeam")}
+          </Button>
+        </footer>
+      </Dialog>
+    );
   if (!mention.open) return null;
   return (
     <div
@@ -285,7 +386,7 @@ export function CustomAgentMentionMenu({
       ))}
       {mention.candidates.length > 0 && (
         <div className="slash-command-heading">
-          {uiText(locale, "App_copy.customAgentMentionHeading")}
+          {uiText(locale, "Review06.agentsHeading")}
         </div>
       )}
       {mention.candidates.map((definition, agentIndex) => {
@@ -303,10 +404,7 @@ export function CustomAgentMentionMenu({
               onClick={() => mention.select(definition)}
               variant="quiet"
             >
-              <span
-                aria-hidden="true"
-                className={`custom-agent-color custom-agent-color-${customAgentColorToken(definition.color)}`}
-              />
+              <ArtemisIcon name="agent" width={14} height={14} />
               <span>
                 <strong>{definition.name}</strong>
                 <small title={definition.description}>
@@ -317,6 +415,29 @@ export function CustomAgentMentionMenu({
           </div>
         );
       })}
+      {mention.canBuildTeam && (
+        <div
+          role="option"
+          aria-selected={
+            mention.activeIndex ===
+            mention.memberCandidates.length + mention.candidates.length
+          }
+          id={`custom-agent-mention-${mention.memberCandidates.length + mention.candidates.length}`}
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          <Button
+            className={`slash-command-suggestion${mention.activeIndex === mention.memberCandidates.length + mention.candidates.length ? " active" : ""}`}
+            variant="quiet"
+            onClick={mention.openTeam}
+          >
+            <ArtemisIcon name="agents" width={14} height={14} />
+            <span>
+              <strong>{uiText(locale, "Review06.createTeam")}</strong>
+              <small>{uiText(locale, "Review06.teamDetail")}</small>
+            </span>
+          </Button>
+        </div>
+      )}
       {mention.pluginCandidates.length > 0 && (
         <div className="slash-command-heading">
           {uiText(locale, "App_copy.installedPlugins")}
@@ -326,6 +447,7 @@ export function CustomAgentMentionMenu({
         const index =
           mention.memberCandidates.length +
           mention.candidates.length +
+          (mention.canBuildTeam ? 1 : 0) +
           pluginIndex;
         return (
           <div
@@ -340,13 +462,7 @@ export function CustomAgentMentionMenu({
               onClick={() => mention.selectPlugin(skill)}
               variant="quiet"
             >
-              <ResourceAvatar
-                kind="skill"
-                name={skill.name}
-                pluginName={plugin.name}
-                iconDataUrl={plugin.iconDataUrl}
-                brandColor={plugin.brandColor}
-              />
+              <ArtemisIcon name="skill" width={14} height={14} />
               <span>
                 <strong>{skill.name}</strong>
                 <small title={skill.description}>

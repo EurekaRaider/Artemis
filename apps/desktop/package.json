@@ -114,6 +114,14 @@
     "wait-on": "9.1.0"
   },
   "build": {
+    "protocols": [
+      {
+        "name": "Artemis task",
+        "schemes": [
+          "artemis"
+        ]
+      }
+    ],
     "appId": "com.artemis.desktop",
     "productName": "Artemis",
     "asar": true,

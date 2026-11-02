@@ -259,20 +259,19 @@ export function TokenUsagePage({
         ).length,
       }),
     },
-    ...(cacheMetrics.hitRate === undefined
-      ? []
-      : [
-          {
-            label: t.cacheHitRate,
-            value: percent.format(cacheMetrics.hitRate),
-            detail:
-              cacheMetrics.cacheReadTokens > 0
-                ? uiText(locale, "Review04.savedInput", {
-                    count: formatTokenUsageNumber(cacheMetrics.cacheReadTokens),
-                  })
-                : undefined,
-          },
-        ]),
+    {
+      label: t.cacheHitRate,
+      value:
+        cacheMetrics.hitRate === undefined
+          ? "—"
+          : percent.format(cacheMetrics.hitRate),
+      detail:
+        cacheMetrics.hitRate === undefined
+          ? uiText(locale, "Review06.cacheUnreported")
+          : uiText(locale, "Review04.savedInput", {
+              count: formatTokenUsageNumber(cacheMetrics.cacheReadTokens),
+            }),
+    },
   ];
   const observations = [
     {

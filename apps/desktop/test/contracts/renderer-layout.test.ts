@@ -413,7 +413,9 @@ describe("renderer layout contract", () => {
       findCssDeclarations(compositionStylesSource, ".app-shell .workspace"),
     ).toContain("overflow: visible");
     // clip also prevents focus in a translated Dock from scrolling the shell.
-    expect(cssRule(".workspace-content")).toMatch(/\boverflow:\s*(?:hidden|clip)/u);
+    expect(cssRule(".workspace-content")).toMatch(
+      /\boverflow:\s*(?:hidden|clip)/u,
+    );
     const conversation = publicUiCssRule(
       '[data-artemis-component="conversation-surface"]',
     );
@@ -893,23 +895,27 @@ describe("renderer layout contract", () => {
     );
     expect(cssRule(".slash-command-suggestion")).toMatch(/\bborder:\s*0/u);
     expect(cssRule(".slash-command-suggestion")).toMatch(
-      /\bmin-height:\s*42px/u,
+      /\bmin-height:\s*40px/u,
     );
     expect(
       cssRule(
         '.slash-command-suggestion > span:last-child:not([data-part="state-indicator"])',
       ),
-    ).toMatch(/\bflex-direction:\s*row/u);
+    ).toMatch(/\bflex-direction:\s*column/u);
     expect(
       cssRule(
         '.slash-command-suggestion > span:last-child:not([data-part="state-indicator"])',
       ),
-    ).toMatch(/\bjustify-content:\s*space-between/u);
+    ).toMatch(/\bgap:\s*0\.5px/u);
     expect(appSource).toContain("<ResourceAvatar");
     expect(appSource).toContain("iconDataUrl={plugin.iconDataUrl}");
-    expect(cssRule(".slash-command-suggestion .resource-avatar")).toMatch(
-      /\bwidth:\s*30px/u,
-    );
+    expect(appSource).toContain("<CommandArtwork");
+    expect(
+      findCssDeclarations(
+        stylesSource,
+        ".slash-command-suggestion .resource-avatar",
+      ),
+    ).toBeUndefined();
   });
 
   it("loads persisted prompt history and navigates it with arrow keys", () => {
@@ -1100,7 +1106,7 @@ describe("renderer layout contract", () => {
     );
   });
 
-  it("uses the same custom selector for every product dropdown", () => {
+  it("uses shared selectors for product dropdowns and segments for review scope", () => {
     const rendererSources = `${appSource}\n${settingsSource}\n${mcpServerEditorSource}`;
     const settingsSelectors =
       settingsSource.match(/<Select(?:<[^>]+>)?/gu) ?? [];
@@ -1118,7 +1124,10 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('className="review-scope-select"');
     expect(appSource).toContain('size="compact"');
     expect(composerContextSource).toContain("onValueChange={onModeChange}");
-    expect(stylesSource).toContain(
+    expect(appSource).toMatch(
+      /className="review-scope-select">\s*<SegmentedControl<ReviewScope>/u,
+    );
+    expect(stylesSource).not.toContain(
       '.review-scope-select [data-artemis-component="select"] [data-part="trigger"]',
     );
     expect(uiStylesSource).toContain("inline-size: 100%");
@@ -1357,7 +1366,7 @@ describe("renderer layout contract", () => {
       /\bposition:\s*static/u,
     );
     expect(cssRule(".approval-policy-menu")).toMatch(
-      /\bbox-sizing:\s*border-box[\s\S]*\bleft:\s*12px[\s\S]*\boverflow-y:\s*auto[\s\S]*\bposition:\s*absolute[\s\S]*\bwidth:\s*min\(350px,\s*calc\(100%\s*-\s*24px\)\)/u,
+      /\bbox-sizing:\s*border-box[\s\S]*\binset-inline-start:\s*var\(--approval-anchor, 12px\)[\s\S]*\boverflow-y:\s*auto[\s\S]*\bposition:\s*absolute[\s\S]*\bwidth:\s*min\(300px,\s*calc\(100%\s*-\s*24px\)\)/u,
     );
   });
 
@@ -1373,73 +1382,34 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain('className="model-information"');
   });
 
-  it("switches added models and reasoning from a Codex-style composer menu", () => {
-    const modelButtonStart = appSource.indexOf('className="model-button"');
-    const sendButtonStart = appSource.indexOf(
-      'className="send-button',
-      modelButtonStart,
+  it("switches models and supported thinking levels through one integrated menu", () => {
+    const picker = readFileSync(
+      new URL(
+        "../../src/renderer/settings/ModelPickerMenu.tsx",
+        import.meta.url,
+      ),
+      "utf8",
     );
-    const modelPickerSource = appSource.slice(
-      modelButtonStart,
-      sendButtonStart,
+    const thinking = readFileSync(
+      new URL(
+        "../../src/renderer/settings/ThinkingLevelControl.tsx",
+        import.meta.url,
+      ),
+      "utf8",
     );
-
-    expect(modelPickerSource).toContain('className="model-picker-menu"');
-    expect(modelPickerSource).toContain('modelPickerSection === "model"');
-    expect(modelPickerSource).toContain('modelPickerSection === "thinking"');
-    expect(modelPickerSource).toMatch(
-      /!activeSelection \|\|\s*!activeModelSupportsReasoning/u,
-    );
-    expect(modelPickerSource).not.toContain("!runtimeSettings?.selection ||");
-    expect(modelPickerSource).toMatch(/switchComposerModel\(\s*model,?\s*\)/u);
-    expect(modelPickerSource).toMatch(
-      /switchComposerThinking\(\s*level,?\s*\)/u,
-    );
-    expect(modelPickerSource).toMatch(
-      /switchComposerThinking\(\s*activeModelHighestThinkingLevel,\s*true,?\s*\)/u,
-    );
-    expect(modelPickerSource).toContain("ultra-mode-option");
-    expect(modelPickerSource).toContain("{t.ultraModeQuota}");
-    expect(uiText("en", "App_copy.ultraMode")).toBe("Ultra Mode");
-    expect(uiText("zh-CN", "App_copy.ultraMode")).toBe("极致模式");
-    expect(uiText("en", "App_copy.ultraModeQuota")).toBe(
-      "Uses your quota faster",
-    );
-    expect(uiText("zh-CN", "App_copy.ultraModeQuota")).toBe("更快消耗使用额度");
-    expect(appSource).toContain("activeSelection?.ultraMode === true");
+    expect(appSource).toContain("<ModelPickerMenu");
+    expect(appSource).toContain("switchComposerModel(model)");
+    expect(appSource).toContain("switchComposerThinking(level, ultra)");
+    expect(picker).toContain('className="model-picker-menu"');
+    expect(picker).toContain('className="model-picker-search"');
+    expect(picker).toContain("activeModel?.reasoning && selection");
+    expect(picker).toContain("<ThinkingLevelControl");
+    expect(thinking).toContain("thinkingLevelsForModel(model)");
+    expect(thinking).toContain('"Review06.ultra"');
+    expect(uiText("zh-CN", "Review06.ultra")).toBe("超强");
     expect(appSource).toContain(
       "selectionForModelSwitch(model, activeSelection)",
     );
-    expect(modelPickerSource).toContain(
-      'className="model-picker-options-heading"',
-    );
-    // Provider metadata belongs in the hover title, not the visible option label.
-    expect(modelPickerSource).toContain("title={`${model.name}");
-    expect(modelPickerSource.replace(/title=\{`[^`]*`\}/gu, "")).not.toContain(
-      "{model.providerId}",
-    );
-    expect(modelPickerSource).not.toContain("setSettingsOpen(true)");
-    expect(appSource).toContain("thinkingLevelsForModel(activeModel)");
-    expect(appSource).toContain("runtimeSettings.addedModels.map");
-    expect(appSource).toContain(
-      "runtimeSettings.providers.map((provider) => provider.id)",
-    );
-    expect(appSource).toContain("window.artemis.setThreadModelSelection(");
-    expect(cssRule(".model-picker-menu")).toMatch(/\bposition:\s*absolute/u);
-    expect(cssRule(".model-picker-menu")).toMatch(/\bgrid-template-columns:/u);
-    expect(cssRule(".model-picker-navigation")).toMatch(/\balign-self:\s*end/u);
-    expect(cssRule(".model-picker-options")).toMatch(
-      /\bmax-height:[\s\S]*\bmargin-left:\s*-1px[\s\S]*\boverflow-y:\s*auto/u,
-    );
-    expect(cssRule(".model-picker-options > button")).toMatch(
-      /\bmin-height:\s*28px/u,
-    );
-    expect(cssRule(".model-picker-options > button.ultra-mode-option")).toMatch(
-      /\bmin-height:\s*44px/u,
-    );
-    expect(
-      cssRule(".model-picker-options > button.ultra-mode-option small"),
-    ).toMatch(/\bwhite-space:\s*normal/u);
   });
 
   it("shows context usage beside the model and configures the context window", () => {
@@ -2403,16 +2373,15 @@ describe("renderer layout contract", () => {
     expect(appSource).toContain("onClick={() => toggleProjectsExpansion()}");
   });
 
-  it("dismisses sidebar action menus and reasoning hover panels", () => {
+  it("dismisses sidebar and composer menus from outside clicks or Escape", () => {
     expect(appSource).toContain(
       '".project-menu, .thread-menu, .project-action, .thread-action"',
     );
     expect(appSource).toContain(
       'window.addEventListener("keydown", closeOnEscape)',
     );
-    expect(appSource).toContain("onMouseEnter={cancelModelPickerHoverClose}");
-    expect(appSource).toContain("onMouseLeave={scheduleModelPickerHoverClose}");
-    expect(appSource).toContain("}, 160);");
+    expect(appSource).toContain("modelPickerRoot.current?.contains");
+    expect(appSource).not.toContain("modelPickerHoverCloseTimer");
   });
 
   it("aligns conversation content with the wider composer reference line", () => {
@@ -2423,10 +2392,10 @@ describe("renderer layout contract", () => {
     expect(timeline).toMatch(
       /\bpadding:\s*calc\(var\(--artemis-space-6\) \+ var\(--artemis-space-2\) \+ 2px\)\s+var\(--artemis-space-5\) var\(--artemis-space-6\)/u,
     );
-    expect(composerWrap).toMatch(/\bmax-width:\s*960px/u);
+    expect(composerWrap).toMatch(/\bmax-width:\s*736px/u);
     expect(
       findCssDeclarations(compositionStylesSource, ".composer-wrap"),
-    ).toContain("padding: 0 var(--conversation-padding) 14px");
+    ).toContain("padding: 0 var(--conversation-padding) 16px");
   });
 
   it("keeps PowerShell input legible and prevents an xterm horizontal scrollbar", () => {

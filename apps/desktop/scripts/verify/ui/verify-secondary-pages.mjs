@@ -311,16 +311,16 @@ try {
       const histogram = heatmap?.dataLevelHistogram ?? {};
       assert(
         "token-summary-stats",
-        audit.cardHeatmap?.summary?.itemCount === 4 &&
-          secondary?.components?.dataStat === 4,
+        audit.cardHeatmap?.summary?.itemCount === 5 &&
+          secondary?.components?.dataStat === 5,
         audit.cardHeatmap?.summary,
-        "four public data stats",
+        "five public data stats including honest cache availability",
       );
       assert(
         "token-cache-not-duplicated-in-details",
         audit.cardHeatmap?.cacheInsight?.present === false,
         audit.cardHeatmap?.cacheInsight,
-        "cache hit rate is absent from extra statistics; this fixture has no reported cache data and keeps four KPI cells",
+        "cache is not duplicated in extra statistics; this fixture has five KPI cells with unavailable cache shown honestly",
       );
       assert(
         "token-heatmap-geometry",

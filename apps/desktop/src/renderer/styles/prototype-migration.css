@@ -3,7 +3,6 @@
   --conversation-text-size: 14.5px;
   --composer-menu-label-size: 12px;
   --composer-menu-description-size: 11px;
-  --management-control-bg: light-dark(#e5e5e5, #303030);
   --blue: var(--artemis-color-status-info);
   --codex-workspace-bg: var(--artemis-color-canvas);
   --environment-menu-bg: var(--artemis-color-surface-popover);
@@ -57,6 +56,7 @@
 .rail-item,
 .rail-anchor {
   display: grid;
+  padding: 0;
   place-items: center;
   inline-size: 32px;
   block-size: 32px;
@@ -221,72 +221,13 @@
 .project-thread-row:has(> .thread-action[aria-expanded="true"]) .thread-time {
   opacity: 0;
 }
-.sidebar .sidebar-footer {
-  gap: 8px;
-  block-size: 56px;
-}
 .sidebar .local-indicator {
   flex: 1;
   min-inline-size: 0;
 }
-.sidebar .sidebar-profile-avatar {
-  inline-size: 24px;
-  block-size: 24px;
-  flex: none;
-}
 /* 版本号恢复徽章胶囊（继承 .app-version 基础样式），
    右缘与顶部折叠按钮的图标右缘对齐（同为侧栏 10px 内缩）。 */
-.sidebar .app-version {
-  white-space: nowrap;
-}
-.update-btn {
-  inline-size: 20px;
-  block-size: 20px;
-  display: grid;
-  place-items: center;
-  flex: none;
-  border-radius: 50%;
-  color: #fff;
-  background: #3a83f7;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-}
-.update-btn:hover:not(:disabled) {
-  background: #3075e5;
-}
-.update-btn.downloaded {
-  inline-size: auto;
-  block-size: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  border: 0;
-  background: #1674d1;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-}
-.update-btn.downloaded:hover:not(:disabled) {
-  background: #1265b8;
-}
-.update-btn svg {
-  inline-size: 12px;
-  block-size: 12px;
-}
-.update-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.update-btn:focus-visible {
-  outline: 2px solid #3a83f7;
-  outline-offset: 3px;
-}
-.sidebar-footer:has(.sidebar-update-progress) {
-  flex-wrap: wrap;
-  height: auto;
-}
+
 .sidebar-update-progress {
   flex: 0 0 100%;
   display: grid;
@@ -347,7 +288,7 @@
 }
 .workspace-header {
   flex: 0 0 48px;
-  padding: 0 12px 0 18px;
+  padding: 0 10px 0 20px;
   gap: 8px;
   background: var(--artemis-color-surface-header);
   position: relative;
@@ -391,7 +332,7 @@
 .composer-wrap {
   position: relative;
   z-index: 20;
-  padding: 0 var(--conversation-padding) 14px;
+  padding: 0 var(--conversation-padding) 16px;
   background: transparent;
 }
 .composer {
@@ -469,13 +410,7 @@
 .goal-bar .goal-bar-status > [data-part="indicator"] {
   display: none;
 }
-.goal-bar .goal-bar-objective {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-inline-size: 0;
-}
+
 [data-artemis-component="tooltip"].goal-objective-tooltip {
   color: var(--text);
   background: var(--artemis-color-surface-popover);
@@ -493,12 +428,26 @@
   gap: 0;
 }
 .goal-bar .goal-bar-actions button {
-  min-inline-size: 24px;
-  min-block-size: 24px;
-  inline-size: 24px;
-  block-size: 24px;
-  padding: 5px;
+  min-inline-size: 26px;
+  min-block-size: 26px;
+  inline-size: 26px;
+  block-size: 26px;
+  padding: 0;
   color: var(--muted);
+}
+.goal-bar .goal-bar-actions .goal-budget-action {
+  inline-size: auto;
+  min-block-size: 24px;
+  block-size: 24px;
+  padding: 0 9px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text);
+  background: var(--panel);
+  gap: 6px;
+  border-color: var(--border);
 }
 .goal-bar .goal-bar-actions svg {
   inline-size: 14px;
@@ -594,37 +543,6 @@
   border-color: var(--border-soft);
 }
 
-:is(.resource-page, .archive-page, .automation-page, .settings-panel)
-  :is(
-    [data-artemis-component="button"],
-    [data-artemis-component="icon-button"]
-  )[data-variant="secondary"] {
-  background: var(--management-control-bg);
-  border-color: var(--border-soft);
-}
-:is(.resource-page, .archive-page, .automation-page, .settings-panel)
-  :is(
-    [data-artemis-component="button"],
-    [data-artemis-component="icon-button"]
-  )[data-variant="secondary"]:hover:not(:disabled) {
-  background: var(--panel-3);
-  border-color: var(--border);
-}
-:is(.resource-page, .archive-page, .automation-page, .settings-panel)
-  :is(
-    [data-artemis-component="button"],
-    [data-artemis-component="icon-button"]
-  )[data-variant="quiet"] {
-  background: transparent;
-  border-color: transparent;
-}
-:is(.resource-page, .archive-page, .automation-page, .settings-panel)
-  :is(
-    [data-artemis-component="button"],
-    [data-artemis-component="icon-button"]
-  )[data-variant="quiet"]:hover:not(:disabled) {
-  background: var(--management-control-bg);
-}
 /* Containers stay quiet; focused controls retain their keyboard focus ring. */
 .composer:focus-within,
 .sidebar-search:focus-within {
@@ -636,7 +554,7 @@
     --sidebar-expanded-width: 250px;
   }
   .composer-wrap {
-    padding: 0 var(--conversation-padding) 12px;
+    padding: 0 var(--conversation-padding) 16px;
   }
   .conversation {
     --conversation-padding: 12px;
@@ -659,30 +577,6 @@
   }
 }
 
-.model-picker-menu[data-section="model"] .model-picker-navigation {
-  grid-column: 1;
-  grid-row: 1 / 3;
-}
-.model-picker-menu[data-section="model"] .model-picker-search {
-  grid-column: 2;
-  grid-row: 1;
-  margin-inline-start: -1px;
-  background: var(--artemis-color-surface-popover);
-  border: 1px solid var(--border);
-  border-radius: 8px 8px 0 0;
-}
-.model-picker-menu[data-section="model"] .model-picker-options {
-  grid-column: 2;
-  grid-row: 2;
-  border-start-start-radius: 0;
-  border-start-end-radius: 0;
-  border-block-start: 0;
-}
-.model-picker-navigation,
-.model-picker-options {
-  background: var(--artemis-color-surface-popover);
-  box-shadow: var(--artemis-shadow-overlay);
-}
 .task-plan-progress [data-part="marker"][data-status="completed"] {
   border-color: var(--success);
   color: var(--artemis-color-status-success-text);

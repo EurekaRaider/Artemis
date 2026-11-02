@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import {
   WorkspaceEditorToolbar,
@@ -19,6 +19,7 @@ interface WorkspaceFileEditorProps {
   content: string;
   dirty: boolean;
   path: string;
+  pathIcon?: ReactNode;
   readOnly?: boolean;
   saveError: string | undefined;
   saveLabel: string;
@@ -69,6 +70,7 @@ export function WorkspaceFileEditor({
   content,
   dirty,
   path,
+  pathIcon,
   readOnly = false,
   saveError,
   saveLabel,
@@ -101,6 +103,7 @@ export function WorkspaceFileEditor({
         handleWorkspaceEditorSaveShortcut(event, canSave, onSave)
       }
       path={path}
+      pathIcon={pathIcon}
       readOnly={readOnly}
       {...errorProps}
       saveLabel={saveLabel}

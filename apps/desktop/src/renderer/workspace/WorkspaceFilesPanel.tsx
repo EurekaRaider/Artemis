@@ -413,6 +413,10 @@ export function WorkspaceFilesPanel({
   const markdownSelected =
     selectedFile !== undefined &&
     /\.(?:md|markdown)$/iu.test(selectedFile.path);
+  const toolbarSaveState =
+    saveState === "idle" && selectedFile && draft === selectedFile.content
+      ? "saved"
+      : saveState;
 
   return (
     <section className="workspace-files-panel">
@@ -476,6 +480,13 @@ export function WorkspaceFilesPanel({
                 }}
                 onSave={saveFile}
                 path={selectedFile.path}
+                pathIcon={
+                  <WorkspaceFileIcon
+                    path={selectedFile.path}
+                    presentation={filePresentation(selectedFile.path)}
+                    symlink={false}
+                  />
+                }
                 // The branch guard above already excludes binary files (they
                 // render the preview-empty notice); readOnly is kept as an
                 // explicit contract for future call sites.
@@ -484,7 +495,7 @@ export function WorkspaceFilesPanel({
                 saveError={saveError}
                 saveLabel={saveLabel}
                 savedLabel={savedLabel}
-                saveState={saveState}
+                saveState={toolbarSaveState}
                 savingLabel={savingLabel}
                 sourceLabel={sourceLabel}
                 threadId={threadId}
@@ -532,12 +543,19 @@ export function WorkspaceFilesPanel({
                 onSave={saveFile}
                 path={selectedFile.path}
                 // Binary files render the preview-empty branch above; readOnly
+                pathIcon={
+                  <WorkspaceFileIcon
+                    path={selectedFile.path}
+                    presentation={filePresentation(selectedFile.path)}
+                    symlink={false}
+                  />
+                }
                 // is kept as an explicit contract for future call sites.
                 readOnly={selectedFile.binary}
                 saveError={saveError}
                 saveLabel={saveLabel}
                 savedLabel={savedLabel}
-                saveState={saveState}
+                saveState={toolbarSaveState}
                 savingLabel={savingLabel}
                 unsavedLabel={unsavedLabel}
               />

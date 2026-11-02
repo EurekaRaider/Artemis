@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 const policies = [
-  { policy: "ask", label: "Request approval", icon: "approval-ask" },
+  { policy: "ask", label: "Ask every time", icon: "approval-ask" },
   { policy: "agent", label: "Approve for me", icon: "approval-agent" },
   { policy: "full-access", label: "Full access", icon: "approval-full" },
   { policy: "custom", label: "Custom", icon: "approval-ask" },

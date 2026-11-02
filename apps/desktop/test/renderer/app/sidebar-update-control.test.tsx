@@ -32,7 +32,7 @@ it("waits for all active tasks and installs exactly once", async () => {
     />
   );
   const rendered = render(view(2));
-  fireEvent.click(screen.getByRole("button", { name: "Install update" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restart and install" }));
   expect(installUpdate).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Later" })).toBeEnabled();
   rendered.rerender(view(1));
@@ -56,11 +56,11 @@ it("cancels a deferred restart when Later is selected", async () => {
     />
   );
   const rendered = render(view(1));
-  fireEvent.click(screen.getByRole("button", { name: "Install update" }));
+  fireEvent.click(screen.getByRole("button", { name: "Restart and install" }));
   fireEvent.click(screen.getByRole("button", { name: "Later" }));
   await act(async () => rendered.rerender(view(0)));
   expect(installUpdate).not.toHaveBeenCalled();
-  expect(screen.getByRole("button", { name: "Install update" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Restart and install" })).toBeEnabled();
 });
 
 it("places the ready notice under the header and lets Later dismiss it before scheduling", () => {
@@ -83,7 +83,7 @@ it("places the ready notice under the header and lets Later dismiss it before sc
   fireEvent.click(within(target).getByRole("button", { name: "Later" }));
   expect(target).toBeEmptyDOMElement();
   expect(
-    within(rendered.container).getByRole("button", { name: "Install update" }),
+    within(rendered.container).getByRole("button", { name: "Restart and install" }),
   ).toBeEnabled();
   expect(installUpdate).not.toHaveBeenCalled();
   rendered.unmount();
@@ -115,7 +115,8 @@ it("shows byte progress only when the updater supplies it", () => {
     }),
   );
   expect(screen.getByText("20 / 50 MB")).toBeVisible();
-  expect(screen.getByRole("button", { name: "42%" })).toBeDisabled();
+  expect(screen.getByRole("progressbar")).toHaveValue(42);
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
 });
 
 it("keeps installation failures visible and permits an explicit retry", async () => {

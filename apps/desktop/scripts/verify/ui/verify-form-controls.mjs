@@ -292,11 +292,12 @@ try {
       );
       assert(
         `${prefix}-menu-styles-resolve`,
-        Boolean(menu?.backgroundColor) &&
-          menu?.borderStyle === "solid" &&
-          menu?.borderWidth !== "0px",
+        menu?.backgroundColor ===
+          (theme === "dark" ? "rgb(29, 30, 35)" : "rgb(255, 255, 255)") &&
+          menu?.borderStyle === "none" &&
+          menu?.borderWidth === "0px",
         menu ?? null,
-        "resolved background and non-zero solid border",
+        "exact Nocturne popover background with no border",
       );
     };
     const verifyFocusEvidence = (prefix, found, visual = false) => {

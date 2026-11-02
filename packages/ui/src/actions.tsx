@@ -32,6 +32,9 @@ export const ACTION_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-status-success",
   "--artemis-color-status-warning",
   "--artemis-color-status-danger",
+  "--artemis-color-status-success-text",
+  "--artemis-color-status-warning-text",
+  "--artemis-color-status-danger-text",
   "--artemis-color-status-info",
   "--artemis-color-status-success-subtle",
   "--artemis-color-status-warning-subtle",
@@ -519,12 +522,13 @@ export function Icon({ children, className, size = "base" }: IconProps) {
 interface StatusTextProps {
   readonly children: string;
   readonly className?: string | undefined;
+  readonly icon?: ReactNode | undefined;
   readonly tone?: ActionTone | undefined;
 }
 
 export type BadgeProps = StatusTextProps;
 
-export function Badge({ children, className, tone = "neutral" }: BadgeProps) {
+export function Badge({ children, className, icon, tone = "neutral" }: BadgeProps) {
   requireVisibleText(children);
   return (
     <span
@@ -534,7 +538,7 @@ export function Badge({ children, className, tone = "neutral" }: BadgeProps) {
       data-state="ready"
       data-tone={tone}
     >
-      <span aria-hidden="true" data-part="indicator" />
+      <span aria-hidden="true" data-part="indicator" data-icon={icon ? "true" : undefined}>{icon}</span>
       <span data-part="label">{children}</span>
     </span>
   );
@@ -547,6 +551,7 @@ export interface StatusProps extends StatusTextProps {
 export function Status({
   children,
   className,
+  icon,
   live,
   tone = "neutral",
 }: StatusProps) {
@@ -561,7 +566,7 @@ export function Status({
       data-tone={tone}
       role={live === undefined ? undefined : "status"}
     >
-      <span aria-hidden="true" data-part="indicator" />
+      <span aria-hidden="true" data-part="indicator" data-icon={icon ? "true" : undefined}>{icon}</span>
       <span data-part="label">{children}</span>
     </span>
   );

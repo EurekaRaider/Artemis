@@ -203,7 +203,8 @@ describe("Codex conversation shell contract", () => {
       "const activeComposerDraft = composerDraftFor(",
     );
     expect(createThread).toContain("setActiveThreadId(thread.id)");
-    expect(conversation).toContain("activeEvents.length === 0");
+    expect(conversation).toContain("conversationEmpty ? (");
+    expect(appSource).toContain("!hasConversationContent");
     expect(conversation).toContain("<ArtemisMark />");
     expect(uiText("en", "App_copy.emptyConversationPrompt")).toBe(
       "What should we build in {{workspace}}?",

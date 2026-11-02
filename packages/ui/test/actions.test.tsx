@@ -273,6 +273,24 @@ describe("Button and IconButton behavior", () => {
 });
 
 describe("Icon, Badge, and Status semantics", () => {
+  it("keeps supplied status icons decorative and preserves the live text", () => {
+    const { container, unmount } = render(
+      <div>
+        <Badge icon={<TestIcon />} tone="success">Saved</Badge>
+        <Status icon={<TestIcon />} live="polite">Running</Status>
+      </div>,
+    );
+    const status = container.querySelector('[data-artemis-component="status"]');
+    expect(status?.getAttribute("role")).toBe("status");
+    expect(status?.getAttribute("aria-live")).toBe("polite");
+    expect(status?.textContent).toBe("Running");
+    for (const icon of container.querySelectorAll("svg")) {
+      expect(icon.parentElement?.getAttribute("aria-hidden")).toBe("true");
+    }
+    expect(container.querySelector('[data-artemis-component="badge"]')?.textContent).toBe("Saved");
+    unmount();
+  });
+
   it("keeps action icon slots separate from the Icon root anatomy", () => {
     const { container } = render(
       <div>

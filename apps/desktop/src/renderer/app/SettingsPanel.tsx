@@ -1,3 +1,4 @@
+import { ThinkingLevelControl } from "../settings/ThinkingLevelControl.js";
 import {
   selectionForModelSwitch,
   thinkingLevelLabel,
@@ -1514,23 +1515,17 @@ ${model.providerId} · ${model.modelId}`,
                         />
                         {defaultThinkingLevels.length > 0 &&
                           settings.selection && (
-                            <SegmentedControl
-                              label={
-                                UI_COPY.AutomationPage_text[locale].thinking
-                              }
+                            <ThinkingLevelControl
+                              model={defaultModel}
+                              selection={settings.selection}
+                              locale={locale}
                               disabled={busy}
-                              size="compact"
-                              value={settings.selection.thinkingLevel}
-                              options={defaultThinkingLevels.map((value) => ({
-                                value,
-                                label: thinkingLevelLabel(value, locale),
-                              }))}
-                              onValueChange={(thinkingLevel) => {
+                              onChange={(thinkingLevel, ultraMode) => {
                                 if (settings.selection)
                                   void saveDefaultModel({
                                     ...settings.selection,
                                     thinkingLevel,
-                                    ultraMode: false,
+                                    ultraMode,
                                   });
                               }}
                             />
@@ -1771,6 +1766,7 @@ ${model.providerId} · ${model.modelId}`,
                       labelVisibility="hidden"
                       label={t.language}
                       disabled={busy}
+                      footer={uiText(locale, "Review06.languageCount", { count: SUPPORTED_LOCALES.length })}
                       onValueChange={(language) => void setLanguage(language)}
                       options={[
                         { value: "system", label: t.languageSystem },
@@ -2482,7 +2478,7 @@ ${model.providerId} · ${model.modelId}`,
                                 void run(() => window.artemis.installUpdate())
                               }
                             >
-                              {uiText(locale, "Update.install")}
+                              {UI_COPY.SettingsPanel_labels[locale].installUpdate}
                             </Button>
                           )}
                         </span>

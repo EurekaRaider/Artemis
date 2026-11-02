@@ -22,9 +22,11 @@
   vertical-align: top;
 }
 .workspace-csv-preview th {
-  color: var(--artemis-color-text-secondary);
+  color: var(--muted-2);
   background: var(--surface);
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
 }
 .workspace-csv-preview thead th {
   position: sticky;

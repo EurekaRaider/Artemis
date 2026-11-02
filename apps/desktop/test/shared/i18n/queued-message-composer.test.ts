@@ -39,7 +39,7 @@ function sourceForQueuedButton(className: string): string {
 }
 
 describe("Codex-style queued message composer", () => {
-  it("renders each queued message as a numbered card above the composer", () => {
+  it("renders queued cards with a clock and keeps numbered action labels", () => {
     const barIndex = appSource.indexOf("<QueuedMessageGroup");
     const listEnd = appSource.indexOf("</QueuedMessageGroup>", barIndex);
     const barSource = appSource.slice(barIndex, listEnd);
@@ -49,7 +49,11 @@ describe("Codex-style queued message composer", () => {
     expect(barSource).toContain("{queuedFollowUps.map");
     expect(barSource).toContain("heading={");
     expect(barSource).toContain("<QueuedMessageItem");
-    expect(barSource).toContain("index={index + 1}");
+    expect(barSource).toContain(
+      '<ArtemisIcon name="clock" width={14} height={14} />',
+    );
+    expect(barSource).toContain("String(index + 1)");
+    expect(barSource).toContain('"Review06.queuedAfterTurn"');
     expect(barSource).toContain("actions={");
 
     const steerButton = sourceForQueuedButton("queued-message-steer");
@@ -57,7 +61,8 @@ describe("Codex-style queued message composer", () => {
     const deleteButton = sourceForQueuedButton("queued-message-delete");
     const editButton = sourceForQueuedButton("queued-message-edit");
 
-    expect(steerButton).toContain("<SteerIcon />");
+    expect(steerButton).not.toContain("<SteerIcon />");
+    expect(steerButton).toContain("{t.queueSteer}");
     expect(steerButton).toContain("steerQueuedMessage(index)");
     expect(steerButton).toContain('type="button"');
     expect(prioritizeButton).toContain("<MoveToFrontIcon />");
@@ -89,7 +94,7 @@ describe("Codex-style queued message composer", () => {
       /\[data-artemis-component="queued-message-item"\][\s\S]*?>\s*\[data-part="actions"\][\s\S]*?button\s*\{[^}]*\bcursor:\s*pointer/gu,
     );
     expect(stylesSource).toMatch(
-      /\.queued-message-content\s*\{[^}]*\bdisplay:\s*block[^}]*\binline-size:\s*100%[^}]*\boverflow:\s*hidden/gu,
+      /\.queued-message-content\s*\{[^}]*\bdisplay:\s*flex[^}]*\bflex-direction:\s*column[^}]*\bgap:\s*6px/gu,
     );
     expect(stylesSource).toMatch(
       /\.queued-message-bar \+ \.composer\s*\{[^}]*\bz-index:\s*1/gu,
@@ -100,7 +105,7 @@ describe("Codex-style queued message composer", () => {
     expect(uiText("en", "App_copy.queuedMessages")).toBe(
       "{{count}} messages queued",
     );
-    expect(uiText("en", "App_copy.queueSteer")).toBe("Steer");
+    expect(uiText("en", "App_copy.queueSteer")).toBe("Steer now");
     expect(uiText("en", "App_copy.queueSteerHint")).toBe(
       "Steer this queued message into the active task",
     );
@@ -111,7 +116,7 @@ describe("Codex-style queued message composer", () => {
     expect(uiText("zh-CN", "App_copy.queuedMessages")).toBe(
       "{{count}} 条消息排队中",
     );
-    expect(uiText("zh-CN", "App_copy.queueSteer")).toBe("引导");
+    expect(uiText("zh-CN", "App_copy.queueSteer")).toBe("立即引导");
     expect(uiText("zh-CN", "App_copy.queueSteerHint")).toBe(
       "将此排队消息引导到当前任务",
     );

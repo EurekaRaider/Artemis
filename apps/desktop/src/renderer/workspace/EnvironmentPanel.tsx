@@ -466,6 +466,9 @@ export function PullRequestChecksSummary({
         <span
           className="environment-row-icon environment-pr-icon"
           data-status={checkSummary}
+          data-pr-state={
+            pullRequest.isDraft ? "draft" : pullRequest.state.toLowerCase()
+          }
         >
           {prIcon}
         </span>
@@ -1688,7 +1691,7 @@ export function EnvironmentPanel({
           maxLength={10_000}
           onChange={(event) => setCommitMessage(event.target.value)}
           placeholder={t.commitMessagePlaceholder}
-          rows={4}
+          rows={3}
           value={commitMessage}
         />
       </label>
@@ -1754,7 +1757,12 @@ export function EnvironmentPanel({
         {gitInfo.upstream && (
           <span>
             <ArtemisIcon name="push" width={14} height={14} />
-            <span>
+            <span
+              title={uiText(locale, "Review01.pushAfter", {
+                count: gitInfo.ahead + 1,
+                branch: gitInfo.upstream,
+              })}
+            >
               {uiText(locale, "Review01.pushAfter", {
                 count: gitInfo.ahead + 1,
                 branch: "{upstream}",
@@ -1790,7 +1798,6 @@ export function EnvironmentPanel({
           title={commitDisabledReason}
           type="submit"
         >
-          <EnvironmentCommitIcon />
           <strong>
             {gitBusy === "commit"
               ? commitMessage.trim()
@@ -1886,15 +1893,17 @@ export function EnvironmentPanel({
                 {project.name}
               </span>
             )}
-            <button
-              aria-label={t.close}
-              className="environment-header-action"
-              onClick={closePanel}
-              title={t.close}
-              type="button"
-            >
-              <ArtemisIcon name="close" />
-            </button>
+            {!commitOpen && (
+              <button
+                aria-label={t.close}
+                className="environment-header-action"
+                onClick={closePanel}
+                title={t.close}
+                type="button"
+              >
+                <ArtemisIcon name="close" />
+              </button>
+            )}
           </header>
           {commitOpen ? (
             commitSubview
@@ -1966,6 +1975,7 @@ export function EnvironmentPanel({
                   >
                     <div className="environment-rows">
                       <EnvironmentWorkspaceMenu
+                        placement="block-end"
                         worktreeCount={worktreeCount}
                         locale={locale}
                         path={gitInfo.root ?? project.path}
@@ -2303,6 +2313,7 @@ export function EnvironmentPanel({
                     {contextAttachments.slice(0, 3).map((attachment) => (
                       <button
                         className="environment-context-row"
+                        aria-label={attachment.name}
                         key={attachment.id}
                         onClick={viewAllSources}
                         title={attachment.name}
@@ -2314,6 +2325,7 @@ export function EnvironmentPanel({
                           symlink={false}
                         />
                         <span>{attachment.name}</span>
+                        <small>{uiText(locale, "Review06.attachment")}</small>
                       </button>
                     ))}
                     {contextSkills.map((skill) => (

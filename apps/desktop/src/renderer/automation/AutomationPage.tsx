@@ -502,6 +502,7 @@ export function AutomationPage(props: {
   locale: Locale;
   headerActionTarget?: HTMLElement | null | undefined;
   initialAutomationId?: string | undefined;
+  initialDraftRequest?: { projectId: string; token: number } | undefined;
   projects: Project[];
   settings?:
     | Pick<
@@ -603,6 +604,17 @@ export function AutomationPage(props: {
           },
     );
   };
+  const handledDraftRequest = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const request = props.initialDraftRequest;
+    if (!request || handledDraftRequest.current === request.token) return;
+    handledDraftRequest.current = request.token;
+    setMessage(undefined);
+    setDraft({
+      ...defaultDraft(request.projectId),
+      modelSelection: props.settings?.selection,
+    });
+  }, [props.initialDraftRequest, props.settings?.selection]);
   const filterProjectOptions = useMemo(
     () => projectSelectOptions(props.projects, [t.allProjects]),
     [props.projects, t.allProjects],
@@ -720,13 +732,14 @@ export function AutomationPage(props: {
   const createAction = (
     <Button
       className="automation-create-button"
+      iconSize="sm"
       disabled={props.projects.length === 0}
       icon={
         <ArtemisIcon
           className="automation-create-icon"
-          height={16}
+          height={14}
           name="plus"
-          width={16}
+          width={14}
         />
       }
       onClick={() => openDraft()}
@@ -774,8 +787,14 @@ export function AutomationPage(props: {
               onValueChange={setStatusFilter}
               options={[
                 { value: "all", label: uiText(props.locale, "Review01.all") },
-                { value: "enabled", label: t.enabled },
-                { value: "paused", label: t.paused },
+                {
+                  value: "enabled",
+                  label: uiText(props.locale, "AutomationPage_filter.enabled"),
+                },
+                {
+                  value: "paused",
+                  label: uiText(props.locale, "AutomationPage_filter.paused"),
+                },
               ]}
             />
             {message && !draft ? (
@@ -794,6 +813,7 @@ export function AutomationPage(props: {
               return (
                 <div
                   className="automation-master-row"
+                  data-enabled={automation.enabled}
                   data-selected={selectedAutomation?.id === automation.id}
                   key={automation.id}
                 >
@@ -809,15 +829,44 @@ export function AutomationPage(props: {
                         {project?.name ?? t.unavailableProject} ·{" "}
                         {uiText(props.locale, `App_copy.${automation.mode}`)}
                       </span>
-                      <small data-state={latestRun?.state}>
+                      <small
+                        className={
+                          automation.enabled ? undefined : "automation-next-run"
+                        }
+                      >
                         <ArtemisIcon
                           name={automation.enabled ? "calendar" : "pause"}
                           width={12}
                           height={12}
                         />
-                        {automation.enabled
-                          ? `${scheduleLabel(automation, props.locale)} · ${nextRunLabel(automation, props.locale)}`
-                          : t.pausedUntilEnabled}
+                        {automation.enabled ? (
+                          <>
+                            <span>
+                              {scheduleLabel(automation, props.locale)}
+                            </span>
+                            {latestRun?.state === "failed" ? (
+                              <span
+                                className="automation-latest-failure"
+                                data-state="failed"
+                              >
+                                <span
+                                  className="automation-run-dot failed"
+                                  aria-hidden="true"
+                                />
+                                {uiText(
+                                  props.locale,
+                                  "AutomationPage_text.lastFailed",
+                                )}
+                              </span>
+                            ) : (
+                              <span className="automation-next-run">
+                                · {nextRunLabel(automation, props.locale)}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          t.pausedUntilEnabled
+                        )}
                       </small>
                     </span>
                   </Button>
@@ -873,21 +922,19 @@ export function AutomationPage(props: {
                   <div className="automation-card-heading">
                     <div className="automation-title-block">
                       <div className="automation-title-line">
-                        <h2>
-                          {automation.name}{" "}
-                          <Status
-                            className="automation-state"
-                            tone={
-                              automation.authorizationState === "required"
-                                ? "warning"
-                                : automation.enabled
-                                  ? "success"
-                                  : "neutral"
-                            }
-                          >
-                            {statusLabel}
-                          </Status>
-                        </h2>
+                        <h2>{automation.name}</h2>
+                        <Status
+                          className="automation-state"
+                          tone={
+                            automation.authorizationState === "required"
+                              ? "warning"
+                              : automation.enabled
+                                ? "success"
+                                : "neutral"
+                          }
+                        >
+                          {statusLabel}
+                        </Status>
                       </div>
                       <span>
                         {automation.lastRunAt
@@ -999,60 +1046,64 @@ export function AutomationPage(props: {
                       </dd>
                     </div>
                   </dl>
-                  <div className="automation-schedule-heading">
-                    {uiText(props.locale, "Review03.schedule")}
-                    {scheduleTimeZone(automation)
-                      ? ` · ${scheduleTimeZone(automation)}`
-                      : ""}
-                  </div>
-                  <div className="automation-meta">
-                    <span className="automation-schedule-label">
-                      <ArtemisIcon name="calendar" />
-                      {scheduleLabel(automation, props.locale)}
-                    </span>
-                    <span>
-                      {automation.enabled
-                        ? `${nextRunLabel(automation, props.locale)}`
-                        : t.pausedUntilEnabled}
-                    </span>
-                  </div>
-                  {"daysOfWeek" in automation.schedule && (
-                    <div
-                      className="automation-week"
-                      aria-label={scheduleLabel(automation, props.locale)}
-                    >
-                      {weekLabels[props.locale].map((day, index) => {
-                        const scheduled =
-                          "daysOfWeek" in automation.schedule &&
-                          automation.schedule.daysOfWeek.includes(index + 1);
-                        return (
-                          <div key={index} data-scheduled={scheduled}>
-                            <span>{day}</span>
-                            <small>
-                              {scheduled ? (
-                                automation.schedule.kind ===
-                                "windowed-interval" ? (
-                                  automation.schedule.startTime
-                                ) : automation.schedule.kind === "weekly" ? (
-                                  automation.schedule.localTime
+                  <div className="automation-schedule">
+                    <div className="automation-schedule-heading">
+                      <span>
+                        {uiText(props.locale, "Review03.schedule")}
+                        {scheduleTimeZone(automation)
+                          ? ` · ${scheduleTimeZone(automation)}`
+                          : ""}
+                      </span>
+                      <span title={scheduleLabel(automation, props.locale)}>
+                        {automation.enabled
+                          ? `${nextRunLabel(automation, props.locale)}`
+                          : t.pausedUntilEnabled}
+                      </span>
+                    </div>
+                    {!("daysOfWeek" in automation.schedule) && (
+                      <span className="automation-schedule-label">
+                        <ArtemisIcon name="calendar" />
+                        {scheduleLabel(automation, props.locale)}
+                      </span>
+                    )}
+                    {"daysOfWeek" in automation.schedule && (
+                      <div
+                        className="automation-week"
+                        aria-label={scheduleLabel(automation, props.locale)}
+                      >
+                        {weekLabels[props.locale].map((day, index) => {
+                          const scheduled =
+                            "daysOfWeek" in automation.schedule &&
+                            automation.schedule.daysOfWeek.includes(index + 1);
+                          return (
+                            <div key={index} data-scheduled={scheduled}>
+                              <span>{day}</span>
+                              <small>
+                                {scheduled ? (
+                                  automation.schedule.kind ===
+                                  "windowed-interval" ? (
+                                    automation.schedule.startTime
+                                  ) : automation.schedule.kind === "weekly" ? (
+                                    automation.schedule.localTime
+                                  ) : (
+                                    <i
+                                      className="automation-unscheduled-dot"
+                                      aria-hidden="true"
+                                    />
+                                  )
                                 ) : (
                                   <i
                                     className="automation-unscheduled-dot"
                                     aria-hidden="true"
                                   />
-                                )
-                              ) : (
-                                <i
-                                  className="automation-unscheduled-dot"
-                                  aria-hidden="true"
-                                />
-                              )}
-                            </small>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                                )}
+                              </small>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="automation-card-footer">
                     <details className="automation-history" open>

@@ -70,7 +70,7 @@ describe("ContextUsageIndicator", () => {
     expect(html).toContain("系统工具</dt><dd>3000 Token (0.3%)");
     expect(html).toContain("MCP 工具</dt><dd>2000 Token (0.2%)");
     expect(html).toContain("记忆文件</dt><dd>1000 Token (0.1%)");
-    expect(html).toContain("Skills</dt><dd>1000 Token (0.1%)");
+    expect(html).toContain("技能</dt><dd>1000 Token (0.1%)");
     expect(html).toContain("消息</dt><dd>2623 Token (0.3%)");
     expect(html).toContain("可用空间</dt><dd>93.2万 Token (88.9%)");
     expect(html).toContain("自动压缩缓冲区</dt><dd>10.5万 Token (10%)");

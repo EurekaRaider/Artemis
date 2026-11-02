@@ -118,34 +118,36 @@ export function ApprovalDecisionCard({
         <strong>{uiText(locale, "Review02.decisionApproval")}</strong>
         <span className="decision-waiting">{t.waiting}</span>
       </header>
-      <h3 className="decision-title">
-        <bdi>{approval.summary}</bdi>
-      </h3>
-      {view.detail && (
-        <pre className="decision-command">
-          {approval.command && <span aria-hidden="true">$ </span>}
-          <bdi>{view.detail}</bdi>
-        </pre>
-      )}
-      {actorLabel && <small>{actorLabel}</small>}
-      {view.reason && (
-        <div className="decision-reason">
-          <small>{uiText(locale, "Review03.agentReason")}</small>
-          <p>
-            <bdi>{view.reason}</bdi>
-          </p>
-        </div>
-      )}
-      <div className="decision-metadata">
-        {approval.network.map((host) => (
-          <span key={host}>
-            <bdi>{host}</bdi>
+      <div className="decision-body">
+        <h3 className="decision-title">
+          <bdi>{approval.summary}</bdi>
+        </h3>
+        {view.detail && (
+          <pre className="decision-command">
+            {approval.command && <span aria-hidden="true">$ </span>}
+            <bdi>{view.detail}</bdi>
+          </pre>
+        )}
+        {actorLabel && <small>{actorLabel}</small>}
+        {view.reason && (
+          <div className="decision-reason">
+            <small>{uiText(locale, "Review03.agentReason")}</small>
+            <p>
+              <bdi>{view.reason}</bdi>
+            </p>
+          </div>
+        )}
+        <div className="decision-metadata">
+          {approval.network.map((host) => (
+            <span key={host}>
+              <bdi>{host}</bdi>
+            </span>
+          ))}
+          <span>
+            <ArtemisIcon name="alert" width={12} height={12} />
+            {uiText(locale, `Review02.risk.${approval.risk}`)}
           </span>
-        ))}
-        <span>
-          <ArtemisIcon name="alert" width={12} height={12} />
-          {uiText(locale, `Review02.risk.${approval.risk}`)}
-        </span>
+        </div>
       </div>
       <DecisionOptions
         options={options}

@@ -227,6 +227,7 @@ const expectedCssRules = new Map([
   ],
   [`normal|${BUTTON}`, { "padding-inline": "var(--artemis-space-3)" }],
   [`normal|${BUTTON} > [data-part="label"]`, { display: "contents" }],
+  [`normal|${BUTTON}[data-size="compact"]`, { "padding-inline": "9px" }],
   [
     `normal|${BUTTON} > [data-part="icon"], ${ICON_BUTTON} > [data-part="icon"]`,
     {
@@ -274,7 +275,8 @@ const expectedCssRules = new Map([
     `normal|${BUTTON}[data-variant="quiet"], ${ICON_BUTTON}[data-variant="quiet"]`,
     {
       color: "var(--artemis-color-text-secondary)",
-      background: "var(--artemis-color-surface-sunken)",
+      background: "transparent",
+      "border-color": "transparent",
     },
   ],
   [
@@ -293,10 +295,18 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    `normal|${BUTTON}[data-variant="secondary"]:hover:not(:disabled), ${BUTTON}[data-variant="quiet"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="secondary"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="quiet"]:hover:not(:disabled)`,
+    `normal|${BUTTON}[data-variant="secondary"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="secondary"]:hover:not(:disabled)`,
     {
-      background: "var(--artemis-color-interaction-hover)",
-      "border-color": "var(--artemis-color-border-strong)",
+      background: "var(--artemis-color-surface-sunken)",
+      "border-color": "var(--artemis-color-border-default)",
+      color: "var(--artemis-color-text-primary)",
+    },
+  ],
+  [
+    `normal|${BUTTON}[data-variant="quiet"]:hover:not(:disabled), ${ICON_BUTTON}[data-variant="quiet"]:hover:not(:disabled)`,
+    {
+      background: "var(--artemis-color-surface-sunken)",
+      "border-color": "transparent",
       color: "var(--artemis-color-text-primary)",
     },
   ],
@@ -392,19 +402,19 @@ const expectedCssRules = new Map([
       "box-sizing": "border-box",
       display: "inline-flex",
       "align-items": "center",
-      gap: "var(--artemis-space-2)",
-      "min-block-size":
-        "calc( var(--artemis-space-6) + var(--artemis-border-width-default) * 2 )",
+      gap: "6px",
+      "min-block-size": "22px",
       "min-inline-size": "0",
-      "padding-inline": "var(--artemis-space-3)",
-      color: "var(--artemis-color-text-primary)",
+      padding: "0 8px",
+      color: "var(--artemis-color-text-secondary)",
       background: "var(--artemis-color-surface-sunken)",
-      border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      border: "0",
       "border-radius": "var(--artemis-radius-pill)",
       "font-family": "var(--artemis-typography-body-family)",
       "font-size": "var(--artemis-typography-label-size)",
-      "line-height": "1",
+      "font-weight": "500",
+      "line-height": "1.5",
+      "white-space": "nowrap",
     },
   ],
   [
@@ -420,20 +430,24 @@ const expectedCssRules = new Map([
     },
   ],
   [
+    `normal|${BADGE} [data-part="indicator"][data-icon="true"], ${STATUS} [data-part="indicator"][data-icon="true"]`,
+    { display: "inline-flex", "align-items": "center", "inline-size": "auto", "block-size": "auto", background: "transparent", "border-radius": "0" },
+  ],
+  [
     `normal|${BADGE}[data-tone="info"], ${STATUS}[data-tone="info"]`,
-    { background: "var(--artemis-color-status-info-subtle)" },
+    { color: "var(--artemis-color-status-info)", background: "var(--artemis-color-status-info-subtle)" },
   ],
   [
     `normal|${BADGE}[data-tone="success"], ${STATUS}[data-tone="success"]`,
-    { background: "var(--artemis-color-status-success-subtle)" },
+    { color: "var(--artemis-color-status-success-text)", background: "var(--artemis-color-status-success-subtle)" },
   ],
   [
     `normal|${BADGE}[data-tone="warning"], ${STATUS}[data-tone="warning"]`,
-    { background: "var(--artemis-color-status-warning-subtle)" },
+    { color: "var(--artemis-color-status-warning-text)", background: "var(--artemis-color-status-warning-subtle)" },
   ],
   [
     `normal|${BADGE}[data-tone="danger"], ${STATUS}[data-tone="danger"]`,
-    { background: "var(--artemis-color-status-danger-subtle)" },
+    { color: "var(--artemis-color-status-danger-text)", background: "var(--artemis-color-status-danger-subtle)" },
   ],
   [
     `normal|${BADGE}[data-tone="info"] [data-part="indicator"], ${STATUS}[data-tone="info"] [data-part="indicator"]`,
@@ -504,7 +518,7 @@ const expectedCssRules = new Map([
     },
   ],
   [
-    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="textarea-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"], [data-artemis-component="select"][data-size="compact"] [data-part="trigger"], [data-artemis-component="select"][data-size="compact"] [data-part="search"]',
+    'normal|[data-artemis-component="text-field"][data-size="compact"] [data-part="control"], [data-artemis-component="textarea-field"][data-size="compact"] [data-part="control"], [data-artemis-component="search-field"][data-size="compact"] [data-part="control"]',
     { "min-block-size": "var(--artemis-size-control-compact)" },
   ],
   [
@@ -591,10 +605,10 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="select"] [data-part="trigger"], [data-artemis-component="select"] [data-part="search"]',
     {
-      "min-block-size":
-        "calc( var(--artemis-size-control-compact) + var(--artemis-space-1) )",
-      padding: "var(--artemis-space-1) var(--artemis-space-2)",
-      "font-size": "var(--artemis-typography-label-size)",
+      "min-block-size": "30px",
+      padding: "0 8px",
+      "padding-inline-start": "10px",
+      "font-size": "12.5px",
       "line-height": "1.5",
     },
   ],
@@ -604,13 +618,13 @@ const expectedCssRules = new Map([
       display: "flex",
       "align-items": "center",
       "justify-content": "space-between",
-      gap: "var(--artemis-space-2)",
+      gap: "8px",
       "text-align": "start",
       cursor: "pointer",
     },
   ],
   [
-    'normal|[data-artemis-component="select"] [data-part="value"]',
+    'normal|[data-artemis-component="select"] [data-part="value"], [data-artemis-component="select"] [data-part="option"] > span:not([data-part="check"])',
     {
       "min-inline-size": "0",
       overflow: "hidden",
@@ -623,8 +637,9 @@ const expectedCssRules = new Map([
     {
       display: "inline-flex",
       flex: "0 0 auto",
-      "inline-size": "var(--artemis-space-4)",
-      "block-size": "var(--artemis-space-4)",
+      "inline-size": "14px",
+      "block-size": "14px",
+      color: "var(--artemis-color-text-tertiary)",
       transition:
         "transform var(--artemis-motion-duration-fast) var(--artemis-motion-easing-standard)",
     },
@@ -643,19 +658,19 @@ const expectedCssRules = new Map([
       position: "absolute",
       "z-index": "20",
       "inset-block-start":
-        "calc(var(--select-anchor-end, 100%) + var(--artemis-space-1))",
+        "calc(var(--select-anchor-end, 100%) + 10px)",
       "inset-inline-start": "0",
       "box-sizing": "border-box",
       "inline-size": "max-content",
       "min-inline-size": "min(100%, 12rem)",
       "max-inline-size": "20rem",
-      "font-size": "var(--artemis-typography-label-size)",
+      "font-size": "var(--artemis-typography-body-size)",
       "line-height": "1.5",
       overflow: "hidden",
       padding: "5px",
-      background: "var(--artemis-color-surface-raised)",
-      border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
+      background: "var(--artemis-color-surface-popover)",
+      border: "0",
+      "box-shadow": "var(--artemis-shadow-overlay)",
       "border-radius": "11px",
     },
   ],
@@ -671,9 +686,20 @@ const expectedCssRules = new Map([
     {
       display: "flex",
       "flex-direction": "column",
-      gap: "var(--artemis-space-1)",
-      "max-block-size": "calc(var(--artemis-size-control-compact) * 7)",
+      gap: "0",
+      "max-block-size": "192px",
       overflow: "auto",
+      "scrollbar-width": "none",
+    },
+  ],
+  [
+    'normal|[data-artemis-component="select"] [data-part="footer"]',
+    {
+      margin: "5px 4px 0",
+      padding: "9px 6px 6px",
+      "border-top": "1px solid var(--artemis-color-border-default)",
+      "font-size": "var(--artemis-typography-label-size)",
+      color: "var(--artemis-color-text-tertiary)",
     },
   ],
   [
@@ -682,12 +708,12 @@ const expectedCssRules = new Map([
       display: "grid",
       "flex-shrink": "0",
       "box-sizing": "border-box",
-      "grid-template-columns": "var(--artemis-space-4) minmax(0, 1fr)",
+      "grid-template-columns": "minmax(0, 1fr) 14px",
       "align-items": "center",
-      gap: "var(--artemis-space-1)",
+      gap: "10px",
       "min-block-size": "32px",
-      padding: "var(--artemis-space-1) var(--artemis-space-2)",
-      "border-radius": "var(--artemis-radius-control)",
+      padding: "0 10px",
+      "border-radius": "7px",
       "text-align": "start",
       "overflow-wrap": "anywhere",
       cursor: "pointer",
@@ -718,8 +744,9 @@ const expectedCssRules = new Map([
   [
     'normal|[data-artemis-component="select"] [data-part="check"]',
     {
-      "inline-size": "var(--artemis-space-4)",
-      color: "var(--artemis-color-accent-primary)",
+      display: "flex",
+      "inline-size": "14px",
+      color: "var(--artemis-color-text-primary)",
       "text-align": "center",
     },
   ],
@@ -769,27 +796,15 @@ const expectedCssRules = new Map([
       display: "inline-flex",
       "align-items": "center",
       "justify-content": "center",
-      "inline-size":
-        "calc(var(--artemis-space-4) - 2 * var(--artemis-border-width-default))",
-      "block-size":
-        "calc(var(--artemis-space-4) - 2 * var(--artemis-border-width-default))",
+      "inline-size": "var(--artemis-space-4)",
+      "block-size": "var(--artemis-space-4)",
       color: "var(--artemis-color-accent-on-primary)",
-      background: "var(--artemis-color-surface-base)",
+      background: "transparent",
       border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
-      "border-radius":
-        "calc(var(--artemis-space-1) - var(--artemis-border-width-default))",
+        "calc(var(--artemis-border-width-default) * 1.5) solid var(--artemis-color-border-default)",
+      "border-radius": "var(--artemis-space-1)",
       "font-size":
         "calc(var(--artemis-space-3) - var(--artemis-border-width-default))",
-    },
-  ],
-  [
-    'normal|[data-artemis-component="checkbox"][data-size="compact"] [data-part="indicator"]',
-    {
-      "inline-size":
-        "calc(var(--artemis-space-4) - 2 * var(--artemis-border-width-default))",
-      "block-size":
-        "calc(var(--artemis-space-4) - 2 * var(--artemis-border-width-default))",
     },
   ],
   [
@@ -935,12 +950,13 @@ const expectedCssRules = new Map([
       display: "inline-flex",
       "align-items": "center",
       "justify-content": "center",
-      gap: "var(--artemis-space-1)",
+      gap: "6px",
       "min-block-size": "var(--artemis-size-control-comfortable)",
-      "padding-inline": "var(--artemis-space-3)",
+      padding: "0 10px",
       background: "transparent",
-      border: "var(--artemis-border-width-default) solid transparent",
-      "border-radius": "var(--artemis-radius-control)",
+      border: "0",
+      "border-radius": "7px",
+      "white-space": "nowrap",
     },
   ],
   [
@@ -951,7 +967,7 @@ const expectedCssRules = new Map([
     'normal|[data-artemis-component="segmented-control"][data-size="compact"] [data-part="segment"]',
     {
       "min-block-size": "var(--artemis-size-control-compact)",
-      "padding-inline": "var(--artemis-space-2)",
+      "padding-inline": "10px",
     },
   ],
   [
@@ -965,8 +981,7 @@ const expectedCssRules = new Map([
     'normal|[data-artemis-component="segmented-control"] [data-part="segment"][aria-pressed="true"]',
     {
       color: "var(--artemis-color-text-primary)",
-      background:
-        "light-dark(var(--artemis-color-canvas), color-mix(in srgb, var(--artemis-color-text-primary) 6%, var(--artemis-color-surface-sunken)))",
+      background: "var(--artemis-color-canvas)",
       "border-color": "transparent",
       "box-shadow":
         "0 1px 2px rgb(0 0 0 / 0.16), 0 0 0 1px var(--artemis-color-border-subtle)",
@@ -1143,20 +1158,18 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="toast"]',
     {
+      "--_artemis-toast-icon-color": "var(--artemis-color-text-secondary)",
       "box-sizing": "border-box",
       display: "flex",
       "align-items": "center",
-      gap: "var(--artemis-space-3)",
+      gap: "10px",
       "justify-content": "space-between",
       "min-block-size": "var(--artemis-size-control-comfortable)",
-      padding: "var(--artemis-space-3) var(--artemis-space-4)",
+      padding: "10px 10px 10px 14px",
       color: "var(--artemis-color-text-primary)",
-      background: "var(--artemis-color-surface-raised)",
-      border:
-        "var(--artemis-border-width-default) solid var(--artemis-color-border-default)",
-      "border-inline-start":
-        "calc(var(--artemis-border-width-default) * 3) solid var(--artemis-color-accent-primary)",
-      "border-radius": "var(--artemis-radius-card)",
+      background: "var(--artemis-color-surface-popover)",
+      border: "0",
+      "border-radius": "11px",
       "box-shadow": "var(--artemis-shadow-overlay)",
       "font-family": "var(--artemis-typography-body-family)",
       "font-size": "var(--artemis-typography-body-size)",
@@ -1168,19 +1181,19 @@ const CL3_EXPECTED_CSS_RULES = [
   [
     'normal|[data-artemis-component="toast"][data-tone="success"]',
     {
-      "border-inline-start-color": "var(--artemis-color-status-success)",
+      "--_artemis-toast-icon-color": "var(--artemis-color-status-success)",
     },
   ],
   [
     'normal|[data-artemis-component="toast"][data-tone="warning"]',
     {
-      "border-inline-start-color": "var(--artemis-color-status-warning)",
+      "--_artemis-toast-icon-color": "var(--artemis-color-status-warning)",
     },
   ],
   [
     'normal|[data-artemis-component="toast"][data-tone="danger"]',
     {
-      "border-inline-start-color": "var(--artemis-color-status-danger)",
+      "--_artemis-toast-icon-color": "var(--artemis-color-status-danger)",
     },
   ],
   [

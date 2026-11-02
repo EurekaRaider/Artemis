@@ -703,6 +703,7 @@ export interface WorkspaceEditorModeToggle {
 
 export interface WorkspaceEditorToolbarProps {
   readonly children?: ReactNode | undefined;
+  readonly pathIcon?: ReactNode | undefined;
   readonly dirty: boolean;
   readonly modeToggle?: WorkspaceEditorModeToggle | undefined;
   readonly path: string;
@@ -735,6 +736,7 @@ function editorState(
 
 export function WorkspaceEditorToolbar({
   children,
+  pathIcon,
   dirty,
   modeToggle,
   path,
@@ -761,7 +763,10 @@ export function WorkspaceEditorToolbar({
       onKeyDown={onKeyDown}
     >
       <div data-part="path">
-        <span title={path}>{path}</span>
+        <span title={path}>
+          {pathIcon}
+          <span className="artemis-editor-filename">{path}</span>
+        </span>
         <span data-part="actions">
           {modeToggle ? (
             <span data-part="mode">

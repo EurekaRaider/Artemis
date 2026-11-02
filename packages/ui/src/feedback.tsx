@@ -14,6 +14,8 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { ArtemisIcon } from "./icons.js";
+import { Button } from "./actions.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -71,6 +73,7 @@ export const FEEDBACK_COMPONENT_CONTRACT_SCHEMA_VERSION = 1 as const;
 export const FEEDBACK_COMPONENT_MUTABLE_TOKENS = /* @__PURE__ */ Object.freeze([
   "--artemis-color-surface-base",
   "--artemis-color-surface-raised",
+  "--artemis-color-surface-popover",
   "--artemis-color-surface-sunken",
   "--artemis-color-surface-user",
   "--artemis-color-overlay-scrim",
@@ -405,6 +408,7 @@ function useAnchoredPosition(
   contentRef: RefObject<HTMLElement | null>,
   placement: OverlayPlacement,
   align: OverlayAlignment,
+  avoidRef?: RefObject<HTMLElement | null>,
 ): AnchoredPosition {
   const [position, setPosition] = useState<AnchoredPosition>({
     left: 0,
@@ -434,8 +438,9 @@ function useAnchoredPosition(
         direction === "rtl"
           ? anchorRect.left
           : anchorRect.right - contentRect.width;
-      const below = anchorRect.bottom + gap;
-      const above = anchorRect.top - contentRect.height - gap;
+      const boundary = avoidRef?.current?.getBoundingClientRect() ?? anchorRect;
+      const below = boundary.bottom + gap;
+      const above = boundary.top - contentRect.height - gap;
       let left: number;
       let top: number;
       if (placement === "block-start" || placement === "block-end") {
@@ -500,6 +505,7 @@ function useAnchoredPosition(
     const observer =
       typeof ResizeObserver === "function" ? new ResizeObserver(update) : null;
     if (anchorRef.current) observer?.observe(anchorRef.current);
+    if (avoidRef?.current) observer?.observe(avoidRef.current);
     if (contentRef.current) observer?.observe(contentRef.current);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
@@ -509,15 +515,17 @@ function useAnchoredPosition(
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [align, anchorRef, contentRef, open, placement]);
+  }, [align, anchorRef, avoidRef, contentRef, open, placement]);
 
   return position;
 }
 
 export interface TooltipProps {
+  readonly avoidRef?: RefObject<HTMLElement | null> | undefined;
   readonly className?: string | undefined;
   readonly align?: OverlayAlignment | undefined;
   readonly children: ReactElement<Record<string, unknown>>;
+  readonly content?: ReactNode | undefined;
   readonly label: string;
   readonly placement?: OverlayPlacement | undefined;
   readonly portalContainer?: HTMLElement | null | undefined;
@@ -525,8 +533,10 @@ export interface TooltipProps {
 
 export function Tooltip({
   align = "center",
+  avoidRef,
   className,
   children,
+  content,
   label,
   placement = "block-start",
   portalContainer,
@@ -554,6 +564,7 @@ export function Tooltip({
     contentRef,
     placement,
     align,
+    avoidRef,
   );
   const currentDescribedBy = children.props["aria-describedby"];
   const describedBy = [
@@ -632,7 +643,7 @@ export function Tooltip({
                 visibility: position.measured ? "visible" : "hidden",
               }}
             >
-              <span data-part="content">{label}</span>
+              <span data-part="content">{content ?? label}</span>
             </div>,
             target,
           )
@@ -1016,16 +1027,47 @@ export function Toast({
       data-tone={tone}
       role={assertive ? "alert" : "status"}
     >
-      <span data-part="message">{children}</span>
+      {tone !== "neutral" && (
+        <ArtemisIcon
+          name={
+            tone === "success"
+              ? "check-circle"
+              : tone === "danger"
+                ? "alert"
+                : tone === "warning"
+                  ? "circle"
+                  : "info"
+          }
+          fallback={
+            tone === "warning" ? (
+              <circle
+                cx="12"
+                cy="12"
+                r="4.5"
+                fill="currentColor"
+                stroke="none"
+              />
+            ) : undefined
+          }
+          width={16}
+          height={16}
+          style={{ flex: "none", color: "var(--_artemis-toast-icon-color)" }}
+        />
+      )}
+      <span data-part="message" style={{ flex: 1, minWidth: 0 }}>
+        {children}
+      </span>
       {onDismiss ? (
-        <button
-          aria-label={dismissLabel}
-          data-part="action"
-          onClick={onDismiss}
-          type="button"
-        >
-          {dismissLabel}
-        </button>
+        <span data-part="action">
+          <Button
+            aria-label={dismissLabel}
+            onClick={onDismiss}
+            size="compact"
+            variant="quiet"
+          >
+            {dismissLabel}
+          </Button>
+        </span>
       ) : null}
     </div>
   );

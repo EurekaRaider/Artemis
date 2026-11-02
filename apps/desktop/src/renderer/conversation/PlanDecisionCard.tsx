@@ -69,13 +69,15 @@ export function PlanDecisionCard({
           {uiText(locale, "Review03.planReadonly")}
         </span>
       </header>
-      <h3 className="decision-title">{plan.title}</h3>
-      <div className="plan-decision-content">
-        <MarkdownContent text={plan.markdown} locale={locale} />
+      <div className="decision-body">
+        <h3 className="decision-title">{plan.title}</h3>
+        <div className="plan-decision-content">
+          <MarkdownContent text={plan.markdown} locale={locale} />
+        </div>
+        {!plan.actionable && (
+          <p className="decision-waiting">{uiText(locale, "Plan.noAction")}</p>
+        )}
       </div>
-      {!plan.actionable && (
-        <p className="decision-waiting">{uiText(locale, "Plan.noAction")}</p>
-      )}
       <DecisionOptions
         options={options}
         locale={locale}

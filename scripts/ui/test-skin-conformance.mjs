@@ -168,8 +168,12 @@ const surfaceDeclaration = "background: var(--artemis-color-surface-base);";
 await rejectCss("select loses compact trigger height", (css) =>
   replaceRequired(
     css,
-    "var(--artemis-size-control-compact) + var(--artemis-space-1)",
-    "var(--artemis-size-control-comfortable) + var(--artemis-space-1)",
+    `[data-artemis-component="select"] [data-part="trigger"],
+  [data-artemis-component="select"] [data-part="search"] {
+    min-block-size: 30px;`,
+    `[data-artemis-component="select"] [data-part="trigger"],
+  [data-artemis-component="select"] [data-part="search"] {
+    min-block-size: 26px;`,
   ),
 );
 await rejectCss("select menu loses width bound", (css) =>
@@ -181,8 +185,16 @@ await rejectCss("select constrained to trigger width", (css) =>
 await rejectCss("select checkmark moves with label width", (css) =>
   replaceRequired(
     css,
-    "grid-template-columns: var(--artemis-space-4) minmax(0, 1fr);",
-    "grid-template-columns: auto auto;",
+    `[data-artemis-component="select"] [data-part="option"] {
+    display: grid;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0, 1fr) 14px;`,
+    `[data-artemis-component="select"] [data-part="option"] {
+    display: grid;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    grid-template-columns: auto auto;`,
   ),
 );
 await rejectCss("notice icon loses first-line alignment", (css) =>

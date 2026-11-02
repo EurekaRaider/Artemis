@@ -86,7 +86,7 @@ export function UserInputCard({
   };
   return (
     <UserInputFrame
-      className="decision-card user-input-card"
+      className="decision-card user-input-card question-decision"
       label={input.question}
       state={busy ? "busy" : input.status}
     >
@@ -103,6 +103,7 @@ export function UserInputCard({
       <DecisionOptions
         key={input.requestId}
         options={input.options}
+        numbered={false}
         locale={locale}
         busy={busy}
         registerButton={(i, b) => {

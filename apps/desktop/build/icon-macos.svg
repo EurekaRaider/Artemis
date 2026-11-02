@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 48 48">
+  <g id="background">
+    <rect width="48" height="48" rx="10.8" fill="#121418"/>
+    <rect data-outline-detail="true" x="0.4" y="0.4" width="47.2" height="47.2" rx="10.4" fill="none" stroke="white" stroke-opacity="0.1" stroke-width="0.8"/>
+  </g>
+  <g id="foreground" transform="translate(24 24) scale(0.62) translate(-24 -24)">
+    <path d="M35 9.17A16 16 0 1 0 35 38.83A15.2 15.2 0 0 1 35 9.17Z" fill="#E8B65A"/>
+    <path data-large-detail="true" d="M35 9.17V38.83" fill="none" stroke="#E8B65A" stroke-width="1.1" opacity="0.7"/>
+  </g>
+</svg>

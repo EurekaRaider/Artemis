@@ -32,8 +32,8 @@
     var(--artemis-color-border-subtle);
 }
 .office-file-icon {
-  inline-size: var(--artemis-size-control-comfortable);
-  block-size: var(--artemis-size-control-comfortable);
+  inline-size: 16px;
+  block-size: 16px;
   flex: none;
 }
 .office-file-info {
@@ -46,7 +46,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font: 500 13px/20px var(--artemis-typography-mono-family);
 }
 .office-status {
   gap: var(--artemis-space-1);

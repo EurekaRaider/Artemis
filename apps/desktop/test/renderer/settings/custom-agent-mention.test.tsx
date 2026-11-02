@@ -67,12 +67,14 @@ function Harness({
   projectId,
   members,
   plugins,
+  remaining,
 }: {
   enabled?: boolean;
   onSelect(reference: CustomAgentDraftReference): void;
   projectId?: string | undefined;
   plugins?: Parameters<typeof useCustomAgentMention>[0]["plugins"];
   members?: Parameters<typeof useCustomAgentMention>[0]["members"];
+  remaining?: number;
 }) {
   const [text, setText] = useState("");
   const input = useRef<HTMLTextAreaElement>(null);
@@ -86,6 +88,7 @@ function Harness({
     onSelect,
     members,
     plugins,
+    ...(remaining === undefined ? {} : { remaining }),
   });
   return (
     <>
@@ -169,6 +172,25 @@ describe("combined member and sub-agent mentions", () => {
 });
 
 describe("useCustomAgentMention", () => {
+  it("builds several existing draft task references only after manual confirmation", async () => {
+    const user = userEvent.setup(),
+      onSelect = vi.fn();
+    render(<Harness onSelect={onSelect} projectId="proj-1" remaining={2} />);
+    await user.type(screen.getByLabelText("prompt"), "@");
+    await user.click(screen.getByRole("button", { name: /Build a team/ }));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Disabled one")).toBeNull();
+    await user.click(screen.getByRole("checkbox", { name: "Reviewer" }));
+    await user.click(screen.getByRole("checkbox", { name: "文档写手" }));
+    await user.click(screen.getByRole("button", { name: "Add agents" }));
+    expect(onSelect.mock.calls.map(([value]) => value.definitionId)).toEqual([
+      "def-1",
+      "def-2",
+    ]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByLabelText("prompt")).toHaveValue("");
+  });
+
   it("lists only enabled definitions effective for the current project", async () => {
     const user = userEvent.setup();
     render(<Harness onSelect={vi.fn()} projectId="proj-1" />);

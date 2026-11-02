@@ -28,6 +28,7 @@ interface ComposerContextBarProps {
   locale: Locale;
   mode: RunMode;
   showMode?: boolean;
+  renderControls?: boolean;
   workspaceControl?: ReactNode;
   modeActionsDisabled: boolean;
   onGitInfo?(info: ProjectGitInfo | undefined): void;
@@ -58,10 +59,6 @@ function SearchIcon() {
 
 function PlusIcon() {
   return <ArtemisIcon className="icon" height={18} name="plus" width={18} />;
-}
-
-function CloseIcon() {
-  return <ArtemisIcon className="icon" height={18} name="close" width={18} />;
 }
 
 export function ComposerRunModeControl({
@@ -134,6 +131,7 @@ export function ComposerContextBar({
   locale,
   mode,
   showMode = true,
+  renderControls = true,
   workspaceControl,
   modeActionsDisabled,
   onGitInfo,
@@ -237,6 +235,26 @@ export function ComposerContextBar({
     const anchorRect = anchor.getBoundingClientRect();
     const availableWidth = Math.max(0, window.innerWidth - 16);
     const rtl = getComputedStyle(root).direction === "rtl";
+    if (projectMenuOpen) {
+      const trigger = anchor.querySelector("button") ?? anchor;
+      const triggerRect = trigger.getBoundingClientRect();
+      const width = Math.min(340, availableWidth);
+      const left = Math.max(
+        8,
+        Math.min(
+          rtl ? triggerRect.right - width : triggerRect.left,
+          window.innerWidth - width - 8,
+        ),
+      );
+      setMenuLayout({
+        left: left - anchorRect.left,
+        top: triggerRect.bottom - anchorRect.top + 8,
+        bottom: "auto",
+        maxHeight: Math.max(0, window.innerHeight - triggerRect.bottom - 16),
+        width,
+      });
+      return;
+    }
     const next = contextMenuLayout(
       availableWidth,
       rtl
@@ -399,6 +417,7 @@ export function ComposerContextBar({
       ? `${t.detached}${gitInfo.head ? ` · ${gitInfo.head}` : ""}`
       : undefined;
 
+  if (!renderControls) return null;
   return (
     <div className="composer-context" ref={rootRef}>
       <div className="composer-context-control" ref={projectControlRef}>
@@ -457,7 +476,11 @@ export function ComposerContextBar({
                       <FolderIcon />
                       <span>{project.name}</span>
                       <i aria-hidden="true">
-                        {selected ? <CheckIcon /> : null}
+                        {selected ? (
+                          <CheckIcon />
+                        ) : (
+                          <bdi className="composer-project-path">{project.path}</bdi>
+                        )}
                       </i>
                     </button>
                   );
@@ -465,6 +488,17 @@ export function ComposerContextBar({
               )}
             </div>
             <div className="composer-context-menu-actions">
+              <button
+                onClick={() => {
+                  setProjectMenuOpen(false);
+                  onClearProject();
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <ArtemisIcon name="chat" width={16} height={16} />
+                <span>{uiText(locale, "App_copy.temporaryConversation")}</span>
+              </button>
               <button
                 onClick={() => {
                   setProjectMenuOpen(false);
@@ -478,18 +512,7 @@ export function ComposerContextBar({
                 type="button"
               >
                 <PlusIcon />
-                <span>{t.addProject}</span>
-              </button>
-              <button
-                onClick={() => {
-                  setProjectMenuOpen(false);
-                  onClearProject();
-                }}
-                role="menuitem"
-                type="button"
-              >
-                <CloseIcon />
-                <span>{t.clearProject}</span>
+                <span>{uiText(locale, "Review06.addProjectFolder")}</span>
               </button>
             </div>
           </div>

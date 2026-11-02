@@ -184,7 +184,12 @@ export function GoalBar({
           />
         )}
         {goal.status === "budgetLimited" && (
-          <Button disabled={disabled} onClick={onEdit} variant="quiet">
+          <Button
+            className="goal-budget-action"
+            disabled={disabled}
+            onClick={onEdit}
+            variant="quiet"
+          >
             {uiText(locale, "Review02.addBudget")}
           </Button>
         )}

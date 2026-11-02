@@ -1007,6 +1007,9 @@ export interface ArtemisApi {
   rendererReady(): void;
   openProject(): Promise<Project | undefined>;
   removeProject(projectId: string): Promise<void>;
+  readProjectInstructions(projectId: string): Promise<string>;
+  writeProjectInstructions(projectId: string, content: string): Promise<void>;
+  onThreadLinkOpen(listener: (threadId: string | null) => void): () => void;
   getProjectGitInfo(
     projectId: string,
     threadId?: string,
@@ -1703,6 +1706,9 @@ export const IPC = {
   workspaceImageRead: "artemis:workspace-image-read",
   workspaceDirectoryList: "artemis:workspace-directory-list",
   workspaceFileRead: "artemis:workspace-file-read",
+  projectInstructionsRead: "artemis:project-instructions-read",
+  projectInstructionsWrite: "artemis:project-instructions-write",
+  threadLinkOpen: "artemis:thread-link-open",
   workspaceFileWrite: "artemis:workspace-file-write",
   workspaceFileLinkInspect: "artemis:workspace-file-link-inspect",
   workspaceFileReveal: "artemis:workspace-file-reveal",

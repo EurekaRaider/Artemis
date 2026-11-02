@@ -337,4 +337,63 @@ describe("automation management controls", () => {
       screen.queryByRole("button", { name: "Enable task" }),
     ).not.toBeInTheDocument();
   });
+  it("opens successive project-scoped drafts without saving cancelled drafts", async () => {
+    const secondProject = {
+      ...project,
+      id: "project-2",
+      name: "Second project",
+    };
+    const save = vi.fn();
+    stubWindowArtemis({
+      listAutomations: async () => [],
+      listAutomationRuns: async () => [],
+      onAutomationEvent: () => () => {},
+      saveAutomation: save,
+    });
+    const props = {
+      locale: "en" as const,
+      projects: [project, secondProject],
+      settings,
+      onConfirm: async () => true,
+      onOpenThread: () => {},
+    };
+    const view = render(
+      <AutomationPage
+        {...props}
+        initialDraftRequest={{ projectId: project.id, token: 1 }}
+      />,
+    );
+    expect(
+      await screen.findByRole("dialog", { name: "New automation" }),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: /^Project /,
+      }),
+    ).toHaveTextContent(project.name);
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Cancel",
+        exact: true,
+      }),
+    );
+    view.rerender(
+      <AutomationPage
+        {...props}
+        initialDraftRequest={{ projectId: secondProject.id, token: 2 }}
+      />,
+    );
+    expect(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: /^Project /,
+      }),
+    ).toHaveTextContent(secondProject.name);
+    await userEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Cancel",
+        exact: true,
+      }),
+    );
+    expect(save).not.toHaveBeenCalled();
+  });
 });

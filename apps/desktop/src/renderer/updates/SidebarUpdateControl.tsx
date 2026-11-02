@@ -58,17 +58,15 @@ export function SidebarUpdateControl({
     ? uiText(locale, "App_copy.queueRetry")
     : status.state === "checking"
       ? uiText(locale, "Update.checking")
-      : status.state === "downloading"
-        ? `${Math.round(progress)}%`
-        : status.state === "downloaded"
-          ? uiText(locale, installing ? "Update.installing" : "Update.install")
-          : status.manualUpdate
-            ? uiText(locale, "Update.manualDownload")
-            : status.state === "error"
-              ? uiText(locale, "App_copy.queueRetry")
-              : uiText(locale, "Update.toVersion", {
-                  version: status.availableVersion ?? status.currentVersion,
-                });
+      : status.state === "downloaded"
+        ? installing
+          ? uiText(locale, "Update.installing")
+          : UI_COPY.SettingsPanel_labels[locale].installUpdate
+        : status.manualUpdate
+          ? uiText(locale, "Update.manualDownload")
+          : status.state === "error"
+            ? uiText(locale, "App_copy.queueRetry")
+            : uiText(locale, "Update.action");
   const handleUpdate = async () => {
     if (inFlight.current) return;
     if (status.manualDownloadUrl) {
@@ -104,31 +102,18 @@ export function SidebarUpdateControl({
         status.state === "checking" ||
         status.state === "downloading"
       }
-      size={failed ? "compact" : undefined}
+      size="compact"
+      iconSize="sm"
       variant={
         failed
           ? "secondary"
           : status.state === "downloaded"
             ? "primary"
-            : "quiet"
+            : "secondary"
       }
       onClick={handleUpdate}
       icon={
-        status.state === "downloading" ? (
-          <span className="update-progress-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <circle
-                cx="12"
-                cy="12"
-                r="10"
-                pathLength="100"
-                strokeDasharray={`${progress} 100`}
-              />
-            </svg>
-            <ArtemisIcon name="arrow-down" />
-          </span>
-        ) : status.state === "checking" ? (
+        status.state === "checking" ? (
           <span className="update-checking-icon" aria-hidden="true" />
         ) : (
           <ArtemisIcon
@@ -150,6 +135,23 @@ export function SidebarUpdateControl({
     </Button>
   );
   const readyVersion = status.availableVersion ?? status.currentVersion;
+  const title = uiText(
+    locale,
+    status.state === "checking"
+      ? "Update.checking"
+      : status.state === "downloading"
+        ? "Update.downloadingVersion"
+        : status.state === "downloaded"
+          ? "Update.downloadedVersion"
+          : "Update.availableVersion",
+    { version: readyVersion },
+  );
+  const byteCount =
+    showDownloadProgress &&
+    status.downloadedBytes !== undefined &&
+    status.totalBytes !== undefined
+      ? `${(status.downloadedBytes / 1048576).toLocaleString(locale, { maximumFractionDigits: 1 })} / ${(status.totalBytes / 1048576).toLocaleString(locale, { maximumFractionDigits: 1 })} MB`
+      : undefined;
   const notice =
     status.state === "downloaded" &&
     activeTaskCount > 0 &&
@@ -162,7 +164,7 @@ export function SidebarUpdateControl({
               version: readyVersion,
               count: activeTaskCount,
             })}
-          </span>
+          </span>{" "}
           <span>{uiText(locale, "Update.waitingForTasks")}</span>
         </span>
         <Button
@@ -184,22 +186,54 @@ export function SidebarUpdateControl({
       data-state={status.state}
       role={installing ? "status" : undefined}
     >
-      {failed || (noticeTarget && notice) ? null : updateButton}
-      {showDownloadProgress &&
-        status.state === "downloading" &&
-        status.downloadedBytes !== undefined &&
-        status.totalBytes !== undefined && (
-          <span className="update-byte-count">
-            {(status.downloadedBytes / 1048576).toLocaleString(locale, {
-              maximumFractionDigits: 1,
-            })}{" "}
-            /{" "}
-            {(status.totalBytes / 1048576).toLocaleString(locale, {
-              maximumFractionDigits: 1,
-            })}{" "}
-            MB
+      {failed || (noticeTarget && notice) ? null : (
+        <div className="update-card">
+          <span className="update-card-icon" aria-hidden="true">
+            {status.state === "checking" ? (
+              <span className="update-checking-icon" />
+            ) : status.state === "downloading" ? (
+              <span className="update-progress-icon">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="8.5" />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="8.5"
+                    pathLength="100"
+                    strokeDasharray={`${progress} 100`}
+                  />
+                </svg>
+                <ArtemisIcon name="arrow-down" />
+              </span>
+            ) : (
+              <ArtemisIcon
+                name={status.state === "downloaded" ? "update-ready" : "update"}
+                width={14}
+                height={14}
+              />
+            )}
           </span>
-        )}
+          <span className="update-card-copy">
+            <span className="update-card-title">
+              <strong>{title}</strong>
+              {status.state === "downloading" && (
+                <span className="update-byte-count">
+                  {Math.round(progress)}%
+                </span>
+              )}
+            </span>
+            {status.state === "downloading" && (
+              <progress aria-label={title} max={100} value={progress} />
+            )}
+            {byteCount && status.state === "downloading" && (
+              <span className="update-byte-count">{byteCount}</span>
+            )}
+          </span>
+          {status.state !== "checking" &&
+            status.state !== "downloading" &&
+            updateButton}
+        </div>
+      )}
       {notice && noticeTarget ? createPortal(notice, noticeTarget) : notice}
       {failed && (
         <div className="update-failure" role="alert">
@@ -215,25 +249,24 @@ export function SidebarUpdateControl({
                 variant="secondary"
                 disabled={installing || waiting}
                 onClick={handleUpdate}
-                icon={<ArtemisIcon name="refresh" width={14} height={14} />}
               >
                 {uiText(locale, "App_copy.queueRetry")}
               </Button>
+              {status.message && (
+                <details>
+                  <summary>
+                    <ArtemisIcon
+                      className="disclosure-chevron"
+                      name="chevron"
+                      width={12}
+                      height={12}
+                    />
+                    {uiText(locale, "Review01.viewDetails")}
+                  </summary>
+                  <p>{status.message}</p>
+                </details>
+              )}
             </div>
-            {status.message && (
-              <details>
-                <summary>
-                  <ArtemisIcon
-                    className="disclosure-chevron"
-                    name="chevron"
-                    width={12}
-                    height={12}
-                  />
-                  {uiText(locale, "Review01.viewDetails")}
-                </summary>
-                <p>{status.message}</p>
-              </details>
-            )}
           </div>
         </div>
       )}

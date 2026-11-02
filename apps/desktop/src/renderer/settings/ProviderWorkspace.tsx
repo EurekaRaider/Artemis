@@ -185,7 +185,7 @@ export function ProviderWorkspace({
             size="compact"
             variant="quiet"
             disabled={locked}
-            icon={<Plus size={20} aria-hidden="true" />}
+            icon={<Plus size={14} aria-hidden="true" />}
             onClick={() => {
               setCatalogSearch("");
               setCatalogOpen(true);
