@@ -215,8 +215,8 @@ try {
     version,
     hostRange:
       process.platform === "darwin" && process.arch === "x64"
-        ? ">=1.7.14 <2"
-        : ">=1.7.8 <2",
+        ? ">=1.7.14"
+        : ">=1.7.8",
     platform: process.platform,
     arch: process.arch,
     minimumOS: process.platform === "darwin" ? "14" : "11",

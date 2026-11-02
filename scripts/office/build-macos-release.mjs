@@ -168,7 +168,7 @@ try {
     schemaVersion: 1,
     id: "office-core",
     version,
-    hostRange: process.arch === "x64" ? ">=1.7.14 <2" : ">=1.6.9 <2",
+    hostRange: process.arch === "x64" ? ">=1.7.14" : ">=1.6.9",
     platform: "darwin",
     arch: process.arch,
     sourceDigest: digest(await readFile("scripts/office/sources.json")),

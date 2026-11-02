@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import postcss from "postcss";
 import { expect, it } from "vitest";
 
@@ -15,7 +16,7 @@ function cssFiles(directory: string): string[] {
 }
 
 it("limits backdrop material to the sidebar and computer operation overlays", () => {
-  const root = new URL("../../src/renderer/", import.meta.url).pathname;
+  const root = fileURLToPath(new URL("../../src/renderer/", import.meta.url));
   const violations: string[] = [];
   for (const file of cssFiles(root)) {
     postcss.parse(readFileSync(file, "utf8")).walkDecls((declaration) => {

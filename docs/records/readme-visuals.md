@@ -2,67 +2,53 @@
 
 # README 视觉资产
 
-## 本次采集
+## 当前截图
 
-2026 年 10 月 4 日，在 macOS arm64 上从 Artemis **1.7.0** 的本地生产构建
-重新采集了 README 使用的 **20 张界面截图**。截图来自真实 Electron Renderer，
-覆盖干净的问候语首页、当前工作区、插件市场、安装确认、消息接入和群协作界面。
+2026 年 11 月 2 日，在 macOS arm64 上从 Artemis **2.0.0** 的本地生产构建重新采集 README 的 **20 张界面截图**，替换 1.7.0 旧界面素材。
 
-所有截图均为 **1440 × 850 CSS 像素、100% 缩放的完整应用视口**。
-[主清单](../assets/images/manifest.json)记录采集时间、源码 HEAD、工作区说明、
-主进程与 preload 构建摘要、Renderer 入口摘要、图片尺寸和 SHA-256。
-[环境面板清单](../assets/images/environment-manifest.json)保留同次采集的两张面板截图。
-本次 HEAD 为 `f878837df15157766e4b79b382abfbad5b2b9796`，构建包含采集时的本地改动，
-不代表这个提交本身或签名发行包的验收结果。
+截图来自真实 Electron Renderer，均为 **1440 × 850 CSS 像素、100% 缩放的完整应用视口**，未经裁剪或图像合成。主题、语言、设置、工作区工具、资源中心及群对话通过现有产品界面和宿主导航打开。
 
-采集流程：打开隔离的 Field Notes 任务 → 切换主题与语言 → 新建空白任务并收起侧栏采集问候语首图 → 打开 Review、Files、
-Terminal 和 Agent team → 查看设置、IM 渠道及群授权 → 查看插件和安装确认 →
-查看用量与定时任务 → 通过现有宿主导航事件选择合成群对话，检查真实渲染结果。
+[主清单](../assets/images/manifest.json)记录采集时间、应用版本、源码 HEAD、工作区状态、构建摘要、图片尺寸和 SHA-256；[环境面板清单](../assets/images/environment-manifest.json)记录同次采集的两张环境面板截图。清单中的工作区说明是采集来源的边界，不等于签名发行包或三平台 CI 的验收结论。
 
 ## 演示数据与隐私
 
-- 使用独立的临时 user-data 和临时 Field Notes Git 仓库，不读取个人项目或会话。
-- 对话、子 Agent 记录、Token 用量和两个暂停的定时任务均为合成演示数据。
-  没有提交模型请求，也没有启用或运行定时任务。
-- Terminal 在演示仓库执行真实的 `git status --short`，使用中性的 Field Notes 提示符。
-- 仅在隔离进程的 snapshot handler 中将显示身份改为 **Artemis**；同时屏蔽个人
-  全局 Skill 列表和真实 PR 查询，未修改产品身份逻辑。
-- IM handler 返回合成 Slack 连接、群信息和四个成员身份，不连接真实 Gateway、
-  个人账号或机器人。连接详情中的 `demo-owner` 和 `demo-device` 均为演示标识。
-- 插件安装截图只打开确认弹窗并取消，没有安装第三方能力或开始账号授权。
-- 中文截图使用真实中文界面，演示项目标题和正文保留英文。
-- 截图脚本检查可见文本中的当前系统用户名与个人主目录路径；另逐张查看原始分辨率，
-  核对侧栏、终端、设置、用量和 IM 内容，未发现个人姓名、个人目录或凭据。
+- 使用独立临时 user-data 和 Field Notes Git 仓库，不读取个人项目、会话或全局 Skills。
+- 对话、子 Agent 记录、用量、IM 成员与连接、两个暂停的定时任务均为合成演示数据；没有发出模型请求、连接真实 IM 账号或执行定时任务。
+- Terminal 在演示仓库执行真实 `git status --short`，使用中性提示符。
+- 仅在隔离进程的 snapshot handler 中将显示身份设为 Artemis，并屏蔽真实 PR 查询；产品身份逻辑保持原样。
+- 安装截图展示 Computer Use 的确认弹窗并取消，没有安装能力或开始账号授权。
+- 中文截图使用真实中文界面；演示项目标题和正文保留英文。
+- 脚本检查可见文本中的系统用户名和个人主目录路径，并记录页面错误与控制台错误；图片交付前逐张检查。
+- Renderer 使用 `sandbox: true`、`contextIsolation: true`、`nodeIntegration: false`。
 
 ## 截图清单
 
-| 截图                                                         | 展示内容                                        |
-| ------------------------------------------------------------ | ----------------------------------------------- |
-| [问候语首页](../assets/images/welcome-dark.png)              | README 首图，无会话内容、收起侧栏的深色欢迎界面 |
-| [浅色工作区](../assets/images/workspace-light.png)           | 项目、持久任务、Markdown 与输入区               |
-| [深色工作区](../assets/images/workspace-dark.png)            | 同一任务的深色主题                              |
-| [中文工作区](../assets/images/workspace-zh-CN.png)           | 中文导航与任务操作                              |
-| [浅色环境面板](../assets/images/environment-panel-light.png) | Git、Agent 活动和来源摘要                       |
-| [深色环境面板](../assets/images/environment-panel-dark.png)  | 同一面板的深色主题                              |
-| [Git Review](../assets/images/git-review.png)                | 演示仓库的真实未暂存差异                        |
-| [文件与 Markdown](../assets/images/markdown-files.png)       | 文档阅读与工作区标签页                          |
-| [Terminal](../assets/images/terminal.png)                    | 原生 PTY 和真实 Git 输出                        |
-| [Agent team](../assets/images/agent-team.png)                | 两个已完成的演示子任务                          |
-| [插件市场](../assets/images/resources.png)                   | Plugins、MCP、Skills 三个页签与四个内置文档插件 |
-| [插件安装确认](../assets/images/plugin-install.png)          | 能力数量和安装后的默认启用状态                  |
-| [通用设置](../assets/images/settings-general.png)            | 头像、语言、主题和防止系统休眠设置              |
-| [Token 用量](../assets/images/token-usage.png)               | 演示用量、热图和统计                            |
-| [定时任务](../assets/images/automations.png)                 | 两个暂停的每周任务                              |
-| [消息接入](../assets/images/im-connections.png)              | 服务状态、渠道和独立群授权入口                  |
-| [渠道设置](../assets/images/im-channel-settings.png)         | Slack 连接、配对账号和验证入口                  |
-| [群授权入口](../assets/images/im-spaces.png)                 | 原生群选择、状态与打开对话操作                  |
-| [浅色群对话](../assets/images/im-group-chat.png)             | 合成成员、请求内容和协作结果                    |
-| [深色群对话](../assets/images/im-group-chat-dark.png)        | 同一群对话的深色主题                            |
+| 文件                                                                        | 展示内容                                          |
+| --------------------------------------------------------------------------- | ------------------------------------------------- |
+| [welcome-dark.png](../assets/images/welcome-dark.png)                       | 深色欢迎页与任务输入区                            |
+| [workspace-light.png](../assets/images/workspace-light.png)                 | 浅色任务、结构化工作记录与 Markdown               |
+| [workspace-dark.png](../assets/images/workspace-dark.png)                   | 同一任务的深色主题                                |
+| [workspace-zh-CN.png](../assets/images/workspace-zh-CN.png)                 | 中文导航与任务操作                                |
+| [environment-panel-light.png](../assets/images/environment-panel-light.png) | 浅色工作区环境面板                                |
+| [environment-panel-dark.png](../assets/images/environment-panel-dark.png)   | 深色工作区环境面板                                |
+| [git-review.png](../assets/images/git-review.png)                           | 真实演示仓库差异与审查范围分段控件                |
+| [markdown-files.png](../assets/images/markdown-files.png)                   | Markdown 阅读器与工作区标签页                     |
+| [terminal.png](../assets/images/terminal.png)                               | 原生终端与 Git 输出                               |
+| [agent-team.png](../assets/images/agent-team.png)                           | 两个已完成的演示子任务                            |
+| [resources.png](../assets/images/resources.png)                             | 统一 Office 入口、Design、Computer Use 与资源分类 |
+| [plugin-install.png](../assets/images/plugin-install.png)                   | Computer Use 安装确认                             |
+| [settings-general.png](../assets/images/settings-general.png)               | 通用设置与外观偏好                                |
+| [token-usage.png](../assets/images/token-usage.png)                         | 合成用量、热图和统计                              |
+| [automations.png](../assets/images/automations.png)                         | 两个暂停的每周任务                                |
+| [im-connections.png](../assets/images/im-connections.png)                   | 消息接入、渠道和群授权入口                        |
+| [im-channel-settings.png](../assets/images/im-channel-settings.png)         | 合成 Slack 连接设置                               |
+| [im-spaces.png](../assets/images/im-spaces.png)                             | 群项目授权与成员                                  |
+| [im-group-chat.png](../assets/images/im-group-chat.png)                     | 浅色群对话与上下文                                |
+| [im-group-chat-dark.png](../assets/images/im-group-chat-dark.png)           | 同一群对话的深色主题                              |
 
 ## 复现与验证
 
-复现时使用与当前 CI 一致的 Node.js 26 运行 `npm run build`。采集脚本使用现有 Playwright 的 Electron
-接口；本次会话没有 Browser 插件，使用环境提供的 Playwright，未新增项目依赖。
+使用与 CI 一致的 Node.js 26，先构建，再通过现有 Playwright Electron 接口采集。本次环境未提供 Browser 插件技能，使用环境已有的 Playwright，没有新增项目依赖。
 
 ```bash
 npm run build
@@ -70,47 +56,8 @@ ARTEMIS_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node scripts/ui/capture-readme.mjs /tmp/artemis-readme-capture
 ```
 
-省略输出目录时，脚本写入 `docs/assets/images/`。建议先采集到临时目录，
-完成原图检查后再替换正式图片和清单。脚本采用 macOS 标题栏布局，不能作为 Windows
-实机视觉验收的替代。
+省略输出目录时写入 `docs/assets/images/`。先在临时目录检查所有原图和清单，再替换正式素材。验证包括页面标题与非空内容、无框架错误覆盖层、页面与控制台错误、主题与语言切换、工具导航、群对话、安装确认及取消、隐私检查，以及尺寸、文件大小和 SHA-256。
 
-| 检查               | 本次结果                                                              |
-| ------------------ | --------------------------------------------------------------------- |
-| 页面身份与非空内容 | 真实生产页面，标题为 Artemis，各目标页面正常显示                      |
-| 页面异常覆盖层     | 没有 Vite 错误覆盖层                                                  |
-| 页面与控制台错误   | `pageerror` 和 error 级 console 均为 0                                |
-| 交互               | 主题、语言、工作区工具、IM 群选择与打开对话、插件安装弹窗及取消均完成 |
-| Renderer 隔离      | `sandbox: true`、`contextIsolation: true`、`nodeIntegration: false`   |
-| 图片               | 19 张均重新生成，完整视口，尺寸和 SHA-256 与清单匹配                  |
-| 隐私               | 可见文本检查与原分辨率逐图检查通过                                    |
+已删除仍使用旧模式术语或遗漏 macOS x64 的架构与权限图及其源稿；当前架构以 [架构说明](../architecture-zh-CN.md) 和 README 的文字与表格为准。
 
-这些结果证明本次文档素材的渲染和采集流程，不表示真实模型调用、IM 双机器人投递、
-服务商授权或完整 CI 已通过。
-
-## 架构图
-
-两张图均以自包含 HTML 为源，再提取内联 SVG 供 README 引用。
-画布统一为 **1280 × 840**，保留已有 Artemis 浅色风格、蓝色重点节点和系统字体；
-没有外部字体、脚本或网络资源。
-
-| 图            | 源文件                                             | README 导出物                                    |
-| ------------- | -------------------------------------------------- | ------------------------------------------------ |
-| 桌面架构      | [HTML](../assets/artemis-system-architecture.html) | [SVG](../assets/artemis-system-architecture.svg) |
-| IM 原生群协作 | [HTML](../assets/artemis-im-collaboration.html)    | [SVG](../assets/artemis-im-collaboration.svg)    |
-
-桌面图以八个节点说明 Renderer、Main、Pi Agent Host、本地状态、能力与工具、
-IM 服务及外部服务。`PiAdapter` 位于 Agent Host，输出 Artemis 协议事件；Main
-管理生命周期、Goal、定时任务、审批和连接器。模型服务与外部 MCP / Connector
-合并展示，工具的权限区别放在图下说明，避免把每个服务都画成单独节点。
-
-IM 图以五个节点展示两台独立电脑通过同一个原生群交换任务和结果。群派工仍需
-各自授权和真实 IM 往返验证；持久等待、继续执行、取消待确认与未知状态分别说明。
-图中另行标注已配对主人单聊使用本地 Execute 权限和自动审批，支持无项目临时会话。
-
-语义依据为 `packages/agent-host/src/runtime/runtime.ts`、`packages/protocol/src/im.ts`、
-桌面 `main.ts` / `im-service.ts`、当前 Connector v1 契约及原生群路由。
-Shell / Terminal 的桌面用户权限、MCP / 扩展的独立沙箱与群任务的受限工具分别表达。
-
-两张 HTML 均通过 Diagram Design 自检和连线几何检查；浏览器验证了全部文字在
-画布及所属节点内，核对了系统字体和完整渲染。导出 SVG 与 HTML 中的 SVG 保持一致，
-保留独立的可访问性标题和说明。配色仅作用于本项目图稿，未修改安装的技能或共享样式。
+本次素材证明文档界面的渲染与采集结果，不代表真实模型调用、IM 投递、服务商授权、Windows 实机视觉验收或签名发行包验收。

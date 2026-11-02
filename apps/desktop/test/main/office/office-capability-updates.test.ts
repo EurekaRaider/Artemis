@@ -62,6 +62,36 @@ function fixture() {
 }
 
 describe("Office update checks", () => {
+  it.each(["office-core", "artemis-design"])(
+    "offers signed legacy %s packs to newer hosts while retaining the minimum version",
+    (packId) => {
+      const signed = capabilityPackManifestSchema.parse(
+        manifest("1.1.0", { id: packId }),
+      );
+      const catalog = {
+        schemaVersion: 1 as const,
+        publicKeys,
+        manifests: [signed],
+      };
+      for (const hostVersion of ["2.0.0", "3.1.0"])
+        expect(
+          new OfficeCapabilityUpdates(catalog, {
+            hostVersion,
+            packId,
+            platform: "darwin",
+            arch: "arm64",
+          }).available(),
+        ).toEqual(signed);
+      expect(
+        new OfficeCapabilityUpdates(catalog, {
+          hostVersion: "1.6.7",
+          packId,
+          platform: "darwin",
+          arch: "arm64",
+        }).available(),
+      ).toBeUndefined();
+    },
+  );
   it("checks the configured source and advertises only a newer compatible signed release", async () => {
     const { updates, fetcher } = fixture();
     expect(updates.status("1.0.0").updateCheck).toBe("idle");

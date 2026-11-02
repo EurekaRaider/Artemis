@@ -126,7 +126,7 @@ const keyId = "office-candidate";
 const common = {
   schemaVersion: 1,
   id: "office-core",
-  hostRange: ">=1.6.8 <2",
+  hostRange: ">=1.6.8",
   platform: "win32",
   arch: "x64",
   sourceDigest: await hash(resolve("scripts/office/sources.json")),

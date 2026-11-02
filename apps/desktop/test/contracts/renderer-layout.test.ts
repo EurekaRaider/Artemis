@@ -1308,7 +1308,10 @@ describe("renderer layout contract", () => {
       "font-size: calc(var(--artemis-typography-body-size) + 0.5px)",
     );
     expect(
-      findCssDeclarations(nocturneStylesSource, ".app-shell .tool-card"),
+      findCssDeclarations(
+        nocturneStylesSource,
+        '.app-shell .tool-card[data-artemis-component="tool-activity"][data-state]',
+      ),
     ).toContain("font-size: 13px");
     expect(
       findCssDeclarations(nocturneStylesSource, ".tool-step-target"),

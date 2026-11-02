@@ -1657,7 +1657,7 @@ async function driveElectron() {
     );
     await waitFor(
       connection,
-      'document.querySelector(".terminal-header span:last-child")?.textContent?.includes("desktop-user")',
+      'document.querySelector(".terminal-panel")?.getAttribute("data-state") === "ready" && Boolean(document.querySelector(".terminal-permission-note"))',
       "native PTY descriptor",
       45_000,
     );

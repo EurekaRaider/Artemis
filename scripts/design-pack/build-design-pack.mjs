@@ -63,8 +63,7 @@ async function main() {
   const hostVersion = JSON.parse(
     await readFile(join(repoRoot, "apps/desktop/package.json"), "utf8"),
   ).version;
-  const hostMajor = Number(hostVersion.split(".")[0]);
-  const hostRange = `>=${hostVersion} <${hostMajor + 1}`;
+  const hostRange = `>=${hostVersion}`;
 
   const sourceRoot = DEFAULT_SOURCE;
   const files = await inventoryTree(sourceRoot);

@@ -12,7 +12,6 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
-import { satisfies, validRange } from "semver";
 import {
   canonicalCapabilityJson,
   capabilityArchiveDownloadUrl,
@@ -21,6 +20,7 @@ import {
   type CapabilityPackStatus,
 } from "@artemis/protocol";
 import { extractCapabilityZip } from "./capability-archive.js";
+import { isCapabilityHostCompatible } from "./capability-host-compatibility.js";
 import { atomicWrite, fileSha256 } from "../office/office-file-utils.js";
 
 interface PackServiceOptions {
@@ -66,10 +66,7 @@ export function verifyCapabilityManifest(
     throw new Error("Invalid capability signature");
   if (manifest.platform !== options.platform || manifest.arch !== options.arch)
     throw new Error("Capability platform mismatch");
-  if (
-    !validRange(manifest.hostRange) ||
-    !satisfies(options.hostVersion, manifest.hostRange)
-  )
+  if (!isCapabilityHostCompatible(options.hostVersion, manifest.hostRange))
     throw new Error("Capability is incompatible with this Artemis version");
   return manifest;
 }

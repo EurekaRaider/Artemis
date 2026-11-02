@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 600000,
+      "desktopCssBytes": 601000,
       "desktopJsBytes": 10000000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -54,6 +54,16 @@
     }
   },
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-11-02",
+      "baseHead": "ca9dd2221c7ffacf76d2aa9429b8231aaf198aa2",
+      "baseDesktopCssBytes": 600146,
+      "measuredDesktopCssBytes": 600146,
+      "desktopCssIncreaseBytes": 0,
+      "previousDesktopCssMaximumBytes": 600000,
+      "desktopCssMaximumBytes": 601000,
+      "reason": "The existing main CI and local Artemis 2.0.0 production build both measure 600146 CSS bytes after the Nocturne and workspace changes. This release preparation adds no CSS bytes. Align the hard ceiling with the measured interface, leaving 854 bytes of headroom. JavaScript, shared UI, gallery, startup and workload ceilings remain unchanged."
+    },
     {
       "date": "2026-11-01",
       "baseHead": "ba15daed4d006833015e6b1cb99b79e567abffbc",

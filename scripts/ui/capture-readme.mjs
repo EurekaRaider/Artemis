@@ -176,6 +176,12 @@ store.appendEvent("demo-group-answer", "demo-group", "demo-group-turn", {
   delta:
     "### Research team update\n\nThe shared brief is ready for review.\n\n- **Research Agent** checked the source notes.\n- **Review Agent** reviewed the summary and follow-up questions.\n\nAssignments and results travel through the same Slack channel. Each bot runs on its own Artemis desktop with independent project permissions.\n\nChoose a member from the panel to address the next task.",
 });
+store.appendEvent("demo-group-completed", "demo-group", "demo-group-turn", {
+  type: "turn.completed",
+  reason: "completed",
+  finalPartId: "demo-group-result",
+  durationMs: 96000,
+});
 store.close();
 const git = (args) =>
   execFileSync("git", args, { cwd: project, stdio: "ignore" });
@@ -237,7 +243,11 @@ async function capture(name, { keepEnvironment = false } = {}) {
   );
   if (!keepEnvironment && (await closeEnvironment.isVisible()))
     await closeEnvironment.click();
-  await page.mouse.move(300, 20);
+  if (keepEnvironment)
+    await page
+      .locator(".environment-popover")
+      .hover({ position: { x: 12, y: 12 } });
+  else await page.mouse.move(300, 20);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(350);
   assert.equal(await page.title(), "Artemis");
@@ -271,14 +281,23 @@ async function capture(name, { keepEnvironment = false } = {}) {
 async function dock(label) {
   if (
     (await page
-      .locator(".right-sidebar-toggle")
+      .locator(".right-sidebar-toggle:visible")
+      .first()
       .getAttribute("aria-expanded")) !== "true"
   )
-    await page.locator(".right-sidebar-toggle").click();
+    await page.locator(".right-sidebar-toggle:visible").first().click();
   const menuOpened = app.waitForEvent("window");
   await page.locator(".workspace-tab-add").click();
   const menu = await menuOpened;
-  await menu.getByRole("menuitem", { name: label, exact: true }).click();
+  await menu
+    .getByRole("menuitem", { name: label, exact: true })
+    .evaluate((button) => button.click());
+}
+async function openEnvironment() {
+  const trigger = page.locator(".environment-trigger");
+  if ((await trigger.getAttribute("aria-expanded")) !== "true")
+    await trigger.click();
+  await page.locator(".environment-popover").waitFor();
 }
 async function openDemoGroup() {
   // Select a pre-seeded synthetic conversation through the existing host event.
@@ -339,12 +358,13 @@ try {
   if (await later.count()) await later.first().click();
   if (
     (await page
-      .locator(".right-sidebar-toggle")
+      .locator(".right-sidebar-toggle:visible")
+      .first()
       .getAttribute("aria-expanded")) === "true"
   )
-    await page.locator(".right-sidebar-toggle").click();
+    await page.locator(".right-sidebar-toggle:visible").first().click();
   await capture("workspace-light");
-  await page.locator(".environment-trigger").click();
+  await openEnvironment();
   await capture("environment-panel-light", { keepEnvironment: true });
   await page.evaluate(() => window.artemis.setTheme("dark"));
   await page.reload();
@@ -364,7 +384,7 @@ try {
     .getByText("Build a searchable research library", { exact: true })
     .first()
     .click();
-  await page.locator(".environment-trigger").click();
+  await openEnvironment();
   await capture("environment-panel-dark", { keepEnvironment: true });
   await page.evaluate(() => window.artemis.setTheme("light"));
   await page.reload();
@@ -374,8 +394,10 @@ try {
     .first()
     .click();
   await dock("Review");
-  await page.locator(".review-scope-select").getByRole("button").click();
-  await page.getByRole("option", { name: "Unstaged", exact: true }).click();
+  await page
+    .locator(".review-scope-select")
+    .getByRole("button", { name: "Unstaged", exact: true })
+    .click();
   await page.waitForTimeout(700);
   await page.getByText("src/search.ts", { exact: true }).last().click();
   await capture("git-review");
@@ -397,7 +419,7 @@ try {
   await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
   await capture("terminal");
-  await page.locator(".environment-trigger").click();
+  await openEnvironment();
   await page
     .locator(".environment-popover")
     .getByRole("button", { name: "Details", exact: true })
@@ -508,7 +530,14 @@ try {
               version: 2,
               revision: "demo-grant",
               confirmedAt: Date.now(),
-              scopes: [{ audience: "owner", readPaths: [], writePaths: [] }],
+              scopes: [
+                { audience: "owner", readPaths: [], writePaths: [] },
+                {
+                  audience: "space:demo-group-space",
+                  readPaths: ["src", "README.md"],
+                  writePaths: [],
+                },
+              ],
             },
             expiresAt: Date.now() + 86400000,
           },
@@ -592,10 +621,8 @@ try {
   await page.keyboard.press("Escape");
   await page.locator(".im-channel-dialog").waitFor({ state: "detached" });
   await page
-    .locator(".im-channel-list")
-    .getByRole("button", {
-      name: /Group-chat project grants/,
-    })
+    .locator(".im-group-authorization-summary .im-channel-group-row")
+    .filter({ hasText: "Research team" })
     .click();
   await page.locator(".im-group-dialog").waitFor();
   await page
@@ -671,13 +698,14 @@ try {
         .locator(".design-pack-card")
         .getByRole("button", { name: "Install", exact: true });
       assert.equal(await install.locator("svg").count(), 0);
-      await page.locator(".design-pack-card img").waitFor();
+      await page.locator(".design-pack-card svg").first().waitFor();
+      assert.equal(await page.locator(".office-pack-card").count(), 1);
     }
     await capture(name);
     if (view === "resources") {
       await page
         .locator(".plugin-market-card")
-        .filter({ hasText: "Documents" })
+        .filter({ hasText: "Computer Use" })
         .getByRole("button", { name: "Install", exact: true })
         .click();
       await page.locator(".plugin-install-dialog").waitFor();
@@ -691,10 +719,11 @@ try {
   await openDemoGroup();
   if (
     (await page
-      .locator(".right-sidebar-toggle")
+      .locator(".right-sidebar-toggle:visible")
+      .first()
       .getAttribute("aria-expanded")) === "true"
   )
-    await page.locator(".right-sidebar-toggle").click();
+    await page.locator(".right-sidebar-toggle:visible").first().click();
   await page.waitForTimeout(800);
   if (
     (await page
@@ -727,10 +756,11 @@ try {
     .click();
   if (
     (await page
-      .locator(".right-sidebar-toggle")
+      .locator(".right-sidebar-toggle:visible")
+      .first()
       .getAttribute("aria-expanded")) === "true"
   )
-    await page.locator(".right-sidebar-toggle").click();
+    await page.locator(".right-sidebar-toggle:visible").first().click();
   await capture("workspace-zh-CN");
   assert.deepEqual(errors, []);
   const security = await app.evaluate(({ BrowserWindow }) => {

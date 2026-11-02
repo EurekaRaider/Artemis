@@ -1,4 +1,4 @@
-# Artemis v1.7.21
+# Artemis v2.0.0
 
 ## 中文
 
@@ -8,6 +8,7 @@
 - 完善本地检出与托管 worktree 的工作区操作，支持在项目界面编辑 AGENTS.md，并通过 Artemis 任务链接打开已有会话。
 - 改进模型选择与配置、归档批量操作和更新提示，修复资源条目重复、状态显示、消息操作及多语言布局问题。
 - 刷新随附 Slack CLI 至 v4.12.0，并补充离线字体授权与界面回归验证。
+- 能力包按最低宿主版本判断兼容性，移除主版本上限；保留旧清单签名及既有平台、协议与沙箱验证，使已安装能力包可以继续用于 Artemis 2.0.0。
 
 ## English
 
@@ -17,3 +18,4 @@
 - Improve workspace operations for local checkouts and managed worktrees, add an in-app project AGENTS.md editor, and open existing conversations through Artemis task links.
 - Improve model selection and configuration, batch archive actions and update notices. Fix duplicate resource entries, status presentation, message actions and localized layouts.
 - Refresh the bundled Slack CLI to v4.12.0 and include offline font licensing and additional UI regression verification.
+- Check capability compatibility against the minimum host version without a major-version ceiling. Preserve legacy manifest signatures and existing platform, protocol and sandbox verification so installed packs remain usable with Artemis 2.0.0.

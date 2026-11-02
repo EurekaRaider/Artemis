@@ -54,13 +54,17 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v1.7.20** · [Release notes](docs/records/release-notes.md).
+Current version: **v2.0.0** · [Release notes](docs/records/release-notes.md).
 
-This revision improves scrolling through conversation history and browser pages.
-On macOS, browser panels use native views tied to the display refresh rate,
-removing the offscreen renderer's 60 Hz fallback during continuous scrolling.
-Browser annotations, screenshots, responsive layouts and picture-in-picture
-retain their existing controls and sandbox boundaries.
+Artemis 2.0 introduces the Nocturne interface across conversations, the workspace
+dock, settings, resources and automations. Structured work records clarify task
+progress, while updated review controls, model selection and workspace actions
+keep ongoing work accessible. Choose glass or solid appearance, continue tasks
+from the welcome screen, and edit project instructions from the desktop.
+
+Capability packs require their declared minimum host version without a
+major-version ceiling. Existing signed packs remain usable after upgrading to
+2.0; signature, platform, protocol and sandbox verification continue to apply.
 
 Share a reviewed snapshot of the current conversation branch from a project's
 task menu or Recents. Select messages, optionally include tool details, thinking
@@ -353,8 +357,6 @@ local Gateway.
 <details>
 <summary><strong>How native group collaboration connects</strong></summary>
 
-![Native group collaboration through independent local Gateways and owner-authorized projects](docs/assets/artemis-im-collaboration.svg)
-
 Group identities come from the platform; observed membership alone never grants
 execution access. Each recipient rechecks its own permissions before running
 work, including when resuming a task.
@@ -391,18 +393,7 @@ target or a human approval. Cancellation revokes outstanding interactions.
 Secrets use operating-system encryption; secret writes fail if encryption is
 unavailable. MCP Registry discovery does not imply trust in a server.
 
-<details>
-<summary><strong>Trust boundary diagrams</strong></summary>
-
-![Artemis Trust Fabric](docs/assets/artemis-trust-fabric.png)
-
-![Artemis MCP Registry Trust Fabric](docs/assets/artemis-mcp-trust-fabric.png)
-
-</details>
-
 ## Architecture
-
-![Artemis architecture showing the Renderer, Electron Main, Pi Agent Host and local persistence](docs/assets/artemis-system-architecture.svg)
 
 | Layer                      | Responsibility                                                                                                                              |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -1,10 +1,11 @@
-import { gt, rcompare, satisfies, valid } from "semver";
+import { gt, rcompare, valid } from "semver";
 import {
   capabilityPackManifestSchema,
   type CapabilityPackManifest,
   type CapabilityPackStatus,
 } from "@artemis/protocol";
 import { verifyCapabilityManifest } from "../capabilities/capability-pack-service.js";
+import { isCapabilityHostCompatible } from "../capabilities/capability-host-compatibility.js";
 
 export interface OfficeRuntimeCatalog {
   schemaVersion: 1;
@@ -65,7 +66,10 @@ export class OfficeCapabilityUpdates {
       if (
         manifest.platform !== this.options.platform ||
         manifest.arch !== this.options.arch ||
-        !satisfies(this.options.hostVersion, manifest.hostRange)
+        !isCapabilityHostCompatible(
+          this.options.hostVersion,
+          manifest.hostRange,
+        )
       )
         return [];
       return [

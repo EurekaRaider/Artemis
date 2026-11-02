@@ -1,7 +1,7 @@
 // Read-only app-CD check. Never builds, signs, notarizes, uploads or edits a runtime.
 import { createHash, createPublicKey, verify } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { satisfies } from "semver";
+import { isCapabilityHostCompatible } from "../../apps/desktop/src/main/capabilities/capability-host-compatibility.ts";
 import {
   capabilityPackManifestSchema,
   capabilityArchiveDownloadUrl,
@@ -28,7 +28,7 @@ for (const item of catalog.manifests) {
     )
   )
     throw new Error("Invalid catalog signature");
-  if (!satisfies(version, manifest.hostRange))
+  if (!isCapabilityHostCompatible(version, manifest.hostRange))
     throw new Error(
       "Host is outside the published runtime compatibility range",
     );

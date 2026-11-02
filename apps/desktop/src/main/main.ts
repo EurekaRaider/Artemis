@@ -21139,11 +21139,11 @@ function createMainWindow(): BrowserWindow {
                     if (pending) {
                       const card = cards[0];
                       const scroll = card.closest('.composer-decision');
-                      const parts = ['header strong', '.decision-command', '.decision-waiting', '.decision-reason'];
+                      const parts = ['header strong', '.decision-title', '.decision-command', '.decision-waiting', '.decision-reason'];
                       for (const selector of parts) {
                         const part = card.querySelector(selector);
                         checks.push({ name: 'security-reachable-' + selector, pass: await reachable(part, scroll) });
-                        if (selector !== '.decision-waiting') checks.push({ name: 'bidi-' + selector, pass: !!part?.querySelector('bdi') });
+                        if (selector !== '.decision-waiting' && selector !== 'header strong') checks.push({ name: 'bidi-' + selector, pass: !!part?.querySelector('bdi') });
                       }
                       const options = [...card.querySelectorAll('.decision-option')];
                       checks.push({ name: 'approval-options-present', pass: options.length >= 2 });

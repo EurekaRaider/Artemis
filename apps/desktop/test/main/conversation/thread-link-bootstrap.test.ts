@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { expect, it, vi } from "vitest";
 
@@ -20,7 +20,9 @@ it("queues cold macOS URL events until startup connects the main entry and deliv
     );
     await build({
       entryPoints: [
-        new URL("../../../src/main/bootstrap.ts", import.meta.url).pathname,
+        fileURLToPath(
+          new URL("../../../src/main/bootstrap.ts", import.meta.url),
+        ),
       ],
       outfile: join(directory, "bootstrap.js"),
       bundle: true,

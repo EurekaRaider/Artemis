@@ -34,7 +34,7 @@ This directory retains current usage, development and maintenance guides, necess
 
 ## Assets and companion projects
 
-- [Visual assets](assets/) and the [screenshot manifest](assets/images/manifest.json): images, HTML/SVG sources and screenshots.
+- [Visual assets](assets/) and the [screenshot manifest](assets/images/manifest.json): brand SVGs and current interface screenshots.
 - [Screenshot capture script](../scripts/ui/capture-readme.mjs): captures the production UI with isolated demonstration data.
 - [Hooks examples](../examples/hooks/hooks.json): configuration, scripts and an [example plugin](../examples/hooks/plugin/artemis.plugin.json).
 

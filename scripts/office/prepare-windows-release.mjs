@@ -56,7 +56,7 @@ if (
   throw Error("Release key does not match the existing host trust root");
 const { signature: _signature, ...unsigned } = input;
 unsigned.version = version;
-unsigned.hostRange = ">=1.6.9 <2.0.0";
+unsigned.hostRange = ">=1.6.9";
 unsigned.archive.url = `https://github.com/EurekaRaider/Artemis/releases/download/office-runtime-v${version}/office-core-win32-x64-${version}.zip`;
 const manifest = capabilityPackManifestSchema.parse({
   ...unsigned,

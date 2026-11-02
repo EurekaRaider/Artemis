@@ -1,6 +1,6 @@
 {
   "name": "@artemis/theme-contract",
-  "version": "1.7.21",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

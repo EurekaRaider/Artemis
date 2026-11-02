@@ -35,6 +35,6 @@
 
 ## 资产与配套工程
 
-- [视觉资产](assets/)与[截图清单](assets/images/manifest.json)：图片、HTML/SVG 图源和截图。
+- [视觉资产](assets/)与[截图清单](assets/images/manifest.json)：品牌 SVG 和当前界面截图。
 - [截图采集脚本](../scripts/ui/capture-readme.mjs)：使用隔离演示数据采集生产界面。
 - [Hooks 示例](../examples/hooks/hooks.json)：配置、脚本及[示例插件](../examples/hooks/plugin/artemis.plugin.json)。

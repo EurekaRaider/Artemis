@@ -2,53 +2,53 @@
 
 # README visual assets
 
-## This capture
+## Current screenshots
 
-On October 4, 2026, **20 interface screenshots** used by the README were recaptured from a local production build of Artemis **1.7.0** on macOS arm64. They show the real Electron Renderer: a clean greeting page, current workspace, plugin marketplace, installation confirmation, message integrations and group collaboration.
+On November 2, 2026, the README's **20 interface screenshots** were recaptured from a local production build of Artemis **2.0.0** on macOS arm64, replacing the 1.7.0 interface assets.
 
-Every screenshot is a **1440 × 850 CSS-pixel full application viewport at 100% zoom**. The [main manifest](../assets/images/manifest.json) records capture time, source HEAD, workspace notes, main-process and preload build digests, Renderer entry digest, image dimensions and SHA-256. The [environment-panel manifest](../assets/images/environment-manifest.json) retains two panel captures from the same run. HEAD was `f878837df15157766e4b79b382abfbad5b2b9796`; the build included local changes at capture time and does not constitute acceptance of that commit alone or of a signed release package.
+All captures show the real Electron Renderer at **1440 × 850 CSS pixels and 100% zoom**, covering the complete application viewport without cropping or compositing. Themes, language, settings, workspace tools, resources and group conversations use the product's existing controls and host navigation.
 
-Capture sequence: open an isolated Field Notes task → switch theme and language → create an empty task and collapse the sidebar for the greeting hero → open Review, Files, Terminal and Agent team → inspect settings, IM channels and group grants → inspect plugins and installation confirmation → inspect usage and automations → select synthetic group conversations through existing host navigation events and inspect actual rendering.
+The [main manifest](../assets/images/manifest.json) records capture time, application version, source HEAD, working-tree state, build digests, image dimensions and SHA-256. The [environment manifest](../assets/images/environment-manifest.json) records the two environment-panel captures from the same run. The recorded working-tree state bounds the provenance; it does not establish signed-package or three-platform CI acceptance.
 
 ## Demonstration data and privacy
 
-- Separate temporary user-data and a temporary Field Notes Git repository were used; personal projects and conversations were not read.
-- Conversations, child-Agent records, Token usage and two paused automations were synthetic demonstration data. No model request was submitted and no automation was enabled or run.
-- Terminal executed real `git status --short` in the demonstration repository with a neutral Field Notes prompt.
-- Only the isolated process's snapshot handler changed the displayed identity to **Artemis** and suppressed personal global Skills and real PR queries. Product identity logic was unchanged.
-- The IM handler returned synthetic Slack connections, group information and four member identities, without connecting a real Gateway, personal account or bot. `demo-owner` and `demo-device` are demonstration identifiers.
-- The plugin installation capture opened and cancelled the confirmation dialog; it did not install third-party capabilities or start account authorization.
-- Chinese captures use the actual Chinese interface; demonstration project titles and body text remain English.
-- The capture script checked visible text for the current system username and personal home path. Each original-resolution image was also inspected, covering sidebar, terminal, settings, usage and IM content; no personal name, directory or credential was found.
+- Separate temporary user-data and a Field Notes Git repository avoid personal projects, conversations and global Skills.
+- Conversations, child-Agent records, usage, IM members and connections, and two paused automations are synthetic. No model request, real IM account connection or automation execution occurs.
+- Terminal runs real `git status --short` in the demonstration repository with a neutral prompt.
+- Only the isolated snapshot handler sets the displayed identity to Artemis and suppresses real PR queries; product identity logic stays unchanged.
+- The installation image shows and cancels the Computer Use confirmation dialog without installing capabilities or starting account authorization.
+- The Chinese capture uses the actual Chinese interface; demonstration project titles and body text remain English.
+- The script checks visible text for the system username and personal home path and records page and console errors. Images are reviewed individually before delivery.
+- Renderer preferences are `sandbox: true`, `contextIsolation: true` and `nodeIntegration: false`.
 
 ## Screenshot inventory
 
-| Screenshot                                                              | Content                                                         |
-| ----------------------------------------------------------------------- | --------------------------------------------------------------- |
-| [Greeting page](../assets/images/welcome-dark.png)                      | README hero: clean dark welcome screen with collapsed sidebar   |
-| [Light workspace](../assets/images/workspace-light.png)                 | Project, persistent task, Markdown and composer                 |
-| [Dark workspace](../assets/images/workspace-dark.png)                   | The same task in dark theme                                     |
-| [Chinese workspace](../assets/images/workspace-zh-CN.png)               | Chinese navigation and task actions                             |
-| [Light environment panel](../assets/images/environment-panel-light.png) | Git, Agent activity and source summary                          |
-| [Dark environment panel](../assets/images/environment-panel-dark.png)   | The same panel in dark theme                                    |
-| [Git Review](../assets/images/git-review.png)                           | Real unstaged changes in the demonstration repository           |
-| [Files and Markdown](../assets/images/markdown-files.png)               | Document reading and workspace tabs                             |
-| [Terminal](../assets/images/terminal.png)                               | Native PTY and real Git output                                  |
-| [Agent team](../assets/images/agent-team.png)                           | Two completed demonstration subtasks                            |
-| [Plugin marketplace](../assets/images/resources.png)                    | Plugins, MCP and Skills tabs plus four bundled document plugins |
-| [Plugin installation confirmation](../assets/images/plugin-install.png) | Capability counts and default enabled state after installation  |
-| [General settings](../assets/images/settings-general.png)               | Avatar, language, theme and sleep prevention                    |
-| [Token usage](../assets/images/token-usage.png)                         | Demonstration usage, heatmap and statistics                     |
-| [Automations](../assets/images/automations.png)                         | Two paused weekly tasks                                         |
-| [Message integrations](../assets/images/im-connections.png)             | Service status, channels and separate group authorization       |
-| [Channel settings](../assets/images/im-channel-settings.png)            | Slack connection, paired account and verification entry         |
-| [Group authorization](../assets/images/im-spaces.png)                   | Native group selection, status and conversation actions         |
-| [Light group conversation](../assets/images/im-group-chat.png)          | Synthetic members, request and collaboration result             |
-| [Dark group conversation](../assets/images/im-group-chat-dark.png)      | The same group conversation in dark theme                       |
+| File                                                                        | Content                                                            |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [welcome-dark.png](../assets/images/welcome-dark.png)                       | Dark welcome page and task composer                                |
+| [workspace-light.png](../assets/images/workspace-light.png)                 | Light task, structured work record and Markdown                    |
+| [workspace-dark.png](../assets/images/workspace-dark.png)                   | The same task in dark theme                                        |
+| [workspace-zh-CN.png](../assets/images/workspace-zh-CN.png)                 | Chinese navigation and task actions                                |
+| [environment-panel-light.png](../assets/images/environment-panel-light.png) | Light workspace environment panel                                  |
+| [environment-panel-dark.png](../assets/images/environment-panel-dark.png)   | Dark workspace environment panel                                   |
+| [git-review.png](../assets/images/git-review.png)                           | Real repository diff and segmented review scopes                   |
+| [markdown-files.png](../assets/images/markdown-files.png)                   | Markdown reader and workspace tabs                                 |
+| [terminal.png](../assets/images/terminal.png)                               | Native terminal and Git output                                     |
+| [agent-team.png](../assets/images/agent-team.png)                           | Two completed demonstration subtasks                               |
+| [resources.png](../assets/images/resources.png)                             | Unified Office entry, Design, Computer Use and resource categories |
+| [plugin-install.png](../assets/images/plugin-install.png)                   | Computer Use installation confirmation                             |
+| [settings-general.png](../assets/images/settings-general.png)               | General settings and appearance preferences                        |
+| [token-usage.png](../assets/images/token-usage.png)                         | Synthetic usage, heatmap and statistics                            |
+| [automations.png](../assets/images/automations.png)                         | Two paused weekly tasks                                            |
+| [im-connections.png](../assets/images/im-connections.png)                   | Message integrations, channels and group authorization             |
+| [im-channel-settings.png](../assets/images/im-channel-settings.png)         | Synthetic Slack connection settings                                |
+| [im-spaces.png](../assets/images/im-spaces.png)                             | Group project authorization and members                            |
+| [im-group-chat.png](../assets/images/im-group-chat.png)                     | Light group conversation and context                               |
+| [im-group-chat-dark.png](../assets/images/im-group-chat-dark.png)           | The same group conversation in dark theme                          |
 
 ## Reproduction and verification
 
-Use Node.js 26, matching current CI, to run `npm run build`. The capture script uses Playwright's Electron interface. This session had no Browser plugin, so it used environment-provided Playwright without adding a project dependency.
+Use Node.js 26 as in CI, build first, and capture through the existing Playwright Electron interface. The Browser plugin skill was unavailable in this session, so the environment's existing Playwright was used without adding project dependencies.
 
 ```bash
 npm run build
@@ -56,33 +56,8 @@ ARTEMIS_PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs \
   node scripts/ui/capture-readme.mjs /tmp/artemis-readme-capture
 ```
 
-Without an output directory, the script writes to `docs/assets/images/`. Capture into a temporary directory first and inspect original images before replacing official images and manifests. The script uses macOS titlebar layout and does not replace Windows hardware visual acceptance.
+Without an output directory, the script writes to `docs/assets/images/`. Inspect every original and its manifest in a temporary directory before replacing official assets. Checks cover page title and meaningful content, absence of framework error overlays, page and console errors, theme and language changes, tool navigation, group conversations, installation confirmation and cancellation, privacy, dimensions, file sizes and SHA-256.
 
-| Check                              | Result for this capture                                                                                            |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Page identity and nonempty content | Actual production page titled Artemis; target pages rendered                                                       |
-| Error overlays                     | No Vite error overlay                                                                                              |
-| Page and console errors            | Zero `pageerror` and error-level console messages                                                                  |
-| Interaction                        | Theme, language, workspace tools, IM group selection/opening and plugin installation dialog/cancellation completed |
-| Renderer isolation                 | `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`                                                |
-| Images                             | All 19 were regenerated at full viewport size; dimensions and SHA-256 match the manifest                           |
-| Privacy                            | Visible-text and individual original-resolution inspections passed                                                 |
+Architecture and permission diagrams using obsolete mode terminology or omitting macOS x64 have been removed with their source files. The [architecture documentation](../architecture.md) and README prose and tables describe the current system.
 
-These results establish this documentation capture and rendering flow. They do not establish real model calls, two-bot IM delivery, provider authorization or complete CI acceptance.
-
-## Architecture diagrams
-
-Both diagrams use self-contained HTML sources, with inline SVG extracted for the README. Their **1280 × 840** canvases retain the Artemis light style, blue emphasis nodes and system fonts, without external fonts, scripts or network resources.
-
-| Diagram                       | Source                                             | README export                                    |
-| ----------------------------- | -------------------------------------------------- | ------------------------------------------------ |
-| Desktop architecture          | [HTML](../assets/artemis-system-architecture.html) | [SVG](../assets/artemis-system-architecture.svg) |
-| Native IM group collaboration | [HTML](../assets/artemis-im-collaboration.html)    | [SVG](../assets/artemis-im-collaboration.svg)    |
-
-The desktop diagram uses eight nodes for Renderer, Main, Pi Agent Host, local state, capabilities/tools, IM services and external services. `PiAdapter` resides in Agent Host and emits Artemis protocol events. Main manages lifecycle, Goals, automations, approvals and Connectors. Model services and external MCP/Connector services are grouped; permission differences are explained beneath the diagram instead of drawing every service separately.
-
-The IM diagram uses five nodes for two independent computers exchanging tasks and results through the same native group. Group dispatch still requires each side's authorization and real IM round-trip verification. Persistent waits, continuation, pending cancellation and unknown status are explained separately. A separate annotation describes paired-owner private chats using local Execute permissions and automatic approval, including projectless temporary sessions.
-
-Semantic sources are `packages/agent-host/src/runtime/runtime.ts`, `packages/protocol/src/im.ts`, desktop `main.ts` / `im-service.ts`, the current Connector v1 contract and native-group routing. Desktop-user Shell/Terminal access, independent MCP/extension sandboxes and restricted group-task tools are represented separately.
-
-Both HTML files passed Diagram Design self-checks and connector geometry checks. Browser inspection verified all text fits its canvas and nodes, system fonts and complete rendering. Exported SVG matches the inline SVG and retains independent accessible titles and descriptions. Colors apply only to these project diagrams; no installed skill or shared styles were changed.
+These assets establish documentation rendering and capture results, without claiming real model calls, IM delivery, provider authorization, Windows hardware visual acceptance or signed-package acceptance.

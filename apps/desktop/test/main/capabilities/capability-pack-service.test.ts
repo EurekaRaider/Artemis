@@ -227,7 +227,7 @@ describe("host capability packs", () => {
       }),
     ).toThrow("platform");
     expect(() =>
-      verifyCapabilityManifest(valid, { ...target, hostVersion: "2.0.0" }),
+      verifyCapabilityManifest(valid, { ...target, hostVersion: "1.6.7" }),
     ).toThrow("incompatible");
     expect(() =>
       verifyCapabilityManifest(
@@ -241,6 +241,23 @@ describe("host capability packs", () => {
       ),
     ).toThrow();
   });
+  it.each(["2.0.0", "3.1.0"])(
+    "accepts an unchanged signed legacy manifest on host %s while enforcing its minimum",
+    (hostVersion) => {
+      const manifest = signed(zip());
+      const original = JSON.stringify(manifest);
+      expect(
+        verifyCapabilityManifest(manifest, { ...target, hostVersion }),
+      ).toEqual(manifest);
+      expect(JSON.stringify(manifest)).toBe(original);
+      expect(() =>
+        verifyCapabilityManifest(manifest, {
+          ...target,
+          hostVersion: "1.6.7",
+        }),
+      ).toThrow("incompatible");
+    },
+  );
   it("accepts an explicitly unsigned Windows binary only inside the signed inventory", () => {
     const manifest = signed(zip(), {
       platform: "win32",
