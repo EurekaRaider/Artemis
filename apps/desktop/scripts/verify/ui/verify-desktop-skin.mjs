@@ -1295,7 +1295,13 @@ async function verifyReferenceSliceGeometry(connection) {
         transitions.sidebarRestored.workspace.width - before.workspace.width,
       ) <= 1 &&
       Math.abs(
-        transitions.dockOpen.timeline.right - transitions.dockOpen.resizer.left,
+        transitions.dockOpen.timeline.right - transitions.dockOpen.dock.left,
+      ) <= 1 &&
+      Math.abs(
+        (transitions.dockOpen.resizer.left +
+          transitions.dockOpen.resizer.right) /
+          2 -
+          transitions.dockOpen.dock.left,
       ) <= 1 &&
       transitions.dockOpen.dock.width > 0 &&
       Math.abs(

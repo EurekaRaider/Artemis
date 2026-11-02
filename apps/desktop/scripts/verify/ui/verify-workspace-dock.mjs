@@ -298,25 +298,30 @@ try {
         },
         "visible separator matching the Dock width outside compact media",
       );
+      const dockBoundary =
+        snapshot?.direction === "rtl"
+          ? snapshot?.dock?.right
+          : snapshot?.dock?.left;
+      const resizerCenter =
+        (snapshot?.resizer?.left + snapshot?.resizer?.right) / 2;
       assert(
         `${name}-scrollbar-boundary`,
-        snapshot?.direction === "rtl"
-          ? approximatelyEqual(
-              snapshot?.timeline?.left,
-              snapshot?.resizer?.right,
-            )
-          : approximatelyEqual(
-              snapshot?.timeline?.right,
-              snapshot?.resizer?.left,
-            ),
+        approximatelyEqual(
+          snapshot?.direction === "rtl"
+            ? snapshot?.timeline?.left
+            : snapshot?.timeline?.right,
+          dockBoundary,
+        ) && approximatelyEqual(resizerCenter, dockBoundary),
         {
           direction: snapshot?.direction ?? null,
           timelineLeft: snapshot?.timeline?.left ?? null,
           timelineRight: snapshot?.timeline?.right ?? null,
           resizerLeft: snapshot?.resizer?.left ?? null,
           resizerRight: snapshot?.resizer?.right ?? null,
+          dockBoundary,
+          resizerCenter,
         },
-        "within 1px",
+        "timeline edge and resizer center within 1px of the Dock boundary",
       );
     };
 
