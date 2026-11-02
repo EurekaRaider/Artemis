@@ -189,4 +189,6 @@ it.each(
     expect(setApprovalPolicy).not.toHaveBeenCalled();
     expect(container.querySelector(".approval-policy-menu")).toBeNull();
   },
+  // Full-shell rendering can exceed five seconds on hosted Intel runners.
+  15_000,
 );

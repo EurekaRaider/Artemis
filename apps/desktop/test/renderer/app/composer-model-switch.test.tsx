@@ -150,4 +150,6 @@ it.each(["model", "thinking"])(
     );
     expect(draft).toHaveValue("Keep this draft");
   },
+  // Match the full-shell acceptance budget on slower hosted runners.
+  15_000,
 );
