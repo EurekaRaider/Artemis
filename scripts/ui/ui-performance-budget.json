@@ -43,7 +43,7 @@
       "screenshot-matrix": 360000,
       "conversation-timeline": 180000,
       "feedback-and-composer": 240000,
-      "large-diff-and-environment": 240000,
+      "large-diff-and-environment": 300000,
       "terminal-and-browser": 240000,
       "form-controls": 300000,
       "navigation-controls": 240000,
@@ -53,6 +53,22 @@
       "desktop-skin-gallery-package": 900000
     }
   },
+  "workloadBudgetRevisions": [
+    {
+      "date": "2026-11-02",
+      "measurementHead": "aa3ed7a9e5ec1b6d64dc3165850b3bb38a3938e1",
+      "platform": "darwin-x64",
+      "workload": "large-diff-and-environment",
+      "previousMaximumMs": 240000,
+      "maximumMs": 300000,
+      "caseCount": 31,
+      "addedCaseCount": 2,
+      "completedCasesBeforeTimeout": 27,
+      "observedTimeoutMs": 240008.3,
+      "evidenceRunId": 41419722324,
+      "reason": "Add real portaled Environment branch-menu captures in light and dark modes, including opaque surfaces, text contrast, viewport and occlusion checks, and wait for actual Git controls before opening. The Intel runner completed both new menu cases and 25 existing cases before the former four-minute process deadline, with four cases remaining. Bound the expanded 31-case workload at five minutes. Startup, bundle and all other workload ceilings are unchanged."
+    }
+  ],
   "bundleBudgetRevisions": [
     {
       "date": "2026-11-02",
