@@ -10,6 +10,8 @@ import {
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ResourceCenter } from "../../../src/renderer/plugins/ResourceCenter.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
+import officeSuiteIcon from "../../../src/renderer/assets/office-suite-icon.svg";
+import designPluginIcon from "../../../src/renderer/assets/design-plugin-icon.svg";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -93,6 +95,12 @@ it.each([
       ),
     );
     const card = within(container.querySelector(selector) as HTMLElement);
+    expect(
+      container.querySelector(`${selector} .resource-avatar img`),
+    ).toHaveAttribute(
+      "src",
+      packId === "office-core" ? officeSuiteIcon : designPluginIcon,
+    );
     const button = card.getByRole("button", {
       name: packId === "office-core" ? "Remove" : "Uninstall",
       exact: true,

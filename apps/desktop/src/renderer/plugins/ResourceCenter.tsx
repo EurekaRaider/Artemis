@@ -2011,14 +2011,11 @@ export function ResourceCenter({
     return (
       <ManagementCard className="plugin-market-card office-pack-card">
         <div className="plugin-market-card-heading">
-          <span
-            className="resource-avatar"
-            data-plugin="true"
-            data-icon="document"
-            style={{ "--resource-plugin-hue": 255 } as CSSProperties}
-          >
-            <ArtemisIcon name="document" />
-          </span>
+          <ResourceAvatar
+            kind="plugin"
+            name="office"
+            iconDataUrl={officeSuiteIcon}
+          />
           <div className="plugin-market-card-titles">
             <strong>
               {"Office"}
@@ -2123,14 +2120,11 @@ export function ResourceCenter({
     return (
       <ManagementCard className="plugin-market-card design-pack-card">
         <div className="plugin-market-card-heading">
-          <span
-            className="resource-avatar"
-            data-plugin="true"
-            data-icon="palette"
-            style={{ "--resource-plugin-hue": 300 } as CSSProperties}
-          >
-            <ArtemisIcon name="palette" />
-          </span>
+          <ResourceAvatar
+            kind="plugin"
+            name="design"
+            iconDataUrl={designPluginIcon}
+          />
           <div className="plugin-market-card-titles">
             <strong
               title={`${uiText(

@@ -1,5 +1,6 @@
 import { uiTranslator } from "../../shared/i18n/ui-text.js";
 import { GroupCollaborationPanel } from "./GroupCollaborationPanel";
+import { imNativeGroupChoices, imNativeGroupDirectory } from "./ImNativeGroups";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { ImHandoff } from "./ImHandoff";
@@ -624,25 +625,27 @@ export function ImSettingsPanel({
   const requiredFields = fieldNames.filter(
     (field) => !optionalFields.includes(field),
   );
-  const availableSpaces = (status?.spaces ?? []).flatMap((value) => {
-    if (
-      !value ||
-      typeof value !== "object" ||
-      !("id" in value) ||
-      !("name" in value) ||
-      typeof value.id !== "string" ||
-      typeof value.name !== "string"
-    )
-      return [];
-    const native =
-      "nativeGroup" in value &&
-      value.nativeGroup &&
-      typeof value.nativeGroup === "object" &&
-      "projectId" in value.nativeGroup &&
-      typeof value.nativeGroup.projectId === "string"
-        ? { projectId: value.nativeGroup.projectId }
-        : undefined;
-    return [{ id: value.id, name: value.name, nativeGroup: native }];
+  const authorizedGroups = imNativeGroupDirectory(
+    imNativeGroupChoices(
+      undefined,
+      status?.spaces ?? [],
+      status?.settings.deviceId ?? "",
+      t,
+    ),
+  ).flatMap(({ key, targets }) => {
+    const byProject = new Map(
+      targets.flatMap((target) =>
+        target.saved?.nativeGroup
+          ? [[target.saved.nativeGroup.projectId, target] as const]
+          : [],
+      ),
+    );
+    return [...byProject].map(([projectId, target]) => ({
+      id: JSON.stringify([key, projectId]),
+      name: target.displayName,
+      label: target.label,
+      projectId,
+    }));
   });
   /** 显式完成动作（批准配对、保存启用成功）后解除钉住，交回自动跟随显示最早缺步卡。 */
   function flowAdvanceFrom() {
@@ -1958,35 +1961,39 @@ export function ImSettingsPanel({
           </section>
           <section className="im-group-authorization-summary">
             <h3>{t("ImSettingsPanel.message165")}</h3>
-            {availableSpaces
-              .filter((space) => space.nativeGroup)
-              .map((space) => (
-                <button
-                  key={space.id}
-                  type="button"
-                  className="im-channel-row im-channel-group-row"
-                  onClick={(event) => {
-                    groupDialogTrigger.current = event.currentTarget;
-                    setChannelDetail(false);
-                    setGroupDetail(true);
-                  }}
-                >
-                  <ArtemisIcon name="agents" width={16} height={16} />
-                  <span className="im-channel-row-copy">
-                    <strong>
-                      {space.name} →{" "}
-                      {projects.find(
-                        (project) =>
-                          project.id === space.nativeGroup?.projectId,
-                      )?.name ?? space.nativeGroup?.projectId}
-                    </strong>
-                  </span>
-                  <span className="im-capsule-btn">
-                    {t("ImSettingsPanel.goManage")}
-                  </span>
-                </button>
-              ))}
-            {!availableSpaces.some((space) => space.nativeGroup) && (
+            {authorizedGroups.map((group) => (
+              <button
+                key={group.id}
+                type="button"
+                className="im-channel-row im-channel-group-row"
+                onClick={(event) => {
+                  groupDialogTrigger.current = event.currentTarget;
+                  setChannelDetail(false);
+                  setGroupDetail(true);
+                }}
+              >
+                <ArtemisIcon name="agents" width={16} height={16} />
+                <span className="im-channel-row-copy">
+                  <strong>
+                    {authorizedGroups.some(
+                      (other) =>
+                        other.id !== group.id &&
+                        other.name === group.name &&
+                        other.projectId === group.projectId,
+                    )
+                      ? group.label
+                      : group.name}{" "}
+                    →{" "}
+                    {projects.find((project) => project.id === group.projectId)
+                      ?.name ?? group.projectId}
+                  </strong>
+                </span>
+                <span className="im-capsule-btn">
+                  {t("ImSettingsPanel.goManage")}
+                </span>
+              </button>
+            ))}
+            {!authorizedGroups.length && (
               <button
                 type="button"
                 className="im-channel-row im-channel-group-row"

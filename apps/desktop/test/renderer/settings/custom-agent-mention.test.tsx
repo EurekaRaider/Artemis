@@ -19,6 +19,7 @@ import {
 } from "../../../src/renderer/settings/CustomAgentMention.js";
 import type { CustomAgentDraftReference } from "../../../src/renderer/conversation/composer-drafts.js";
 import type { CustomAgentSummary } from "../../../src/shared/api.js";
+import { pluginBrandIcon } from "../../../src/renderer/plugins/plugin-brand-icons.js";
 import "../../fixtures/renderer-test-utils.js";
 
 const appSource = readFileSync(
@@ -366,6 +367,50 @@ describe("plugin mentions", () => {
     skills: [skill],
     selectedNames: [],
     onSelect,
+  });
+
+  it.each([
+    ["google-workspace", undefined],
+    ["qq-mail", undefined],
+    ["pdf", "document"],
+    ["presentations", "presentation"],
+    ["spreadsheets", "spreadsheet"],
+  ] as const)(
+    "renders the owning %s plugin icon",
+    async (name, semanticIcon) => {
+      const options = pluginOptions();
+      options.installed = [{ ...plugin, name }];
+      render(<Harness onSelect={vi.fn()} plugins={options} enabled={false} />);
+      await userEvent.type(screen.getByLabelText("prompt"), "@");
+      const option = screen.getByRole("option");
+      if (semanticIcon) {
+        expect(
+          option.querySelector(`[data-artemis-icon='${semanticIcon}']`),
+        ).not.toBeNull();
+      } else {
+        expect(option.querySelector("img")).toHaveAttribute(
+          "src",
+          pluginBrandIcon(name),
+        );
+      }
+    },
+  );
+
+  it("uses a plugin manifest icon with a localized display name", async () => {
+    const options = pluginOptions();
+    options.installed = [
+      {
+        ...plugin,
+        displayName: "演示文稿",
+        iconDataUrl: "data:image/png;base64,cGx1Z2lu",
+      },
+    ];
+    render(<Harness onSelect={vi.fn()} plugins={options} enabled={false} />);
+    await userEvent.type(screen.getByLabelText("prompt"), "@演示文稿");
+    expect(screen.getByRole("option").querySelector("img")).toHaveAttribute(
+      "src",
+      options.installed[0]!.iconDataUrl,
+    );
   });
 
   it("searches by plugin name and selects with Tab without adding an agent", async () => {

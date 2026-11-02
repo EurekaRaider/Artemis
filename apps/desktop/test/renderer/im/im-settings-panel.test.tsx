@@ -228,6 +228,84 @@ it("removes direct-chat grants and keeps the group authorization entry", async (
   expect(screen.queryByRole("button", { name: /单聊项目授权/ })).toBeNull();
   expect(screen.getByRole("heading", { name: "群聊项目授权" })).toBeVisible();
 });
+it.each([
+  [
+    "same group through two bots",
+    "feishu",
+    "test-corp",
+    "room",
+    "test-project",
+    true,
+    1,
+  ],
+  ["different tenant", "feishu", "other-corp", "room", "test-project", true, 2],
+  ["different platform", "slack", "test-corp", "room", "test-project", true, 2],
+  [
+    "same name in different groups",
+    "feishu",
+    "test-corp",
+    "other-room",
+    "test-project",
+    true,
+    2,
+  ],
+  [
+    "different project",
+    "feishu",
+    "test-corp",
+    "room",
+    "other-project",
+    true,
+    2,
+  ],
+  [
+    "unknown tenant identity",
+    "feishu",
+    "test-corp",
+    "room",
+    "test-project",
+    false,
+    2,
+  ],
+] as const)(
+  "keeps group authorization summary identities distinct: %s",
+  async (_name, channel, tenantId, groupId, projectId, known, expectedRows) => {
+    const f = fixture();
+    f.set({
+      spaces: ["bot-a", "bot-b"].map((connectionId, index) => ({
+        id: `space-${connectionId}`,
+        name: "研发群",
+        endpoints: [
+          { connectionId, id: index ? groupId : "room", kind: "group" },
+        ],
+        participants: known
+          ? [
+              {
+                deviceId: "test-device",
+                identity: {
+                  ...identity,
+                  channel: index ? channel : "feishu",
+                  tenantId: index ? tenantId : "test-corp",
+                  connectionId,
+                },
+              },
+            ]
+          : [],
+        nativeGroup: { projectId: index ? projectId : "test-project" },
+      })),
+    });
+    render(<ImSettingsPanel locale="zh-CN" />);
+    await panelReady();
+    const rows = within(
+      document.querySelector(".im-group-authorization-summary") as HTMLElement,
+    ).getAllByRole("button");
+    expect(rows).toHaveLength(expectedRows);
+    if (expectedRows === 2)
+      expect(rows[0]!.textContent).not.toBe(rows[1]!.textContent);
+    expect(f.manage).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+  },
+);
 /* 渠道行下钻：先等面板加载完（原 openCard 的 findByRole 等待语义）。 */
 const openChannel = async (
   user: ReturnType<typeof userEvent.setup>,

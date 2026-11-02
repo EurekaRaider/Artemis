@@ -21,6 +21,7 @@ import { Dialog } from "@artemis/ui/feedback";
 
 import type { useImMemberMentions } from "../im/ImMemberMentions.js";
 import { ArtemisIcon } from "@artemis/ui/icons";
+import { ResourceAvatar } from "../plugins/resource-icons.js";
 import type {
   InstalledArtemisPlugin,
   InstalledSkill,
@@ -462,7 +463,13 @@ export function CustomAgentMentionMenu({
               onClick={() => mention.selectPlugin(skill)}
               variant="quiet"
             >
-              <ArtemisIcon name="skill" width={14} height={14} />
+              <ResourceAvatar
+                brandColor={plugin.brandColor}
+                iconDataUrl={plugin.iconDataUrl}
+                kind="skill"
+                name={skill.name}
+                pluginName={plugin.name}
+              />
               <span>
                 <strong>{skill.name}</strong>
                 <small title={skill.description}>
