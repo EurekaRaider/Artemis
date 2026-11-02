@@ -1931,11 +1931,11 @@ describe("renderer layout contract", () => {
     expect(fileSidebar).toMatch(/\bborder-inline-start:/u);
   });
 
-  it("contains offscreen Review files and avoids rendering the full diff twice", () => {
+  it("lets the Review viewport reach long lines and renders the selected diff once", () => {
     const reviewFile = cssRule(".review-file");
 
-    expect(reviewFile).toMatch(/\bcontent-visibility:\s*auto/u);
-    expect(reviewFile).toMatch(/\bcontain-intrinsic-size:/u);
+    expect(reviewFile).toMatch(/\boverflow:\s*visible/u);
+    expect(reviewFile).not.toMatch(/\bcontent-visibility:\s*auto/u);
     expect(appSource).not.toMatch(
       /<pre[^>]*className="diff-view"[^>]*>[\s\S]*?reviewDiff\.text[\s\S]*?<\/pre>/u,
     );

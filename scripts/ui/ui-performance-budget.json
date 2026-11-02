@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 601000,
+      "desktopCssBytes": 604000,
       "desktopJsBytes": 10000000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -70,6 +70,16 @@
     }
   ],
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-11-02",
+      "baseHead": "bc29807c5bcf0e1efb23ae32bdcc081e491953f9",
+      "baseDesktopCssBytes": 600706,
+      "measuredDesktopCssBytes": 602831,
+      "desktopCssIncreaseBytes": 2125,
+      "previousDesktopCssMaximumBytes": 601000,
+      "desktopCssMaximumBytes": 604000,
+      "reason": "The requested composer and reasoning selection animations, viewport-bounded model menu, square group avatars and single review scroll viewport add 2125 bytes to the desktop production CSS. Measured by building the same candidate twice, substituting only the three changed CSS sources from bc29807c for the baseline and restoring them for the candidate. Bound the resulting 602831 bytes at 604000 bytes. JavaScript, shared UI, gallery, startup and workload ceilings remain unchanged."
+    },
     {
       "date": "2026-11-02",
       "baseHead": "ca9dd2221c7ffacf76d2aa9429b8231aaf198aa2",

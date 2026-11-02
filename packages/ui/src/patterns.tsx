@@ -11,6 +11,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { useSelectionIndicator } from "./use-selection-indicator.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -534,6 +535,7 @@ export function RunModeControl<T extends string>({
   value,
   ...attributes
 }: RunModeControlProps<T>) {
+  const rootRef = useSelectionIndicator();
   requirePerceptibleText(label);
   requirePerceptibleText(statusLabel);
   requireUniqueKeys(options.map((option) => option.value));
@@ -601,6 +603,7 @@ export function RunModeControl<T extends string>({
       data-artemis-component="run-mode-control"
       data-part="root"
       data-state={state}
+      ref={rootRef}
       role="radiogroup"
     >
       {options.map((option, index) => {

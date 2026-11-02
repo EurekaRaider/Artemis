@@ -855,6 +855,43 @@
     background: var(--artemis-color-surface-sunken);
     border: 0;
     border-radius: 9px;
+    position: relative;
+    isolation: isolate;
+  }
+
+  [data-artemis-component="segmented-control"][data-selection-indicator="ready"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--selection-width);
+    height: var(--selection-height);
+    transform: translate(var(--selection-x), var(--selection-y));
+    border-radius: 7px;
+    background: var(--artemis-color-canvas);
+    box-shadow:
+      0 1px 2px rgb(0 0 0 / 0.16),
+      0 0 0 1px var(--artemis-color-border-subtle);
+    pointer-events: none;
+    transition:
+      transform var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard),
+      width var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard),
+      height var(--artemis-motion-duration-fast)
+        var(--artemis-motion-easing-standard);
+  }
+
+  [data-artemis-component="segmented-control"][data-selection-indicator="ready"]
+    > [data-part="segment"] {
+    position: relative;
+    z-index: 1;
+  }
+
+  [data-artemis-component="segmented-control"][data-selection-indicator="ready"]
+    > [data-part="segment"][aria-pressed="true"] {
+    background: transparent;
+    box-shadow: none;
   }
 
   [data-artemis-component="segmented-control"] [data-part="segment"] {
@@ -4790,6 +4827,10 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
+    [data-artemis-component="segmented-control"][data-selection-indicator="ready"]::before {
+      transition: none;
+    }
+
     [data-artemis-component="conformance-probe"] [data-part="control"] {
       transition: none;
     }

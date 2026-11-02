@@ -455,6 +455,8 @@
 }
 .composer-run-modes {
   & {
+    position: relative;
+    isolation: isolate;
     display: inline-flex;
     flex: 0 0 auto;
     gap: 2px;
@@ -462,6 +464,8 @@
     border-radius: 9px;
     background: var(--panel-3);
     & > [data-part="option"] {
+      position: relative;
+      z-index: 1;
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -483,6 +487,32 @@
       color: var(--text);
       background: light-dark(var(--bg), var(--nocturne-s3));
       box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+    }
+    &[data-selection-indicator="ready"]::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: var(--selection-width);
+      height: var(--selection-height);
+      transform: translate(var(--selection-x), var(--selection-y));
+      border-radius: 7px;
+      background: light-dark(var(--bg), var(--nocturne-s3));
+      box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+      pointer-events: none;
+      transition:
+        transform 180ms var(--artemis-motion-easing-standard),
+        width 180ms var(--artemis-motion-easing-standard),
+        height 180ms var(--artemis-motion-easing-standard);
+    }
+    &[data-selection-indicator="ready"] [aria-checked="true"] {
+      background: transparent;
+      box-shadow: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      &[data-selection-indicator="ready"]::before {
+        transition: none;
+      }
     }
     button:focus-visible {
       outline: 2px solid var(--artemis-color-focus-ring);
@@ -3837,8 +3867,26 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   }
 
   .review-lines {
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: visible;
+    inline-size: max-content;
+    min-inline-size: 100%;
+  }
+  .review-diff-reader {
+    container-type: inline-size;
+  }
+  .review-file {
+    inline-size: max-content;
+    min-inline-size: 100%;
+  }
+  .review-diff-file-header,
+  .review-hunk {
+    position: sticky;
+    left: 0;
+    inline-size: 100cqw;
+  }
+  .review-comment,
+  .review-comment-editor {
+    max-inline-size: 100cqw;
   }
   .review-line {
     grid-template-columns: 36px 36px 16px max-content;
@@ -5219,6 +5267,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   color: var(--text);
 }
 .im-group-members :is(.im-member-kind, .im-member-computer) {
+  flex: 0 0 32px;
   display: grid;
   place-items: center;
   width: 32px;
@@ -6537,7 +6586,7 @@ details[open] > summary .disclosure-chevron {
   .environment-panel-body,
   .environment-popover,
   .token-usage-page,
-  [data-artemis-component="review-diff-reader"] > [data-part="content"],
+  .review-diff-reader,
   .review-lines
 ) {
   scrollbar-width: auto;

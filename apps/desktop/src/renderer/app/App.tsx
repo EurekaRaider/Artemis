@@ -4345,7 +4345,6 @@ export function App() {
   const switchComposerThinking = useCallback(
     async (thinkingLevel: ThinkingLevel, ultraMode = false) => {
       if (!activeSelection || turnActive || busy) return;
-      setModelPickerOpen(false);
       setBusy(true);
       const nextSelection = {
         ...activeSelection,
@@ -6176,8 +6175,7 @@ export function App() {
     !activeThread ||
     (!activeThread.archived &&
       loadedEventThreads.current.has(activeThread.id) &&
-      !hasConversationContent &&
-      !busy);
+      !hasConversationContent);
   const composerPlaceholder = visibleComposerPrediction
     ? ""
     : activeThread && imThreadStatus[activeThread.id]?.group
@@ -9275,6 +9273,7 @@ export function App() {
                                 </Tooltip>
                                 {modelPickerOpen && (
                                   <ModelPickerMenu
+                                    disabled={busy || turnActive}
                                     models={filteredModels}
                                     providers={runtimeSettings?.providers ?? []}
                                     activeModel={activeModel}

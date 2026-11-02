@@ -54,7 +54,7 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v2.0.1** · [Release notes](docs/records/release-notes.md).
+Current version: **v2.0.2** · [Release notes](docs/records/release-notes.md).
 
 Artemis 2.0 introduces the Nocturne interface across conversations, the workspace
 dock, settings, resources and automations. Structured work records clarify task
@@ -288,20 +288,13 @@ them. No separate toolchain or API key is needed. All native packs use Ed25519
 signatures; the macOS helper is Developer ID signed, notarized and stapled. Store availability follows the independent runtime
 release workflow. Intel packs require Artemis 1.7.14 or later and publication of the matching runtime. See the [development contract](docs/guides/plugin-development-en.md#computer-use-native-runtime).
 
-在 macOS 14+ arm64/x64 或 Windows 11 x64 中，从内置插件商店唯一的 **Computer Use**
-卡片安装。Artemis 自动下载对应平台的原生运行时；更新由用户手动执行，成功切换且
-运行中任务释放版本后清除旧文件，无需额外工具链或 API key。
-所有原生包均使用 Ed25519 包签名；macOS helper 另行完成 Developer ID 签名、公证
-与 stapling。商店可用性取决于独立运行时发布工作流。Intel 包需要 Artemis 1.7.14 或更高版本，对应运行时须独立公开发布。详见[开发契约](docs/guides/plugin-development.md#computer-use-原生运行时)。
-
 <p align="center">
   <a href="docs/assets/images/resources.png"><img src="docs/assets/images/resources.png" alt="Artemis plugin marketplace with Plugins, MCP and Skills tabs and four bundled document plugins" /></a>
 </p>
 <p align="center"><sub>Browse plugins, configure their connected accounts, and manage MCP servers and Skills.</sub></p>
 
 Build third-party plugins and your own Git marketplace:
-[English guide](docs/guides/plugin-marketplaces-en.md) ·
-[中文开发指南](docs/guides/plugin-marketplaces.md).
+[English guide](docs/guides/plugin-marketplaces-en.md).
 Native plugins use `artemis.plugin.json`; Git marketplaces use `.artemis/marketplace.json`. Both declare `schemaVersion: 1`. Covers manifests, Skills, MCP, Connector/OAuth, signing, publishing and updates.
 See also [connector architecture and publisher setup](docs/guides/connectors.md).
 
@@ -314,12 +307,12 @@ fonts, semantic icons and host motion presets, with high-contrast variants and
 reduced-motion support. Background video pauses when the app is hidden or the
 system sleeps or locks.
 
-Create and validate packages with the [English guide](docs/guides/visual-skins-en.md),
-[中文指南](docs/guides/visual-skins.md) and [examples](examples/visual-skins/README.md).
+Create and validate packages with the [English guide](docs/guides/visual-skins-en.md)
+and [examples](examples/visual-skins/README.md).
 
 ### Lifecycle hooks
 
-Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Work and Codemode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan skips hooks and continues normally. See the [English guide](docs/guides/hooks-en.md), [中文开发指南](docs/guides/hooks.md), and [examples](examples/hooks/hooks.json).
+Review command hooks in **Settings → Hooks** before enabling them. User, project and plugin hooks share explicit, content-bound trust. They run in Work and Codemode for local tasks, authorized IM direct and group chats, automations and their sub-agents. Plan skips hooks and continues normally. See the [English guide](docs/guides/hooks-en.md) and [examples](examples/hooks/hooks.json).
 
 ### Parallel Agents
 

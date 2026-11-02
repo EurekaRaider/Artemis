@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode, type KeyboardEvent } from "react";
+import { useSelectionIndicator } from "./use-selection-indicator.js";
 
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) {
@@ -501,6 +502,7 @@ export function SegmentedControl<Value extends string>({
   size = "comfortable",
   value,
 }: SegmentedControlProps<Value>) {
+  const rootRef = useSelectionIndicator();
   requirePerceptibleLabel(label);
   const fallback = requireValidOptions(options);
   const { selectedValue, select } = useNavigationSelection(
@@ -519,6 +521,7 @@ export function SegmentedControl<Value extends string>({
       data-size={size}
       data-state={disabled ? "disabled" : "ready"}
       id={id}
+      ref={rootRef}
       role="group"
     >
       {options.map((option) => {
