@@ -21067,10 +21067,22 @@ function createMainWindow(): BrowserWindow {
                     return;
                   }
                   if (view === 'environment-branch-menu') {
-                    document
-                      .querySelector('.environment-branch-control > .environment-row')
-                      ?.click();
-                    await wait(500);
+                    const panelTrigger = document.querySelector('.environment-trigger');
+                    if (panelTrigger?.getAttribute('aria-expanded') !== 'true') panelTrigger?.click();
+                    const deadline = Date.now() + 10_000;
+                    let trigger;
+                    while (Date.now() < deadline) {
+                      trigger = document.querySelector('.environment-branch-control > .environment-row');
+                      if (trigger instanceof HTMLButtonElement && trigger.checkVisibility({ visibilityProperty: true })) break;
+                      await wait(50);
+                    }
+                    if (!(trigger instanceof HTMLButtonElement) || !trigger.checkVisibility({ visibilityProperty: true })) throw new Error('Visible Environment branch trigger missing');
+                    trigger.click();
+                    while (Date.now() < deadline && !document.querySelector('.environment-branch-menu')) {
+                      await wait(50);
+                    }
+                    if (!document.querySelector('.environment-branch-menu')) throw new Error('Environment branch menu did not open');
+                    await wait(150);
                     return;
                   }
                   if (view === 'environment-agents') {
