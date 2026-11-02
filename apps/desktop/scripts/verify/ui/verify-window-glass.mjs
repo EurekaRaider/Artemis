@@ -156,9 +156,13 @@ try {
           const dock = document.querySelector(
             '[data-artemis-component="workspace-dock"]',
           );
-          const button = document.querySelector(
-            side === "left" ? ".sidebar-collapse" : ".right-sidebar-toggle",
-          );
+          // Opening the Dock moves its toggle from the header into the Dock.
+          const click = () =>
+            document
+              .querySelector(
+                side === "left" ? ".sidebar-collapse" : ".right-sidebar-toggle",
+              )
+              .click();
           const element = side === "left" ? shell : dock;
           const started = performance.now();
           const frames = [];
@@ -168,8 +172,8 @@ try {
               : dock.getBoundingClientRect().width;
           frames.push({ ms: 0, width: read() });
           const node = element;
-          button.click();
-          if (reverse) setTimeout(() => button.click(), 110);
+          click();
+          if (reverse) setTimeout(click, 110);
           const tick = () => {
             const elapsed = performance.now() - started;
             frames.push({ ms: elapsed, width: read() });
@@ -290,9 +294,9 @@ try {
     await page.locator(".sidebar-collapse").click();
     await page.waitForTimeout(400);
     await page.locator(".rail-brand").click();
-    await page.locator(".right-sidebar-toggle").click();
+    await page.locator(".right-sidebar-toggle:visible").first().click();
     await page.waitForTimeout(700);
-    await page.locator(".right-sidebar-toggle").click();
+    await page.locator(".right-sidebar-toggle:visible").first().click();
     await page.waitForTimeout(700);
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].maximize(),
