@@ -24,9 +24,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it.each(["model", "thinking"])(
-  "keeps the empty conversation and draft mounted while saving %s selection",
-  async (kind) => {
+it.each(
+  ["model", "thinking"].flatMap((kind) =>
+    [false, true].flatMap((newConversation) =>
+      [false, true].map((saveFails) => ({ kind, newConversation, saveFails })),
+    ),
+  ),
+)(
+  "keeps the composer stable and picker open for $kind (new=$newConversation, failure=$saveFails)",
+  async ({ kind, newConversation, saveFails }) => {
     vi.stubGlobal("requestIdleCallback", () => 0);
     vi.stubGlobal("cancelIdleCallback", () => {});
     const now = new Date().toISOString();
@@ -57,17 +63,21 @@ it.each(["model", "thinking"])(
       contextWindow: 128000,
     };
     let finish!: (value: unknown) => void;
+    let fail!: (reason: Error) => void;
     const save = vi.fn(
       (_threadId: string, _selection: unknown) =>
-        new Promise((resolve) => {
+        new Promise((resolve, reject) => {
           finish = resolve;
+          fail = reject;
         }),
     );
+    const startTurn = vi.fn();
+    let created = !newConversation;
     const pending = new Promise(() => {});
     const handlers: Record<string, unknown> = {
       getSnapshot: async () => ({
         projects: [],
-        threads: [thread],
+        threads: created ? [thread] : [],
         worktrees: [],
         events: { thread: [] },
         locale: "en",
@@ -107,6 +117,11 @@ it.each(["model", "thinking"])(
       listInstalledSkills: async () => [],
       listArtemisPlugins: async () => [],
       setThreadModelSelection: save,
+      createThread: async () => {
+        created = true;
+        return thread;
+      },
+      startTurn,
     };
     stubWindowArtemis(
       new Proxy(handlers, {
@@ -118,8 +133,10 @@ it.each(["model", "thinking"])(
       }),
     );
     const { container } = render(<App />);
-    await screen.findAllByText("Empty draft");
-    fireEvent.click(container.querySelector(".thread-title-copy")!);
+    if (!newConversation) {
+      await screen.findAllByText("Empty draft");
+      fireEvent.click(container.querySelector(".thread-title-copy")!);
+    }
     await waitFor(() =>
       expect(container.querySelector(".conversation")).toHaveAttribute(
         "data-state",
@@ -130,6 +147,7 @@ it.each(["model", "thinking"])(
       container.querySelector<HTMLTextAreaElement>(".composer textarea")!;
     fireEvent.change(draft, { target: { value: "Keep this draft" } });
     fireEvent.click(container.querySelector(".model-button")!);
+    const menu = screen.getByRole("dialog");
     if (kind === "model")
       fireEvent.click(screen.getByRole("option", { name: /Second model/ }));
     else fireEvent.click(screen.getByRole("button", { name: "Low" }));
@@ -140,15 +158,64 @@ it.each(["model", "thinking"])(
     );
     expect(container.querySelector(".composer textarea")).toBe(draft);
     expect(draft).toHaveValue("Keep this draft");
-    if (kind === "thinking") expect(screen.getByRole("dialog")).toBeVisible();
-    await act(async () =>
-      finish({ ...thread, modelSelection: save.mock.calls[0]![1] }),
+    expect(screen.getByRole("dialog")).toBe(menu);
+    expect(menu).toHaveAttribute("aria-busy", "true");
+    expect(container.querySelector(".model-button")).toBeEnabled();
+    expect(container.querySelector(".approval-policy-trigger")).toBeEnabled();
+    for (const control of container.querySelectorAll(
+      ".composer-run-modes button, .thinking-level-control button",
+    )) {
+      expect(control).toBeEnabled();
+    }
+    expect(
+      screen.getByRole("button", {
+        name: kind === "thinking" ? "Low" : "High",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".send-button")).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
+    fireEvent.click(
+      container.querySelector(".thinking-level-control button:last-child")!,
+    );
+    fireEvent.click(screen.getByRole("option", { name: /Second model/ }));
+    fireEvent.click(container.querySelector(".send-button")!);
+    fireEvent.keyDown(draft, { key: "Enter" });
+    expect(save).toHaveBeenCalledOnce();
+    expect(startTurn).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBe(menu);
+    await act(async () => {
+      if (saveFails) fail(new Error("Fixture save failed"));
+      else finish({ ...thread, modelSelection: save.mock.calls[0]![1] });
+    });
     expect(container.querySelector(".conversation")).toHaveAttribute(
       "data-state",
       "empty",
     );
     expect(draft).toHaveValue("Keep this draft");
+    expect(screen.getByRole("dialog")).toBe(menu);
+    expect(menu).not.toHaveAttribute("aria-busy");
+    expect(container.querySelector(".send-button")).not.toHaveAttribute(
+      "aria-disabled",
+    );
+    expect(screen.getByRole("option", { name: /First model/ })).toHaveAttribute(
+      "aria-selected",
+      String(saveFails || kind === "thinking"),
+    );
+    expect(
+      screen.getByRole("button", {
+        name: kind === "thinking" && !saveFails ? "Low" : "High",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    if (saveFails)
+      expect(screen.getByText(/Fixture save failed/)).toBeVisible();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(container.querySelector(".model-button")!);
+    expect(screen.getByRole("dialog")).toBeVisible();
+    fireEvent.click(container.querySelector(".model-button")!);
+    expect(screen.queryByRole("dialog")).toBeNull();
   },
   // Match the full-shell acceptance budget on slower hosted runners.
   15_000,

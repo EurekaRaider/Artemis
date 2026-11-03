@@ -16,6 +16,7 @@ export function ModelPickerMenu({
   selection,
   locale,
   disabled = false,
+  pending = false,
   query,
   onQuery,
   onModel,
@@ -27,6 +28,7 @@ export function ModelPickerMenu({
   selection: ModelSelection | undefined;
   locale: AppLocale;
   disabled?: boolean;
+  pending?: boolean;
   query: string;
   onQuery(query: string): void;
   onModel(model: AgentModelInfo): void;
@@ -77,6 +79,7 @@ export function ModelPickerMenu({
   const context = (tokens: number) => `${Math.round(tokens / 1000)}K`;
   return (
     <div
+      aria-busy={pending || undefined}
       aria-label={uiText(locale, "App_copy.modelPicker")}
       className="model-picker-menu"
       ref={menuRef}

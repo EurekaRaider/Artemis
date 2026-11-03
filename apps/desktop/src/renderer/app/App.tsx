@@ -4287,9 +4287,8 @@ export function App() {
 
   const switchComposerModel = useCallback(
     async (model: SettingsSnapshot["models"][number]) => {
-      if (!runtimeSettings || turnActive || busy) return;
-      setModelPickerOpen(false);
-      setBusy(true);
+      if (!runtimeSettings || turnActive || busy || pendingModelSelection)
+        return;
       const nextSelection = selectionForModelSwitch(model, activeSelection);
       setPendingModelSelection(nextSelection);
       try {
@@ -4327,7 +4326,6 @@ export function App() {
         );
       } finally {
         setPendingModelSelection(undefined);
-        setBusy(false);
       }
     },
     [
@@ -4336,6 +4334,7 @@ export function App() {
       activeThread,
       busy,
       createThread,
+      pendingModelSelection,
       runtimeSettings,
       t.modelSwitchFailed,
       turnActive,
@@ -4344,8 +4343,8 @@ export function App() {
 
   const switchComposerThinking = useCallback(
     async (thinkingLevel: ThinkingLevel, ultraMode = false) => {
-      if (!activeSelection || turnActive || busy) return;
-      setBusy(true);
+      if (!activeSelection || turnActive || busy || pendingModelSelection)
+        return;
       const nextSelection = {
         ...activeSelection,
         thinkingLevel,
@@ -4387,7 +4386,6 @@ export function App() {
         );
       } finally {
         setPendingModelSelection(undefined);
-        setBusy(false);
       }
     },
     [
@@ -4396,6 +4394,7 @@ export function App() {
       activeThread,
       busy,
       createThread,
+      pendingModelSelection,
       t.modelSwitchFailed,
       turnActive,
     ],
@@ -5516,7 +5515,7 @@ export function App() {
   );
 
   const sendPrompt = useCallback(async () => {
-    if (busy || retiredGroup) return;
+    if (busy || pendingModelSelection || retiredGroup) return;
     await pendingAttachmentReads.current.waitForIdle(activeComposerDraftKey);
     let pendingAttachments =
       draftAttachments.current.get(activeComposerDraftKey) ?? [];
@@ -5842,6 +5841,7 @@ export function App() {
     activeComposerDraftKey,
     locale,
     busy,
+    pendingModelSelection,
     retiredGroup,
     clearSubmittedPrompt,
     closeGoalEditor,
@@ -9274,6 +9274,7 @@ export function App() {
                                 {modelPickerOpen && (
                                   <ModelPickerMenu
                                     disabled={busy || turnActive}
+                                    pending={Boolean(pendingModelSelection)}
                                     models={filteredModels}
                                     providers={runtimeSettings?.providers ?? []}
                                     activeModel={activeModel}
@@ -9298,6 +9299,10 @@ export function App() {
                                     customAgentTasks.length > 0) && (
                                     <button
                                       className="send-button"
+                                      aria-disabled={
+                                        Boolean(pendingModelSelection) ||
+                                        undefined
+                                      }
                                       disabled={
                                         (customAgentTasks.length === 0 &&
                                           !prompt.trim() &&
@@ -9358,6 +9363,9 @@ export function App() {
                               ) : (
                                 <button
                                   className="send-button"
+                                  aria-disabled={
+                                    Boolean(pendingModelSelection) || undefined
+                                  }
                                   disabled={
                                     (customAgentTasks.length === 0 &&
                                       !prompt.trim() &&
