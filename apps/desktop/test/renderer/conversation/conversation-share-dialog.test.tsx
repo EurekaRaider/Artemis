@@ -51,6 +51,28 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("shows setup instructions for the selected destination instead of suggesting an unrelated account", async () => {
+  api.prepareConversationShare.mockResolvedValue({
+    ...preview,
+    destinations: { gist: false, radius: false },
+  });
+  render(
+    <ConversationShareDialog
+      threadId="thread"
+      locale="zh-CN"
+      onClose={vi.fn()}
+    />,
+  );
+  await screen.findByText(/请确认 GitHub CLI 已安装/);
+  expect(screen.queryByText(/搜索 Radius/)).toBeNull();
+  fireEvent.change(screen.getByRole("combobox"), {
+    target: { value: "radius" },
+  });
+  expect(screen.getByText(/搜索 Radius/)).toHaveTextContent("账户登录");
+  expect(screen.queryByText(/请确认 GitHub CLI 已安装/)).toBeNull();
+  expect(api.uploadConversationShare).not.toHaveBeenCalled();
+});
+
 it("synchronizes the isolated preview when the desktop theme changes", async () => {
   render(
     <ConversationShareDialog threadId="thread" locale="en" onClose={vi.fn()} />,

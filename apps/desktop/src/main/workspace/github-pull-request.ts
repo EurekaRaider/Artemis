@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
-import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
 import { promisify } from "node:util";
+import { desktopCommandEnvironment } from "../platform/desktop-command-environment.js";
 
 import type {
   ProjectPullRequest,
@@ -39,22 +38,6 @@ interface CommandFailure extends Error {
   code?: number | string;
   stdout?: string;
   stderr?: string;
-}
-
-function desktopCommandEnvironment(): NodeJS.ProcessEnv {
-  if (process.platform === "win32") return { ...process.env };
-  const entries = [
-    ...(process.env.PATH?.split(delimiter) ?? []),
-    join(homedir(), ".local", "bin"),
-    ...(process.platform === "darwin" ? ["/opt/homebrew/bin"] : []),
-    "/usr/local/bin",
-    "/usr/bin",
-    "/bin",
-  ].filter(Boolean);
-  return {
-    ...process.env,
-    PATH: [...new Set(entries)].join(delimiter),
-  };
 }
 
 function failureText(error: unknown): string {

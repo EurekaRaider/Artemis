@@ -5307,6 +5307,10 @@ button.environment-row:disabled {
   border-radius: 7px;
   white-space: nowrap;
 }
+.app-shell .model-picker-menu .thinking-level-control [data-part="segment"] {
+  flex-shrink: 1;
+  min-width: 0;
+}
 
 .model-compact-icon {
   align-items: center;

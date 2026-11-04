@@ -39,8 +39,17 @@ export function ModelPickerMenu({
     const menu = menuRef.current;
     const composer = menu?.closest<HTMLElement>(".composer");
     if (!menu || !composer) return;
+    const conversation = composer.closest<HTMLElement>(".conversation");
     const update = () => {
       const anchor = composer.getBoundingClientRect();
+      const boundary = conversation?.getBoundingClientRect();
+      const minLeft = Math.max(8, (boundary?.left ?? 0) + 8);
+      const maxRight = Math.min(
+        window.innerWidth - 8,
+        (boundary?.right ?? window.innerWidth) - 8,
+      );
+      // The conversation clips overflow beside the workspace dock.
+      menu.style.maxWidth = `${Math.max(0, maxRight - minLeft)}px`;
       const header = composer
         .closest(".workspace")
         ?.querySelector(".workspace-header");
@@ -56,8 +65,8 @@ export function ModelPickerMenu({
           ? anchor.right - offset - width
           : anchor.left + offset;
       const left = Math.min(
-        Math.max(8, anchorLeft),
-        Math.max(8, window.innerWidth - width - 8),
+        Math.max(minLeft, anchorLeft),
+        Math.max(minLeft, maxRight - width),
       );
       // Use physical coordinates here so the viewport clamp also works in RTL.
       menu.style.left = `${left - anchor.left}px`;
@@ -70,6 +79,7 @@ export function ModelPickerMenu({
         ? undefined
         : new ResizeObserver(update);
     observer?.observe(composer);
+    if (conversation) observer?.observe(conversation);
     return () => {
       window.removeEventListener("resize", update);
       observer?.disconnect();

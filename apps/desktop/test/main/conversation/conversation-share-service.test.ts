@@ -15,6 +15,18 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup();
 });
 const defaults = { tools: false, thinking: false, attachments: false };
+it("checks the active github.com login for Gist without depending on other hosts or accounts", async () => {
+  const f = await fixture();
+  const preview = await f.service.prepare("thread", defaults);
+  expect(f.runGh).toHaveBeenCalledWith([
+    "auth",
+    "status",
+    "--hostname",
+    "github.com",
+    "--active",
+  ]);
+  expect(preview.destinations.gist).toBe(true);
+});
 it.each(["D:\\shared", "C:\\Users\\PRIVATE\\Workspace", "\\\\server\\private"])(
   "keeps the shared header platform-neutral when Pi resolves cwd to %s",
   async (resolvedCwd) => {

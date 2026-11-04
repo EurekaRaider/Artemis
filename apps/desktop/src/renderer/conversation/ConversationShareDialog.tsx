@@ -285,7 +285,15 @@ export function ConversationShareDialog({
                     ? text("Share.radiusNotice")
                     : text("Share.gistNotice")}
                 </p>
-                {!available && <p>{text("Share.unavailable")}</p>}
+                {!available && (
+                  <p>
+                    {text(
+                      resolved === "radius"
+                        ? "Share.radiusUnavailable"
+                        : "Share.gistUnavailable",
+                    )}
+                  </p>
+                )}
               </div>
               <footer>
                 <Button

@@ -28,6 +28,7 @@ import type {
   Message as PiMessage,
 } from "@earendil-works/pi-ai";
 import { DEFAULT_RADIUS_GATEWAY } from "@earendil-works/pi-ai/providers/radius-config";
+import { desktopCommandEnvironment } from "../platform/desktop-command-environment.js";
 import { WORKSPACE_HTML_SCHEME } from "../../shared/timeline-preview.js";
 import type {
   ConversationShare,
@@ -191,6 +192,12 @@ export class ConversationShareService {
       ((args, signal) =>
         execute("gh", args, {
           encoding: "utf8",
+          env: {
+            ...desktopCommandEnvironment(),
+            GH_HOST: "github.com",
+            GH_PROMPT_DISABLED: "1",
+            GH_PAGER: "cat",
+          },
           windowsHide: true,
           timeout: 60_000,
           maxBuffer: 1024 * 1024,
@@ -250,7 +257,13 @@ export class ConversationShareService {
       .getBranch()
       .filter((entry): entry is Message => entry.type === "message");
     const [gist, radius] = await Promise.all([
-      this.runGh(["auth", "status"]).then(
+      this.runGh([
+        "auth",
+        "status",
+        "--hostname",
+        "github.com",
+        "--active",
+      ]).then(
         () => true,
         () => false,
       ),
