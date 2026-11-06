@@ -1,3 +1,42 @@
+import {
+  PullRequestChecksSummary,
+  PullRequestChecksPopover,
+} from "./environment/pull-request-checks.js";
+import {
+  EnvironmentIcon,
+  BranchIcon,
+  ChangesIcon,
+  PushIcon,
+  PullRequestIcon,
+} from "./environment/environment-icons.js";
+import { type McpGroup, groupMcpUsage } from "./environment/mcp-usage.js";
+import {
+  type AgentEnvironmentCounts,
+  environmentAgentCounts,
+  environmentDisplayAgents,
+  environmentTopLevelAgents,
+  useEnvironmentActivityAgents,
+} from "./environment/agent-activity.js";
+import {
+  suggestedEnvironmentBranchName,
+  type EnvironmentBranchMenuLayout,
+  environmentBranchMenuLayout,
+  projectPullRequestCheckSummary,
+  type ProjectPullRequestCheckSummary,
+  projectPullRequestCoverageWarning,
+  environmentGitAction,
+  environmentBranchMenuBranches,
+  type ProjectPullRequestCoverageWarning,
+  type GitEnvironmentAction,
+  environmentBranchDisplayName,
+} from "./environment/environment-values.js";
+import { useEnvironmentState } from "./environment/use-environment-state.js";
+import { useEnvironmentDisclosure } from "./environment/use-environment-disclosure.js";
+import { useEnvironmentReservation } from "./environment/use-environment-reservation.js";
+import { useEnvironmentGitSubscriptions } from "./environment/use-environment-git-subscriptions.js";
+import { useEnvironmentDismissal } from "./environment/use-environment-dismissal.js";
+import { useEnvironmentSummary } from "./environment/use-environment-summary.js";
+import { useEnvironmentGitActions } from "./environment/use-environment-git-actions.js";
 import { AgentActivityStatus } from "../conversation/WorkRecord.js";
 import { ResourceAvatar } from "../plugins/resource-icons.js";
 import type {
@@ -12,19 +51,7 @@ import { SegmentedControl } from "@artemis/ui/navigation";
 import { WorkspaceFileIcon } from "./WorkspaceFilesPanel.js";
 import { filePresentation } from "./workspace-file-presentation.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type FormEvent,
-  type ReactNode,
-  type RefObject,
-} from "react";
+
 import { createPortal } from "react-dom";
 import {
   type AgentTeamState,
@@ -36,8 +63,8 @@ import {
   type PromptAttachment,
   type TaskSourceState,
 } from "@artemis/protocol";
-import { LoadingState, Popover } from "@artemis/ui/feedback";
-import { ArtemisIcon, RunningArc } from "@artemis/ui/icons";
+import { LoadingState } from "@artemis/ui/feedback";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   EnvironmentControl,
   EnvironmentPanelSurface,
@@ -45,15 +72,7 @@ import {
   EnvironmentTrigger,
 } from "@artemis/ui/workflow";
 
-import type {
-  ProjectGitBranch,
-  ProjectGitInfo,
-  ProjectPullRequest,
-  ProjectPullRequestCheck,
-  ProjectPullRequestLookup,
-  ReviewScope,
-  ReviewFile,
-} from "../../shared/api.js";
+import type { ReviewScope } from "../../shared/api.js";
 import { customAgentInstanceIdentity } from "../settings/custom-agent-identity.js";
 import { EnvironmentWorkspaceMenu } from "./EnvironmentWorkspaceMenu.js";
 import { EnvironmentPullRequestError } from "./EnvironmentPullRequestError.js";
@@ -63,618 +82,15 @@ import type { ThreadConnection } from "../im/ImThreadConnection.js";
 import {
   EnvironmentAddIcon,
   EnvironmentAgentsIcon,
-  EnvironmentBranchIcon as CodexBranchIcon,
-  EnvironmentChangesIcon as CodexChangesIcon,
   EnvironmentCheckIcon,
   EnvironmentChevronIcon,
   EnvironmentCommitIcon,
   EnvironmentCompareIcon,
   EnvironmentExternalIcon,
   EnvironmentGithubIcon,
-  EnvironmentPullRequestIcon,
   EnvironmentSearchIcon,
   EnvironmentSourcesIcon,
 } from "./EnvironmentPanelIcons.js";
-
-const labels = UI_COPY.EnvironmentPanel_labels satisfies Record<
-  AppLocale,
-  Record<string, unknown>
->;
-
-export interface McpGroup {
-  id: string;
-  name: string;
-  calls: number;
-  tools: string[];
-  agents: string[];
-}
-
-export type ProjectPullRequestCheckSummary =
-  "passed" | "failed" | "pending" | "skipped" | "cancelled" | "none";
-
-export type ProjectPullRequestCoverageWarning =
-  "working-tree" | "unpushed" | "head-mismatch";
-
-export function projectPullRequestCheckSummary(
-  checks: readonly ProjectPullRequestCheck[],
-): ProjectPullRequestCheckSummary {
-  if (checks.length === 0) return "none";
-  if (checks.some((check) => check.status === "failed")) return "failed";
-  if (checks.some((check) => check.status === "pending")) return "pending";
-  if (checks.some((check) => check.status === "cancelled")) return "cancelled";
-  if (checks.every((check) => check.status === "skipped")) return "skipped";
-  return "passed";
-}
-
-export function projectPullRequestCoverageWarning(
-  gitInfo: ProjectGitInfo,
-  pullRequest: ProjectPullRequest,
-): ProjectPullRequestCoverageWarning | undefined {
-  if (gitInfo.changeCount > 0) return "working-tree";
-  if (
-    gitInfo.ahead > 0 &&
-    (!gitInfo.headOid || gitInfo.headOid !== pullRequest.headRefOid)
-  ) {
-    return "unpushed";
-  }
-  if (gitInfo.headOid && gitInfo.headOid !== pullRequest.headRefOid) {
-    return "head-mismatch";
-  }
-  return undefined;
-}
-
-export interface EnvironmentBranchMenuLayout extends CSSProperties {
-  left: number;
-  maxHeight: number;
-  top: number;
-  width: number;
-}
-
-export function environmentBranchMenuLayout(
-  anchor: Readonly<{
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-  }>,
-  viewport: Readonly<{ width: number; height: number }>,
-): EnvironmentBranchMenuLayout {
-  const margin = 12;
-  const width = Math.min(296, Math.max(0, viewport.width - margin * 2));
-  const left = Math.min(
-    Math.max(margin, anchor.left - width),
-    Math.max(margin, viewport.width - width - margin),
-  );
-  const top = Math.min(
-    Math.max(margin, anchor.top),
-    Math.max(margin, viewport.height - margin - 160),
-  );
-  return {
-    left,
-    maxHeight: Math.max(160, viewport.height - top - margin),
-    top,
-    width,
-  };
-}
-
-export function environmentBranchDisplayName(branch: ProjectGitBranch): string {
-  return branch.remote ? branch.name.replace(/^[^/]+\//u, "") : branch.name;
-}
-
-export function environmentBranchMenuBranches(
-  branches: readonly ProjectGitBranch[],
-  query: string,
-): ProjectGitBranch[] {
-  const deduplicated = new Map<string, ProjectGitBranch>();
-  for (const branch of branches) {
-    const displayName = environmentBranchDisplayName(branch);
-    const existing = deduplicated.get(displayName);
-    if (!existing || (existing.remote && !branch.remote)) {
-      deduplicated.set(displayName, branch);
-    }
-  }
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  return [...deduplicated.values()]
-    .filter(
-      (branch) =>
-        !normalizedQuery ||
-        environmentBranchDisplayName(branch)
-          .toLocaleLowerCase()
-          .includes(normalizedQuery),
-    )
-    .sort(
-      (left, right) =>
-        Number(Boolean(left.remote)) - Number(Boolean(right.remote)) ||
-        Number(right.current) - Number(left.current),
-    );
-}
-
-export interface AgentEnvironmentCounts {
-  total: number;
-  active: number;
-  queued: number;
-  blocked: number;
-  completed: number;
-}
-
-export type GitEnvironmentAction =
-  | { kind: "commit"; disabledReason?: string }
-  | { kind: "push"; disabledReason?: string }
-  | { kind: "idle"; disabledReason: string };
-
-export function suggestedEnvironmentBranchName(title: string): string {
-  const slug = title
-    .normalize("NFKC")
-    .toLocaleLowerCase()
-    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
-    .replace(/^-+|-+$/gu, "")
-    .slice(0, 60)
-    .replace(/-+$/gu, "");
-  return `codex/${slug || "changes"}`;
-}
-
-export function environmentAgentCounts(
-  agents: readonly ChildAgentState[],
-): AgentEnvironmentCounts {
-  return agents.reduce<AgentEnvironmentCounts>(
-    (counts, agent) => {
-      counts.total += 1;
-      if (agent.status === "running" || agent.status === "cancelling") {
-        counts.active += 1;
-      } else if (agent.status === "queued") {
-        counts.queued += 1;
-      } else if (agent.status === "blocked") {
-        counts.blocked += 1;
-      } else if (agent.status === "completed") {
-        counts.completed += 1;
-      }
-      return counts;
-    },
-    { total: 0, active: 0, queued: 0, blocked: 0, completed: 0 },
-  );
-}
-
-export function environmentDisplayAgents(
-  agents: readonly ChildAgentState[],
-  teams: readonly AgentTeamState[],
-): ChildAgentState[] {
-  const teamById = new Map(teams.map((team) => [team.teamId, team] as const));
-  return agents.map((agent) => {
-    if (
-      !agent.teamId ||
-      agent.status === "completed" ||
-      agent.status === "failed" ||
-      agent.status === "cancelled"
-    ) {
-      return agent;
-    }
-    const team = teamById.get(agent.teamId);
-    const teamStatus = team?.status;
-    const status =
-      teamStatus === "completed"
-        ? "completed"
-        : teamStatus === "aborted"
-          ? "cancelled"
-          : undefined;
-    if (!status) return agent;
-    const displayAgent: ChildAgentState = {
-      ...agent,
-      status,
-      ...(team ? { lastActivityAt: team.updatedAt } : {}),
-    };
-    delete displayAgent.currentTool;
-    delete displayAgent.currentToolStartedAt;
-    return displayAgent;
-  });
-}
-
-export function environmentTopLevelAgents(
-  agents: readonly ChildAgentState[],
-): ChildAgentState[] {
-  return agents.filter(
-    (agent) =>
-      agent.agentId !== "parent" &&
-      (!agent.parentAgentId || agent.parentAgentId === "parent") &&
-      (agent.depth === undefined || agent.depth === 1),
-  );
-}
-
-export function useEnvironmentActivityAgents(
-  agents: readonly ChildAgentState[],
-  teams: readonly AgentTeamState[],
-): ChildAgentState[] {
-  const [, refresh] = useState(0);
-  const displayAgents = useMemo(
-    () => environmentTopLevelAgents(environmentDisplayAgents(agents, teams)),
-    [agents, teams],
-  );
-  const now = Date.now();
-  let nextExpiry = Infinity;
-  const visibleAgents = displayAgents.filter((agent) => {
-    if (
-      agent.status !== "completed" &&
-      agent.status !== "failed" &&
-      agent.status !== "cancelled"
-    )
-      return true;
-    // Status queries update updatedAt; lastActivityAt preserves the finish time.
-    // Old records without a usable timestamp belong only in the detail view.
-    const finishedAt = Date.parse(
-      agent.lastActivityAt ?? agent.updatedAt ?? "",
-    );
-    const expiresAt = finishedAt + 5_000;
-    if (!Number.isFinite(expiresAt) || expiresAt <= now) return false;
-    nextExpiry = Math.min(nextExpiry, expiresAt);
-    return true;
-  });
-  useEffect(() => {
-    if (!Number.isFinite(nextExpiry)) return;
-    const timer = window.setTimeout(
-      () => refresh((value) => value + 1),
-      Math.max(0, nextExpiry - Date.now()),
-    );
-    return () => window.clearTimeout(timer);
-  }, [nextExpiry]);
-  return visibleAgents;
-}
-
-export function groupMcpUsage(
-  usages: readonly McpToolUsageState[],
-): McpGroup[] {
-  const groups = new Map<
-    string,
-    { name: string; calls: number; tools: Set<string>; agents: Set<string> }
-  >();
-  for (const usage of usages) {
-    const group = groups.get(usage.serverId) ?? {
-      name: usage.serverName,
-      calls: 0,
-      tools: new Set<string>(),
-      agents: new Set<string>(),
-    };
-    group.calls += 1;
-    group.tools.add(usage.toolName);
-    group.agents.add(usage.agentId);
-    groups.set(usage.serverId, group);
-  }
-  return [...groups.entries()].map(([id, group]) => ({
-    id,
-    name: group.name,
-    calls: group.calls,
-    tools: [...group.tools],
-    agents: [...group.agents],
-  }));
-}
-
-export function environmentGitAction(
-  info: ProjectGitInfo,
-  actionsDisabled: boolean,
-  copy: {
-    stopTasks: string;
-    conflicts: string;
-    behind: string;
-    noUpstream: string;
-    synced: string;
-    detachedBlocked: string;
-  },
-): GitEnvironmentAction {
-  if (info.changeCount > 0) {
-    return {
-      kind: "commit",
-      ...(actionsDisabled
-        ? { disabledReason: copy.stopTasks }
-        : !info.currentBranch
-          ? { disabledReason: copy.detachedBlocked }
-          : info.conflictCount > 0
-            ? { disabledReason: copy.conflicts }
-            : {}),
-    };
-  }
-  if (info.ahead > 0) {
-    return {
-      kind: "push",
-      ...(actionsDisabled
-        ? { disabledReason: copy.stopTasks }
-        : info.behind > 0
-          ? { disabledReason: copy.behind }
-          : {}),
-    };
-  }
-  return {
-    kind: "idle",
-    disabledReason: !info.currentBranch
-      ? copy.detachedBlocked
-      : !info.upstream
-        ? copy.noUpstream
-        : info.behind > 0
-          ? copy.behind
-          : copy.synced,
-  };
-}
-
-function EnvironmentIcon() {
-  return <ArtemisIcon height={20} name="layers" width={20} />;
-}
-
-function BranchIcon() {
-  return <CodexBranchIcon aria-hidden="true" />;
-}
-
-function ChangesIcon() {
-  return <CodexChangesIcon aria-hidden="true" />;
-}
-
-function PushIcon() {
-  return <ArtemisIcon name="push" data-environment-tone="mint" />;
-}
-
-function PullRequestIcon() {
-  return <EnvironmentPullRequestIcon />;
-}
-
-export function PullRequestChecksSummary({
-  checkSummary,
-  checksOpen,
-  onBlurredOut,
-  onOpenUrl,
-  onShowChecks,
-  onShowChecksWithFocus,
-  onToggleOpen,
-  prIcon,
-  pullRequest,
-  shouldKeepOpen,
-  stateLabel,
-  staleLabel,
-  staleTitle,
-  summaryLabel,
-  triggerRef,
-  warningLabel,
-}: {
-  checkSummary: ProjectPullRequestCheckSummary;
-  checksOpen: boolean;
-  chevronIcon: ReactNode;
-  onBlurredOut: () => void;
-  onOpenUrl: (url: string) => void;
-  onShowChecks: () => void;
-  onShowChecksWithFocus: () => void;
-  onToggleOpen: () => void;
-  prIcon: ReactNode;
-  pullRequest: ProjectPullRequest;
-  shouldKeepOpen: (node: Node | null) => boolean;
-  stateLabel: string;
-  staleLabel?: string | undefined;
-  staleTitle?: string | undefined;
-  summaryLabel: string;
-  triggerRef: RefObject<HTMLButtonElement | null>;
-  warningLabel?: string | undefined;
-}) {
-  const counts = { passed: 0, failed: 0, pending: 0, neutral: 0 };
-  for (const check of pullRequest.checks) {
-    const status =
-      check.status === "cancelled" || check.status === "skipped"
-        ? "neutral"
-        : check.status;
-    counts[status] += 1;
-  }
-  return (
-    <div className="environment-pr-card">
-      <button
-        className="environment-pr-title"
-        onClick={() => onOpenUrl(pullRequest.url)}
-        type="button"
-      >
-        <span
-          className="environment-row-icon environment-pr-icon"
-          data-status={checkSummary}
-          data-pr-state={
-            pullRequest.isDraft ? "draft" : pullRequest.state.toLowerCase()
-          }
-        >
-          {prIcon}
-        </span>
-        <span>
-          <strong title={pullRequest.title}>{pullRequest.title}</strong>
-          <small>#{pullRequest.number}</small>
-        </span>
-      </button>
-      <div className="environment-pr-badges">
-        <span
-          className="environment-pr-state"
-          data-state={
-            pullRequest.isDraft ? "draft" : pullRequest.state.toLowerCase()
-          }
-        >
-          {stateLabel}
-        </span>
-        <button
-          aria-controls="environment-pr-checks"
-          aria-expanded={checksOpen}
-          aria-haspopup="dialog"
-          className="environment-pr-check-summary"
-          onBlur={(event) => {
-            const related = event.relatedTarget;
-            if (related instanceof Node && shouldKeepOpen(related)) {
-              return;
-            }
-            onBlurredOut();
-          }}
-          onClick={onToggleOpen}
-          onFocus={onShowChecks}
-          onKeyDown={(event) => {
-            if (
-              event.key === "ArrowDown" ||
-              event.key === "Enter" ||
-              event.key === " "
-            ) {
-              event.preventDefault();
-              onShowChecksWithFocus();
-            }
-          }}
-          onMouseEnter={onShowChecks}
-          onMouseLeave={onBlurredOut}
-          ref={triggerRef}
-          type="button"
-        >
-          <span
-            aria-hidden="true"
-            className="environment-check-status"
-            data-status={checkSummary}
-          >
-            {checkSummary === "pending" ? (
-              <RunningArc size={14} />
-            ) : (
-              <ArtemisIcon
-                name={
-                  checkSummary === "failed"
-                    ? "x-circle"
-                    : checkSummary === "passed"
-                      ? "check"
-                      : "circle"
-                }
-                width={14}
-                height={14}
-              />
-            )}
-          </span>
-          <span>{summaryLabel}</span>
-          <small>
-            {counts.passed}/{pullRequest.checks.length}
-          </small>
-        </button>
-      </div>
-      {warningLabel && (
-        <p className="environment-pr-warning">
-          <ArtemisIcon name="info" width={12} height={12} />
-          {warningLabel}
-        </p>
-      )}
-      {staleLabel && staleTitle && (
-        <p className="environment-pr-stale" title={staleTitle}>
-          {staleLabel}
-        </p>
-      )}
-    </div>
-  );
-}
-
-export function PullRequestChecksPopover({
-  anchorRef,
-  checks,
-  checkSummaryLabels,
-  containerRef,
-  externalIcon,
-  noneLabel,
-  onOpenUrl,
-  onScheduleClose,
-  onCancelClose,
-  onOpenChange,
-  open,
-  prLabel,
-  title,
-  triggerContains,
-}: {
-  anchorRef: RefObject<HTMLElement | null>;
-  checks: readonly ProjectPullRequestCheck[];
-  checkSummaryLabels: Record<string, string>;
-  containerRef: RefObject<HTMLDivElement | null>;
-  externalIcon: ReactNode;
-  noneLabel: string;
-  onOpenUrl: (url: string) => void;
-  onScheduleClose: () => void;
-  onCancelClose: () => void;
-  onOpenChange: (open: boolean) => void;
-  open: boolean;
-  prLabel: string;
-  title: string;
-  triggerContains: (node: Node | null) => boolean;
-}) {
-  return (
-    <Popover
-      align="start"
-      anchorRef={anchorRef}
-      className="environment-checks-popover"
-      contentRef={containerRef}
-      focusOnOpen={false}
-      id="environment-pr-checks"
-      label={title}
-      onOpenChange={onOpenChange}
-      open={open}
-      onBlur={(event) => {
-        const related = event.relatedTarget;
-        if (
-          related instanceof Node &&
-          (event.currentTarget.contains(related) || triggerContains(related))
-        ) {
-          return;
-        }
-        onScheduleClose();
-      }}
-      onFocus={onCancelClose}
-      onMouseEnter={onCancelClose}
-      onMouseLeave={onScheduleClose}
-      placement="inline-start"
-      tabIndex={-1}
-    >
-      <header>
-        <strong>{title}</strong>
-        <small>{prLabel}</small>
-      </header>
-      <div className="environment-check-list">
-        {checks.length === 0 ? (
-          <p>{noneLabel}</p>
-        ) : (
-          checks.map((check, index) => {
-            const description = `${check.name} · ${check.workflowName ? `${check.workflowName} · ` : ""}${checkSummaryLabels[check.status]}`;
-            const content = (
-              <>
-                <span
-                  aria-label={checkSummaryLabels[check.status]}
-                  className="environment-check-indicator"
-                  data-status={check.status}
-                  role="img"
-                >
-                  {check.status === "pending" ? (
-                    <RunningArc size={14} />
-                  ) : (
-                    <ArtemisIcon
-                      width={14}
-                      height={14}
-                      name={
-                        check.status === "passed"
-                          ? "check"
-                          : check.status === "failed"
-                            ? "x-circle"
-                            : "clock"
-                      }
-                    />
-                  )}
-                </span>
-                <span>
-                  <strong>{check.name}</strong>
-                </span>
-                {check.detailsUrl && <i aria-hidden="true">{externalIcon}</i>}
-              </>
-            );
-            return check.detailsUrl ? (
-              <button
-                key={`${check.name}:${index}`}
-                onClick={() => onOpenUrl(check.detailsUrl!)}
-                title={description}
-                type="button"
-              >
-                {content}
-              </button>
-            ) : (
-              <div key={`${check.name}:${index}`} title={description}>
-                {content}
-              </div>
-            );
-          })
-        )}
-      </div>
-    </Popover>
-  );
-}
 
 export function EnvironmentPanel({
   actionsDisabled,
@@ -757,53 +173,69 @@ export function EnvironmentPanel({
   teams: AgentTeamState[];
   threadId?: string;
 }) {
-  const t = labels[locale];
-  const panelId = useId();
-  const control = useRef<HTMLDivElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const gitRequest = useRef(0);
-  const pullRequestRequest = useRef(0);
-  const checksTrigger = useRef<HTMLButtonElement>(null);
-  const checksPopover = useRef<HTMLDivElement>(null);
-  const branchTrigger = useRef<HTMLButtonElement>(null);
-  const branchMenu = useRef<HTMLDivElement>(null);
-  const branchSearch = useRef<HTMLInputElement>(null);
-  const checksCloseTimer = useRef<number | undefined>(undefined);
-  const wantsOpen = useRef<boolean | undefined>(undefined);
-  const manuallyOpened = useRef(false);
-  const focusOnOpen = useRef(false);
-  const openRef = useRef(false);
-  const [open, setOpen] = useState(false);
-  const [gitInfo, setGitInfo] = useState<ProjectGitInfo>();
-  const [gitError, setGitError] = useState<string>();
-  const [changedFiles, setChangedFiles] = useState<
-    Array<ReviewFile & { scope: ReviewScope }>
-  >([]);
-  const [changesError, setChangesError] = useState<string>();
-  const [pullRequestLookup, setPullRequestLookup] =
-    useState<ProjectPullRequestLookup>();
-  const [pullRequestError, setPullRequestError] = useState<string>();
-  const [pullRequestLoading, setPullRequestLoading] = useState(false);
-  const [checksOpen, setChecksOpen] = useState(false);
-  const [gitBusy, setGitBusy] = useState<
-    "commit" | "push" | "commit-push" | "branch"
-  >();
-  const [commitOpen, setCommitOpen] = useState(false);
-  const [commitMessage, setCommitMessage] = useState("");
-  const [includeUnstaged, setIncludeUnstaged] = useState(true);
-  const [creatingCommitBranch, setCreatingCommitBranch] = useState(false);
-  const [newCommitBranch, setNewCommitBranch] = useState(() =>
-    suggestedEnvironmentBranchName(taskTitle),
-  );
-  const [branchOpen, setBranchOpen] = useState(false);
-  const [branchQuery, setBranchQuery] = useState("");
-  const [branchMenuPosition, setBranchMenuPosition] =
-    useState<EnvironmentBranchMenuLayout>();
-  const [creatingMenuBranch, setCreatingMenuBranch] = useState(false);
-  const [menuBranchName, setMenuBranchName] = useState("");
-  const [pendingSwitchBranch, setPendingSwitchBranch] = useState<string>();
-  const [showAllAgents, setShowAllAgents] = useState(false);
+  const {
+    t,
+    panelId,
+    control,
+    panel,
+    trigger,
+    gitRequest,
+    pullRequestRequest,
+    checksTrigger,
+    checksPopover,
+    branchTrigger,
+    branchMenu,
+    branchSearch,
+    checksCloseTimer,
+    wantsOpen,
+    manuallyOpened,
+    focusOnOpen,
+    openRef,
+    open,
+    setOpen,
+    gitInfo,
+    setGitInfo,
+    gitError,
+    setGitError,
+    changedFiles,
+    setChangedFiles,
+    changesError,
+    setChangesError,
+    pullRequestLookup,
+    setPullRequestLookup,
+    pullRequestError,
+    setPullRequestError,
+    pullRequestLoading,
+    setPullRequestLoading,
+    checksOpen,
+    setChecksOpen,
+    gitBusy,
+    setGitBusy,
+    commitOpen,
+    setCommitOpen,
+    commitMessage,
+    setCommitMessage,
+    includeUnstaged,
+    setIncludeUnstaged,
+    creatingCommitBranch,
+    setCreatingCommitBranch,
+    newCommitBranch,
+    setNewCommitBranch,
+    branchOpen,
+    setBranchOpen,
+    branchQuery,
+    setBranchQuery,
+    branchMenuPosition,
+    setBranchMenuPosition,
+    creatingMenuBranch,
+    setCreatingMenuBranch,
+    menuBranchName,
+    setMenuBranchName,
+    pendingSwitchBranch,
+    setPendingSwitchBranch,
+    showAllAgents,
+    setShowAllAgents,
+  } = useEnvironmentState({ locale, taskTitle });
 
   const displayAgents = useEnvironmentActivityAgents(agents, teams);
   const contextAttachments = [
@@ -841,798 +273,195 @@ export function EnvironmentPanel({
   const reservationActive =
     panelVisible || ((wantsOpen.current ?? defaultOpen) && hasPanelContent);
 
-  const hidePanel = useCallback(() => {
-    manuallyOpened.current = false;
-    openRef.current = false;
-    setOpen(false);
-  }, []);
-
-  const closePanel = useCallback(() => {
-    wantsOpen.current = false;
-    hidePanel();
-  }, [hidePanel]);
-
-  const togglePanel = useCallback(() => {
-    openRef.current = !openRef.current;
-    manuallyOpened.current = openRef.current;
-    wantsOpen.current = openRef.current;
-    focusOnOpen.current = openRef.current;
-    setOpen(openRef.current);
-  }, []);
-
-  const cancelChecksClose = useCallback(() => {
-    if (checksCloseTimer.current !== undefined) {
-      window.clearTimeout(checksCloseTimer.current);
-      checksCloseTimer.current = undefined;
-    }
-  }, []);
-
-  const closeChecks = useCallback(() => {
-    cancelChecksClose();
-    setChecksOpen(false);
-  }, [cancelChecksClose]);
-
-  const closeBranchMenu = useCallback(() => {
-    setBranchOpen(false);
-    setBranchQuery("");
-    setBranchMenuPosition(undefined);
-    setCreatingMenuBranch(false);
-    setMenuBranchName("");
-  }, []);
-
-  const updateBranchMenuPosition = useCallback(() => {
-    const anchor = branchTrigger.current?.getBoundingClientRect();
-    if (!anchor) return;
-    setBranchMenuPosition(
-      environmentBranchMenuLayout(anchor, {
-        width: window.innerWidth,
-        height: window.innerHeight,
-      }),
-    );
-  }, []);
-
-  const showChecks = useCallback(() => {
-    cancelChecksClose();
-    setChecksOpen(true);
-  }, [cancelChecksClose]);
-
-  const showChecksWithFocus = useCallback(() => {
-    showChecks();
-    window.requestAnimationFrame(() => checksPopover.current?.focus());
-  }, [showChecks]);
-
-  const scheduleChecksClose = useCallback(() => {
-    cancelChecksClose();
-    checksCloseTimer.current = window.setTimeout(() => {
-      checksCloseTimer.current = undefined;
-      setChecksOpen(false);
-    }, 140);
-  }, [cancelChecksClose]);
-
-  useLayoutEffect(() => {
-    if (!branchOpen) return;
-    updateBranchMenuPosition();
-    const observer =
-      typeof window.ResizeObserver === "function" && branchTrigger.current
-        ? new window.ResizeObserver(updateBranchMenuPosition)
-        : undefined;
-    if (branchTrigger.current) observer?.observe(branchTrigger.current);
-    window.addEventListener("resize", updateBranchMenuPosition);
-    window.addEventListener("scroll", updateBranchMenuPosition, true);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", updateBranchMenuPosition);
-      window.removeEventListener("scroll", updateBranchMenuPosition, true);
-    };
-  }, [branchOpen, updateBranchMenuPosition]);
-
-  useEffect(() => {
-    if (!branchOpen || creatingMenuBranch || !branchMenuPosition) return;
-    branchSearch.current?.focus({ preventScroll: true });
-  }, [branchMenuPosition, branchOpen, creatingMenuBranch]);
-
-  const lastCommitRequest = useRef(commitRequest);
-  useEffect(() => {
-    if (lastCommitRequest.current === commitRequest) return;
-    lastCommitRequest.current = commitRequest;
-    if (!commitRequest) return;
-    manuallyOpened.current = true;
-    wantsOpen.current = true;
-    openRef.current = true;
-    setOpen(true);
-    setGitError(undefined);
-    setCommitOpen(true);
-  }, [commitRequest]);
-
-  const measureContentSpace = useCallback(() => {
-    const workspace = control.current?.closest(".workspace");
-    const conversation = workspace?.querySelector<HTMLElement>(".conversation");
-    if (!(workspace instanceof HTMLElement) || !conversation) return;
-    const bounds = conversation.getBoundingClientRect();
-    const workspaceBounds = workspace.getBoundingClientRect();
-    if (bounds.width === 0) return;
-    const style = window.getComputedStyle(workspace);
-    const configuredWidth =
-      Number.parseFloat(
-        style.getPropertyValue("--environment-panel-inline-size"),
-      ) || 304;
-    const panelWidth = Math.min(configuredWidth, window.innerWidth - 62);
-    const panelBounds = panel.current?.getBoundingClientRect();
-    const rtl = style.direction === "rtl";
-    const panelStart = panelBounds?.width
-      ? rtl
-        ? panelBounds.right
-        : panelBounds.left
-      : rtl
-        ? workspaceBounds.left + panelWidth
-        : workspaceBounds.right - panelWidth;
-    // Measure against the conversation, so a panel above the tool dock
-    // reserves nothing when it is already outside the reading area.
-    const inset = Math.max(
-      0,
-      rtl ? panelStart + 24 - bounds.left : bounds.right - panelStart + 24,
-    );
-    return {
-      workspace,
-      conversation,
-      inset,
-      enoughSpace:
-        window.innerWidth >= 980 &&
-        (inset === 0 || bounds.width - inset - 24 >= 320),
-    };
-  }, []);
-
-  useLayoutEffect(() => {
-    manuallyOpened.current = false;
-  }, [dockOpen]);
-
-  useLayoutEffect(() => {
-    const workspace = control.current?.closest(".workspace");
-    if (!(workspace instanceof HTMLElement)) return;
-    const dock = workspace.querySelector<HTMLElement>(
-      '[data-artemis-component="workspace-dock"]',
-    );
-    const syncVisibility = () => {
-      const space = measureContentSpace();
-      if (!space) return;
-      // Content can finish collapsing before the delayed visibility transition.
-      const dockStyle = dock && window.getComputedStyle(dock);
-      const dockClosed =
-        !dock ||
-        dockStyle?.visibility === "hidden" ||
-        (dock.clientWidth === 0 && dockStyle?.opacity === "0");
-      // Preserve explicit opening and menu focus until the reading area
-      // becomes too narrow. Dock transitions restore automatic visibility.
-      const nextOpen =
-        (hasPanelContent || manuallyOpened.current) &&
-        (wantsOpen.current ?? defaultOpen) &&
-        space.enoughSpace &&
-        (manuallyOpened.current || (!dockOpen && dockClosed));
-      if (nextOpen === openRef.current) return;
-      openRef.current = nextOpen;
-      setOpen(nextOpen);
-    };
-    const observer =
-      typeof window.ResizeObserver === "function"
-        ? new window.ResizeObserver(syncVisibility)
-        : undefined;
-    for (const element of [
-      workspace,
-      control.current,
-      workspace.querySelector(".conversation"),
-      dock,
-    ]) {
-      if (element) observer?.observe(element);
-    }
-    syncVisibility();
-    window.addEventListener("resize", syncVisibility);
-    dock?.addEventListener("transitionend", syncVisibility);
-    dock?.addEventListener("transitioncancel", syncVisibility);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", syncVisibility);
-      dock?.removeEventListener("transitionend", syncVisibility);
-      dock?.removeEventListener("transitioncancel", syncVisibility);
-    };
-  }, [defaultOpen, dockOpen, hasPanelContent, measureContentSpace]);
-
-  useLayoutEffect(() => {
-    if (!reservationActive) return;
-    const workspace = control.current?.closest(".workspace");
-    const conversation = workspace?.querySelector<HTMLElement>(".conversation");
-    if (!workspace || !conversation) return;
-    const property = "--environment-panel-content-safe-inline-size";
-    const durationProperty = "--environment-panel-reservation-duration";
-    const reserveSpace = (animate: boolean) => {
-      const next = measureContentSpace();
-      if (!next) return;
-      if (!next.enoughSpace) {
-        if (panelVisible) hidePanel();
-        next.conversation.style.removeProperty(property);
-        next.conversation.style.removeProperty(durationProperty);
-        return;
-      }
-      const value = `${next.inset}px`;
-      if (next.conversation.style.getPropertyValue(property) !== value) {
-        // Geometry already moves with the dock; a second transition trails it.
-        if (!animate) {
-          next.conversation.style.setProperty(durationProperty, "0s");
-        }
-        next.conversation.style.setProperty(property, value);
-      }
-      const panelBounds = panel.current?.getBoundingClientRect();
-      if (panelBounds) {
-        const rtl = window.getComputedStyle(next.workspace).direction === "rtl";
-        next.conversation.style.setProperty(
-          "--computer-preview-top",
-          `${panelBounds.top + 12}px`,
-        );
-        next.conversation.style.setProperty(
-          "--computer-preview-inline-end",
-          `${Math.max(12, rtl ? panelBounds.right + 12 : window.innerWidth - panelBounds.left + 12)}px`,
-        );
-      }
-    };
-    // Prepare the reading area during dock motion, before the panel fades in.
-    reserveSpace(panelVisible && manuallyOpened.current);
-    const syncGeometry = () => reserveSpace(false);
-    const observer =
-      typeof window.ResizeObserver === "function"
-        ? new window.ResizeObserver(syncGeometry)
-        : undefined;
-    for (const element of [
-      workspace,
-      conversation,
-      control.current,
-      panel.current,
-    ]) {
-      if (element) observer?.observe(element);
-    }
-    window.addEventListener("resize", syncGeometry);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", syncGeometry);
-      conversation.style.removeProperty(property);
-      conversation.style.removeProperty(durationProperty);
-      conversation.style.removeProperty("--computer-preview-top");
-      conversation.style.removeProperty("--computer-preview-inline-end");
-    };
-  }, [hidePanel, measureContentSpace, panelVisible, reservationActive]);
-
-  const loadGit = useCallback(async () => {
-    const id = ++gitRequest.current;
-    setGitError(undefined);
-    try {
-      const info = await window.artemis.getProjectGitInfo(project.id, threadId);
-      if (gitRequest.current === id) setGitInfo(info);
-    } catch (error) {
-      if (gitRequest.current === id) {
-        setGitError(error instanceof Error ? error.message : String(error));
-      }
-    }
-  }, [project.id, threadId]);
-
-  useEffect(() => {
-    setChangedFiles([]);
-    setChangesError(undefined);
-    if (!open || !gitInfo?.managed || !threadId || gitInfo.changeCount === 0)
-      return;
-    let active = true;
-    void Promise.all(
-      (["unstaged", "staged"] as const).map(async (scope) => ({
-        scope,
-        diff: await window.artemis.getReviewDiff({ threadId, scope }),
-      })),
-    )
-      .then((results) => {
-        if (!active) return;
-        const files = new Map<string, ReviewFile & { scope: ReviewScope }>();
-        for (const { scope, diff } of results) {
-          for (const file of diff.files) {
-            const previous = files.get(file.path);
-            files.set(
-              file.path,
-              previous
-                ? {
-                    ...previous,
-                    additions: previous.additions + file.additions,
-                    deletions: previous.deletions + file.deletions,
-                  }
-                : { ...file, scope },
-            );
-          }
-        }
-        setChangedFiles([...files.values()]);
-      })
-      .catch((error: unknown) => {
-        if (active)
-          setChangesError(
-            error instanceof Error ? error.message : String(error),
-          );
-      });
-    return () => {
-      active = false;
-    };
-  }, [gitInfo, open, threadId]);
-
-  const loadPullRequest = useCallback(async () => {
-    const id = ++pullRequestRequest.current;
-    setPullRequestLoading(true);
-    try {
-      const lookup = await window.artemis.getProjectPullRequest(
-        project.id,
-        threadId,
-      );
-      if (pullRequestRequest.current !== id) return;
-      setPullRequestError(undefined);
-      setPullRequestLookup(lookup);
-      if (lookup.status !== "found") setChecksOpen(false);
-    } catch (error) {
-      if (pullRequestRequest.current === id) {
-        setPullRequestError(
-          error instanceof Error ? error.message : String(error),
-        );
-      }
-    } finally {
-      if (pullRequestRequest.current === id) setPullRequestLoading(false);
-    }
-  }, [project.id, threadId]);
-
-  useEffect(() => {
-    setGitInfo(undefined);
-  }, [project.id, threadId]);
-
-  useEffect(() => {
-    setPullRequestLookup(undefined);
-    setPullRequestError(undefined);
-    setChecksOpen(false);
-    setCommitOpen(false);
-    setCommitMessage("");
-    setIncludeUnstaged(true);
-    setCreatingCommitBranch(false);
-    setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
-    setBranchOpen(false);
-    setBranchQuery("");
-    setBranchMenuPosition(undefined);
-    setCreatingMenuBranch(false);
-    setMenuBranchName("");
-    setPendingSwitchBranch(undefined);
-  }, [project.id, taskTitle, threadId]);
-
-  useEffect(() => {
-    if (open) return;
-    closeBranchMenu();
-    setChecksOpen(false);
-  }, [closeBranchMenu, open]);
-
-  const gitActive = defaultOpen || open;
-  useEffect(() => {
-    if (!gitActive) return;
-    void loadGit();
-  }, [gitActive, loadGit, refreshKey, workspaceIsWorktree]);
-
-  useEffect(() => {
-    if (!open) return;
-    void loadPullRequest();
-  }, [loadPullRequest, open, refreshKey, workspaceIsWorktree]);
-
-  useEffect(
-    () =>
-      window.artemis.onProjectGitChanged((context) => {
-        if (
-          (!defaultOpen && !openRef.current) ||
-          context.projectId !== project.id ||
-          context.threadId !== threadId
-        ) {
-          return;
-        }
-        void loadGit();
-        if (openRef.current) void loadPullRequest();
-      }),
-    [defaultOpen, loadGit, loadPullRequest, project.id, threadId],
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    const refreshOnFocus = () => {
-      void loadGit();
-      void loadPullRequest();
-    };
-    window.addEventListener("focus", refreshOnFocus);
-    const frame = focusOnOpen.current
-      ? window.requestAnimationFrame(() => panel.current?.focus())
-      : undefined;
-    focusOnOpen.current = false;
-    return () => {
-      if (frame !== undefined) window.cancelAnimationFrame(frame);
-      window.removeEventListener("focus", refreshOnFocus);
-    };
-  }, [loadGit, loadPullRequest, open]);
-
-  useEffect(() => {
-    if (
-      !open ||
-      pullRequestLookup?.status !== "found" ||
-      pullRequestLookup.pullRequest.state !== "OPEN" ||
-      !pullRequestLookup.pullRequest.checks.some(
-        (check) => check.status === "pending",
-      )
-    ) {
-      return;
-    }
-    const interval = window.setInterval(() => void loadPullRequest(), 15_000);
-    return () => window.clearInterval(interval);
-  }, [loadPullRequest, open, pullRequestLookup]);
-
-  useEffect(
-    () => () => {
-      cancelChecksClose();
-    },
-    [cancelChecksClose],
-  );
-
-  useEffect(() => {
-    if (!branchOpen) return;
-    const closeOutside = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (
-        branchTrigger.current?.contains(target) ||
-        branchMenu.current?.contains(target)
-      ) {
-        return;
-      }
-      closeBranchMenu();
-    };
-    document.addEventListener("pointerdown", closeOutside, true);
-    return () =>
-      document.removeEventListener("pointerdown", closeOutside, true);
-  }, [branchOpen, closeBranchMenu]);
-
-  useEffect(() => {
-    if (!open && !commitOpen) return;
-    const closeEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (checksOpen) {
-        closeChecks();
-        checksTrigger.current?.focus();
-      } else if (commitOpen) {
-        setCommitOpen(false);
-        setCreatingCommitBranch(false);
-        setCommitMessage("");
-      } else if (creatingMenuBranch) {
-        setCreatingMenuBranch(false);
-        setMenuBranchName("");
-        setGitError(undefined);
-      } else if (branchOpen) {
-        closeBranchMenu();
-      } else {
-        closePanel();
-        window.requestAnimationFrame(() => trigger.current?.focus());
-      }
-    };
-    window.addEventListener("keydown", closeEscape);
-    return () => window.removeEventListener("keydown", closeEscape);
-  }, [
-    branchOpen,
-    checksOpen,
+  const {
+    hidePanel,
+    closePanel,
+    togglePanel,
+    cancelChecksClose,
     closeChecks,
     closeBranchMenu,
-    closePanel,
-    commitOpen,
+    showChecks,
+    showChecksWithFocus,
+    scheduleChecksClose,
+  } = useEnvironmentDisclosure({
+    manuallyOpened,
+    openRef,
+    setOpen,
+    wantsOpen,
+    focusOnOpen,
+    checksCloseTimer,
+    setChecksOpen,
+    setBranchOpen,
+    setBranchQuery,
+    setBranchMenuPosition,
+    setCreatingMenuBranch,
+    setMenuBranchName,
+    branchTrigger,
+    checksPopover,
+    branchOpen,
     creatingMenuBranch,
+    branchMenuPosition,
+    branchSearch,
+    commitRequest,
+    setGitError,
+    setCommitOpen,
+  });
+
+  useEnvironmentReservation({
+    control,
+    panel,
+    manuallyOpened,
+    dockOpen,
+    hasPanelContent,
+    wantsOpen,
+    defaultOpen,
+    openRef,
+    setOpen,
+    reservationActive,
+    hidePanel,
+    panelVisible,
+  });
+
+  const { loadGit, loadPullRequest } = useEnvironmentGitSubscriptions({
+    gitRequest,
+    setGitError,
+    project,
+    threadId,
+    setGitInfo,
+    setChangedFiles,
+    setChangesError,
     open,
-  ]);
+    gitInfo,
+    pullRequestRequest,
+    setPullRequestLoading,
+    setPullRequestError,
+    setPullRequestLookup,
+    setChecksOpen,
+    setCommitOpen,
+    setCommitMessage,
+    setIncludeUnstaged,
+    setCreatingCommitBranch,
+    taskTitle,
+    setNewCommitBranch,
+    setBranchOpen,
+    setBranchQuery,
+    setBranchMenuPosition,
+    setCreatingMenuBranch,
+    setMenuBranchName,
+    setPendingSwitchBranch,
+    closeBranchMenu,
+    defaultOpen,
+    refreshKey,
+    workspaceIsWorktree,
+  });
 
-  const pullRequest =
-    pullRequestLookup?.status === "found"
-      ? pullRequestLookup.pullRequest
-      : undefined;
-  const checkSummary = projectPullRequestCheckSummary(
-    pullRequest?.checks ?? [],
-  );
-  const checkSummaryLabels: Record<ProjectPullRequestCheckSummary, string> = {
-    passed: t.checksPassed,
-    failed: t.checksFailed,
-    pending: t.checksPending,
-    skipped: t.checksSkipped,
-    cancelled: t.checksCancelled,
-    none: t.checksNone,
-  };
-  const pullRequestStateLabel = pullRequest?.isDraft
-    ? t.pullRequestDraft
-    : pullRequest?.state === "OPEN"
-      ? t.pullRequestOpen
-      : pullRequest?.state === "MERGED"
-        ? t.pullRequestMerged
-        : t.pullRequestClosed;
-  const coverageWarning =
-    gitInfo && pullRequest
-      ? projectPullRequestCoverageWarning(gitInfo, pullRequest)
-      : undefined;
-  const coverageWarningLabel = coverageWarning
-    ? {
-        "working-tree": t.localChangesNotChecked,
-        unpushed: t.unpushedCommitNotChecked,
-        "head-mismatch": t.differentHeadNotChecked,
-      }[coverageWarning]
-    : undefined;
-  const selectedChangeCount = gitInfo
-    ? includeUnstaged
-      ? gitInfo.changeCount
-      : gitInfo.stagedCount
-    : 0;
-  const commitDisabledReason = !gitInfo
-    ? t.loading
-    : actionsDisabled
-      ? t.stopTasks
-      : gitInfo.conflictCount > 0
-        ? t.conflicts
-        : !creatingCommitBranch && !gitInfo.currentBranch
-          ? t.detachedBlocked
-          : creatingCommitBranch && !newCommitBranch.trim()
-            ? t.newBranchPlaceholder
-            : selectedChangeCount === 0
-              ? t.noSelectedChanges
-              : undefined;
-  const commitAndPushDisabledReason = pendingSwitchBranch
-    ? t.commitAndSwitch
-    : (commitDisabledReason ??
-      (!includeUnstaged &&
-      ((gitInfo?.unstagedCount ?? 0) > 0 || (gitInfo?.untrackedCount ?? 0) > 0)
-        ? t.commitChangesFirst
-        : gitInfo?.upstream && gitInfo.behind > 0
-          ? t.behind
-          : undefined));
-  const pushDisabledReason = !gitInfo
-    ? t.loading
-    : pendingSwitchBranch
-      ? t.commitAndSwitch
-      : actionsDisabled
-        ? t.stopTasks
-        : gitInfo.conflictCount > 0
-          ? t.conflicts
-          : creatingCommitBranch || !gitInfo.currentBranch
-            ? creatingCommitBranch
-              ? t.newBranchPlaceholder
-              : t.detachedBlocked
-            : gitInfo.changeCount > 0
-              ? t.commitChangesFirst
-              : gitInfo.upstream && gitInfo.behind > 0
-                ? t.behind
-                : gitInfo.upstream && gitInfo.ahead === 0
-                  ? t.synced
-                  : undefined;
-  const panelGitAction = gitInfo
-    ? environmentGitAction(gitInfo, actionsDisabled, {
-        stopTasks: t.stopTasks,
-        conflicts: t.conflicts,
-        behind: t.behind,
-        noUpstream: t.noUpstream,
-        synced: t.synced,
-        detachedBlocked: t.detachedBlocked,
-      })
-    : ({ kind: "idle", disabledReason: t.loading } as const);
-  const activityPreviewLimit = 2;
-  const latestTeam = teams.at(-1);
-  const visibleAgents = showAllAgents
-    ? displayAgents
-    : displayAgents.slice(0, activityPreviewLimit);
-  const teamGroups = teams.map((team) => ({
-    team,
-    agents: visibleAgents.filter((agent) =>
-      agent.teamId
-        ? agent.teamId === team.teamId
-        : team.memberAgentIds.includes(agent.agentId),
-    ),
-  }));
-  const groupedAgentIds = new Set(
-    teamGroups.flatMap((group) => group.agents.map((agent) => agent.agentId)),
-  );
-  const standaloneAgents = visibleAgents.filter(
-    (agent) => !groupedAgentIds.has(agent.agentId),
-  );
-  const visibleBranches = environmentBranchMenuBranches(
-    gitInfo?.branches ?? [],
+  useEnvironmentDismissal({
+    defaultOpen,
+    openRef,
+    project,
+    threadId,
+    loadGit,
+    loadPullRequest,
+    open,
+    panel,
+    focusOnOpen,
+    pullRequestLookup,
+    cancelChecksClose,
+    branchOpen,
+    branchTrigger,
+    branchMenu,
+    closeBranchMenu,
+    commitOpen,
+    closePanel,
+    trigger,
+    setCreatingMenuBranch,
+    setMenuBranchName,
+    setGitError,
+    creatingMenuBranch,
+    setCommitOpen,
+    setCreatingCommitBranch,
+    setCommitMessage,
+    closeChecks,
+    checksTrigger,
+    checksOpen,
+  });
+
+  const {
+    pullRequest,
+    checkSummary,
+    checkSummaryLabels,
+    pullRequestStateLabel,
+    coverageWarningLabel,
+    commitDisabledReason,
+    commitAndPushDisabledReason,
+    pushDisabledReason,
+    panelGitAction,
+    latestTeam,
+    visibleAgents,
+    teamGroups,
+    standaloneAgents,
+    visibleBranches,
+  } = useEnvironmentSummary({
+    pullRequestLookup,
+    t,
+    gitInfo,
+    includeUnstaged,
+    creatingCommitBranch,
+    newCommitBranch,
+    actionsDisabled,
+    pendingSwitchBranch,
+    teams,
+    displayAgents,
+    showAllAgents,
     branchQuery,
-  );
+  });
 
-  const viewAllSources = () => {
-    hidePanel();
-    onViewAllSources();
-  };
-
-  const closeCommitDialog = () => {
-    setCommitOpen(false);
-    setPendingSwitchBranch(undefined);
-    setCreatingCommitBranch(false);
-    setNewCommitBranch(suggestedEnvironmentBranchName(taskTitle));
-    setCommitMessage("");
-  };
-
-  const applyGitMutation = (info: ProjectGitInfo) => {
-    ++gitRequest.current;
-    ++pullRequestRequest.current;
-    setPullRequestLookup(undefined);
-    setPullRequestLoading(false);
-    setChecksOpen(false);
-    setGitInfo(info);
-  };
-
-  const createCommitDestination = async (): Promise<
-    ProjectGitInfo | undefined
-  > => {
-    if (!creatingCommitBranch) return gitInfo;
-    if (!newCommitBranch.trim()) return undefined;
-    const info = await window.artemis.createProjectBranch(
-      project.id,
-      newCommitBranch,
-      threadId,
-    );
-    applyGitMutation(info);
-    setCreatingCommitBranch(false);
-    return info;
-  };
-
-  const commit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (gitBusy || commitDisabledReason) return;
-    setGitBusy("commit");
-    setGitError(undefined);
-    try {
-      if (!(await createCommitDestination())) return;
-      const result = await window.artemis.commitProjectChanges(
-        project.id,
-        commitMessage,
-        includeUnstaged,
-        threadId,
-      );
-      const afterCommit = pendingSwitchBranch
-        ? await window.artemis.switchProjectBranch(
-            project.id,
-            pendingSwitchBranch,
-            threadId,
-          )
-        : result.gitInfo;
-      applyGitMutation(afterCommit);
-      setPendingSwitchBranch(undefined);
-      closeCommitDialog();
-      onMessage(t.commitCreated(result.commit.slice(0, 7)));
-      void loadPullRequest();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await loadGit();
-      setGitError(message);
-      onMessage(message, true);
-    } finally {
-      setGitBusy(undefined);
-    }
-  };
-
-  const push = async (confirmed = false) => {
-    if (!gitInfo?.currentBranch || gitBusy || pushDisabledReason) return;
-    const destination = gitInfo.upstream ?? `origin/${gitInfo.currentBranch}`;
-    if (
-      !confirmed &&
-      !(await onConfirm(t.pushConfirm(gitInfo.ahead, destination)))
-    ) {
-      return;
-    }
-    setGitBusy("push");
-    setGitError(undefined);
-    try {
-      const result = await window.artemis.pushProjectBranch(
-        project.id,
-        threadId,
-      );
-      applyGitMutation(result.gitInfo);
-      closeCommitDialog();
-      onMessage(t.pushCompleted(result.upstream));
-      void loadPullRequest();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await loadGit();
-      setGitError(message);
-      onMessage(message, true);
-    } finally {
-      setGitBusy(undefined);
-    }
-  };
-
-  const commitAndPush = async () => {
-    if (!gitInfo || gitBusy || commitAndPushDisabledReason) return;
-    const branch = creatingCommitBranch
-      ? newCommitBranch.trim()
-      : gitInfo.currentBranch;
-    if (!branch) return;
-    const destination = gitInfo.upstream ?? `origin/${branch}`;
-    if (
-      !(await onConfirm(t.commitAndPushConfirm(gitInfo.ahead + 1, destination)))
-    ) {
-      return;
-    }
-    setGitBusy("commit-push");
-    setGitError(undefined);
-    try {
-      const committed = await window.artemis.commitProjectChanges(
-        project.id,
-        commitMessage,
-        includeUnstaged,
-        threadId,
-      );
-      applyGitMutation(committed.gitInfo);
-      const pushed = await window.artemis.pushProjectBranch(
-        project.id,
-        threadId,
-      );
-      applyGitMutation(pushed.gitInfo);
-      closeCommitDialog();
-      onMessage(t.pushCompleted(pushed.upstream));
-      void loadPullRequest();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await loadGit();
-      setGitError(message);
-      onMessage(message, true);
-    } finally {
-      setGitBusy(undefined);
-    }
-  };
-
-  const switchBranch = async (branch: string) => {
-    if (actionsDisabled || gitBusy) return;
-    if (branch === gitInfo?.currentBranch) {
-      closeBranchMenu();
-      return;
-    }
-    setGitBusy("branch");
-    setGitError(undefined);
-    try {
-      applyGitMutation(
-        await window.artemis.switchProjectBranch(project.id, branch, threadId),
-      );
-      closeBranchMenu();
-      setCreatingCommitBranch(false);
-      await loadPullRequest();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setGitError(message);
-      if (
-        /would be overwritten|local changes|uncommitted changes/iu.test(message)
-      ) {
-        setPendingSwitchBranch(branch);
-        closeBranchMenu();
-        setCommitOpen(true);
-      }
-      onMessage(message, true);
-    } finally {
-      setGitBusy(undefined);
-    }
-  };
-
-  const createBranchFromMenu = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (actionsDisabled || gitBusy || !menuBranchName.trim()) return;
-    setGitBusy("branch");
-    setGitError(undefined);
-    try {
-      applyGitMutation(
-        await window.artemis.createProjectBranch(
-          project.id,
-          menuBranchName.trim(),
-          threadId,
-        ),
-      );
-      closeBranchMenu();
-      await loadPullRequest();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setGitError(message);
-      onMessage(message, true);
-    } finally {
-      setGitBusy(undefined);
-    }
-  };
+  const {
+    viewAllSources,
+    closeCommitDialog,
+    commit,
+    push,
+    commitAndPush,
+    switchBranch,
+    createBranchFromMenu,
+  } = useEnvironmentGitActions({
+    hidePanel,
+    onViewAllSources,
+    setCommitOpen,
+    setPendingSwitchBranch,
+    setCreatingCommitBranch,
+    taskTitle,
+    setNewCommitBranch,
+    setCommitMessage,
+    gitRequest,
+    pullRequestRequest,
+    setPullRequestLookup,
+    setPullRequestLoading,
+    setChecksOpen,
+    setGitInfo,
+    gitInfo,
+    creatingCommitBranch,
+    newCommitBranch,
+    project,
+    threadId,
+    gitBusy,
+    commitDisabledReason,
+    setGitBusy,
+    setGitError,
+    commitMessage,
+    includeUnstaged,
+    pendingSwitchBranch,
+    t,
+    onMessage,
+    loadPullRequest,
+    loadGit,
+    pushDisabledReason,
+    onConfirm,
+    commitAndPushDisabledReason,
+    actionsDisabled,
+    closeBranchMenu,
+    menuBranchName,
+  });
 
   const renderAgentRow = (agent: ChildAgentState) => (
     <button
@@ -2586,3 +1415,32 @@ export function EnvironmentPanel({
     </EnvironmentControl>
   );
 }
+
+export {
+  suggestedEnvironmentBranchName,
+  type EnvironmentBranchMenuLayout,
+  environmentBranchMenuLayout,
+  projectPullRequestCheckSummary,
+  type ProjectPullRequestCheckSummary,
+  projectPullRequestCoverageWarning,
+  environmentGitAction,
+  environmentBranchMenuBranches,
+  type ProjectPullRequestCoverageWarning,
+  type GitEnvironmentAction,
+  environmentBranchDisplayName,
+} from "./environment/environment-values.js";
+
+export {
+  type AgentEnvironmentCounts,
+  environmentAgentCounts,
+  environmentDisplayAgents,
+  environmentTopLevelAgents,
+  useEnvironmentActivityAgents,
+} from "./environment/agent-activity.js";
+
+export { type McpGroup, groupMcpUsage } from "./environment/mcp-usage.js";
+
+export {
+  PullRequestChecksSummary,
+  PullRequestChecksPopover,
+} from "./environment/pull-request-checks.js";

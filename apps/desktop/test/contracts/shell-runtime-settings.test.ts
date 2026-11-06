@@ -1,4 +1,5 @@
-import { readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readSettingsPanelSources } from "../fixtures/application/settings-source.js";
+import { readPreloadBridgeSources } from "../fixtures/application/api-source.js";
 import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 
@@ -6,10 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const mainSource = readMainProcessSources();
 const preloadSource = readPreloadBridgeSources();
-const settingsSource = readFileSync(
-  new URL("../../src/renderer/app/SettingsPanel.tsx", import.meta.url),
-  "utf8",
-);
+const settingsSource = readSettingsPanelSources();
 
 describe("shell runtime settings", () => {
   it("validates and applies shell changes through the existing runtime reset boundary", () => {

@@ -1,3 +1,4 @@
+import { readSettingsPanelSources } from "../../fixtures/application/settings-source.js";
 import { readAgentRuntimeSources } from "../../fixtures/application/agent-runtime-source.js";
 import {
   readSharedApiSources,
@@ -16,7 +17,7 @@ describe("agent capacity settings surface", () => {
     const [apiSource, preloadSource, settingsSource] = await Promise.all([
       readSharedApiSources(),
       readPreloadBridgeSources(),
-      readFile(join(desktopRoot, "src/renderer/app/SettingsPanel.tsx"), "utf8"),
+      readSettingsPanelSources(),
     ]);
     expect(apiSource).toContain("setAgentConcurrency(");
     expect(apiSource).toContain("settingsAgentConcurrencySet");

@@ -14,7 +14,7 @@ export function readRendererAppSources(): string {
   const visit = (file: string, text: string) => {
     for (const match of text.matchAll(/from ["'](\.\.?\/[^"']+)["']/g)) {
       if (
-        !/\/(?:AppNavigation|AppWorkspaceDock|app-types|app-copy|app-icons|thread-presentation|transient-notice|feature-panels|agent-team-panel|child-agent-panel|tool-activity-group-card|turn-change-set-card|timeline|context-compaction-status|use-[^/]+)\.js$/.test(
+        !/\/(?:AppNavigation|AppWorkspaceDock|controller-values|app-types|app-copy|app-icons|thread-presentation|transient-notice|feature-panels|agent-team-panel|child-agent-panel|tool-activity-group-card|turn-change-set-card|timeline|context-compaction-status|use-[^/]+)\.js$/.test(
           match[1]!,
         )
       )
@@ -49,4 +49,15 @@ export function readRendererAppSources(): string {
       .sort(([a], [b]) => rank(a) - rank(b))
       .map(([, body]) => body),
   ].join("\n");
+}
+
+export function readRendererController(name: string): string {
+  return readFileSync(
+    resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../../src/renderer/app/controllers",
+      `${name}.ts`,
+    ),
+    "utf8",
+  );
 }

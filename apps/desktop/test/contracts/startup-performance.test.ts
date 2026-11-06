@@ -1,4 +1,8 @@
-import { readPreloadBridgeSources, readSharedApiSources } from '../fixtures/application/api-source.js';
+import { readSettingsPanelSources } from "../fixtures/application/settings-source.js";
+import {
+  readPreloadBridgeSources,
+  readSharedApiSources,
+} from "../fixtures/application/api-source.js";
 import { readResourceCenterSources } from "../fixtures/application/resource-center-source.js";
 import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../fixtures/application/main-source.js";
@@ -20,7 +24,7 @@ const smokeSource = [
   .join("\n");
 const preloadSource = readPreloadBridgeSources();
 const resourceCenterSource = readResourceCenterSources();
-const settingsPanelSource = source("../../src/renderer/app/SettingsPanel.tsx");
+const settingsPanelSource = readSettingsPanelSources();
 const appSource = readRendererAppSources();
 const apiSource = readSharedApiSources();
 const ciWorkflowSource = source("../../../../.github/workflows/ci.yml");

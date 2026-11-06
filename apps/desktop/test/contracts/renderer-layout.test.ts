@@ -1,3 +1,4 @@
+import { readSettingsPanelSources } from "../fixtures/application/settings-source.js";
 import {
   readSharedApiSources,
   readPreloadBridgeSources,
@@ -5,7 +6,10 @@ import {
 import { readResourceCenterSources } from "../fixtures/application/resource-center-source.js";
 import { readAgentRuntimeSources } from "../fixtures/application/agent-runtime-source.js";
 import { readDesktopStyles } from "../fixtures/application/styles-source.js";
-import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import {
+  readRendererAppSources,
+  readRendererController,
+} from "../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
@@ -78,12 +82,7 @@ const publicUiProfessionalSource = readFileSync(
   ),
   "utf8",
 );
-const settingsSource = readFileSync(
-  fileURLToPath(
-    new URL("../../src/renderer/app/SettingsPanel.tsx", import.meta.url),
-  ),
-  "utf8",
-);
+const settingsSource = readSettingsPanelSources();
 const providerWorkspaceSource = readFileSync(
   fileURLToPath(
     new URL(
@@ -2003,33 +2002,21 @@ describe("renderer layout contract", () => {
   });
 
   it("opens HTML from explicit file links without auto-opening file changes", () => {
-    const htmlChangeStart = appSource.indexOf("const latestHtmlChange =");
-    const htmlChangeEnd = appSource.indexOf(
-      "const openHtmlFromFiles =",
-      htmlChangeStart,
+    const conversationState = readRendererController("use-conversation-state");
+    const workspaceTabs = readRendererController(
+      "use-workspace-tabs-controller",
     );
-    const conversationLinkStart = appSource.indexOf(
-      "const openResolvedWorkspaceFile =",
-    );
-    const conversationLinkEnd = appSource.indexOf(
-      "const openConversationFileLinkMenu =",
-      conversationLinkStart,
-    );
+    const conversationLinks = readRendererController("use-conversation-links");
 
-    expect(htmlChangeStart).toBeGreaterThan(-1);
-    expect(htmlChangeEnd).toBeGreaterThan(htmlChangeStart);
-    expect(appSource.slice(htmlChangeStart, htmlChangeEnd)).not.toContain(
-      'openWorkspaceTab("browser"',
-    );
+    expect(conversationState).toContain("const latestHtmlChange =");
+    expect(conversationState).not.toContain('openWorkspaceTab("browser"');
     expect(appSource).not.toContain("autoOpenedHtmlChanges");
-    expect(conversationLinkStart).toBeGreaterThan(-1);
-    expect(conversationLinkEnd).toBeGreaterThan(conversationLinkStart);
-    expect(
-      appSource.slice(conversationLinkStart, conversationLinkEnd),
-    ).toContain("inspectWorkspaceFileLink(");
-    expect(
-      appSource.slice(conversationLinkStart, conversationLinkEnd),
-    ).toContain("openWorkspaceTab(file.viewer, { path: file.path });");
+    expect(workspaceTabs).toContain("const openResolvedWorkspaceFile =");
+    expect(workspaceTabs).toContain(
+      "openWorkspaceTab(file.viewer, { path: file.path });",
+    );
+    expect(conversationLinks).toContain("inspectWorkspaceFileLink(");
+    expect(conversationLinks).toContain("openResolvedWorkspaceFile(file)");
     expect(workspacePreviewSource).toContain("<PreviewCanvas");
     expect(workspacePreviewSource).not.toContain("<webview");
     expect(workspacePreviewSource).toContain("<BrowserSurface");
@@ -2615,11 +2602,11 @@ describe("renderer layout contract", () => {
       "window.artemis.installLocalSkill(operationId)",
     );
     expect(resourceCenterSource).toContain("if (!installed) return;");
-    expect(resourceCenterSource).toContain(
-      "installedSkillsCache = await window.artemis.listInstalledSkills()",
+    expect(resourceCenterSource).toMatch(
+      /resourceCache\.installedSkillsCache =\s*await window\.artemis\.listInstalledSkills\(\)/u,
     );
     expect(resourceCenterSource).toContain(
-      "setInstalledSkills(installedSkillsCache)",
+      "setInstalledSkills(resourceCache.installedSkillsCache)",
     );
   });
 

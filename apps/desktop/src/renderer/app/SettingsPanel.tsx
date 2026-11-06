@@ -1,3 +1,17 @@
+import {
+  type SettingsTab,
+  type ProviderThinkingLevel,
+  modelKey,
+  parseModelKey,
+  normalizedModelLabel,
+} from "../settings/settings-values.js";
+import { useSettingsState } from "../settings/controllers/use-settings-state.js";
+import { useSettingsSubscriptions } from "../settings/controllers/use-settings-subscriptions.js";
+import { useModelForm } from "../settings/controllers/use-model-form.js";
+import { useModelActions } from "../settings/controllers/use-model-actions.js";
+import { useGeneralSettingsActions } from "../settings/controllers/use-general-settings-actions.js";
+import { useProviderActions } from "../settings/controllers/use-provider-actions.js";
+import { useConfigurationImportActions } from "../settings/controllers/use-configuration-import-actions.js";
 import { ThinkingLevelControl } from "../settings/ThinkingLevelControl.js";
 import {
   selectionForModelSwitch,
@@ -6,7 +20,7 @@ import {
 } from "../settings/model-selection.js";
 import { ProviderWorkspace } from "../settings/ProviderWorkspace.js";
 import "../settings/provider-settings.css";
-import { modelAdvancedOptionsSchema } from "@artemis/protocol";
+
 import { AppearanceSettingsSection } from "../appearance/AppearanceSettingsSection.js";
 import { ComputerUseControls } from "../computer-use/ComputerUseControls.js";
 import { HooksSettingsSection } from "../hooks/HooksSettingsSection.js";
@@ -19,11 +33,6 @@ import { AddedModelEditor } from "../settings/AddedModelEditor.js";
 import {
   lazy,
   Suspense,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
   type FormEvent,
   type RefObject,
   type ReactNode,
@@ -69,7 +78,6 @@ import type { MaterialPreference } from "../../shared/window-material.js";
 import type {
   AddedModelConfiguration,
   ConfigurationImportCategory,
-  ConfigurationImportPreview,
   ConfigurationImportSource,
   SettingsSnapshot,
 } from "../../shared/api.js";
@@ -77,7 +85,6 @@ import {
   LOCALE_METADATA,
   SUPPORTED_LOCALES,
 } from "../../shared/i18n/locales.js";
-import { prepareProfileAvatar } from "./profile-avatar.js";
 
 interface SettingsPanelProps {
   username?: string;
@@ -95,86 +102,16 @@ interface SettingsPanelProps {
   ): void;
 }
 
-const labels = UI_COPY.SettingsPanel_labels;
 const ImSettingsPanel = lazy(() =>
   import("../im/ImSettingsPanel.js").then((module) => ({
     default: module.ImSettingsPanel,
   })),
 );
 
-const DEFAULT_PROVIDER_CONTEXT_WINDOW = 1_000_000;
-const DEFAULT_PROVIDER_MAX_TOKENS = 128_000;
-const providerIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
 const providerTokenFormat = new Intl.NumberFormat("en", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
-type ProviderThinkingLevel = NonNullable<
-  ProviderConnection["models"][number]["highestThinkingLevel"]
->;
-
-type SettingsTab =
-  | "general"
-  | "providers"
-  | "agents"
-  | "im"
-  | "capabilities"
-  | "maintenance"
-  | "hooks";
-
-function modelKey(providerId: string, modelId: string): string {
-  return `${encodeURIComponent(providerId)}:${encodeURIComponent(modelId)}`;
-}
-
-function normalizedModelLabel(label: string): string {
-  return label
-    .normalize("NFKC")
-    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, "")
-    .replace(/\p{White_Space}+/gu, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function parseModelKey(value: string): [string, string] {
-  const separator = value.indexOf(":");
-  return [
-    decodeURIComponent(value.slice(0, separator)),
-    decodeURIComponent(value.slice(separator + 1)),
-  ];
-}
-
-function modelFormState(settings: SettingsSnapshot | undefined): {
-  contextWindow: string;
-  selectedModel: string;
-} {
-  if (!settings) return { contextWindow: "", selectedModel: "" };
-  const selected =
-    (settings.selection
-      ? settings.models.find(
-          (model) =>
-            model.providerId === settings.selection?.providerId &&
-            model.modelId === settings.selection.modelId,
-        )
-      : undefined) ?? settings.models[0];
-  const saved = settings.addedModels.find(
-    (model) =>
-      model.providerId === selected?.providerId &&
-      model.modelId === selected.modelId,
-  );
-  return {
-    contextWindow: String(
-      Math.min(
-        saved?.contextWindow ??
-          selected?.contextWindow ??
-          settings.contextWindow,
-        selected?.contextWindow ?? settings.contextWindow,
-      ),
-    ),
-    selectedModel: selected
-      ? modelKey(selected.providerId, selected.modelId)
-      : "",
-  };
-}
 
 function SettingsRow({
   label,
@@ -211,657 +148,356 @@ export function SettingsPanel({
   onSettingsChange,
   returnFocusRef,
 }: SettingsPanelProps) {
-  const t = labels[locale];
-  const initialFocus = useRef<HTMLDivElement>(null);
-  const pointerOpening = useRef(
-    !returnFocusRef?.current?.matches(":focus-visible"),
-  );
-  const [importOpen, setImportOpen] = useState(false);
-  const [narrowNavigation, setNarrowNavigation] = useState(
-    () => window.matchMedia?.("(max-width: 720px)").matches ?? false,
-  );
-  useEffect(() => {
-    const media = window.matchMedia?.("(max-width: 720px)");
-    if (!media) return;
-    const update = () => setNarrowNavigation(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-  const [settingsSearch, setSettingsSearch] = useState("");
-  const [addModelProviderId, setAddModelProviderId] = useState<string>();
-  const [addModelMenuOpen, setAddModelMenuOpen] = useState(false);
-  const addModelMenuId = useId();
-  const addModelMenuAnchor = useRef<HTMLButtonElement>(null);
-  const [selectedProviderId, setSelectedProviderId] = useState(
-    () =>
-      initialSettings?.selection?.providerId ??
-      initialSettings?.models[0]?.providerId ??
-      "",
-  );
-  const [showProviderForm, setShowProviderForm] = useState(false);
-  const [settings, setSettings] = useState(initialSettings);
-  const [selectedModel, setSelectedModel] = useState(
-    () => modelFormState(initialSettings).selectedModel,
-  );
-  const [contextWindow, setContextWindow] = useState(
-    () => modelFormState(initialSettings).contextWindow,
-  );
-  const [editingProviderId, setEditingProviderId] = useState<string>();
-  const [editingProviderModelId, setEditingProviderModelId] =
-    useState<string>();
-  const [providerId, setProviderId] = useState("");
-  const [providerName, setProviderName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [providerApi, setProviderApi] =
-    useState<NonNullable<ProviderConnection["api"]>>("openai-completions");
-  const [providerModelId, setProviderModelId] = useState("");
-  const [providerModelName, setProviderModelName] = useState("");
-  const [providerContextWindow, setProviderContextWindow] = useState(
-    String(DEFAULT_PROVIDER_CONTEXT_WINDOW),
-  );
-  const [providerMaxTokens, setProviderMaxTokens] = useState(
-    String(DEFAULT_PROVIDER_MAX_TOKENS),
-  );
-  const [providerReasoning, setProviderReasoning] = useState(false);
-  const [providerHighestThinkingLevel, setProviderHighestThinkingLevel] =
-    useState<ProviderThinkingLevel>("high");
-  const [providerImages, setProviderImages] = useState(false);
-  const [providerAdvanced, setProviderAdvanced] = useState("{}");
-  const providerAdvancedDisclosure = useRef<HTMLDetailsElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [modelApplyResult, setModelApplyResult] = useState<{
-    kind: "success" | "failure";
-    title?: string;
-    detail: string;
-  }>();
-  const [modelDeleteTarget, setModelDeleteTarget] =
-    useState<AddedModelConfiguration>();
-  const [editingModelKey, setEditingModelKey] = useState<string>();
-  const [savedModelKey, setSavedModelKey] = useState<string>();
-  const [providerDeleteTarget, setProviderDeleteTarget] =
-    useState<ProviderConnection>();
-  const [globalAgentsContent, setGlobalAgentsContent] = useState(
-    initialSettings?.globalAgents.content ?? "",
-  );
-  const [agentConcurrencyLimit, setAgentConcurrencyLimit] = useState(
-    initialSettings
-      ? String(
-          initialSettings.agentConcurrency.preference.mode === "manual"
-            ? initialSettings.agentConcurrency.preference.limit
-            : initialSettings.agentConcurrency.configuredLimit,
-        )
-      : "",
-  );
-  const [importPreview, setImportPreview] =
-    useState<ConfigurationImportPreview>();
-  const [importSources, setImportSources] = useState<
-    ConfigurationImportSource[]
-  >([]);
-  const [importCategories, setImportCategories] = useState<
-    ConfigurationImportCategory[]
-  >(["instructions", "skills", "mcp"]);
-  const operationPendingRef = useRef(false);
-  const profileAvatarInputRef = useRef<HTMLInputElement>(null);
-  const modelEditTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const useSettingsStateRuntime = useSettingsState({
+    locale,
+    returnFocusRef,
+    initialTab,
+    initialSettings,
+  });
+  const {
+    t,
+    initialFocus,
+    pointerOpening,
+    importOpen,
+    setImportOpen,
+    narrowNavigation,
+    activeTab,
+    setActiveTab,
+    settingsSearch,
+    setSettingsSearch,
+    addModelProviderId,
+    setAddModelProviderId,
+    addModelMenuOpen,
+    setAddModelMenuOpen,
+    addModelMenuId,
+    addModelMenuAnchor,
+    selectedProviderId,
+    setSelectedProviderId,
+    showProviderForm,
+    setShowProviderForm,
+    settings,
+    setSettings,
+    selectedModel,
+    setSelectedModel,
+    contextWindow,
+    setContextWindow,
+    editingProviderId,
+    setEditingProviderId,
+    editingProviderModelId,
+    setEditingProviderModelId,
+    providerId,
+    setProviderId,
+    providerName,
+    setProviderName,
+    baseUrl,
+    setBaseUrl,
+    providerApi,
+    setProviderApi,
+    providerModelId,
+    setProviderModelId,
+    providerModelName,
+    setProviderModelName,
+    providerContextWindow,
+    setProviderContextWindow,
+    providerMaxTokens,
+    setProviderMaxTokens,
+    providerReasoning,
+    setProviderReasoning,
+    providerHighestThinkingLevel,
+    setProviderHighestThinkingLevel,
+    providerImages,
+    setProviderImages,
+    providerAdvanced,
+    setProviderAdvanced,
+    providerAdvancedDisclosure,
+    busy,
+    setBusy,
+    message,
+    setMessage,
+    modelApplyResult,
+    setModelApplyResult,
+    modelDeleteTarget,
+    setModelDeleteTarget,
+    editingModelKey,
+    setEditingModelKey,
+    savedModelKey,
+    setSavedModelKey,
+    providerDeleteTarget,
+    setProviderDeleteTarget,
+    globalAgentsContent,
+    setGlobalAgentsContent,
+    agentConcurrencyLimit,
+    setAgentConcurrencyLimit,
+    importPreview,
+    setImportPreview,
+    importSources,
+    setImportSources,
+    importCategories,
+    setImportCategories,
+    operationPendingRef,
+    profileAvatarInputRef,
+    modelEditTriggerRef,
+  } = useSettingsStateRuntime;
 
-  useEffect(() => {
-    if (!editingModelKey) modelEditTriggerRef.current?.focus();
-  }, [editingModelKey]);
+  const useSettingsSubscriptionsRuntime = useSettingsSubscriptions({
+    modelEditTriggerRef,
+    editingModelKey,
+    setMessage,
+    setSettings,
+    setSelectedProviderId,
+    setGlobalAgentsContent,
+    setAgentConcurrencyLimit,
+    setSelectedModel,
+    setContextWindow,
+  });
 
-  useEffect(() => {
-    let mounted = true;
-    void window.artemis
-      .getSettings()
-      .then((snapshot) => {
-        if (!mounted) return;
-        setSettings(snapshot);
-        setSelectedProviderId(
-          (current) =>
-            current ||
-            snapshot.selection?.providerId ||
-            snapshot.models[0]?.providerId ||
-            snapshot.providers[0]?.id ||
-            "",
-        );
-        setGlobalAgentsContent(snapshot.globalAgents.content);
-        setAgentConcurrencyLimit(
-          String(
-            snapshot.agentConcurrency.preference.mode === "manual"
-              ? snapshot.agentConcurrency.preference.limit
-              : snapshot.agentConcurrency.configuredLimit,
-          ),
-        );
-        const modelState = modelFormState(snapshot);
-        setSelectedModel(modelState.selectedModel);
-        setContextWindow(modelState.contextWindow);
-      })
-      .catch(
-        (error) =>
-          mounted &&
-          setMessage(error instanceof Error ? error.message : String(error)),
-      );
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const useModelFormRuntime = useModelForm({
+    settings,
+    selectedModel,
+    contextWindow,
+    providerContextWindow,
+    providerId,
+    providerMaxTokens,
+    baseUrl,
+    providerModelId,
+    agentConcurrencyLimit,
+  });
+  const {
+    models,
+    selectedModelInfo,
+    modelOptions,
+    selectedAddedModel,
+    selectedModelCanBeAdded,
+    parsedContextWindow,
+    contextWindowValid,
+    parsedProviderContextWindow,
+    trimmedProviderId,
+    parsedProviderMaxTokens,
+    providerFormValid,
+    parsedAgentConcurrencyLimit,
+    agentConcurrencyLimitValid,
+  } = useModelFormRuntime;
 
-  useEffect(
-    () =>
-      window.artemis.onUpdateStatus((update) => {
-        setSettings((current) => (current ? { ...current, update } : current));
-      }),
-    [],
-  );
-
-  const models = useMemo(
-    () =>
-      [...(settings?.models ?? [])].sort(
-        (left, right) =>
-          left.providerId.localeCompare(right.providerId) ||
-          left.name.localeCompare(right.name),
-      ),
-    [settings?.models],
-  );
-  const selectedModelInfo = useMemo(() => {
-    if (!selectedModel) return undefined;
-    const [providerId, modelId] = parseModelKey(selectedModel);
-    return models.find(
-      (model) => model.providerId === providerId && model.modelId === modelId,
-    );
-  }, [models, selectedModel]);
-  const modelOptions = useMemo(() => {
-    let labels = models.map((model) => model.name);
-    for (const includeId of [false, true]) {
-      const counts = new Map<string, number>();
-      for (const label of labels) {
-        const key = normalizedModelLabel(label);
-        counts.set(key, (counts.get(key) ?? 0) + 1);
-      }
-      labels = labels.map((label, index) => {
-        const key = normalizedModelLabel(label);
-        if (key && counts.get(key) === 1) return label;
-        const model = models[index]!;
-        return includeId
-          ? `${model.name} · ${model.providerId} · ${model.modelId}`
-          : `${model.name} · ${model.providerId}`;
-      });
-    }
-    const usedLabels = new Set<string>();
-    return models.map((model, index) => {
-      const base = labels[index]!;
-      let label = base;
-      let suffix = 2;
-      while (usedLabels.has(normalizedModelLabel(label))) {
-        label = `${base} (${suffix++})`;
-      }
-      usedLabels.add(normalizedModelLabel(label));
-      return {
-        value: modelKey(model.providerId, model.modelId),
-        label,
-        searchText: `${model.providerId} ${model.name} ${model.modelId}`,
-        title: `${model.name}
-${model.providerId} · ${model.modelId}`,
-      };
-    });
-  }, [models]);
-  const selectedModelUsesCustomProvider = Boolean(
-    selectedModelInfo &&
-    settings?.providers.some(
-      (provider) => provider.id === selectedModelInfo.providerId,
-    ),
-  );
-  const selectedAddedModel = settings?.addedModels.find(
-    (model) =>
-      model.providerId === selectedModelInfo?.providerId &&
-      model.modelId === selectedModelInfo.modelId,
-  );
-  const selectedModelCredential = settings?.credentials.find(
-    (credential) =>
-      credential.providerId === selectedModelInfo?.providerId &&
-      credential.type === "api_key",
-  );
-  const selectedModelCanBeAdded = Boolean(
-    selectedModelInfo &&
-    (selectedModelUsesCustomProvider ||
-      selectedModelInfo.configured ||
-      selectedModelCredential),
-  );
-  const parsedContextWindow = Number(contextWindow);
-  const contextWindowValid =
-    Number.isInteger(parsedContextWindow) &&
-    parsedContextWindow >= 1_024 &&
-    parsedContextWindow <=
-      (selectedModelInfo?.contextWindow ?? Number.POSITIVE_INFINITY);
-  const parsedProviderContextWindow = Number(providerContextWindow);
-  const trimmedProviderId = providerId.trim();
-  const providerIdValid =
-    trimmedProviderId.length <= 80 && providerIdPattern.test(trimmedProviderId);
-  const providerContextWindowValid =
-    Number.isInteger(parsedProviderContextWindow) &&
-    parsedProviderContextWindow >= 1_024 &&
-    parsedProviderContextWindow <= 10_000_000;
-  const parsedProviderMaxTokens = Number(providerMaxTokens);
-  const providerMaxTokensValid =
-    Number.isInteger(parsedProviderMaxTokens) &&
-    parsedProviderMaxTokens >= 1 &&
-    parsedProviderMaxTokens <= 1_000_000;
-  const providerFormValid =
-    providerIdValid &&
-    Boolean(baseUrl.trim()) &&
-    Boolean(providerModelId.trim()) &&
-    providerContextWindowValid &&
-    providerMaxTokensValid;
-  const parsedAgentConcurrencyLimit = Number(agentConcurrencyLimit);
-  const agentConcurrencyLimitValid =
-    Number.isInteger(parsedAgentConcurrencyLimit) &&
-    parsedAgentConcurrencyLimit >= 2 &&
-    parsedAgentConcurrencyLimit <= (settings?.agentConcurrency.hardLimit ?? 64);
-
-  function selectModel(value: string) {
-    const [providerId, modelId] = parseModelKey(value);
-    setSelectedModel(value);
-    const model = models.find(
-      (candidate) =>
-        candidate.providerId === providerId && candidate.modelId === modelId,
-    );
-    if (!model) return;
-    const saved = settings?.addedModels.find(
-      (candidate) =>
-        candidate.providerId === providerId && candidate.modelId === modelId,
-    );
-    setContextWindow(
-      String(
-        Math.min(
-          saved?.contextWindow ?? model.contextWindow,
-          model.contextWindow,
-        ),
-      ),
-    );
+  const useModelActionsRuntime = useModelActions({
+    setSelectedModel,
+    models,
+    settings,
+    setContextWindow,
+    operationPendingRef,
+    selectedModel,
+    contextWindowValid,
+    selectedModelCanBeAdded,
+    setBusy,
+    setModelApplyResult,
+    parsedContextWindow,
+    setSettings,
+    onSettingsChange,
+    t,
+    selectedAddedModel,
+    modelDeleteTarget,
+    setModelDeleteTarget,
+    get run() {
+      return run;
+    },
+    setSavedModelKey,
+    setEditingModelKey,
+  });
+  function selectModel(
+    value: string,
+  ): ReturnType<typeof useModelActionsRuntime.selectModel> {
+    return useModelActionsRuntime.selectModel(value);
   }
-
-  async function addModel() {
-    if (
-      operationPendingRef.current ||
-      !selectedModel ||
-      !contextWindowValid ||
-      !selectedModelCanBeAdded
-    )
-      return;
-    operationPendingRef.current = true;
-    const [selectedProvider, modelId] = parseModelKey(selectedModel);
-    setBusy(true);
-    setModelApplyResult(undefined);
-    try {
-      const updated = await window.artemis.addModel(
-        {
-          providerId: selectedProvider,
-          modelId,
-          contextWindow: parsedContextWindow,
-        },
-        undefined,
-      );
-      setSettings(updated);
-      onSettingsChange(updated);
-      setModelApplyResult({
-        kind: "success",
-        title: selectedAddedModel ? t.modelUpdated : t.modelSaved,
-        detail: selectedAddedModel ? t.modelUpdatedDetail : t.modelSavedDetail,
-      });
-    } catch (error) {
-      setModelApplyResult({
-        kind: "failure",
-        detail: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      operationPendingRef.current = false;
-      setBusy(false);
-    }
+  function addModel(): ReturnType<typeof useModelActionsRuntime.addModel> {
+    return useModelActionsRuntime.addModel();
   }
-
-  async function removeModel() {
-    if (!modelDeleteTarget) return;
-    await run(async () => {
-      const updated = await window.artemis.removeModel({
-        providerId: modelDeleteTarget.providerId,
-        modelId: modelDeleteTarget.modelId,
-      });
-      setSettings(updated);
-      onSettingsChange(updated, { refreshThreads: true });
-      setModelDeleteTarget(undefined);
-      const modelState = modelFormState(updated);
-      setSelectedModel(modelState.selectedModel);
-      setContextWindow(modelState.contextWindow);
-    });
+  function removeModel(): ReturnType<
+    typeof useModelActionsRuntime.removeModel
+  > {
+    return useModelActionsRuntime.removeModel();
   }
-
-  async function saveModelEdit(
+  function saveModelEdit(
     model: AddedModelConfiguration,
     apiKey?: string,
-  ) {
-    if (operationPendingRef.current) return;
-    operationPendingRef.current = true;
-    setBusy(true);
-    try {
-      const updated = await window.artemis.addModel(model, apiKey);
-      setSettings(updated);
-      onSettingsChange(updated);
-      const key = modelKey(model.providerId, model.modelId);
-      if (selectedModel === key) setContextWindow(String(model.contextWindow));
-      setSavedModelKey(key);
-      setEditingModelKey(undefined);
-    } finally {
-      operationPendingRef.current = false;
-      setBusy(false);
-    }
+  ): ReturnType<typeof useModelActionsRuntime.saveModelEdit> {
+    return useModelActionsRuntime.saveModelEdit(model, apiKey);
   }
 
-  async function setLanguage(language: AppLanguage) {
-    await run(async () => {
-      const updated = await window.artemis.setLanguage(language);
-      setSettings(updated);
-      onSettingsChange(updated);
-    });
+  const useGeneralSettingsActionsRuntime = useGeneralSettingsActions({
+    setSettings,
+    onSettingsChange,
+    get run() {
+      return run;
+    },
+    locale,
+    settings,
+    parsedAgentConcurrencyLimit,
+    agentConcurrencyLimitValid,
+    setAgentConcurrencyLimit,
+  });
+  function setLanguage(
+    language: AppLanguage,
+  ): ReturnType<typeof useGeneralSettingsActionsRuntime.setLanguage> {
+    return useGeneralSettingsActionsRuntime.setLanguage(language);
   }
-
-  async function setMaterial(material: MaterialPreference) {
-    await run(async () => {
-      const updated = await window.artemis.setMaterial(material);
-      setSettings(updated);
-      onSettingsChange(updated);
-    });
+  function setMaterial(
+    material: MaterialPreference,
+  ): ReturnType<typeof useGeneralSettingsActionsRuntime.setMaterial> {
+    return useGeneralSettingsActionsRuntime.setMaterial(material);
   }
-
-  async function setTheme(theme: AppTheme) {
-    await run(async () => {
-      const updated = await window.artemis.setTheme(theme);
-      setSettings(updated);
-      onSettingsChange(updated);
-    });
+  function setTheme(
+    theme: AppTheme,
+  ): ReturnType<typeof useGeneralSettingsActionsRuntime.setTheme> {
+    return useGeneralSettingsActionsRuntime.setTheme(theme);
   }
-
-  async function setProfileAvatar(file: File | undefined) {
-    await run(async () => {
-      const avatar = file
-        ? await prepareProfileAvatar(file, locale)
-        : undefined;
-      const updated = await window.artemis.setProfileAvatar(avatar);
-      setSettings(updated);
-      onSettingsChange(updated);
-    });
+  function setProfileAvatar(
+    file: File | undefined,
+  ): ReturnType<typeof useGeneralSettingsActionsRuntime.setProfileAvatar> {
+    return useGeneralSettingsActionsRuntime.setProfileAvatar(file);
   }
-
-  async function setShellRuntimeConfiguration(
+  function setShellRuntimeConfiguration(
     change:
       | { windowsPreference: WindowsShellPreference }
       | { profileMode: ShellProfileMode },
-  ) {
-    if (!settings) return;
-    await run(async () => {
-      const updated = await window.artemis.setShellRuntimeConfiguration({
-        ...settings.shell,
-        ...change,
-      });
-      setSettings(updated);
-      onSettingsChange(updated);
-    });
-  }
-
-  async function setAgentConcurrencyMode(mode: "auto" | "manual") {
-    if (!settings) return;
-    await run(async () => {
-      const manualLimit = agentConcurrencyLimitValid
-        ? parsedAgentConcurrencyLimit
-        : settings.agentConcurrency.configuredLimit;
-      const updated = await window.artemis.setAgentConcurrency(
-        mode === "auto"
-          ? { mode: "auto" }
-          : { mode: "manual", limit: manualLimit },
-      );
-      setSettings(updated);
-      setAgentConcurrencyLimit(
-        String(
-          updated.agentConcurrency.preference.mode === "manual"
-            ? updated.agentConcurrency.preference.limit
-            : updated.agentConcurrency.configuredLimit,
-        ),
-      );
-      onSettingsChange(updated);
-    });
-  }
-
-  async function applyAgentConcurrencyLimit() {
-    if (!agentConcurrencyLimitValid) return;
-    await run(async () => {
-      const updated = await window.artemis.setAgentConcurrency({
-        mode: "manual",
-        limit: parsedAgentConcurrencyLimit,
-      });
-      setSettings(updated);
-      onSettingsChange(updated);
-    });
-  }
-
-  async function saveProviderConnection(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const existingProvider = settings?.providers.find(
-      (provider) => provider.id === editingProviderId,
+  ): ReturnType<
+    typeof useGeneralSettingsActionsRuntime.setShellRuntimeConfiguration
+  > {
+    return useGeneralSettingsActionsRuntime.setShellRuntimeConfiguration(
+      change,
     );
-    let advanced;
-    try {
-      advanced = modelAdvancedOptionsSchema.parse(JSON.parse(providerAdvanced));
-    } catch (error) {
-      if (providerAdvancedDisclosure.current) {
-        providerAdvancedDisclosure.current.open = true;
-        providerAdvancedDisclosure.current.querySelector("textarea")?.focus();
-      }
-      await run(async () => {
-        throw error;
-      });
-      return;
-    }
-    const editedModel: ProviderConnection["models"][number] = {
-      ...advanced,
-      id: providerModelId.trim(),
-      name: providerModelName.trim() || providerModelId.trim(),
-      reasoning: providerReasoning,
-      ...(providerReasoning
-        ? { highestThinkingLevel: providerHighestThinkingLevel }
-        : {}),
-      input: providerImages ? ["text", "image"] : ["text"],
-      contextWindow: parsedProviderContextWindow,
-      maxTokens: parsedProviderMaxTokens,
-    };
-    const provider: ProviderConnection = {
-      ...existingProvider,
-      id: trimmedProviderId,
-      name: providerName.trim() || trimmedProviderId,
-      baseUrl: baseUrl.trim(),
-      api: providerApi,
-      models: existingProvider
-        ? editingProviderModelId
-          ? existingProvider.models.map((model) =>
-              model.id === editingProviderModelId ? editedModel : model,
-            )
-          : [...existingProvider.models, editedModel]
-        : [editedModel],
-    };
-    await run(async () => {
-      const updated = await window.artemis.saveProviderConnection(
-        provider,
-        undefined,
-      );
-      setSettings(updated);
-      onSettingsChange(updated);
-      const savedModel = updated.models.find(
-        (model) =>
-          model.providerId === provider.id && model.modelId === editedModel.id,
-      );
-      if (savedModel) {
-        setSelectedModel(modelKey(savedModel.providerId, savedModel.modelId));
-        setContextWindow(String(savedModel.contextWindow));
-      } else if (updated.models[0]) {
-        setSelectedModel(
-          modelKey(updated.models[0].providerId, updated.models[0].modelId),
-        );
-        setContextWindow(String(updated.models[0].contextWindow));
-      }
-      resetProviderForm();
-      setSelectedProviderId(provider.id);
-    });
+  }
+  function setAgentConcurrencyMode(
+    mode: "auto" | "manual",
+  ): ReturnType<
+    typeof useGeneralSettingsActionsRuntime.setAgentConcurrencyMode
+  > {
+    return useGeneralSettingsActionsRuntime.setAgentConcurrencyMode(mode);
+  }
+  function applyAgentConcurrencyLimit(): ReturnType<
+    typeof useGeneralSettingsActionsRuntime.applyAgentConcurrencyLimit
+  > {
+    return useGeneralSettingsActionsRuntime.applyAgentConcurrencyLimit();
   }
 
-  function resetProviderForm() {
-    setShowProviderForm(false);
-    setEditingProviderId(undefined);
-    setEditingProviderModelId(undefined);
-    setProviderAdvanced("{}");
-    setProviderId("");
-    setProviderName("");
-    setBaseUrl("");
-    setProviderApi("openai-completions");
-    setProviderModelId("");
-    setProviderModelName("");
-    setProviderContextWindow(String(DEFAULT_PROVIDER_CONTEXT_WINDOW));
-    setProviderMaxTokens(String(DEFAULT_PROVIDER_MAX_TOKENS));
-    setProviderReasoning(false);
-    setProviderHighestThinkingLevel("high");
-    setProviderImages(false);
+  const useProviderActionsRuntime = useProviderActions({
+    editingProviderId,
+    settings,
+    providerAdvanced,
+    providerAdvancedDisclosure,
+    get run() {
+      return run;
+    },
+    providerModelId,
+    providerModelName,
+    providerReasoning,
+    providerHighestThinkingLevel,
+    providerImages,
+    parsedProviderContextWindow,
+    parsedProviderMaxTokens,
+    trimmedProviderId,
+    providerName,
+    baseUrl,
+    providerApi,
+    editingProviderModelId,
+    setSettings,
+    onSettingsChange,
+    setSelectedModel,
+    setContextWindow,
+    setSelectedProviderId,
+    setShowProviderForm,
+    setEditingProviderId,
+    setEditingProviderModelId,
+    setProviderAdvanced,
+    setProviderId,
+    setProviderName,
+    setBaseUrl,
+    setProviderApi,
+    setProviderModelId,
+    setProviderModelName,
+    setProviderContextWindow,
+    setProviderMaxTokens,
+    setProviderReasoning,
+    setProviderHighestThinkingLevel,
+    setProviderImages,
+    setProviderDeleteTarget,
+  });
+  function saveProviderConnection(
+    event: FormEvent<HTMLFormElement>,
+  ): ReturnType<typeof useProviderActionsRuntime.saveProviderConnection> {
+    return useProviderActionsRuntime.saveProviderConnection(event);
   }
-
+  function resetProviderForm(): ReturnType<
+    typeof useProviderActionsRuntime.resetProviderForm
+  > {
+    return useProviderActionsRuntime.resetProviderForm();
+  }
   function editProviderConnection(
     provider: ProviderConnection,
     modelId?: string,
-  ) {
-    const model =
-      provider.models.find((candidate) => candidate.id === modelId) ??
-      provider.models[0];
-    setShowProviderForm(true);
-    setEditingProviderId(provider.id);
-    setEditingProviderModelId(model?.id);
-    setProviderId(provider.id);
-    setProviderName(provider.name);
-    setBaseUrl(provider.baseUrl);
-    setProviderApi(provider.api ?? "openai-completions");
-    setProviderModelId(model?.id ?? "");
-    setProviderModelName(model?.name ?? "");
-    setProviderContextWindow(
-      String(model?.contextWindow ?? DEFAULT_PROVIDER_CONTEXT_WINDOW),
-    );
-    setProviderMaxTokens(
-      String(model?.maxTokens ?? DEFAULT_PROVIDER_MAX_TOKENS),
-    );
-    setProviderReasoning(model?.reasoning ?? false);
-    setProviderHighestThinkingLevel(model?.highestThinkingLevel ?? "high");
-    setProviderAdvanced(
-      JSON.stringify(
-        Object.fromEntries(
-          Object.entries(model ?? {}).filter(
-            ([key]) => key in modelAdvancedOptionsSchema.shape,
-          ),
-        ),
-        null,
-        2,
-      ),
-    );
-    setProviderImages(model?.input.includes("image") ?? false);
+  ): ReturnType<typeof useProviderActionsRuntime.editProviderConnection> {
+    return useProviderActionsRuntime.editProviderConnection(provider, modelId);
+  }
+  function deleteProviderConnection(
+    provider: ProviderConnection,
+  ): ReturnType<typeof useProviderActionsRuntime.deleteProviderConnection> {
+    return useProviderActionsRuntime.deleteProviderConnection(provider);
   }
 
-  async function deleteProviderConnection(provider: ProviderConnection) {
-    await run(async () => {
-      const updated = await window.artemis.deleteProviderConnection(
-        provider.id,
-      );
-      setSettings(updated);
-      onSettingsChange(updated);
-      setProviderDeleteTarget(undefined);
-      if (editingProviderId === provider.id) {
-        resetProviderForm();
-      }
-      const modelState = modelFormState(updated);
-      setSelectedModel(modelState.selectedModel);
-      setContextWindow(modelState.contextWindow);
-    });
+  const useConfigurationImportActionsRuntime = useConfigurationImportActions({
+    globalAgentsContent,
+    setSettings,
+    setGlobalAgentsContent,
+    onSettingsChange,
+    setImportPreview,
+    setImportSources,
+    importSources,
+    importCategories,
+    t,
+    setMessage,
+    setImportCategories,
+    operationPendingRef,
+    setBusy,
+  });
+  function saveGlobalAgents(): ReturnType<
+    typeof useConfigurationImportActionsRuntime.saveGlobalAgents
+  > {
+    return useConfigurationImportActionsRuntime.saveGlobalAgents();
   }
-
-  async function saveGlobalAgents() {
-    await run(async () => {
-      const updated =
-        await window.artemis.saveGlobalAgents(globalAgentsContent);
-      setSettings(updated);
-      setGlobalAgentsContent(updated.globalAgents.content);
-      onSettingsChange(updated);
-    });
+  function scanConfigurationImports(): ReturnType<
+    typeof useConfigurationImportActionsRuntime.scanConfigurationImports
+  > {
+    return useConfigurationImportActionsRuntime.scanConfigurationImports();
   }
-
-  async function scanConfigurationImports() {
-    await run(async () => {
-      const preview = await window.artemis.scanConfigurationImports();
-      setImportPreview(preview);
-      setImportSources(
-        preview.sources
-          .filter((source) => source.detected)
-          .map((source) => source.source),
-      );
-    });
+  function importConfiguration(): ReturnType<
+    typeof useConfigurationImportActionsRuntime.importConfiguration
+  > {
+    return useConfigurationImportActionsRuntime.importConfiguration();
   }
-
-  async function importConfiguration() {
-    await run(async () => {
-      const result = await window.artemis.importConfiguration({
-        sources: importSources,
-        categories: importCategories,
-      });
-      setSettings(result.settings);
-      setGlobalAgentsContent(result.settings.globalAgents.content);
-      onSettingsChange(result.settings);
-      setMessage(
-        `${t.importCompleted}: ${Object.values(result.summary.imported).reduce(
-          (total, count) => total + count,
-          0,
-        )}`,
-      );
-      setImportPreview(await window.artemis.scanConfigurationImports());
-    });
-  }
-
   function toggleImportSource(
     source: ConfigurationImportSource,
     selected: boolean,
-  ) {
-    setImportSources((current) =>
-      selected
-        ? [...new Set([...current, source])]
-        : current.filter((candidate) => candidate !== source),
+  ): ReturnType<
+    typeof useConfigurationImportActionsRuntime.toggleImportSource
+  > {
+    return useConfigurationImportActionsRuntime.toggleImportSource(
+      source,
+      selected,
     );
   }
-
   function toggleImportCategory(
     category: ConfigurationImportCategory,
     selected: boolean,
-  ) {
-    setImportCategories((current) =>
-      selected
-        ? [...new Set([...current, category])]
-        : current.filter((candidate) => candidate !== category),
+  ): ReturnType<
+    typeof useConfigurationImportActionsRuntime.toggleImportCategory
+  > {
+    return useConfigurationImportActionsRuntime.toggleImportCategory(
+      category,
+      selected,
     );
   }
-
-  async function run(action: () => Promise<void>) {
-    if (operationPendingRef.current) return;
-    operationPendingRef.current = true;
-    setBusy(true);
-    setMessage("");
-    try {
-      await action();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      operationPendingRef.current = false;
-      setBusy(false);
-    }
+  function run(
+    action: () => Promise<void>,
+  ): ReturnType<typeof useConfigurationImportActionsRuntime.run> {
+    return useConfigurationImportActionsRuntime.run(action);
   }
 
   const defaultModels = models.filter(

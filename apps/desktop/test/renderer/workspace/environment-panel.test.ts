@@ -1,3 +1,4 @@
+import { readEnvironmentPanelSources } from "../../fixtures/application/environment-source.js";
 import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
 import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../../fixtures/application/main-source.js";
@@ -35,9 +36,7 @@ const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
 const appSource = readRendererAppSources();
-const panelSource = source(
-  "../../../src/renderer/workspace/EnvironmentPanel.tsx",
-);
+const panelSource = readEnvironmentPanelSources();
 const stylesSource = readDesktopStyles("styles");
 const nocturneStylesSource = readDesktopStyles("nocturne");
 const workflowSource = source("../../../../../packages/ui/src/workflow.tsx");

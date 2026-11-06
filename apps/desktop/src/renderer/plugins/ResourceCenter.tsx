@@ -1,10 +1,18 @@
+import { useResourceSelection } from "./controllers/use-resource-selection.js";
+import { useResourceCatalogState } from "./controllers/use-resource-catalog-state.js";
+import { useResourceOperations } from "./controllers/use-resource-operations.js";
+import { useMarketplaceActions } from "./controllers/use-marketplace-actions.js";
+import { useResourceInstallActions } from "./controllers/use-resource-install-actions.js";
+import { usePluginActions } from "./controllers/use-plugin-actions.js";
+import { useExtensionActions } from "./controllers/use-extension-actions.js";
+import { useResourceSubscriptions } from "./controllers/use-resource-subscriptions.js";
+
 import { createResourceDialogRenderers } from "./resource-dialog-renderers.js";
 import { createCapabilityCardRenderers } from "./capability-card-renderers.js";
 import { createPluginCardRenderers } from "./plugin-card-renderers.js";
 import {
   isLegacyOfficePlugin,
   pluginPageText,
-  labels,
   CatalogIcon,
   GearIcon,
   RefreshIcon,
@@ -17,11 +25,8 @@ import {
 } from "./resource-presentation.js";
 import {
   type ResourceCenterProps,
-  type McpInstallDraft,
   type ManagementTab,
   type CatalogSearchTab,
-  type CatalogSearchPhase,
-  type ResourceRemovalDraft,
 } from "./resource-types.js";
 import designPluginIcon from "../assets/design-plugin-icon.svg";
 // Microsoft Fluent UI: https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/office_48x1.svg
@@ -30,7 +35,6 @@ import officeSuiteIcon from "../assets/office-suite-icon.svg";
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
 
 import { designPackCopy } from "../design/design-pack-copy.js";
-import { officeCopy } from "../office/office-copy.js";
 
 import {
   localizedPluginText,
@@ -40,9 +44,9 @@ import {
 import { statusText } from "../../shared/i18n/status-text.js";
 import { uiText } from "../../shared/i18n/ui-text.js";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import type { CapabilityPackStatus } from "@artemis/protocol";
+
 import { Button, IconButton } from "@artemis/ui/actions";
 import { Dialog, InlineNotice } from "@artemis/ui/feedback";
 import { SearchField, Select, Switch, TextField } from "@artemis/ui/forms";
@@ -56,14 +60,11 @@ import {
 import { SegmentedControl } from "@artemis/ui/navigation";
 
 import type {
-  ArtemisPluginMarketplace,
   ArtemisPluginMarketplaceSource,
   ArtemisPluginMarketplaceState,
-  ArtemisPluginMutationResult,
   ArtemisPluginPreview,
   InstalledArtemisPlugin,
   InstalledSkill,
-  McpCatalogInstallOption,
   McpCatalogItem,
   McpServerStatus,
   ResourceInstallProgress,
@@ -77,26 +78,6 @@ import {
   type ResourceIconName,
 } from "./resource-icons.js";
 
-let installedSkillsCache: InstalledSkill[] | undefined;
-let installedPluginsCache: InstalledArtemisPlugin[] | undefined;
-let marketplaceStateCache: ArtemisPluginMarketplaceState | undefined;
-let runtimeMarketplaceCache: ArtemisPluginMarketplace | undefined;
-let runtimeMarketplaceLoaded = false;
-
-async function loadInstalledSkills(): Promise<InstalledSkill[]> {
-  if (!installedSkillsCache) {
-    installedSkillsCache = await window.artemis.listInstalledSkills();
-  }
-  return installedSkillsCache;
-}
-
-async function loadInstalledPlugins(): Promise<InstalledArtemisPlugin[]> {
-  if (!installedPluginsCache) {
-    installedPluginsCache = await window.artemis.listArtemisPlugins();
-  }
-  return installedPluginsCache;
-}
-
 export function ResourceCenter({
   headerActionTarget,
   onReviewHooks,
@@ -105,51 +86,65 @@ export function ResourceCenter({
   onConfirm,
   onSettingsChange,
 }: ResourceCenterProps) {
-  const [mode, setMode] = useState<
-    "marketplace" | "manage" | "add-plugin" | "mcp-editor"
-  >("marketplace");
-  const [connectionPlugin, setConnectionPlugin] =
-    useState<InstalledArtemisPlugin>();
-  const [managementTab, setManagementTab] = useState<ManagementTab>("plugins");
-  const [draggingMarketplaceId, setDraggingMarketplaceId] = useState<
-    string | undefined
-  >(undefined);
-  const [addPluginReturnMode, setAddPluginReturnMode] = useState<
-    "marketplace" | "manage"
-  >("marketplace");
-  const [marketplaceQuery, setMarketplaceQuery] = useState("");
-  const [allMarkets, setAllMarkets] = useState(true);
-  const [managementQuery, setManagementQuery] = useState("");
-  const [sourceInput, setSourceInput] = useState("");
-  const [catalogQuery, setCatalogQuery] = useState("");
-  const [editingMcpServer, setEditingMcpServer] = useState<McpServerStatus>();
-  const [discoveryOpen, setDiscoveryOpen] = useState(false);
-  const [mcpResults, setMcpResults] = useState<McpCatalogItem[]>([]);
-  const [catalogSearchPhase, setCatalogSearchPhase] = useState<
-    Record<CatalogSearchTab, CatalogSearchPhase>
-  >({ mcp: "idle", skills: "idle" });
-  const [mcpInstallDraft, setMcpInstallDraft] = useState<McpInstallDraft>();
-  const [pluginInstallDraft, setPluginInstallDraft] =
-    useState<ArtemisPluginPreview>();
-  const [officePackStatus, setOfficePackStatus] =
-    useState<CapabilityPackStatus>();
-  const [computerRuntime, setComputerRuntime] =
-    useState<import("@artemis/protocol").ComputerUseRuntimeStatus>();
-  const [officeUpdating, setOfficeUpdating] = useState(false);
-  const [officeCapabilityActive, setOfficeCapabilityActive] = useState(false);
-  const [officeCapabilityOpen, setOfficeCapabilityOpen] = useState(false);
-  const [officeCapabilityInstalled, setOfficeCapabilityInstalled] =
-    useState<boolean>();
-  // 设计插件卡（随应用提供的插件，todo ⑤→④）：状态轮询 + 管理弹窗。
-  const [designPackStatus, setDesignPackStatus] =
-    useState<CapabilityPackStatus>();
-  const designPackInstalled = Boolean(designPackStatus?.versions.length);
-  const [designPackOpen, setDesignPackOpen] = useState(false);
-  const [pluginUninstallDraft, setPluginUninstallDraft] =
-    useState<InstalledArtemisPlugin>();
-  const [resourceRemovalDraft, setResourceRemovalDraft] =
-    useState<ResourceRemovalDraft>();
-  const [mcpServers, setMcpServers] = useState(settings?.mcpServers ?? []);
+  const useResourceSelectionRuntime = useResourceSelection({ settings });
+  const {
+    mode,
+    setMode,
+    connectionPlugin,
+    setConnectionPlugin,
+    managementTab,
+    setManagementTab,
+    draggingMarketplaceId,
+    setDraggingMarketplaceId,
+    addPluginReturnMode,
+    setAddPluginReturnMode,
+    marketplaceQuery,
+    setMarketplaceQuery,
+    allMarkets,
+    setAllMarkets,
+    managementQuery,
+    setManagementQuery,
+    sourceInput,
+    setSourceInput,
+    catalogQuery,
+    setCatalogQuery,
+    editingMcpServer,
+    setEditingMcpServer,
+    discoveryOpen,
+    setDiscoveryOpen,
+    mcpResults,
+    setMcpResults,
+    catalogSearchPhase,
+    setCatalogSearchPhase,
+    mcpInstallDraft,
+    setMcpInstallDraft,
+    pluginInstallDraft,
+    setPluginInstallDraft,
+    officePackStatus,
+    setOfficePackStatus,
+    computerRuntime,
+    setComputerRuntime,
+    officeUpdating,
+    setOfficeUpdating,
+    officeCapabilityActive,
+    setOfficeCapabilityActive,
+    officeCapabilityOpen,
+    setOfficeCapabilityOpen,
+    officeCapabilityInstalled,
+    setOfficeCapabilityInstalled,
+    designPackStatus,
+    setDesignPackStatus,
+    designPackInstalled,
+    designPackOpen,
+    setDesignPackOpen,
+    pluginUninstallDraft,
+    setPluginUninstallDraft,
+    resourceRemovalDraft,
+    setResourceRemovalDraft,
+    mcpServers,
+    setMcpServers,
+  } = useResourceSelectionRuntime;
+
   const resourceDialogRenderers = createResourceDialogRenderers({
     pluginUninstallDraft,
     pluginDisplayName,
@@ -175,38 +170,41 @@ export function ResourceCenter({
     onSettingsChange,
   });
 
-  const [skillResults, setSkillResults] = useState<SkillCatalogItem[]>([]);
-  const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
-  const [marketplaceState, setMarketplaceState] = useState<
-    ArtemisPluginMarketplaceState | undefined
-  >(marketplaceStateCache);
-  const [installedPlugins, setInstalledPlugins] = useState<
-    InstalledArtemisPlugin[]
-  >([]);
-  const localPluginResults = installedPlugins.filter(
-    (plugin) => plugin.source.kind === "local",
-  );
-  const [runtimeMarketplace, setRuntimeMarketplace] = useState<
-    ArtemisPluginMarketplace | undefined
-  >(runtimeMarketplaceCache);
-  const [installProgress, setInstallProgress] =
-    useState<ResourceInstallProgress>();
-  const [busyId, setBusyId] = useState<string>();
-  const [pendingToggleIds, setPendingToggleIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const pendingToggleIdsRef = useRef(new Set<string>());
-  const toggleQueueRef = useRef(Promise.resolve());
-  const [pendingPackTargets, setPendingPackTargets] = useState<
-    Record<string, boolean>
-  >({});
-  const [operationPending, setOperationPending] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const catalogSearchRef = useRef<HTMLInputElement>(null);
-  const operationPendingRef = useRef(false);
-  const t = labels[locale];
-  const office = officeCopy(locale);
+  const useResourceCatalogStateRuntime = useResourceCatalogState({ locale });
+  const {
+    skillResults,
+    setSkillResults,
+    installedSkills,
+    setInstalledSkills,
+    marketplaceState,
+    setMarketplaceState,
+    installedPlugins,
+    setInstalledPlugins,
+    localPluginResults,
+    runtimeMarketplace,
+    setRuntimeMarketplace,
+    installProgress,
+    setInstallProgress,
+    busyId,
+    setBusyId,
+    pendingToggleIds,
+    setPendingToggleIds,
+    pendingToggleIdsRef,
+    toggleQueueRef,
+    pendingPackTargets,
+    setPendingPackTargets,
+    operationPending,
+    setOperationPending,
+    searching,
+    setSearching,
+    message,
+    setMessage,
+    catalogSearchRef,
+    operationPendingRef,
+    t,
+    office,
+  } = useResourceCatalogStateRuntime;
+
   const capabilityCardRenderers = createCapabilityCardRenderers({
     officePackStatus,
     officeUpdating,
@@ -238,911 +236,294 @@ export function ResourceCenter({
     ),
   );
 
-  useEffect(() => {
-    let active = true;
-    const refresh = async () => {
-      try {
-        const status = await window.artemis.computerRuntimeStatus?.();
-        if (active) setComputerRuntime(status);
-      } catch (error) {
-        if (active) setMessage(String(error));
-      }
-    };
-    void window.artemis
-      .checkComputerRuntimeUpdates?.()
-      .then(refresh)
-      .catch(() => {});
-    void refresh();
-    const timer = setInterval(() => {
-      void refresh();
-    }, 1000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, []);
+  const useResourceSubscriptionsRuntime = useResourceSubscriptions({
+    setComputerRuntime,
+    setMessage,
+    setOfficePackStatus,
+    setOfficeCapabilityInstalled,
+    setOfficeCapabilityActive,
+    hasOfficePlugins,
+    officeCapabilityOpen,
+    officeUpdating,
+    setDesignPackStatus,
+    designPackOpen,
+    setMcpServers,
+    setInstalledPlugins,
+    setInstalledSkills,
+    settings,
+    setInstallProgress,
+    setRuntimeMarketplace,
+    get applyMarketplaceState() {
+      return applyMarketplaceState;
+    },
+  });
 
-  useEffect(() => {
-    let active = true;
-    const refresh = () =>
-      void window.artemis
-        .officeCapabilityStatus?.()
-        .then((status) => {
-          if (active) {
-            setOfficePackStatus(status);
-            setOfficeCapabilityInstalled(status.versions.length > 0);
-            setOfficeCapabilityActive(Boolean(status.activeVersion));
-          }
-        })
-        .catch((error: unknown) => {
-          if (active) setMessage(String(error));
-        });
-    refresh();
-    const timer = setInterval(refresh, 1000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      active = false;
-      clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [hasOfficePlugins, officeCapabilityOpen, officeUpdating]);
-
-  useEffect(() => {
-    let active = true;
-    void window.artemis
-      .checkOfficeCapabilityUpdates?.()
-      .then(() => window.artemis.officeCapabilityStatus())
-      .then((status) => {
-        if (active) setOfficePackStatus(status);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Check the signed catalog each time the store opens; polling only reads status.
-  useEffect(() => {
-    let active = true;
-    void window.artemis
-      .checkDesignCapabilityUpdates?.()
-      .then(() => window.artemis.designCapabilityStatus())
-      .then((status) => {
-        if (active) setDesignPackStatus(status);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // 设计插件状态轮询：轻量本地 IPC，跟随窗口焦点刷新。
-  useEffect(() => {
-    let active = true;
-    const refresh = () =>
-      void window.artemis
-        .designCapabilityStatus?.()
-        .then((status) => {
-          if (active) setDesignPackStatus(status);
-        })
-        .catch(() => {});
-    refresh();
-    const timer = setInterval(refresh, 1000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      active = false;
-      clearInterval(timer);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [designPackOpen]);
-
-  useEffect(() => {
-    let mounted = true;
-    void window.artemis
-      .listMcpServers()
-      .then((servers) => {
-        if (mounted) setMcpServers(servers);
-      })
-      .catch((error) => {
-        if (mounted) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    void loadInstalledPlugins()
-      .then((plugins) => {
-        if (mounted) setInstalledPlugins(plugins);
-      })
-      .catch((error) => {
-        if (mounted) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    void loadInstalledSkills()
-      .then((skills) => {
-        if (mounted) setInstalledSkills(skills);
-      })
-      .catch((error) => {
-        if (mounted) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(
-    () =>
-      window.artemis.onMcpServerStatus?.((status) => {
-        setMcpServers((current) =>
-          current.map((server) =>
-            server.config.id === status.config.id ? status : server,
-          ),
-        );
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    if (settings) setMcpServers(settings.mcpServers);
-  }, [settings]);
-
-  useEffect(
-    () =>
-      window.artemis.onResourceInstallProgress((progress) => {
-        setInstallProgress((current) =>
-          current?.operationId === progress.operationId ? progress : current,
-        );
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    let mounted = true;
-    const marketplaceRequest = marketplaceStateCache
-      ? Promise.resolve(marketplaceStateCache)
-      : window.artemis.getArtemisPluginMarketplaces();
-    const runtimeRequest = runtimeMarketplaceLoaded
-      ? Promise.resolve(runtimeMarketplaceCache)
-      : window.artemis.loadBundledPluginMarketplace();
-    void runtimeRequest
-      .then((runtime) => {
-        runtimeMarketplaceLoaded = true;
-        runtimeMarketplaceCache = runtime;
-        if (!mounted) return;
-        setRuntimeMarketplace(runtime);
-      })
-      .catch((error) => {
-        if (mounted && !marketplaceStateCache) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-    void marketplaceRequest
-      .then((next) => {
-        if (!mounted) return;
-        applyMarketplaceState(next);
-      })
-      .catch((error) => {
-        if (mounted) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
+  const useResourceOperationsRuntime = useResourceOperations({
+    setInstallProgress,
+    operationPendingRef,
+    setOperationPending,
+    setMessage,
+    pendingToggleIdsRef,
+    setPendingToggleIds,
+    toggleQueueRef,
+    catalogSearchRef,
+    discoveryOpen,
+    setDiscoveryOpen,
+    setCatalogQuery,
+    setCatalogSearchPhase,
+    setSkillResults,
+    setMcpResults,
+    setMarketplaceState,
+  });
   function beginInstallation(
     kind: ResourceInstallProgress["kind"],
     resourceId: string,
-  ): string {
-    const operationId = crypto.randomUUID();
-    setInstallProgress({ operationId, kind, resourceId, percent: 0 });
-    return operationId;
+  ): ReturnType<typeof useResourceOperationsRuntime.beginInstallation> {
+    return useResourceOperationsRuntime.beginInstallation(kind, resourceId);
   }
-
-  function runResourceOperation(operation: () => Promise<void>): void {
-    if (operationPendingRef.current) return;
-    operationPendingRef.current = true;
-    setOperationPending(true);
-    let pending: Promise<void>;
-    try {
-      pending = operation();
-    } catch (error) {
-      operationPendingRef.current = false;
-      setOperationPending(false);
-      setMessage(error instanceof Error ? error.message : String(error));
-      return;
-    }
-    void pending
-      .catch((error) =>
-        setMessage(error instanceof Error ? error.message : String(error)),
-      )
-      .finally(() => {
-        operationPendingRef.current = false;
-        setOperationPending(false);
-      });
+  function runResourceOperation(
+    operation: () => Promise<void>,
+  ): ReturnType<typeof useResourceOperationsRuntime.runResourceOperation> {
+    return useResourceOperationsRuntime.runResourceOperation(operation);
   }
-
   function runToggleOperation(
     id: string,
     operation: () => Promise<void>,
-  ): void {
-    if (pendingToggleIdsRef.current.has(id)) return;
-    pendingToggleIdsRef.current.add(id);
-    setPendingToggleIds(new Set(pendingToggleIdsRef.current));
-    // Mutations return full snapshots. Serialize saves so an older response
-    // cannot undo a newer toggle, while only requested rows become busy.
-    toggleQueueRef.current = toggleQueueRef.current
-      .then(async () => {
-        await operation();
-        window.dispatchEvent(new Event("artemis:resources-changed"));
-      })
-      .catch((error: unknown) =>
-        setMessage(error instanceof Error ? error.message : String(error)),
-      )
-      .finally(() => {
-        pendingToggleIdsRef.current.delete(id);
-        setPendingToggleIds(new Set(pendingToggleIdsRef.current));
-      });
+  ): ReturnType<typeof useResourceOperationsRuntime.runToggleOperation> {
+    return useResourceOperationsRuntime.runToggleOperation(id, operation);
   }
-
   function runResourceSubmit(
     event: FormEvent,
     operation: () => Promise<void>,
-  ): void {
-    event.preventDefault();
-    runResourceOperation(operation);
+  ): ReturnType<typeof useResourceOperationsRuntime.runResourceSubmit> {
+    return useResourceOperationsRuntime.runResourceSubmit(event, operation);
+  }
+  function focusCatalogSearch(): ReturnType<
+    typeof useResourceOperationsRuntime.focusCatalogSearch
+  > {
+    return useResourceOperationsRuntime.focusCatalogSearch();
+  }
+  function toggleCatalogDiscovery(
+    tab: CatalogSearchTab,
+  ): ReturnType<typeof useResourceOperationsRuntime.toggleCatalogDiscovery> {
+    return useResourceOperationsRuntime.toggleCatalogDiscovery(tab);
+  }
+  function applyMarketplaceState(
+    next: ArtemisPluginMarketplaceState,
+  ): ReturnType<typeof useResourceOperationsRuntime.applyMarketplaceState> {
+    return useResourceOperationsRuntime.applyMarketplaceState(next);
   }
 
-  function focusCatalogSearch(): void {
-    requestAnimationFrame(() => catalogSearchRef.current?.focus());
+  const useMarketplaceActionsRuntime = useMarketplaceActions({
+    marketplaceState,
+    searching,
+    installProgress,
+    beginInstallation,
+    setSearching,
+    setMessage,
+    applyMarketplaceState,
+    setInstallProgress,
+    sourceInput,
+    locale,
+    onConfirm,
+    setSourceInput,
+    setMode,
+    t,
+    setBusyId,
+    catalogQuery,
+    managementTab,
+    setCatalogSearchPhase,
+    setSkillResults,
+    setMcpResults,
+  });
+  function refreshSelectedMarketplace(): ReturnType<
+    typeof useMarketplaceActionsRuntime.refreshSelectedMarketplace
+  > {
+    return useMarketplaceActionsRuntime.refreshSelectedMarketplace();
   }
-
-  function toggleCatalogDiscovery(tab: CatalogSearchTab): void {
-    const opening = !discoveryOpen;
-    setDiscoveryOpen(opening);
-    setCatalogQuery("");
-    setCatalogSearchPhase((current) => ({ ...current, [tab]: "idle" }));
-    if (tab === "mcp") setMcpResults([]);
-    else setSkillResults([]);
-    if (opening) focusCatalogSearch();
+  function selectMarketplace(
+    sourceId: string,
+  ): ReturnType<typeof useMarketplaceActionsRuntime.selectMarketplace> {
+    return useMarketplaceActionsRuntime.selectMarketplace(sourceId);
   }
-
-  function applyMarketplaceState(next: ArtemisPluginMarketplaceState): void {
-    marketplaceStateCache = next;
-    setMarketplaceState(next);
-    const error = next.errors.find(
-      (candidate) => candidate.sourceId === next.selectedView,
-    )?.message;
-    setMessage(error);
+  function addCustomMarketplace(): ReturnType<
+    typeof useMarketplaceActionsRuntime.addCustomMarketplace
+  > {
+    return useMarketplaceActionsRuntime.addCustomMarketplace();
   }
-
-  async function refreshSelectedMarketplace(): Promise<void> {
-    const sourceId = marketplaceState?.selectedView;
-    const source = marketplaceState?.sources.find(
-      (candidate) => candidate.id === sourceId,
-    );
-    if (
-      !sourceId ||
-      sourceId === "local" ||
-      source?.builtIn ||
-      source?.refreshable === false ||
-      searching ||
-      installProgress
-    ) {
-      return;
-    }
-    const operationId = beginInstallation(
-      "plugin",
-      source?.displayName ?? sourceId,
-    );
-    setSearching(true);
-    setMessage(undefined);
-    try {
-      applyMarketplaceState(
-        await window.artemis.refreshArtemisPluginMarketplace(
-          sourceId,
-          operationId,
-        ),
-      );
-    } catch (error) {
-      try {
-        applyMarketplaceState(
-          await window.artemis.getArtemisPluginMarketplaces(),
-        );
-      } catch {
-        setMessage(error instanceof Error ? error.message : String(error));
-      }
-    } finally {
-      setSearching(false);
-      setInstallProgress(undefined);
-    }
+  function importOfflineMarketplace(): ReturnType<
+    typeof useMarketplaceActionsRuntime.importOfflineMarketplace
+  > {
+    return useMarketplaceActionsRuntime.importOfflineMarketplace();
   }
-
-  async function selectMarketplace(sourceId: string): Promise<void> {
-    if (sourceId === marketplaceState?.selectedView || searching) return;
-    setSearching(true);
-    setMessage(undefined);
-    try {
-      applyMarketplaceState(
-        await window.artemis.selectArtemisPluginMarketplace(sourceId),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  async function addCustomMarketplace() {
-    if (!sourceInput.trim() || searching) return;
-    const operationId = beginInstallation("plugin", sourceInput.trim());
-    setSearching(true);
-    setMessage(undefined);
-    try {
-      const trust = await window.artemis.inspectArtemisPluginMarketplaceTrust(
-        sourceInput.trim(),
-      );
-      const trustMessage = trust.signed
-        ? uiText(locale, "ResourceCenter.inline3", {
-            value1: trust.repository,
-            value2: String(trust.signingKeyFingerprint),
-          })
-        : uiText(locale, "ResourceCenter.inline2", {
-            value1: trust.repository,
-          });
-      if (!(await onConfirm(trustMessage))) return;
-      applyMarketplaceState(
-        await window.artemis.addArtemisPluginMarketplace(
-          sourceInput.trim(),
-          operationId,
-          trust.signingKeyFingerprint,
-        ),
-      );
-      setSourceInput("");
-      setMode("marketplace");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSearching(false);
-      setInstallProgress(undefined);
-    }
-  }
-
-  async function importOfflineMarketplace(): Promise<void> {
-    if (searching || installProgress) return;
-    setSearching(true);
-    setMessage(undefined);
-    try {
-      const inspected =
-        await window.artemis.inspectOfflineArtemisPluginMarketplace();
-      if (!inspected) return;
-      const { trust } = inspected;
-      const trustMessage = uiText(locale, "ResourceCenter.inline4", {
-        value1: trust.repository,
-        value2: String(trust.signingKeyFingerprint),
-      });
-      if (!(await onConfirm(trustMessage))) return;
-      const operationId = beginInstallation("plugin", trust.displayName);
-      applyMarketplaceState(
-        await window.artemis.addOfflineArtemisPluginMarketplace(
-          inspected.path,
-          operationId,
-          trust.signingKeyFingerprint ?? "",
-        ),
-      );
-      setMode("marketplace");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSearching(false);
-      setInstallProgress(undefined);
-    }
-  }
-
-  async function removeMarketplace(
+  function removeMarketplace(
     source: ArtemisPluginMarketplaceSource,
-  ): Promise<void> {
-    if (
-      !source.removable ||
-      !(await onConfirm(t.confirmRemoveMarketplace, "danger"))
-    ) {
-      return;
-    }
-    setBusyId(`marketplace:${source.id}`);
-    setMessage(undefined);
-    try {
-      applyMarketplaceState(
-        await window.artemis.removeArtemisPluginMarketplace(source.id),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  ): ReturnType<typeof useMarketplaceActionsRuntime.removeMarketplace> {
+    return useMarketplaceActionsRuntime.removeMarketplace(source);
   }
-
-  async function reorderMarketplace(
+  function reorderMarketplace(
     sourceId: string,
     destination: number,
-  ): Promise<void> {
-    const sourceIds = (marketplaceState?.sources ?? [])
-      .filter((source) => !source.builtIn)
-      .map((source) => source.id);
-    const index = sourceIds.indexOf(sourceId);
-    if (
-      index < 0 ||
-      destination < 0 ||
-      destination >= sourceIds.length ||
-      index === destination
-    )
-      return;
-    const [moved] = sourceIds.splice(index, 1);
-    sourceIds.splice(destination, 0, moved!);
-    setBusyId(`marketplace:${sourceId}`);
-    setMessage(undefined);
-    try {
-      applyMarketplaceState(
-        await window.artemis.reorderArtemisPluginMarketplaces(sourceIds),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  ): ReturnType<typeof useMarketplaceActionsRuntime.reorderMarketplace> {
+    return useMarketplaceActionsRuntime.reorderMarketplace(
+      sourceId,
+      destination,
+    );
+  }
+  function searchCatalog(): ReturnType<
+    typeof useMarketplaceActionsRuntime.searchCatalog
+  > {
+    return useMarketplaceActionsRuntime.searchCatalog();
   }
 
-  async function searchCatalog() {
-    if (
-      !catalogQuery.trim() ||
-      searching ||
-      (managementTab !== "mcp" && managementTab !== "skills")
-    ) {
-      return;
-    }
-    const searchTab = managementTab;
-    setSearching(true);
-    setMessage(undefined);
-    setCatalogSearchPhase((current) => ({
-      ...current,
-      [searchTab]: "searching",
-    }));
-    if (searchTab === "mcp") setMcpResults([]);
-    else setSkillResults([]);
-    try {
-      if (searchTab === "mcp") {
-        setMcpResults(await window.artemis.searchMcpCatalog(catalogQuery));
-      } else {
-        setSkillResults(await window.artemis.searchSkillCatalog(catalogQuery));
-      }
-      setCatalogSearchPhase((current) => ({
-        ...current,
-        [searchTab]: "complete",
-      }));
-    } catch (error) {
-      setCatalogSearchPhase((current) => ({
-        ...current,
-        [searchTab]: "idle",
-      }));
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setSearching(false);
-    }
-  }
-
-  async function executeMcpInstall(
+  const useResourceInstallActionsRuntime = useResourceInstallActions({
+    beginInstallation,
+    setBusyId,
+    setMcpInstallDraft,
+    setMessage,
+    setMcpServers,
+    onSettingsChange,
+    setMcpResults,
+    setInstallProgress,
+    focusCatalogSearch,
+    t,
+    onConfirm,
+    mcpInstallDraft,
+    installedSkills,
+    setInstalledSkills,
+    setSkillResults,
+    setMode,
+    setManagementTab,
+  });
+  function installMcp(
     item: McpCatalogItem,
-    option: McpCatalogInstallOption,
-    inputValues: Record<string, string>,
-  ) {
-    const operationId = beginInstallation("mcp", item.title);
-    setBusyId(item.configId);
-    setMcpInstallDraft(undefined);
-    setMessage(undefined);
-    try {
-      const next = await window.artemis.installMcpCatalog({
-        registryName: item.registryName,
-        version: item.version,
-        optionId: option.id,
-        inputValues,
-        operationId,
-      });
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-      setMcpResults((current) =>
-        current.map((candidate) =>
-          candidate.configId === item.configId
-            ? { ...candidate, installed: true }
-            : candidate,
-        ),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-      focusCatalogSearch();
-    }
+  ): ReturnType<typeof useResourceInstallActionsRuntime.installMcp> {
+    return useResourceInstallActionsRuntime.installMcp(item);
+  }
+  function submitMcpInstall(): ReturnType<
+    typeof useResourceInstallActionsRuntime.submitMcpInstall
+  > {
+    return useResourceInstallActionsRuntime.submitMcpInstall();
+  }
+  function installSkill(
+    item: SkillCatalogItem,
+  ): ReturnType<typeof useResourceInstallActionsRuntime.installSkill> {
+    return useResourceInstallActionsRuntime.installSkill(item);
+  }
+  function installLocalSkill(): ReturnType<
+    typeof useResourceInstallActionsRuntime.installLocalSkill
+  > {
+    return useResourceInstallActionsRuntime.installLocalSkill();
+  }
+  function setMcpEnabled(
+    serverId: string,
+    enabled: boolean,
+  ): ReturnType<typeof useResourceInstallActionsRuntime.setMcpEnabled> {
+    return useResourceInstallActionsRuntime.setMcpEnabled(serverId, enabled);
+  }
+  function removeMcp(
+    serverId: string,
+  ): ReturnType<typeof useResourceInstallActionsRuntime.removeMcp> {
+    return useResourceInstallActionsRuntime.removeMcp(serverId);
+  }
+  function setSkillEnabled(
+    skillId: string,
+    enabled: boolean,
+  ): ReturnType<typeof useResourceInstallActionsRuntime.setSkillEnabled> {
+    return useResourceInstallActionsRuntime.setSkillEnabled(skillId, enabled);
+  }
+  function removeSkill(
+    skill: InstalledSkill,
+  ): ReturnType<typeof useResourceInstallActionsRuntime.removeSkill> {
+    return useResourceInstallActionsRuntime.removeSkill(skill);
   }
 
-  async function installMcp(item: McpCatalogItem) {
-    const option = item.installOption;
-    if (!item.installable || !option) return;
-    if (option.inputs.length > 0) {
-      setMcpInstallDraft({
-        item,
-        option,
-        values: Object.fromEntries(
-          option.inputs.flatMap((field) =>
-            field.defaultValue ? [[field.id, field.defaultValue]] : [],
-          ),
-        ),
-      });
-      return;
-    }
-    if (!(await onConfirm(t.confirmMcp))) return;
-    await executeMcpInstall(item, option, {});
+  const usePluginActionsRuntime = usePluginActions({
+    setInstalledPlugins,
+    setInstalledSkills,
+    setMcpServers,
+    onSettingsChange,
+    setMessage,
+    t,
+    setBusyId,
+    applyMarketplaceState,
+    setMode,
+    get pluginSkillConflict() {
+      return pluginSkillConflict;
+    },
+    get pluginDisplayName() {
+      return pluginDisplayName;
+    },
+    beginInstallation,
+    setConnectionPlugin,
+    setInstallProgress,
+    onConfirm,
+  });
+  function inspectLocalPlugin(): ReturnType<
+    typeof usePluginActionsRuntime.inspectLocalPlugin
+  > {
+    return usePluginActionsRuntime.inspectLocalPlugin();
   }
-
-  async function submitMcpInstall(): Promise<void> {
-    if (!mcpInstallDraft) return;
-    await executeMcpInstall(
-      mcpInstallDraft.item,
-      mcpInstallDraft.option,
-      mcpInstallDraft.values,
-    );
+  function installPlugin(
+    plugin: ArtemisPluginPreview,
+  ): ReturnType<typeof usePluginActionsRuntime.installPlugin> {
+    return usePluginActionsRuntime.installPlugin(plugin);
   }
-
-  async function installSkill(item: SkillCatalogItem) {
-    if (!(await onConfirm(t.confirmSkill))) return;
-    const operationId = beginInstallation("skill", item.name);
-    setBusyId(item.id);
-    setMessage(undefined);
-    try {
-      const installed = await window.artemis.installSkillCatalog(
-        item.id,
-        operationId,
-      );
-      installedSkillsCache = [
-        ...installedSkills.filter((skill) => skill.id !== installed.id),
-        installed,
-      ].sort((left, right) => left.name.localeCompare(right.name));
-      setInstalledSkills(installedSkillsCache);
-      setSkillResults((current) =>
-        current.map((candidate) =>
-          candidate.id === item.id
-            ? { ...candidate, installed: true }
-            : candidate,
-        ),
-      );
-      setMessage(t.installedNow);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-      focusCatalogSearch();
-    }
+  function updatePlugin(
+    plugin: InstalledArtemisPlugin,
+  ): ReturnType<typeof usePluginActionsRuntime.updatePlugin> {
+    return usePluginActionsRuntime.updatePlugin(plugin);
   }
-
-  async function installLocalSkill() {
-    const operationId = beginInstallation("skill", t.installLocalSkill);
-    setBusyId("local-skill");
-    setMessage(undefined);
-    try {
-      const installed = await window.artemis.installLocalSkill(operationId);
-      if (!installed) return;
-      installedSkillsCache = await window.artemis.listInstalledSkills();
-      setInstalledSkills(installedSkillsCache);
-      setMode("manage");
-      setManagementTab("skills");
-      setMessage(t.installedNow);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-      focusCatalogSearch();
-    }
-  }
-
-  async function setMcpEnabled(serverId: string, enabled: boolean) {
-    setMessage(undefined);
-    try {
-      const next = await window.artemis.setMcpServerEnabled(serverId, enabled);
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function authorizeAdvancedMcp(serverId: string) {
-    setBusyId(serverId);
-    setMessage(undefined);
-    try {
-      const next = await window.artemis.authorizeMcpServer(serverId);
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
-  }
-
-  async function removeMcp(serverId: string) {
-    setBusyId(serverId);
-    setMessage(undefined);
-    try {
-      const next = await window.artemis.removeMcpServer(serverId);
-      setMcpServers(next.mcpServers);
-      onSettingsChange(next);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      focusCatalogSearch();
-    }
-  }
-
-  async function setSkillEnabled(skillId: string, enabled: boolean) {
-    setMessage(undefined);
-    try {
-      installedSkillsCache = await window.artemis.setSkillEnabled(
-        skillId,
-        enabled,
-      );
-      setInstalledSkills(installedSkillsCache);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function removeSkill(skill: InstalledSkill) {
-    setBusyId(skill.id);
-    setMessage(undefined);
-    try {
-      installedSkillsCache = await window.artemis.removeSkill(skill.id);
-      setInstalledSkills(installedSkillsCache);
-      setSkillResults((current) =>
-        current.map((candidate) =>
-          candidate.id === skill.id
-            ? { ...candidate, installed: false }
-            : candidate,
-        ),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      focusCatalogSearch();
-    }
-  }
-
-  function applyPluginMutation(
-    result: ArtemisPluginMutationResult,
-    successMessage: string = t.installedNow,
-  ): void {
-    installedPluginsCache = result.plugins;
-    installedSkillsCache = result.skills;
-    setInstalledPlugins(result.plugins);
-    setInstalledSkills(result.skills);
-    setMcpServers(result.settings.mcpServers);
-    onSettingsChange(result.settings);
-    setMessage(
-      result.warnings.length ? result.warnings.join("\n") : successMessage,
-    );
-  }
-
-  async function inspectLocalPlugin() {
-    setBusyId("local-plugin");
-    setMessage(undefined);
-    try {
-      const preview = await window.artemis.inspectLocalArtemisPlugin();
-      if (!preview) return;
-      applyMarketplaceState(
-        await window.artemis.selectArtemisPluginMarketplace("local"),
-      );
-      if (await installPlugin(preview)) setMode("marketplace");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
-  }
-
-  async function installPlugin(plugin: ArtemisPluginPreview): Promise<boolean> {
-    const conflict = pluginSkillConflict(plugin);
-    if (conflict) {
-      setMessage(conflict);
-      return false;
-    }
-    if (!plugin.installable) {
-      setMessage(
-        plugin.unsupported.join(", ") ||
-          plugin.warnings.join(" · ") ||
-          t.needsSetup,
-      );
-      return false;
-    }
-    const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
-    setBusyId(plugin.id);
-    setMessage(undefined);
-    try {
-      const result = await window.artemis.installArtemisPlugin(
-        plugin.source,
-        operationId,
-      );
-      applyPluginMutation(result);
-      const installed = result.plugins.find((entry) => entry.id === plugin.id);
-      if (
-        installed &&
-        result.settings.mcpServers.some(
-          (server) =>
-            server.config.connector &&
-            installed.mcpServerIds.includes(server.config.id),
-        )
-      )
-        setConnectionPlugin(installed);
-      return true;
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-      return false;
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-    }
-  }
-
-  async function updatePlugin(plugin: InstalledArtemisPlugin) {
-    if (!(await onConfirm(t.confirmUpdatePlugin))) return;
-    const operationId = beginInstallation("plugin", pluginDisplayName(plugin));
-    setBusyId(plugin.id);
-    setMessage(undefined);
-    try {
-      const result = await window.artemis.updateArtemisPlugin(
-        plugin.id,
-        operationId,
-      );
-      applyPluginMutation(result);
-      const updated = result.plugins.find((entry) => entry.id === plugin.id);
-      if (
-        updated &&
-        result.settings.mcpServers.some(
-          (server) =>
-            server.config.connector &&
-            !server.config.enabled &&
-            updated.mcpServerIds.includes(server.config.id),
-        )
-      )
-        setConnectionPlugin(updated);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-      setInstallProgress(undefined);
-    }
-  }
-
-  async function setPluginEnabled(
+  function setPluginEnabled(
     plugin: InstalledArtemisPlugin,
     enabled: boolean,
-  ) {
-    setMessage(undefined);
-    try {
-      applyPluginMutation(
-        await window.artemis.setArtemisPluginEnabled(plugin.id, enabled),
-        enabled ? t.pluginEnabled : t.pluginDisabled,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    }
+  ): ReturnType<typeof usePluginActionsRuntime.setPluginEnabled> {
+    return usePluginActionsRuntime.setPluginEnabled(plugin, enabled);
+  }
+  function removePlugin(
+    plugin: InstalledArtemisPlugin,
+  ): ReturnType<typeof usePluginActionsRuntime.removePlugin> {
+    return usePluginActionsRuntime.removePlugin(plugin);
   }
 
-  async function removePlugin(plugin: InstalledArtemisPlugin) {
-    setBusyId(plugin.id);
-    setMessage(undefined);
-    try {
-      applyPluginMutation(
-        await window.artemis.removeArtemisPlugin(plugin.id),
-        t.removedNow,
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  const useExtensionActionsRuntime = useExtensionActions({
+    setBusyId,
+    setMessage,
+    onSettingsChange,
+    setMode,
+    setManagementTab,
+    t,
+    onConfirm,
+  });
+  function trustExtension(): ReturnType<
+    typeof useExtensionActionsRuntime.trustExtension
+  > {
+    return useExtensionActionsRuntime.trustExtension();
   }
-
-  async function trustExtension() {
-    setBusyId("extension:new");
-    setMessage(undefined);
-    try {
-      const next = await window.artemis.trustExtension();
-      if (!next) return;
-      onSettingsChange(next);
-      setMode("manage");
-      setManagementTab("plugins");
-      setMessage(t.installedNow);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  function setExtensionEnabled(
+    extensionId: string,
+    enabled: boolean,
+  ): ReturnType<typeof useExtensionActionsRuntime.setExtensionEnabled> {
+    return useExtensionActionsRuntime.setExtensionEnabled(extensionId, enabled);
   }
-
-  async function setExtensionEnabled(extensionId: string, enabled: boolean) {
-    setMessage(undefined);
-    try {
-      onSettingsChange(
-        await window.artemis.setTrustedExtensionEnabled(extensionId, enabled),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  async function setExtensionNetwork(
+  function setExtensionNetwork(
     extensionId: string,
     allowNetwork: boolean,
-  ) {
-    setBusyId(extensionId);
-    setMessage(undefined);
-    try {
-      onSettingsChange(
-        await window.artemis.setTrustedExtensionNetwork(
-          extensionId,
-          allowNetwork,
-        ),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  ): ReturnType<typeof useExtensionActionsRuntime.setExtensionNetwork> {
+    return useExtensionActionsRuntime.setExtensionNetwork(
+      extensionId,
+      allowNetwork,
+    );
   }
-
-  async function retrustExtension(extensionId: string) {
-    setBusyId(extensionId);
-    setMessage(undefined);
-    try {
-      onSettingsChange(await window.artemis.retrustExtension(extensionId));
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  function retrustExtension(
+    extensionId: string,
+  ): ReturnType<typeof useExtensionActionsRuntime.retrustExtension> {
+    return useExtensionActionsRuntime.retrustExtension(extensionId);
   }
-
-  async function removeExtension(extensionId: string) {
-    if (!(await onConfirm(t.confirmRemoveExtension, "danger"))) return;
-    setBusyId(extensionId);
-    setMessage(undefined);
-    try {
-      onSettingsChange(
-        await window.artemis.removeTrustedExtension(extensionId),
-      );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusyId(undefined);
-    }
+  function removeExtension(
+    extensionId: string,
+  ): ReturnType<typeof useExtensionActionsRuntime.removeExtension> {
+    return useExtensionActionsRuntime.removeExtension(extensionId);
   }
 
   function openMcpEditor(server?: McpServerStatus) {

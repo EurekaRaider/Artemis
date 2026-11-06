@@ -1,3 +1,4 @@
+import { readSettingsPanelSources } from "../../fixtures/application/settings-source.js";
 import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -18,12 +19,7 @@ const hostMessagesSource = readFileSync(
   ),
   "utf8",
 );
-const settingsSource = readFileSync(
-  fileURLToPath(
-    new URL("../../../src/renderer/app/SettingsPanel.tsx", import.meta.url),
-  ),
-  "utf8",
-);
+const settingsSource = readSettingsPanelSources();
 
 function sourceBlock(
   source: string,

@@ -12,13 +12,17 @@ export function readResourceCenterSources(): string {
   const source = readFileSync(resolve(root, "ResourceCenter.tsx"), "utf8");
   const owners = [
     ...source.matchAll(
-      /from ["']\.\/((?:resource-presentation|[^/]+-renderers))\.js["']/g,
+      /from ["']\.\/((?:resource-presentation|resource-cache|controllers\/[^/]+|[^/]+-renderers))\.js["']/g,
     ),
   ];
   return [
     source,
-    ...owners.map((match) =>
-      readFileSync(resolve(root, `${match[1]}.tsx`), "utf8"),
-    ),
+    ...owners.map((match) => {
+      const extension =
+        match[1]!.startsWith("controllers/") || match[1] === "resource-cache"
+          ? "ts"
+          : "tsx";
+      return readFileSync(resolve(root, `${match[1]}.${extension}`), "utf8");
+    }),
   ].join("\n");
 }

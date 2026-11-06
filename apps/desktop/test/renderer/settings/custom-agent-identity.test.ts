@@ -1,3 +1,4 @@
+import { readEnvironmentPanelSources } from "../../fixtures/application/environment-source.js";
 import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 // Custom sub-agent instance display contract (D#152 PR4): every surface
 // that lists a child agent surfaces the frozen definition name, revision,
@@ -14,10 +15,7 @@ import {
 } from "../../../src/renderer/settings/custom-agent-identity.js";
 
 const appSource = readRendererAppSources();
-const environmentPanelSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/workspace/EnvironmentPanel.tsx"),
-  "utf8",
-);
+const environmentPanelSource = readEnvironmentPanelSources();
 
 const instance = {
   definitionId: "def-1",

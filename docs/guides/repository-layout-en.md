@@ -33,6 +33,8 @@ Task and session execution belongs to `main/conversation/`, and approval/tool di
 
 Plugin installation coordination, transaction commits, manifest parsing, marketplace management and persistence have separate owners in `main/plugins/`; online resource catalogs live in `plugins/catalog/`. IM configuration, authorization, connections, group synchronization, event observation, scoped operations and local execution are separate from the service facade while retaining the same runtime state and authorization boundaries.
 
+Frontend controllers live in `app/controllers/`, `plugins/controllers/`, `settings/controllers/` and `workspace/environment/`. Drafts, history, submission, Review, Goals, queues, resource installation and Git subscriptions have separate operation owners with explicitly typed shared view state. Extractions preserve hook order, effect cleanup and stale-request protection. Later-declared callbacks are read when needed; function declarations captured earlier retain compatible delegates. Resource caches live in `plugins/resource-cache.ts`, and stylesheet side effects remain at the original view entry. `renderer-controller-boundary.test.ts` guards extracted responsibilities and composition-root budgets.
+
 ## UI Gallery
 
 `apps/ui-gallery/src/` retains only the startup entrypoint and environment declaration. `app/` composes pages, `pages/` contains demonstrations, `components/` contains shared components, `themes/` owns theme fixtures and declarations, `conformance/` owns contracts and matrices, and `styles/` owns Gallery styles. The two tests remain in `test/`; new pages follow their feature ownership.

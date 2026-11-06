@@ -33,6 +33,8 @@ smoke 数据和故障模拟放在 `test/fixtures/smoke/`，按会话、工作区
 
 插件安装协调、事务提交、清单解析、市场管理与持久化分别由 `main/plugins/` 下的对应模块负责；在线资源目录位于 `plugins/catalog/`。IM 的配置、授权、连接、群组同步、事件观察、范围操作和本地执行独立于服务门面，保留同一运行状态和授权边界。
 
+前端控制逻辑按功能放在 `app/controllers/`、`plugins/controllers/`、`settings/controllers/` 和 `workspace/environment/`。草稿、历史、提交、Review、Goal、队列、资源安装和 Git 订阅各自维护操作逻辑；共享视图状态通过明确类型传入。拆分时保留 hook 顺序、effect 清理和过期请求保护；后声明的回调按需读取，原本提前保存的函数声明保留兼容委托。资源缓存位于 `plugins/resource-cache.ts`，样式副作用留在原视图入口。`renderer-controller-boundary.test.ts` 约束已拆出的职责和组合入口预算。
+
 ## UI Gallery
 
 `apps/ui-gallery/src/` 仅保留启动入口和环境声明。`app/` 负责页面组合，`pages/` 放各类展示页，`components/` 放通用组件，`themes/` 放主题 fixture 与声明，`conformance/` 放契约及矩阵，`styles/` 放 Gallery 样式。两个测试继续集中在 `test/`；新增页面按所属功能归类。

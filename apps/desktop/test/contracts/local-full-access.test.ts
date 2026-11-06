@@ -1,4 +1,8 @@
-import { readSharedApiSources, readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readSettingsPanelSources } from "../fixtures/application/settings-source.js";
+import {
+  readSharedApiSources,
+  readPreloadBridgeSources,
+} from "../fixtures/application/api-source.js";
 import { readAgentRuntimeSources } from "../fixtures/application/agent-runtime-source.js";
 import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
@@ -9,10 +13,7 @@ import { describe, expect, it } from "vitest";
 const apiSource = readSharedApiSources();
 const preloadSource = readPreloadBridgeSources();
 const mainSource = readMainProcessSources();
-const settingsPanelSource = readFileSync(
-  new URL("../../src/renderer/app/SettingsPanel.tsx", import.meta.url),
-  "utf8",
-);
+const settingsPanelSource = readSettingsPanelSources();
 const mcpServerEditorSource = readFileSync(
   new URL("../../src/renderer/mcp/McpServerEditor.tsx", import.meta.url),
   "utf8",
