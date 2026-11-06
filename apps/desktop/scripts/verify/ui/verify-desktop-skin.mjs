@@ -1864,6 +1864,21 @@ try {
 
   await buildSmokePreload();
   electronEvidence = await driveElectron();
+  // Keep completed native evidence if a later external packaging gate fails.
+  await writeFile(
+    join(outputDirectory, "desktop-skin-runtime.json"),
+    JSON.stringify(
+      {
+        status: "PASS",
+        head: expectedHead,
+        smokeRendererHash,
+        electron: electronEvidence,
+        screenshots,
+      },
+      undefined,
+      2,
+    ),
+  );
 } catch (error) {
   failure = error instanceof Error ? error : new Error(String(error));
 } finally {
@@ -1950,6 +1965,8 @@ try {
     JSON.stringify(
       {
         status: "FAIL",
+        head: expectedHead,
+        electron: electronEvidence,
         message,
         standard: standardEvidence,
         screenshots,
