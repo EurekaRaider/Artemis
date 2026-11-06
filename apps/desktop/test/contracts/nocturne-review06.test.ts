@@ -1,3 +1,5 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readSharedApiSources } from "../fixtures/application/api-source.js";
 import { readFileSync } from "node:fs";
 import postcss from "postcss";
 import { describe, expect, it } from "vitest";
@@ -6,8 +8,8 @@ import { uiText, UI_RESOURCES } from "../../src/shared/i18n/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 const source = (path: string) =>
   readFileSync(new URL(`../../src/${path}`, import.meta.url), "utf8");
-const styles = source("renderer/styles/styles.css");
-const nocturne = source("renderer/styles/nocturne.css");
+const styles = readDesktopStyles("styles");
+const nocturne = readDesktopStyles("nocturne");
 describe("Nocturne sixth review contracts", () => {
   it("never reintroduces diff row foreground colors for add/delete or inherited line numbers", () => {
     for (const selector of [".review-line.addition", ".review-line.deletion"]) {
@@ -36,7 +38,7 @@ describe("Nocturne sixth review contracts", () => {
     for (const file of [
       styles,
       nocturne,
-      source("renderer/styles/prototype-migration.css"),
+      readDesktopStyles("prototype-migration"),
     ])
       postcss.parse(file).walkRules((rule) => {
         if (rule.selector.includes(".goal-bar-objective"))
@@ -83,7 +85,7 @@ describe("Nocturne sixth review contracts", () => {
     expect(uiText("zh-CN", "App_copy.agentApproval")).toBe("替我审批");
   });
   it("keeps manual instruction IPC narrow and does not add execution or path arguments", () => {
-    const api = source("shared/api.ts");
+    const api = readSharedApiSources();
     expect(api).toContain(
       "readProjectInstructions(projectId: string): Promise<string>",
     );

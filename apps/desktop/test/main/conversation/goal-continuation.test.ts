@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,10 +10,7 @@ import {
 
 describe("Goal continuation failure policy", () => {
   it("does not bypass the three-turn blocker recorder in main-process recovery", () => {
-    const mainSource = readFileSync(
-      fileURLToPath(new URL("../../../src/main/main.ts", import.meta.url)),
-      "utf8",
-    );
+    const mainSource = readMainProcessSources();
 
     expect(mainSource).not.toContain(".markThreadGoalBlocked(");
     expect(mainSource).toContain("store.recordThreadGoalBlocker(");

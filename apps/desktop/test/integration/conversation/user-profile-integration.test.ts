@@ -1,3 +1,7 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -7,14 +11,14 @@ function source(path: string): string {
   return readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 }
 
-const appSource = source("../../../src/renderer/app/App.tsx");
+const appSource = readRendererAppSources();
 const pageSource = source(
   "../../../src/renderer/conversation/TokenUsagePage.tsx",
 );
-const apiSource = source("../../../src/shared/api.ts");
-const preloadSource = source("../../../src/preload/preload.ts");
-const mainSource = source("../../../src/main/main.ts");
-const stylesSource = source("../../../src/renderer/styles/nocturne.css");
+const apiSource = readSharedApiSources();
+const preloadSource = readPreloadBridgeSources();
+const mainSource = readMainProcessSources();
+const stylesSource = readDesktopStyles("nocturne");
 
 describe("current user profile integration", () => {
   it("keeps the OS username private in smoke screenshots", () => {
@@ -45,7 +49,10 @@ describe("current user profile integration", () => {
     expect(snapshotHandlerStart).toBeGreaterThan(-1);
     expect(snapshotHandlerEnd).toBeGreaterThan(snapshotHandlerStart);
     expect(snapshotHandler).toContain(
-      'userName: smokeMode ? "Artemis" : userInfo().username',
+      "userName: applicationHost.userName ?? userInfo().username",
+    );
+    expect(source("../../fixtures/smoke/host.ts")).toContain(
+      '...(smokeMode ? { userName: "Artemis" } : {})',
     );
   });
 

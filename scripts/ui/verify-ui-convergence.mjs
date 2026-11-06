@@ -1,3 +1,4 @@
+import { readStylesheet } from "../build/css-source.mjs";
 import { readFile, readdir } from "node:fs/promises";
 import { dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -791,17 +792,14 @@ function rendererReachabilityViolations(root, files, analysis) {
 export async function verifyUiConvergence(root = defaultRoot) {
   const violations = [];
   const cssPath = join(root, "apps/desktop/src/renderer/styles/styles.css");
-  const css = postcss.parse(await readFile(cssPath, "utf8"), { from: cssPath });
+  const css = readStylesheet(cssPath);
   const migrationCssPath = join(
     root,
     "apps/desktop/src/renderer/styles/prototype-migration.css",
   );
   // Older fixture repositories predate the integrated navigation stylesheet.
   try {
-    const migrationCss = postcss.parse(
-      await readFile(migrationCssPath, "utf8"),
-      { from: migrationCssPath },
-    );
+    const migrationCss = readStylesheet(migrationCssPath);
     css.append(migrationCss.nodes);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;

@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
+
 import { expect, it, vi } from "vitest";
 
 const main = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
+  new URL("../../../scripts/verify/ui/smoke/prepare-view.ts", import.meta.url),
   "utf8",
 );
 const start = main.indexOf("const openSmokeHistoryThread = async (");

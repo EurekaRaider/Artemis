@@ -1,3 +1,12 @@
+import {
+  readSharedApiSources,
+  readPreloadBridgeSources,
+} from "../fixtures/application/api-source.js";
+import { readResourceCenterSources } from "../fixtures/application/resource-center-source.js";
+import { readAgentRuntimeSources } from "../fixtures/application/agent-runtime-source.js";
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { spawnSync } from "node:child_process";
@@ -8,10 +17,7 @@ import { describe, expect, it } from "vitest";
 
 import { contextMenuLayout } from "../../src/renderer/conversation/ComposerContextBar.js";
 
-const appSource = readFileSync(
-  fileURLToPath(new URL("../../src/renderer/app/App.tsx", import.meta.url)),
-  "utf8",
-);
+const appSource = readRendererAppSources();
 const approvalDecisionSource = readFileSync(
   new URL(
     "../../src/renderer/conversation/ApprovalDecisionCard.tsx",
@@ -51,20 +57,9 @@ const archivePageSource = readFileSync(
   ),
   "utf8",
 );
-const stylesSource = readFileSync(
-  fileURLToPath(
-    new URL("../../src/renderer/styles/styles.css", import.meta.url),
-  ),
-  "utf8",
-);
-const nocturneStylesSource = readFileSync(
-  new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
-  "utf8",
-);
-const compositionStylesSource = readFileSync(
-  new URL("../../src/renderer/styles/prototype-migration.css", import.meta.url),
-  "utf8",
-);
+const stylesSource = readDesktopStyles("styles");
+const nocturneStylesSource = readDesktopStyles("nocturne");
+const compositionStylesSource = readDesktopStyles("prototype-migration");
 const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
@@ -98,12 +93,7 @@ const providerWorkspaceSource = readFileSync(
   ),
   "utf8",
 );
-const resourceCenterSource = readFileSync(
-  fileURLToPath(
-    new URL("../../src/renderer/plugins/ResourceCenter.tsx", import.meta.url),
-  ),
-  "utf8",
-);
+const resourceCenterSource = readResourceCenterSources();
 const resourceIconsSource = readFileSync(
   fileURLToPath(
     new URL("../../src/renderer/plugins/resource-icons.tsx", import.meta.url),
@@ -116,20 +106,14 @@ const mcpServerEditorSource = readFileSync(
   ),
   "utf8",
 );
-const apiSource = readFileSync(
-  fileURLToPath(new URL("../../src/shared/api.ts", import.meta.url)),
-  "utf8",
-);
+const apiSource = readSharedApiSources();
 const browserLocaleSource = readFileSync(
   fileURLToPath(
     new URL("../../src/shared/i18n/browser-locale.ts", import.meta.url),
   ),
   "utf8",
 );
-const preloadSource = readFileSync(
-  fileURLToPath(new URL("../../src/preload/preload.ts", import.meta.url)),
-  "utf8",
-);
+const preloadSource = readPreloadBridgeSources();
 const terminalSource = readFileSync(
   fileURLToPath(
     new URL("../../src/renderer/terminal/TerminalPanel.tsx", import.meta.url),
@@ -163,23 +147,20 @@ const workspaceDockLayoutSource = readFileSync(
   ),
   "utf8",
 );
-const mainProcessSource = readFileSync(
-  fileURLToPath(new URL("../../src/main/main.ts", import.meta.url)),
-  "utf8",
-);
+const mainProcessSource = readMainProcessSources();
+const smokeSource = [
+  "../../scripts/verify/ui/smoke/prepare-view.ts",
+  "../../scripts/verify/ui/smoke/window-capture.ts",
+  "../../scripts/verify/ui/smoke/collect-evidence.ts",
+  "../fixtures/smoke/ipc/resources.ts",
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 const rendererHtmlSource = readFileSync(
   fileURLToPath(new URL("../../index.html", import.meta.url)),
   "utf8",
 );
-const runtimeSource = readFileSync(
-  fileURLToPath(
-    new URL(
-      "../../../../packages/agent-host/src/runtime/runtime.ts",
-      import.meta.url,
-    ),
-  ),
-  "utf8",
-);
+const runtimeSource = readAgentRuntimeSources();
 const agentProcessSource = readFileSync(
   fileURLToPath(
     new URL("../../src/main/agent/agent-process.ts", import.meta.url),
@@ -424,15 +405,7 @@ describe("renderer layout contract", () => {
   });
 
   it("extends the macOS sidebar to the native lights and keeps controls outside drag regions", () => {
-    const composition = readFileSync(
-      fileURLToPath(
-        new URL(
-          "../../src/renderer/styles/prototype-migration.css",
-          import.meta.url,
-        ),
-      ),
-      "utf8",
-    );
+    const composition = readDesktopStyles("prototype-migration");
     expect(appSource).toContain("data-platform={snapshot.platform}");
     expect(mainProcessSource).toMatch(
       /titleBarStyle:\s*process\.platform === "darwin"\s*\? "hiddenInset"\s*:\s*process\.platform === "win32"\s*\? "hidden"\s*: "default"/u,
@@ -516,7 +489,7 @@ describe("renderer layout contract", () => {
   it("isolates dynamic approval copy from surrounding RTL direction", () => {
     expect(approvalDecisionSource).toContain("<bdi>{view.detail}</bdi>");
     expect(approvalDecisionSource).toContain("<bdi>{approval.summary}</bdi>");
-    expect(mainProcessSource).toContain("name: 'bidi-' + selector");
+    expect(smokeSource).toContain("name: 'bidi-' + selector");
   });
 
   it("keeps the composer in a fixed layout row instead of a sticky overlay", () => {
@@ -699,7 +672,8 @@ describe("renderer layout contract", () => {
     expect(apiSource).toContain("setThreadModelSelection(");
     expect(preloadSource).toContain("IPC.threadModelSet");
     expect(mainProcessSource).toContain('type: "thread.model.set"');
-    expect(runtimeSource).toContain("async setThreadModel(");
+    expect(runtimeSource).toContain("return this.modelRuntime.setThreadModel(");
+    expect(runtimeSource).toContain("async function setThreadModel(");
   });
 
   it("exposes MCP, Skills, and persistent task goals as first-class navigation", () => {
@@ -1449,10 +1423,10 @@ describe("renderer layout contract", () => {
     expect(settingsSource).toContain("value={providerContextWindow}");
     expect(settingsSource).toContain("value={providerMaxTokens}");
     const providerFormSource = settingsSource.slice(
-      settingsSource.indexOf('className="credential-form provider-form"'),
+      settingsSource.indexOf('className="provider-form"'),
       settingsSource.indexOf(
         "</form>",
-        settingsSource.indexOf('className="credential-form provider-form"'),
+        settingsSource.indexOf('className="provider-form"'),
       ),
     );
     expect(providerFormSource.match(/step=\{1\}/gu)).toHaveLength(2);
@@ -1462,7 +1436,8 @@ describe("renderer layout contract", () => {
     );
     expect(settingsSource).toContain('value.toLocaleLowerCase("en-US")');
     expect(settingsSource).toContain('pattern="[a-z0-9][a-z0-9._-]*"');
-    expect(settingsSource).toContain("!providerIdValid");
+    expect(settingsSource).toContain("providerIdValid &&");
+    expect(settingsSource).toContain("!providerFormValid");
     expect(settingsSource).toContain(
       "contextWindow: parsedProviderContextWindow",
     );
@@ -1474,8 +1449,8 @@ describe("renderer layout contract", () => {
       "支持的最高推理档位",
     );
     expect(settingsSource).toContain("<Select<ProviderThinkingLevel>");
-    expect(settingsSource).toContain(
-      '{ value: "xhigh", label: t.thinkingXHigh }',
+    expect(settingsSource).toMatch(
+      /\{\s*value: "xhigh",\s*label: t\.thinkingXHigh,?\s*\}/u,
     );
     expect(settingsSource).toContain('{ value: "max", label: t.thinkingMax }');
     expect(mainProcessSource).toContain("customModelThinkingLevels(model)");
@@ -1492,7 +1467,9 @@ describe("renderer layout contract", () => {
     expect(providerSaveHandler).toContain(
       "configuration.selection = providerSelection;",
     );
-    expect(providerSaveHandler).toContain("await settingsStore.setModel(");
+    expect(providerSaveHandler).toContain(
+      "await services.settingsStore.setModel(",
+    );
     expect(providerSaveHandler).toContain("providerContextWindow");
     expect(settingsSource).toContain("setLanguage");
     expect(settingsSource).toContain('className="model-apply-dialog"');
@@ -1540,9 +1517,11 @@ describe("renderer layout contract", () => {
     expect(providerSaveHandler).toContain(
       "configuration.selection = providerSelection",
     );
-    expect(providerSaveHandler).toContain("await settingsStore.setModel(");
+    expect(providerSaveHandler).toContain(
+      "await services.settingsStore.setModel(",
+    );
     expect(providerDeleteHandler).toContain(
-      "await settingsStore.deleteProviderConnection(",
+      "await services.settingsStore.deleteProviderConnection(",
     );
     expect(providerDeleteHandler).toContain(
       "delete configuration.credentials[provider.id]",
@@ -1617,9 +1596,11 @@ describe("renderer layout contract", () => {
     expect(modelAddHandler).toContain(
       "configuration.credentials[selectedModel.providerId]",
     );
-    expect(modelAddHandler).toContain("await settingsStore.addModel(");
+    expect(modelAddHandler).toContain("await services.settingsStore.addModel(");
     expect(modelDeleteHandler).toContain("activeTurns.size > 0");
-    expect(modelDeleteHandler).toContain("await settingsStore.removeModel(");
+    expect(modelDeleteHandler).toContain(
+      "await services.settingsStore.removeModel(",
+    );
     expect(modelDeleteHandler).not.toContain(
       "Switch conversations using this model before deleting it.",
     );
@@ -1630,8 +1611,8 @@ describe("renderer layout contract", () => {
       "delete configuration.credentials[target.providerId]",
     );
     expect(modelSwitchHandler).not.toContain("apiKeyInput");
-    expect(modelSwitchHandler).toContain(
-      "await settingsStore.setModel(resolved.selection, resolved.contextWindow)",
+    expect(modelSwitchHandler).toMatch(
+      /await services\.settingsStore\.setModel\(\s*resolved\.selection,\s*resolved\.contextWindow,?\s*\)/u,
     );
     expect(mainProcessSource).toContain(
       'typeof selection.ultraMode !== "boolean"',
@@ -1642,7 +1623,8 @@ describe("renderer layout contract", () => {
     expect(mainProcessSource).toContain("selection.ultraMode === true");
 
     // Custom provider setup keeps its independent, working connection flow.
-    expect(customProvidersTabSource).toContain("title={t.customProviders}");
+    expect(customProvidersTabSource).toContain('"ProviderForm.addTitle"');
+    expect(customProvidersTabSource).toContain('"ProviderForm.editTitle"');
     expect(customProvidersTabSource).toContain("saveProviderConnection");
     expect(customProvidersTabSource).not.toContain("t.optionalApiKey");
     expect(customProvidersTabSource).not.toContain("onClick={saveKey}");
@@ -2264,7 +2246,7 @@ describe("renderer layout contract", () => {
     );
     expect(appSource).not.toContain("sidebar-collapsed");
     expect(stylesSource).not.toContain("--project-sidebar-width");
-    expect(mainProcessSource).toContain("Math.max(980");
+    expect(smokeSource).toContain("Math.max(980");
     expect(mainProcessSource).toContain("minWidth: 980");
     expect(stylesSource).toContain(
       "@container workspace-header (max-width: 290px)",
@@ -2412,9 +2394,7 @@ describe("renderer layout contract", () => {
   });
 
   it("uses a real provider form with editable controls and a submit action", () => {
-    expect(settingsSource).toMatch(
-      /<form\s+className="credential-form provider-form"/u,
-    );
+    expect(settingsSource).toMatch(/<form\s+className="provider-form"/u);
     expect(settingsSource).toMatch(
       /onSubmit=\{\(event\) =>\s*void saveProviderConnection\(event\)\s*\}/u,
     );
@@ -2555,7 +2535,7 @@ describe("renderer layout contract", () => {
       "skill-search-loading",
       "skill-search-empty",
     ]) {
-      expect(mainProcessSource).toContain(view);
+      expect(smokeSource).toContain(view);
     }
   });
 
@@ -3127,7 +3107,11 @@ describe("renderer layout contract", () => {
     const buttonBefore = (label: string) => {
       const source =
         label === "importPi" ? providerWorkspaceSource : settingsSource;
-      const labelIndex = source.indexOf(`{t.${label}}`);
+      const labelIndex = source.indexOf(
+        label === "saveProvider"
+          ? '{uiText(locale, "ProviderForm.save")}'
+          : `{t.${label}}`,
+      );
       expect(labelIndex).toBeGreaterThan(-1);
       const buttonIndex = source.lastIndexOf("<Button", labelIndex);
       return source.slice(buttonIndex, labelIndex);

@@ -1,0 +1,631 @@
+.git-environment-section .environment-rows > .environment-text-action {
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.environment-rows {
+  & > .environment-text-action > span {
+    min-width: 0;
+    line-height: 18px;
+  }
+
+  & > .environment-text-action > svg {
+    display: block;
+    justify-self: center;
+    stroke-width: 1.5;
+  }
+
+  & > .environment-text-action:hover:not(:disabled) {
+    background: var(--environment-selected-bg);
+    color: var(--text);
+  }
+
+  & > .environment-text-action:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}
+
+.environment-compare-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 8px;
+  width: 100%;
+  text-align: start;
+}
+
+.environment-compare-action:hover {
+  background: var(--environment-selected-bg);
+}
+
+.environment-setting-row > svg,
+.environment-rows > .environment-text-action > svg,
+.environment-compare-action > svg,
+.environment-branch-create-form button > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+:is(
+    .environment-popover,
+    .environment-branch-menu,
+    .environment-git-dialog,
+    .environment-checks-popover
+  )
+  button:focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: -2px;
+}
+
+.environment-git-dialog button:disabled {
+  cursor: default;
+  opacity: var(--artemis-opacity-disabled);
+}
+
+.environment-inline-error > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.token-usage-page > [data-part="content"],
+.resource-page > [data-part="content"] {
+  inline-size: 100%;
+  max-width: 1060px;
+  margin-inline: auto;
+  flex: 0 0 auto;
+}
+
+.token-usage-tabs {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.automation-card > [data-part="content"] {
+  padding: 22px 0;
+  gap: 0;
+}
+
+.automation-actions [data-artemis-component="button"] {
+  min-block-size: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.archive-search [data-part="control"],
+.resource-search-field [data-part="control"] {
+  min-block-size: 32px;
+  block-size: 32px;
+  font-size: 12.5px;
+  padding: 0 10px;
+}
+
+.resource-page {
+  min-height: 0;
+  padding: 0;
+}
+
+.resource-page > [data-part="content"] {
+  gap: 0;
+}
+
+.resource-marketplace-diagnostics {
+  & {
+    min-width: 0;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+  }
+
+  & summary {
+    cursor: pointer;
+  }
+
+  & ul {
+    max-height: 12rem;
+    overflow-y: auto;
+    padding-inline-start: 1.5rem;
+  }
+}
+
+.resource-page-header {
+  margin: 0 0 18px;
+  gap: 14px;
+}
+
+.resource-management-header [data-part="leading"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.resource-marketplace-toolbar {
+  display: flex;
+  align-items: center;
+  margin-block-end: 16px;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--border-soft);
+}
+
+.resource-marketplace-toolbar .resource-category-tabs {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 680px) {
+  .resource-marketplace-toolbar .resource-market-search {
+    margin-inline-start: auto;
+    flex: 1 1 100%;
+    inline-size: 100%;
+  }
+}
+
+.resource-page-header [data-part="description"] {
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin: 2px 0 0;
+  max-width: 56ch;
+}
+
+.resource-category-tabs {
+  inline-size: max-content;
+  max-inline-size: 100%;
+  margin-bottom: 16px;
+  overflow-x: auto;
+}
+
+.plugin-market-card {
+  border: 1px solid var(--border-soft);
+  background: var(--surface);
+  /* 卡片本身撑满网格行高，内容区跟随填满，底部按钮行始终贴底。 */
+  flex-direction: column;
+}
+
+.plugin-market-card-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.plugin-market-card-titles {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.plugin-market-card-heading strong {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  font-size: 13px;
+  font-weight: 590;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-market-copy small {
+  white-space: normal;
+  margin: 0;
+  overflow-wrap: anywhere;
+  /* 说明固定最多 3 行，超出省略；完整内容见 hover 浮窗（title）。 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.plugin-market-card-footer {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.plugin-market-source {
+  font-size: 10px;
+  color: var(--muted-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 0 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 名称下方的来源市场徽章，与 .plugin-market-source 同一视觉语言。 */
+/* 已安装插件的版本小字（名称后 v+版本）：弱于标题一档，等宽数字。 */
+.plugin-market-card-vn {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.plugin-market-card-actions {
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+.plugin-market-card-footer [data-artemis-component="button"] {
+  min-block-size: 28px;
+  font-size: 12px;
+  padding: 5px 10px;
+  flex: 0 0 auto;
+}
+
+.plugin-market-card-actions[data-installed="true"] {
+  flex-wrap: nowrap;
+  gap: 0;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.plugin-market-configure-action {
+  --plugin-action-icon-color: light-dark(#0070db, #53b7ff);
+}
+
+.plugin-market-remove-action {
+  & {
+    --plugin-action-icon-color: light-dark(#d82e4d, #ff7489);
+  }
+
+  & [data-artemis-component="icon"] {
+    color: var(--plugin-action-icon-color);
+  }
+
+  & [data-artemis-icon] {
+    stroke-width: 2.25;
+  }
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"]
+  [data-artemis-component="button"] {
+  flex: 1 1 0;
+  gap: var(--artemis-space-1);
+  min-inline-size: 0;
+  padding: var(--artemis-space-1) var(--artemis-space-2);
+  border-radius: 0;
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"]
+  [data-artemis-component="button"]:not(.plugin-market-update-action) {
+  border: var(--artemis-border-width-default) solid var(--border-soft);
+  background: var(--management-control-bg);
+  color: var(--text);
+}
+
+.plugin-market-card-actions {
+  &[data-installed="true"] [data-artemis-component="icon"] {
+    color: var(--plugin-action-icon-color);
+    font-size: var(--icon-size-sm);
+  }
+
+  &[data-installed="true"] [data-artemis-icon] {
+    stroke-width: 2.25;
+  }
+
+  &[data-installed="true"] [data-part="label"] {
+    display: block;
+    min-inline-size: 0;
+    line-height: 1.35;
+    hyphens: auto;
+    overflow-wrap: anywhere;
+  }
+
+  &[data-installed="true"] [data-artemis-component="button"]:first-child {
+    border-start-start-radius: var(--artemis-radius-control);
+    border-end-start-radius: var(--artemis-radius-control);
+  }
+
+  &[data-installed="true"] [data-artemis-component="button"]:last-child {
+    border-start-end-radius: var(--artemis-radius-control);
+    border-end-end-radius: var(--artemis-radius-control);
+  }
+
+  &[data-installed="true"]
+    [data-artemis-component="button"]
+    + [data-artemis-component="button"] {
+    margin-inline-start: calc(-1 * var(--artemis-border-width-default));
+  }
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"]
+  [data-artemis-component="button"]:not(.plugin-market-update-action):hover:not(
+    :disabled
+  ) {
+  border-color: var(--border);
+  background: var(--panel-3);
+}
+
+.plugin-market-card-actions[data-installed="true"]
+  [data-artemis-component="button"]:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.plugin-market-card-actions[data-installed="true"][data-office="true"] {
+  flex-wrap: wrap;
+  gap: var(--artemis-space-2);
+}
+
+.plugin-market-card
+  .plugin-market-card-actions[data-installed="true"][data-office="true"]
+  [data-artemis-component="button"] {
+  flex: 0 0 auto;
+  min-block-size: var(--artemis-size-control-compact);
+  margin-inline-start: 0;
+  border-radius: var(--artemis-radius-control);
+}
+
+.plugin-market-card-actions[data-installed="true"][data-office="true"]
+  [data-part="label"] {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.resource-page-header,
+.automation-header {
+  padding: 0;
+  align-items: flex-start;
+}
+
+.token-usage-model-filter [data-part="trigger"] {
+  min-inline-size: 92px;
+}
+
+.resource-search-field [data-part="control"],
+.archive-search [data-part="control"] {
+  padding-inline-start: 32px;
+}
+
+.resource-search-field [data-part="icon"],
+.archive-search [data-part="icon"] {
+  inset-block-start: 8px;
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.workspace-panel-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  padding-inline-end: 8px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.workspace-panel-toolbar > strong {
+  font: 600 13px/20px var(--font);
+}
+.workspace-panel-toolbar > svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.workspace-panel-status {
+  margin-inline-start: auto;
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+
+.workspace-panel-section-title {
+  display: block;
+  font: 600 11.5px/1.5 var(--font);
+  letter-spacing: 0.02em;
+  color: var(--muted-2);
+  margin: 0 0 12px;
+}
+
+.goal-editor-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+  gap: 12px;
+}
+
+.goal-editor-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.sources-panel-scroll > .workspace-panel-section-title:not(:first-child),
+.sources-agent-group {
+  margin-top: 24px;
+}
+
+.sources-agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sources-agent-row p {
+  font-size: 11.5px;
+  color: var(--muted-2);
+  margin: 2px 0 0;
+}
+
+.environment-agent-team-children {
+  padding-inline-start: 0;
+}
+
+.environment-agent-group + .environment-agent-group {
+  margin-top: 4px;
+}
+
+.environment-activity-row {
+  & {
+    padding: 4px 6px;
+    margin-inline: -6px;
+    border-bottom: 0;
+    border-radius: 6px;
+    gap: 8px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    width: calc(100% + 12px);
+  }
+
+  & > span:nth-child(2) {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  & > .environment-row-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  & strong {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    font-weight: 400;
+  }
+
+  & small {
+    flex: 0 0 auto;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--muted-2);
+  }
+}
+
+.workspace-files-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.sources-file-action {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.sources-panel-entry:has(.sources-file-action) {
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+}
+
+.sources-panel-mcp-entry {
+  display: block;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--panel-3);
+  padding: 0;
+}
+
+.sources-panel-mcp-entry:last-child {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.sources-panel-mcp-summary {
+  & {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  & > strong {
+    font-weight: 510;
+  }
+
+  & > span {
+    font-size: 10.5px;
+    color: var(--muted);
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    padding: 0 7px;
+  }
+
+  & > svg {
+    margin-inline-start: auto;
+    color: var(--muted-2);
+  }
+}
+
+.sources-panel-mcp-details {
+  border-top: 1px solid var(--border-soft);
+  padding: 10px 16px;
+  font-size: 11.5px;
+}
+
+.goal-editor-footer .primary-button {
+  height: 26px;
+  min-height: 26px;
+  padding: 0 9px;
+  font: 500 12px/1 var(--font);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.goal-editor-footer button:disabled {
+  opacity: var(--artemis-opacity-disabled);
+  cursor: default;
+}
+
+.workspace-panel-toolbar > button {
+  margin-inline-start: auto;
+  min-height: 28px;
+  padding: 5px 10px;
+}
+
+.document-reader h1 {
+  font-size: 26px;
+  line-height: 1.4;
+  margin: 14px 0;
+  letter-spacing: -0.02em;
+}
+
+.document-reader h2 {
+  font-size: 18px;
+  margin: 22px 0 8px;
+}
+
+/* Reference-aligned management lists and compact inline actions. */
+.management-text-action[data-artemis-component="button"] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--muted);
+}
+.management-text-action[data-artemis-component="button"]:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: transparent;
+}
+.management-destructive-action[data-variant="quiet"] {
+  color: var(--muted);
+  background: transparent;
+  border-color: transparent;
+}

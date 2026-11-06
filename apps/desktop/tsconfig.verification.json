@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "test/fixtures/application/desktop-entry.ts",
+    "test/fixtures/smoke/**/*.ts",
+    "scripts/verify/ui/smoke/**/*.ts"
+  ]
+}

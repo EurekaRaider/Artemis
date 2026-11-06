@@ -1,12 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
+
 import { transformSync } from "esbuild";
 import { threadCommandSchema } from "@artemis/protocol";
 import { describe, expect, it, vi } from "vitest";
 
-const main = readFileSync(
-  new URL("../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const main = readMainProcessSources();
 const pauseStart = main.indexOf("  ipcMain.handle(\n    IPC.threadGoalPause,");
 const pauseEnd = main.indexOf(
   "  ipcMain.handle(IPC.threadGoalResume,",
@@ -59,6 +57,7 @@ function fixture(source?: "user" | "goal-continuation") {
     },
   };
   new Function(
+    "services",
     ...Object.keys(scope),
     transformSync(
       main.slice(cancelStart, cancelEnd) +
@@ -66,7 +65,7 @@ function fixture(source?: "user" | "goal-continuation") {
         main.slice(pauseStart, pauseEnd),
       { loader: "ts" },
     ).code,
-  )(...Object.values(scope));
+  )(scope, ...Object.values(scope));
   return { run: () => handler(undefined, "thread"), scope, goal };
 }
 

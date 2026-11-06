@@ -1,18 +1,115 @@
+import { CodexSelect } from "../components/CodexSelect.js";
+import { AppWorkspaceDock } from "./AppWorkspaceDock.js";
+import { AppNavigation } from "./AppNavigation.js";
+import { ApplicationShell } from "@artemis/ui/surfaces";
+import { SettingsPanel } from "./feature-panels.js";
 import { UpdateAnnouncement } from "../updates/UpdateAnnouncement.js";
+import { ConversationShareDialog } from "../conversation/ConversationShareDialog.js";
 import { ProjectInstructionsDialog } from "../workspace/ProjectInstructionsDialog.js";
+import { Dialog } from "@artemis/ui/feedback";
+import { TokenUsagePage } from "./feature-panels.js";
+import { AutomationPage } from "./feature-panels.js";
+import { ArchivePage } from "./ArchivePage.js";
+import { ResourceCenter } from "./feature-panels.js";
+
+import { WorkspaceDockResizer } from "@artemis/ui/workspace";
+import { ConversationSurface } from "@artemis/ui/conversation";
+import { WelcomeResume } from "../conversation/WelcomeResume.js";
+import { ComposerContextBar } from "../conversation/ComposerContextBar.js";
+import { EnvironmentWorkspaceMenu } from "../workspace/EnvironmentWorkspaceMenu.js";
+import { DecisionComposer } from "../conversation/DecisionComposer.js";
 import { ModelPickerMenu } from "../settings/ModelPickerMenu.js";
 import { ModelHoverDetails } from "../settings/ModelHoverDetails.js";
-import { Keycap } from "@artemis/ui/actions";
-import { threadPresentationStatus } from "../conversation/thread-presentation.js";
-import { WelcomeResume } from "../conversation/WelcomeResume.js";
-import {
-  SidebarUpdateControl,
-  sidebarUpdateSubtitle,
-} from "../updates/SidebarUpdateControl.js";
-import { SegmentedControl } from "@artemis/ui/navigation";
-import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
+import { ModelIcon } from "./app-icons.js";
+import { ContextUsageIndicator } from "../conversation/ContextUsageIndicator.js";
+import { ComposerRunModeControl } from "../conversation/ComposerContextBar.js";
+import { CustomAgentMentionMenu } from "../settings/CustomAgentMention.js";
+import { CustomAgentTaskBlocks } from "../settings/CustomAgentTaskBlocks.js";
+import { OfficeAnnotationCards } from "../office/OfficeAnnotationCards.js";
+import { ComposerAttachments } from "../conversation/ComposerAttachments.js";
 import { AttachmentImportProgress } from "../conversation/AttachmentImportProgress.js";
-import { ConversationShareDialog } from "../conversation/ConversationShareDialog.js";
+import { ComposerSkillChip } from "../conversation/ComposerSkillChip.js";
+import { CommandArtwork } from "../components/CommandArtwork.js";
+import { QueueIcon } from "./app-icons.js";
+import { QueuedMessageGroup } from "@artemis/ui/conversation";
+import { TrashIcon } from "./app-icons.js";
+import { EditIcon } from "./app-icons.js";
+import { MoveToFrontIcon } from "./app-icons.js";
+import { QueuedMessageItem } from "@artemis/ui/conversation";
+import { QueuedMessageEditor } from "../conversation/QueuedMessageEditor.js";
+import { TaskPlanProgress } from "../conversation/TaskPlanProgress.js";
+import { GoalBar } from "../conversation/GoalBar.js";
+import { ImDelegationWaitStatus } from "../im/ImDelegationWaitStatus.js";
+import { HookTaskNotice } from "./feature-panels.js";
+import { Suspense } from "react";
+import { ComputerPreview } from "./feature-panels.js";
+import { ComputerUseControls } from "./feature-panels.js";
+import { TimelineViewport } from "@artemis/ui/conversation";
+import { Button } from "@artemis/ui/actions";
+import { ErrorState } from "@artemis/ui/feedback";
+import { LoadingState } from "@artemis/ui/feedback";
+import { ConversationEmptyState } from "@artemis/ui/conversation";
+import { Fragment } from "react";
+import { RightSidebarIcon } from "./app-icons.js";
+import { EnvironmentPanel } from "../workspace/EnvironmentPanel.js";
+import { RunningArc } from "@artemis/ui/icons";
+import { TransientNotice } from "./transient-notice.js";
+import { Toolbar } from "@artemis/ui/layout";
+import { ApplicationShellResizer } from "@artemis/ui/surfaces";
+
+import { LeftSidebarIcon } from "./app-icons.js";
+
+import { Keycap } from "@artemis/ui/actions";
+
+import { Tooltip } from "@artemis/ui/feedback";
+import { PlusIcon } from "./app-icons.js";
+import { ChevronIcon } from "./app-icons.js";
+import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
+import { ArchiveIcon } from "./app-icons.js";
+import { TokenUsageIcon } from "./app-icons.js";
+import { AutomationIcon } from "./app-icons.js";
+import { ResourceIcon } from "./app-icons.js";
+import { ArtemisMark } from "./app-icons.js";
+import { CloseIcon } from "./app-icons.js";
+import { ArtemisIcon } from "@artemis/ui/icons";
+import { useSidebarNavigation } from "./use-sidebar-navigation.js";
+
+import { Timeline } from "../conversation/timeline.js";
+import { TurnChangeSetCard } from "../conversation/turn-change-set-card.js";
+import { ToolActivityGroupCard } from "../conversation/tool-activity-group-card.js";
+import { ChildAgentPanel } from "../conversation/child-agent-panel.js";
+import { AgentTeamPanel } from "../conversation/agent-team-panel.js";
+import {
+  loadResourceCenter,
+  loadSettingsPanel,
+  loadTerminalPanel,
+} from "./feature-panels.js";
+
+import {
+  statusLabel,
+  synchronizeTurnIndicator,
+} from "./thread-presentation.js";
+import { WorkspaceTabIcon } from "./app-icons.js";
+import { copy, appCopy } from "./app-copy.js";
+import {
+  type LiveChildActivity,
+  type Locale,
+  type ActiveView,
+  type SettingsEntryTab,
+  type ConfirmationTone,
+  type ToastContent,
+  type ToastState,
+  type ConfirmationState,
+  type FileLinkContextMenuState,
+  type WorkspaceDockDrag,
+  type ProjectSidebarDrag,
+  type WorkspaceTabScrollState,
+} from "./app-types.js";
+
+import { threadPresentationStatus } from "../conversation/thread-presentation.js";
+
+import { useComposerPrediction } from "../conversation/useComposerPrediction.js";
+
 import {
   applyStreamBatch,
   mergeThreadEvents,
@@ -20,7 +117,7 @@ import {
 } from "../conversation/stream-snapshot.js";
 import { BoundedStateCache } from "./bounded-state-cache.js";
 import type { WindowMaterial } from "../../shared/window-material.js";
-import { PlanConfirmationCard } from "../conversation/PlanConfirmationCard.js";
+
 import { isExecutionMode } from "@artemis/protocol";
 import { claimUpdateAnnouncement } from "../updates/update-announcement.js";
 import type { HookQuery } from "@artemis/protocol";
@@ -28,44 +125,24 @@ import {
   restoreArtifactSnapshot,
   type ArtifactSnapshot,
 } from "@artemis/protocol";
-import { imUserMessageText } from "../im/im-user-message.js";
-import { memberAvatarStyle } from "../im/member-avatar.js";
+
 import { UserInputCard } from "../conversation/UserInputCard.js";
-import {
-  DecisionComposer,
-  firstPendingComposerDecision,
-} from "../conversation/DecisionComposer.js";
+import { firstPendingComposerDecision } from "../conversation/DecisionComposer.js";
 export { UserInputCard } from "../conversation/UserInputCard.js";
-import {
-  ApprovalDecisionCard,
-  type ResolveApprovalDecision,
-} from "../conversation/ApprovalDecisionCard.js";
-import { ThreadWaitingBadge } from "../conversation/ThreadStatusIndicator.js";
-import { CommandArtwork } from "../components/CommandArtwork.js";
-import { ResourceAvatar } from "../plugins/resource-icons.js";
-import {
-  createToolPluginResolver,
-  type ToolPlugin,
-} from "../conversation/tool-plugin-source.js";
-import { HistoryTurn } from "../conversation/HistoryTurn.js";
+import { type ResolveApprovalDecision } from "../conversation/ApprovalDecisionCard.js";
+
 import {
   mergeHistoryPage,
   type ThreadHistoryPage,
 } from "../../shared/thread-history.js";
-import { reviewMessage } from "../../shared/i18n/review-copy.js";
+
 import { GOAL_RESOURCES } from "../../shared/i18n/goal-resources.js";
-import { statusText } from "../../shared/i18n/status-text.js";
+
 import { uiText } from "../../shared/i18n/ui-text.js";
-import { UI_COPY } from "../../shared/i18n/ui-copy.js";
-import { FileAttachment } from "../components/FileAttachment.js";
-import { MessageImageAttachment } from "../conversation/MessageImageAttachment.js";
+
 import { AGENT_TEAM_LOGICAL_MAXIMUM } from "@artemis/protocol";
-import { CustomAgentTaskBlocks } from "../settings/CustomAgentTaskBlocks.js";
-import { ComposerSkillChip } from "../conversation/ComposerSkillChip.js";
-import { ComposerAttachments } from "../conversation/ComposerAttachments.js";
-import { OfficeAnnotationCards } from "../office/OfficeAnnotationCards.js";
+
 import {
-  addOfficeAnnotation,
   changeOfficeAnnotation,
   readOfficeAnnotations,
   isStoredOfficeAnnotations,
@@ -76,120 +153,42 @@ import {
   addDesignDocumentAttachment,
   DesignAnnotationDraft,
   buildDesignBindingHint,
-  stripDesignAnnotationBlock,
 } from "../design/design-annotations.js";
 import { officeAnnotationCopy } from "../office/office-annotation-copy.js";
-import {
-  buildWorkspaceTabMenuHtml,
-  type WorkspaceTabMenuEntry,
-} from "../workspace/workspace-tab-menu-html.js";
-import { ThreadStatusIndicator } from "../conversation/ThreadStatusIndicator.js";
+
 import { useAutomations } from "../automation/useAutomationCount.js";
 import { useTaskNotificationRead } from "../conversation/task-notification-read.js";
 import { isAttachmentReference } from "@artemis/protocol";
 import { localizedTurnFailure } from "../conversation/turn-failure.js";
-import { SidebarGlassFilters } from "./SidebarGlassFilters.js";
+
 import { useImMemberMentions } from "../im/ImMemberMentions";
 import {
-  Fragment,
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
-  type AnimationEvent as ReactAnimationEvent,
   type ClipboardEvent as ReactClipboardEvent,
   type CSSProperties,
   type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
   type SetStateAction,
-  type UIEvent as ReactUIEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { Badge, Button } from "@artemis/ui/actions";
-import {
-  ConversationEmptyState,
-  ConversationMessage,
-  ConversationSurface,
-  QueuedMessageGroup,
-  QueuedMessageItem,
-  TimelineSurface,
-  TimelineTurn,
-  TimelineViewport,
-  TurnChangeSummary,
-} from "@artemis/ui/conversation";
-import {
-  Dialog,
-  ErrorState,
-  LoadingState,
-  Popover,
-  Toast,
-  Tooltip,
-} from "@artemis/ui/feedback";
-import { ArtemisIcon } from "@artemis/ui/icons";
-import { ArtemisLogo, RunningArc } from "@artemis/ui/icons";
-import feishuChannelIcon from "../assets/feishu-channel.png";
-import slackChannelIcon from "../assets/slack-channel.svg";
-import { PanelHeader, Toolbar } from "@artemis/ui/layout";
-import {
-  AgentActivity,
-  TurnStatus,
-  ResultDisclosure,
-  ToolActivity,
-} from "@artemis/ui/patterns";
-import {
-  TerminalState,
-  TerminalSurface,
-  TerminalViewport,
-} from "@artemis/ui/professional";
-import {
-  ApplicationShell,
-  ApplicationShellResizer,
-  NavigationSidebar,
-} from "@artemis/ui/surfaces";
-import {
-  WorkspaceDock,
-  WorkspaceDockResizer,
-  WorkspaceLauncher,
-  WorkspaceLauncherAction,
-  WorkspaceTab as WorkspaceTabSurface,
-  WorkspaceTabBar,
-  WorkspaceTabPane,
-} from "@artemis/ui/workspace";
-import {
-  ReviewDiff as ReviewDiffSurface,
-  ReviewDiffHeader,
-  ReviewDiffHunk,
-  ReviewDiffLine,
-  ReviewDiffLines,
-  ReviewDiffReader,
-  ReviewFileSidebar,
-  ReviewState,
-  ReviewSurface,
-  ReviewToolbar,
-  ReviewWorkspace,
-} from "@artemis/ui/workflow";
+
 import {
   reduceAgentEventBatch,
   reduceAgentEvents,
   type AgentEvent,
   type AgentHostEvent,
-  type AgentTeamMessageState,
   type AgentTeamState,
   type ApprovalPolicy,
   type ApprovalState,
-  type AppLocale,
   type ChildAgentState,
-  type ChildAgentPayload,
-  type ImGroupContext,
   type ModelSelection,
   type PromptAttachment,
   type PromptImage,
@@ -198,10 +197,7 @@ import {
   type ThinkingLevel,
   type Thread,
   type ThreadViewState,
-  type TurnViewState,
-  type ToolState,
   type UserInputResolution,
-  type UserInputState,
 } from "@artemis/protocol";
 
 import type {
@@ -209,7 +205,6 @@ import type {
   ProjectGitInfo,
   InstalledArtemisPlugin,
   InstalledSkill,
-  McpServerStatus,
   ReviewAction,
   ReviewComment,
   ReviewDiff,
@@ -219,112 +214,42 @@ import type {
 } from "../../shared/api.js";
 import { localeDirection } from "../../shared/i18n/locales.js";
 import { I18N_RESOURCES } from "../../shared/i18n/i18n-resources.js";
-import { ArchivePage } from "./ArchivePage.js";
-import {
-  isMultiQuestionUserInput,
-  MultiQuestionUserInputCard,
-} from "../conversation/MultiQuestionUserInputCard.js";
-import {
-  indexAgentTeamTree,
-  sortAgentsByActivity,
-  visibleAgentTeamMembers,
-} from "../conversation/agent-team-tree.js";
 
-interface LiveChildActivity {
-  activity: string;
-  payload: ChildAgentPayload;
-}
-import { MarkdownContent } from "../components/MarkdownContent.js";
+import { sortAgentsByActivity } from "../conversation/agent-team-tree.js";
+
 import { normalizeBrowserAddress } from "./browser-navigation.js";
-import { CodexSelect } from "../components/CodexSelect.js";
-import { ChildAgentIcon } from "../components/ChildAgentIcon.js";
-import { ImDelegationWaitStatus } from "../im/ImDelegationWaitStatus.js";
-import {
-  ImThreadConnection,
-  useImThreadStatus,
-} from "../im/ImThreadConnection.js";
-import {
-  ComposerContextBar,
-  ComposerRunModeControl,
-} from "../conversation/ComposerContextBar.js";
-import { ContextUsageIndicator } from "../conversation/ContextUsageIndicator.js";
-import { GoalBar } from "../conversation/GoalBar.js";
-import { GoalEditorPanel } from "../conversation/GoalEditorPanel.js";
-import { EnvironmentPanel } from "../workspace/EnvironmentPanel.js";
-import { EnvironmentWorkspaceMenu } from "../workspace/EnvironmentWorkspaceMenu.js";
+
+import { useImThreadStatus } from "../im/ImThreadConnection.js";
+
 import {
   desktopSkinHost,
   desktopSkinReady,
 } from "../appearance/desktop-skin-bootstrap.js";
-import { QueuedMessageEditor } from "../conversation/QueuedMessageEditor.js";
-import {
-  clampTreeActiveRowId,
-  handleProjectTreeKeyDown,
-} from "./project-thread-tree.js";
-import { SourcesIcon, SourcesPanel } from "../conversation/SourcesPanel.js";
-import { TaskPlanProgress } from "../conversation/TaskPlanProgress.js";
-import {
-  WorkRecord,
-  AgentActivityStatus,
-  turnChangedFileCount,
-  turnUsageLabel,
-} from "../conversation/WorkRecord.js";
-import { toolActivityPatternView } from "../conversation/agent-pattern-adapters.js";
+
+import { clampTreeActiveRowId } from "./project-thread-tree.js";
+
 import {
   prepareTimelineRestore,
   resolveTimelinePinned,
   resolveTimelineScrollTarget,
   type TimelineScrollSnapshot,
 } from "../conversation/timeline-scroll.js";
-import { userMessageAttachments } from "../conversation/turn-timeline.js";
-import { HighlightedCodeLine } from "../workspace/WorkspaceFileEditor.js";
-import {
-  DesignIcon,
-  WorkspaceLauncherIcon,
-} from "../workspace/WorkspaceLauncherIcon.js";
-import {
-  WorkspaceFileIcon,
-  WorkspaceFilesPanel,
-} from "../workspace/WorkspaceFilesPanel.js";
+
 import {
   flushWorkspaceEdits,
   retainWorkspaceDrafts,
 } from "../workspace/workspace-autosave.js";
-import {
-  MarkdownReaderPanel,
-  WorkspaceBrowserPanel,
-} from "../workspace/WorkspacePreviewPanel.js";
-import { filePresentation } from "../workspace/workspace-file-presentation.js";
+
 import {
   deriveRunPresentation,
   formatRunDuration,
 } from "../conversation/run-presentation.js";
-const DesignPluginPanel = lazy(() =>
-  import("../design/DesignPluginPanel.js").then((module) => ({
-    default: module.DesignPluginPanel,
-  })),
-);
-const OfficeFilePanel = lazy(() =>
-  import("../office/OfficeFilePanel.js").then((module) => ({
-    default: module.OfficeFilePanel,
-  })),
-);
+
 import {
   nextRunMode,
   parseRunModeCommand,
 } from "../conversation/run-mode-controls.js";
-import {
-  toolStepPresentation,
-  formatToolInput,
-  formatToolOutput,
-  summarizeToolDetail,
-  toolActivityKind,
-  toolActivityPath,
-} from "../conversation/tool-presentation.js";
-import {
-  groupTimelineActivities,
-  latestVisibleToolGroupKey,
-} from "../conversation/tool-activity-groups.js";
+
 import {
   isSkillCommandPrompt,
   promptWithoutSelectedSkills,
@@ -353,20 +278,15 @@ import {
   type ComposerDrafts,
   type CustomAgentDraftReference,
 } from "../conversation/composer-drafts.js";
-import {
-  CustomAgentMentionMenu,
-  useCustomAgentMention,
-} from "../settings/CustomAgentMention.js";
-import { customAgentInstanceIdentity } from "../settings/custom-agent-identity.js";
+import { useCustomAgentMention } from "../settings/CustomAgentMention.js";
+
 import { parseGoalCommand } from "../conversation/goal-command.js";
 import {
   isWorkspaceDraftThread,
-  orderProjectThreadsByPreference,
-  reorderThreadIds,
   sortProjectThreads,
   type ThreadDropEdge,
 } from "./thread-list-order.js";
-import { userInitials } from "./user-profile.js";
+
 import { useConversationWelcome } from "../conversation/use-conversation-welcome.js";
 import {
   agentTeamWorkspaceTab,
@@ -381,10 +301,7 @@ import {
   type WorkspaceTabAction,
   type WorkspaceTabKind,
   type WorkspaceTabOpenOptions,
-  handleWorkspaceTabBarKeyDown,
-  workspaceTabDomId,
   workspaceTabFocusTargetAfterClose,
-  workspaceTabIdForKey,
 } from "../workspace/workspace-tabs.js";
 import { useWorkspaceUiState } from "../workspace/workspace-ui-state.js";
 import { booleanUiState, usePersistentUiState } from "./ui-state.js";
@@ -397,7 +314,6 @@ import {
 } from "../workspace/workspace-dock-layout.js";
 import {
   clampProjectSidebarWidth,
-  formatSidebarTime,
   PROJECT_SIDEBAR_WIDTH_DEFAULT,
   PROJECT_SIDEBAR_WIDTH_MAX,
   PROJECT_SIDEBAR_WIDTH_MIN,
@@ -405,7 +321,6 @@ import {
 import {
   createProjectOrderPersistenceQueue,
   orderProjectsByPreference,
-  reorderProjectIds,
   type ProjectDropEdge,
   type ProjectOrderPersistenceQueue,
 } from "./project-order.js";
@@ -420,58 +335,8 @@ import {
 } from "../conversation/turn-failure-notices.js";
 import {
   selectionForModelSwitch,
-  thinkingLevelsForModel,
   thinkingLevelLabel,
 } from "../settings/model-selection.js";
-
-type Locale = AppLocale;
-type ActiveView =
-  "workspace" | "archive" | "resources" | "token-usage" | "automations";
-type SettingsEntryTab = "general" | "maintenance" | "hooks" | "im";
-type ConfirmationTone = "default" | "danger";
-type ToastContent =
-  | string
-  | { error: true; message: string }
-  | { success: true; message: string };
-
-interface ToastState {
-  content: ToastContent;
-  fading: boolean;
-  id: number;
-}
-
-interface ConfirmationState {
-  acceptLabel?: string;
-  cancelLabel?: string;
-  message: string;
-  title?: string;
-  tone: ConfirmationTone;
-}
-
-interface FileLinkContextMenuState {
-  file: WorkspaceFileLink;
-  threadId: string;
-  x: number;
-  y: number;
-}
-
-interface WorkspaceDockDrag {
-  pointerId: number;
-  startWidth: number;
-  startX: number;
-}
-
-interface ProjectSidebarDrag {
-  pointerId: number;
-  startWidth: number;
-  startX: number;
-}
-
-interface WorkspaceTabScrollState {
-  hasOverflow: boolean;
-  canScrollLeft: boolean;
-  canScrollRight: boolean;
-}
 
 const EMPTY_WORKSPACE_TAB_SCROLL_STATE: WorkspaceTabScrollState = {
   hasOverflow: false,
@@ -482,136 +347,9 @@ const EMPTY_WORKSPACE_TAB_SCROLL_STATE: WorkspaceTabScrollState = {
 const WORKSPACE_TAB_SCROLL_INSET = 32;
 const TOAST_VISIBLE_MILLISECONDS = 10_000;
 const TOAST_FADE_MILLISECONDS = 600;
-const COMPACTION_COMPLETION_NOTICE_MILLISECONDS = 5_000;
-const CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS = 5 * 60_000;
-
-const PROJECT_THREAD_PREVIEW_LIMIT = 5;
-
-function TransientNotice({
-  dismissLabel,
-  notice,
-  onDismiss,
-  placement,
-}: {
-  dismissLabel: string;
-  notice: ToastState;
-  onDismiss(): void;
-  placement: "composer" | "view";
-}) {
-  const error = typeof notice.content !== "string" && "error" in notice.content;
-  const success =
-    typeof notice.content !== "string" && "success" in notice.content;
-  return (
-    <Toast
-      className={`transient-notice ${placement}-notice${error ? " error" : ""}${notice.fading ? " fading" : ""}`}
-      dismissLabel={dismissLabel}
-      exiting={notice.fading}
-      onDismiss={onDismiss}
-      tone={error ? "danger" : success ? "success" : "info"}
-    >
-      {typeof notice.content === "string"
-        ? notice.content
-        : notice.content.message}
-    </Toast>
-  );
-}
 
 function modelIdentity(providerId: string, modelId: string): string {
   return `${providerId}\u0000${modelId}`;
-}
-
-const loadAutomationPage = () => import("../automation/AutomationPage.js");
-const loadResourceCenter = () => import("../plugins/ResourceCenter.js");
-const loadSettingsPanel = () => import("./SettingsPanel.js");
-const loadTerminalPanel = () => import("../terminal/TerminalPanel.js");
-const loadTokenUsagePage = () => import("../conversation/TokenUsagePage.js");
-const ComputerUseControls = lazy(() =>
-  import("../computer-use/ComputerUseControls.js").then((module) => ({
-    default: module.ComputerUseControls,
-  })),
-);
-const ComputerPreview = lazy(() =>
-  import("../computer-use/ComputerPreview.js").then((module) => ({
-    default: module.ComputerPreview,
-  })),
-);
-const AutomationPage = lazy(() =>
-  loadAutomationPage().then((module) => ({ default: module.AutomationPage })),
-);
-const HookTaskNotice = lazy(() =>
-  import("../hooks/HookTaskNotice.js").then((module) => ({
-    default: module.HookTaskNotice,
-  })),
-);
-const ResourceCenter = lazy(() =>
-  loadResourceCenter().then((module) => ({ default: module.ResourceCenter })),
-);
-const SettingsPanel = lazy(() =>
-  loadSettingsPanel().then((module) => ({ default: module.SettingsPanel })),
-);
-const TerminalPanel = lazy(() =>
-  loadTerminalPanel().then((module) => ({ default: module.TerminalPanel })),
-);
-const TokenUsagePage = lazy(() =>
-  loadTokenUsagePage().then((module) => ({ default: module.TokenUsagePage })),
-);
-
-const copy = UI_COPY.App_copy satisfies Record<
-  AppLocale,
-  Record<string, string>
->;
-
-function appCopy(locale: Locale): (typeof copy)["en"] {
-  return copy[locale];
-}
-
-function ArtemisMark() {
-  return (
-    <div className="artemis-mark" aria-label="Artemis">
-      <ArtemisLogo size={24} />
-    </div>
-  );
-}
-
-function FolderIcon({ open = false }: { open?: boolean }) {
-  return (
-    <ArtemisIcon
-      className="icon"
-      height={18}
-      name={open ? "folder-open" : "folder"}
-      width={18}
-    />
-  );
-}
-
-function PlusIcon() {
-  return <ArtemisIcon className="icon" height={18} name="plus" width={18} />;
-}
-
-function CloseIcon() {
-  return <ArtemisIcon className="icon" height={16} name="close" width={16} />;
-}
-
-function QueueIcon() {
-  return <ArtemisIcon className="icon" height={18} name="queue" width={18} />;
-}
-
-function MoveToFrontIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="move-front" width={18} />
-  );
-}
-
-function TrashIcon() {
-  return <ArtemisIcon className="icon" height={18} name="trash" width={18} />;
-}
-
-function EditIcon() {
-  return <ArtemisIcon className="icon" height={18} name="edit" width={18} />;
-}
-
-function CopyIcon() {
-  return <ArtemisIcon className="icon" height={16} name="copy" width={16} />;
 }
 
 function isPromptImage(
@@ -620,337 +358,8 @@ function isPromptImage(
   return !("type" in attachment);
 }
 
-function SearchIcon() {
-  return <ArtemisIcon className="icon" height={16} name="search" width={16} />;
-}
-
-function RefreshIcon() {
-  return <ArtemisIcon className="icon" height={16} name="refresh" width={16} />;
-}
-
-function ReviewEmptyIcon() {
-  return (
-    <ArtemisIcon className="icon" height={46} name="review-empty" width={46} />
-  );
-}
-
-function ArchiveIcon() {
-  return <ArtemisIcon className="icon" height={18} name="archive" width={18} />;
-}
-
-function ResourceIcon() {
-  return <ArtemisIcon className="icon" height={18} name="grid" width={18} />;
-}
-
-function TokenUsageIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="token-usage" width={18} />
-  );
-}
-
-function AutomationIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
-  );
-}
-
-function SettingsIcon() {
-  return <ArtemisIcon className="icon" height={17} name="gear" width={17} />;
-}
-
-function ReviewIcon() {
-  return <ArtemisIcon className="icon" height={18} name="review" width={18} />;
-}
-
-function LeftSidebarIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="sidebar-l" width={18} />
-  );
-}
-
-function RightSidebarIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="sidebar-r" width={18} />
-  );
-}
-
-function TerminalIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="terminal" width={18} />
-  );
-}
-
-function BrowserIcon() {
-  return <ArtemisIcon className="icon" height={18} name="browser" width={18} />;
-}
-
-function MarkdownIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="markdown" width={18} />
-  );
-}
-
-function FilesIcon() {
-  return <ArtemisIcon className="icon" height={18} name="files" width={18} />;
-}
-
-export function WorkspaceTabIcon({
-  childAgentId,
-  kind,
-  path,
-}: {
-  childAgentId?: string | undefined;
-  kind: WorkspaceTabKind;
-  path?: string | undefined;
-}) {
-  if (kind === "review") return <ReviewIcon />;
-  if (kind === "terminal") return <TerminalIcon />;
-  if (kind === "browser") return <BrowserIcon />;
-  if (kind === "markdown") return <MarkdownIcon />;
-  if (kind === "sources") return <SourcesIcon />;
-  if (kind === "goal")
-    return <ArtemisIcon height={16} name="task" width={16} />;
-  if (kind === "child-agent") return <ChildAgentIcon identity={childAgentId} />;
-  if (kind === "agent-team") return <FolderIcon />;
-  if (kind === "file") {
-    return path ? (
-      <WorkspaceFileIcon
-        path={path}
-        presentation={filePresentation(path)}
-        symlink={false}
-      />
-    ) : (
-      <FilesIcon />
-    );
-  }
-  if (kind === "design") return <DesignIcon />;
-  return <FilesIcon />;
-}
-
-function ModeIcon() {
-  return (
-    <ArtemisIcon className="icon" height={18} name="automation" width={18} />
-  );
-}
-
-function ModelIcon() {
-  return <ArtemisIcon className="icon" height={18} name="model" width={18} />;
-}
-
-function ChevronIcon() {
-  return <ArtemisIcon className="icon" height={14} name="chevron" width={14} />;
-}
-
-function TabScrollIcon({ direction }: { direction: "left" | "right" }) {
-  return (
-    <ArtemisIcon
-      className="icon"
-      height={16}
-      name={direction === "left" ? "chev-left" : "chev-right"}
-      width={16}
-    />
-  );
-}
-
-function statusLabel(
-  state: ThreadViewState | undefined,
-  locale: Locale,
-  clockMs: number,
-) {
-  const t = appCopy(locale);
-  switch (state?.status) {
-    case "running": {
-      const activity = state.activity;
-      if (activity?.phase === "reconnecting") {
-        if (activity.kind === "process-restart") return t.hostRecovering;
-        const scheduledAt = activity.scheduledAt
-          ? Date.parse(activity.scheduledAt)
-          : clockMs;
-        const seconds = Math.max(
-          0,
-          Math.ceil((scheduledAt + (activity.delayMs ?? 0) - clockMs) / 1_000),
-        );
-        if (activity.kind === "rate-limit") {
-          return t.rateLimited.replace("{{seconds}}", String(seconds));
-        }
-        if (activity.maxAttempts === undefined) {
-          return t.waitingNetwork.replace("{{seconds}}", String(seconds));
-        }
-        return (
-          activity.kind === "stream-stalled" ? t.modelRetrying : t.reconnecting
-        )
-          .replace("{{attempt}}", String(activity.attempt ?? 1))
-          .replace("{{maximum}}", String(activity.maxAttempts))
-          .replace("{{seconds}}", String(seconds));
-      }
-      if (activity?.phase === "recovered")
-        return activity.kind === "process-restart"
-          ? t.hostRecovering
-          : t.connectionRecovered;
-      if (activity?.phase === "interrupted") return t.taskInterrupted;
-      return activity?.phase === "queued"
-        ? t.queuedForAgent
-        : activity?.phase === "requesting-model"
-          ? t.waitingForModel
-          : t.running;
-    }
-    case "waiting-approval":
-      return t.waiting;
-    case "waiting-user-input":
-      return t.waitingInput;
-    case "failed":
-      return t.failed;
-    default:
-      return t.ready;
-  }
-}
-
-function visibleThreadTitle(title: string): string {
-  return (
-    promptWithoutSelectedSkills(title) ||
-    selectedSkillNamesForPrompt(title).join(", ") ||
-    title
-  );
-}
-
 /* IM 任务标题固定带「渠道 · 摘要」前缀（task-title.ts），侧栏把前缀文字
    换成品牌图标；标题数据本身不动。 */
-const IM_TITLE_CHANNELS: Record<string, string> = {
-  Slack: "slack",
-  飞书: "feishu",
-  企业微信: "wecom",
-  Lark: "feishu",
-};
-
-function splitImChannelPrefix(
-  title: string,
-): { channel: string; rest: string } | undefined {
-  const match = new RegExp(
-    `^(${Object.keys(IM_TITLE_CHANNELS).join("|")})\\s*·\\s*`,
-    "u",
-  ).exec(title);
-  const matched = match?.[1];
-  if (!matched) return undefined;
-  return {
-    channel: IM_TITLE_CHANNELS[matched]!,
-    rest: title.slice(match[0].length),
-  };
-}
-
-function imChannelDisplayName(channel: string, locale: AppLocale) {
-  return channel === "slack"
-    ? "Slack"
-    : channel === "feishu" || channel === "lark"
-      ? uiText(locale, "ImNavigation.message1")
-      : channel === "wecom"
-        ? uiText(locale, "ImNavigation.message2")
-        : "IM";
-}
-
-function ThreadChannelMark({
-  channel,
-  locale,
-}: {
-  channel: string;
-  locale: AppLocale;
-}) {
-  /* 第二个图标悬浮气泡：渠道名称。 */
-  const label = imChannelDisplayName(channel, locale);
-  return (
-    <Tooltip label={label}>
-      {channel === "feishu" || channel === "lark" ? (
-        <img
-          alt=""
-          aria-hidden="true"
-          className="thread-channel-logo"
-          src={feishuChannelIcon}
-        />
-      ) : channel === "slack" ? (
-        <img
-          alt=""
-          aria-hidden="true"
-          className="thread-channel-logo"
-          src={slackChannelIcon}
-        />
-      ) : (
-        <ArtemisIcon
-          aria-hidden="true"
-          className="thread-channel-logo"
-          name="wecom"
-        />
-      )}
-    </Tooltip>
-  );
-}
-
-function ThreadTitleContent({
-  title,
-  locale,
-  hideChannel = false,
-}: {
-  title: string;
-  locale: AppLocale;
-  hideChannel?: boolean;
-}) {
-  const visible = visibleThreadTitle(title);
-  const parsed = splitImChannelPrefix(visible);
-  const text = parsed ? parsed.rest : visible;
-  return (
-    <>
-      {parsed && !hideChannel && (
-        <ThreadChannelMark channel={parsed.channel} locale={locale} />
-      )}
-      <span className="thread-title-text">
-        <span>{text}</span>
-        <span aria-hidden="true" className="thread-title-copy">
-          {text}
-        </span>
-      </span>
-    </>
-  );
-}
-
-function prepareThreadTitleScroll(
-  event: ReactPointerEvent<HTMLSpanElement>,
-): void {
-  const viewport = event.currentTarget;
-  const content = viewport.firstElementChild;
-  if (!(content instanceof HTMLElement)) return;
-
-  const titleWidth =
-    content.firstElementChild instanceof HTMLElement
-      ? content.firstElementChild.getBoundingClientRect().width
-      : content.scrollWidth;
-  const distance = Math.ceil(titleWidth - viewport.clientWidth);
-  if (distance <= 1) {
-    delete viewport.dataset.overflowing;
-    viewport.style.removeProperty("--thread-title-scroll-distance");
-    viewport.style.removeProperty("--thread-title-scroll-duration");
-    return;
-  }
-
-  viewport.dataset.overflowing = "true";
-  viewport.style.setProperty(
-    "--thread-title-scroll-distance",
-    `${document.documentElement.dir === "rtl" ? "" : "-"}${titleWidth + 24}px`,
-  );
-  viewport.style.setProperty(
-    "--thread-title-scroll-duration",
-    `${Math.max(4, (titleWidth + 24) / 30).toFixed(2)}s`,
-  );
-}
-
-function synchronizeTurnIndicator(event: ReactAnimationEvent<HTMLElement>) {
-  if (event.animationName !== "turn-indicator-breathe") return;
-  // A shared document-timeline origin keeps separately mounted indicators in phase.
-  for (const animation of (event.target as HTMLElement).getAnimations()) {
-    if (
-      animation instanceof CSSAnimation &&
-      animation.animationName === event.animationName
-    )
-      animation.startTime = 0;
-  }
-}
 
 export function App() {
   const imThreadStatus = useImThreadStatus();
@@ -1146,78 +555,15 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hooksQuery, setHooksQuery] = useState<HookQuery>({});
   const [settingsTab, setSettingsTab] = useState<SettingsEntryTab>("general");
-  const [sidebarOpen, setSidebarOpen] = usePersistentUiState(
-    "artemis-sidebar-open",
-    booleanUiState,
-    () => window.innerWidth > 1060,
-  );
-  const [sidebarPeek, setSidebarPeek] = useState(false);
-  const sidebarHoverSuppressed = useRef(false);
-  const sidebarPeekTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-  const sidebarAnimationTimer = useRef<
-    ReturnType<typeof setTimeout> | undefined
-  >(undefined);
-  const [sidebarAnimating, setSidebarAnimating] = useState(false);
-  const closeSidebarPeek = useCallback(() => {
-    clearTimeout(sidebarPeekTimer.current);
-    sidebarPeekTimer.current = undefined;
-    setSidebarPeek(false);
-  }, []);
-  const requestSidebarPeek = () => {
-    if (
-      sidebarOpen ||
-      sidebarHoverSuppressed.current ||
-      sidebarPeek ||
-      sidebarPeekTimer.current !== undefined
-    )
-      return;
-    // Both visible surfaces and their inert state switch after the same debounce.
-    sidebarPeekTimer.current = setTimeout(() => {
-      sidebarPeekTimer.current = undefined;
-      setSidebarPeek(true);
-    }, 200);
-  };
-  useEffect(() => {
-    const releaseHover = () => {
-      sidebarHoverSuppressed.current = false;
-    };
-    window.addEventListener("mousemove", releaseHover);
-    return () => {
-      window.removeEventListener("mousemove", releaseHover);
-      clearTimeout(sidebarPeekTimer.current);
-      clearTimeout(sidebarAnimationTimer.current);
-    };
-  }, []);
-  const changeSidebarOpen = useCallback(
-    (open: boolean | ((current: boolean) => boolean)) => {
-      const restoreFocus =
-        projectSidebar.current?.contains(document.activeElement) ||
-        document.activeElement?.classList.contains("left-sidebar-toggle");
-      closeSidebarPeek();
-      sidebarHoverSuppressed.current = true;
-      clearTimeout(sidebarAnimationTimer.current);
-      setSidebarAnimating(true);
-      setSidebarOpen(open);
-      sidebarAnimationTimer.current = setTimeout(
-        () => setSidebarAnimating(false),
-        400,
-      );
-      // The rail remains available after the main navigation becomes inert.
-      requestAnimationFrame(() => {
-        if (!restoreFocus) return;
-        const collapsed =
-          projectSidebar.current?.getAttribute("data-state") === "collapsed";
-        projectSidebar.current
-          ?.querySelector<HTMLButtonElement>(
-            collapsed ? ".rail-brand" : ".sidebar-collapse",
-          )
-          ?.focus({ preventScroll: true });
-      });
-    },
-    [closeSidebarPeek],
-  );
+  const {
+    sidebarOpen,
+    sidebarPeek,
+    sidebarHoverSuppressed,
+    sidebarAnimating,
+    closeSidebarPeek,
+    requestSidebarPeek,
+    changeSidebarOpen,
+  } = useSidebarNavigation(projectSidebar);
   const [projectSidebarWidth, setProjectSidebarWidth] = useState<number>();
   const defaultProjectSidebarWidth = PROJECT_SIDEBAR_WIDTH_DEFAULT;
   useEffect(() => {
@@ -6222,1268 +5568,95 @@ export function App() {
       sidebarSize={projectSidebarWidth ?? defaultProjectSidebarWidth}
     >
       <SidebarGlassFilters />
-      <NavigationSidebar
-        className="sidebar"
-        peek={sidebarPeek && !sidebarOpen}
-        onMouseEnter={requestSidebarPeek}
-        onMouseMove={requestSidebarPeek}
-        onMouseLeave={() => {
-          sidebarHoverSuppressed.current = false;
-          if (
-            !projectSidebar.current
-              ?.querySelector('[data-part="main"]')
-              ?.querySelector(":focus-visible")
-          )
-            closeSidebarPeek();
+      <AppNavigation
+        {...{
+          t,
+          projectsExpanded,
+          toggleProjectsExpansion,
+          hasExpandedProject,
+          projects,
+          setProjectHistoriesCollapsed,
+          locale,
+          openProject,
+          snapshot,
+          query,
+          imThreadStatus,
+          promptSubmittedAtByThread,
+          runtimeSettings,
+          expandedProjectIds,
+          collapsedProjectIds,
+          toggleProjectHistory,
+          beginNewConversation,
+          projectMenuId,
+          projectMenuAnchor,
+          setThreadMenuId,
+          setProjectMenuId,
+          setAutomationDraftRequest,
+          setActiveView,
+          setProjectInstructionsProject,
+          setHooksQuery,
+          openSettings,
+          updateProjectThreads,
+          removeProject,
+          activeProjectId,
+          setDraggedProjectId,
+          setProjectDropTarget,
+          historyPages,
+          clockMs,
+          taskShortcut,
+          discardNewConversationDraft,
+          setActiveProjectId,
+          setActiveThreadId,
+          setMode,
+          threadMenuId,
+          threadMenuAnchor,
+          beginRenameThread,
+          forkThread,
+          setSharingThreadId,
+          copyTaskLink,
+          setThreadArchived,
+          deleteThread,
+          activeThreadId,
+          draggedThread,
+          threadDropTarget,
+          threadRename,
+          setTreeActiveRowId,
+          treeActiveRowId,
+          setDraggedThread,
+          setThreadDropTarget,
+          persistProjectThreadOrder,
+          toggleProjectPreview,
+          draggedProjectId,
+          projectDropTarget,
+          persistProjectOrder,
+          temporaryConversationsOpen,
+          toggleTemporaryConversations,
+          beginTemporaryConversation,
+          temporaryThreads,
+          projectTreeElement,
+          focusProjectTreeRow,
+          collapseProjectTreeRow,
+          expandProjectTreeRow,
+          activateProjectTreeRow,
+          sidebarPeek,
+          sidebarOpen,
+          requestSidebarPeek,
+          sidebarHoverSuppressed,
+          closeSidebarPeek,
+          projectSidebar,
+          changeSidebarOpen,
+          activeView,
+          navigationItems,
+          activeWorkspaceLabel,
+          username,
+          updateNoticeTarget,
+          setRuntimeSettings,
+          setToast,
+          sidebarSearchInput,
+          setQuery,
+          automationCount,
         }}
-        onBlur={(event) => {
-          if (
-            !event.currentTarget.contains(event.relatedTarget) &&
-            !(
-              event.relatedTarget instanceof Element &&
-              event.relatedTarget.closest(".thread-menu")
-            ) &&
-            !event.currentTarget.matches(":hover")
-          )
-            closeSidebarPeek();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape" && sidebarPeek) {
-            closeSidebarPeek();
-            sidebarHoverSuppressed.current = true;
-            requestAnimationFrame(() => {
-              projectSidebar.current
-                ?.querySelector<HTMLButtonElement>(".rail-brand")
-                ?.focus({ preventScroll: true });
-            });
-          }
-        }}
-        rail={
-          <div className="sidebar-rail">
-            <button
-              className="rail-brand"
-              type="button"
-              aria-label={t.leftSidebar}
-              onClick={() => changeSidebarOpen(true)}
-            >
-              <ArtemisMark />
-            </button>
-            <nav aria-label={t.activityBar}>
-              {navigationItems.map(([view, label, icon]) => (
-                <button
-                  type="button"
-                  className="activity-button rail-item"
-                  key={view}
-                  data-nav-view={view}
-                  aria-label={label}
-                  title={label}
-                  aria-current={activeView === view ? "page" : undefined}
-                  onClick={() => setActiveView(view)}
-                >
-                  {icon}
-                </button>
-              ))}
-            </nav>
-            <span aria-hidden="true" className="rail-sep" />
-            <button
-              className="rail-anchor"
-              type="button"
-              title={activeWorkspaceLabel}
-              aria-label={t.projects}
-              onClick={() => {
-                setActiveView("workspace");
-                changeSidebarOpen(true);
-              }}
-            >
-              <FolderIcon />
-            </button>
-            <span className="rail-sp" />
-            <button
-              type="button"
-              className="rail-avatar"
-              title={username}
-              aria-label={username}
-              onClick={(event) => openSettings("general", event.currentTarget)}
-            >
-              {userInitials(username)}
-            </button>
-            <button
-              type="button"
-              className="rail-item"
-              aria-label={t.settings}
-              title={t.settings}
-              onClick={(event) => openSettings("general", event.currentTarget)}
-            >
-              <SettingsIcon />
-            </button>
-          </div>
-        }
-        footer={
-          <div className="sidebar-footer-stack">
-            {runtimeSettings && (
-              <SidebarUpdateControl
-                status={runtimeSettings.update}
-                locale={locale}
-                noticeTarget={updateNoticeTarget}
-                activeTaskCount={
-                  snapshot?.threads.filter(
-                    (thread) =>
-                      thread.status === "running" ||
-                      thread.status === "waiting-approval",
-                  ).length ?? 0
-                }
-                onStatus={(update) =>
-                  setRuntimeSettings((current) =>
-                    current ? { ...current, update } : current,
-                  )
-                }
-                onError={(message) => setToast({ error: true, message })}
-              />
-            )}
-            <div className="sidebar-footer">
-              <span className="local-indicator" title={username}>
-                <span aria-hidden="true" className="sidebar-profile-avatar">
-                  {runtimeSettings?.profileAvatar ? (
-                    <img alt="" src={runtimeSettings.profileAvatar} />
-                  ) : (
-                    userInitials(username)
-                  )}
-                </span>
-                <span className="sidebar-profile-copy">
-                  <span className="local-user-name">{username}</span>
-                  {runtimeSettings?.update.currentVersion && (
-                    <button
-                      className="app-version"
-                      onClick={(event) =>
-                        openSettings("maintenance", event.currentTarget)
-                      }
-                      title={`${t.currentVersion} ${runtimeSettings.update.currentVersion}`}
-                      type="button"
-                    >
-                      {sidebarUpdateSubtitle(runtimeSettings.update, locale)}
-                    </button>
-                  )}
-                </span>
-              </span>
-              <button
-                className="activity-button foot-icon"
-                type="button"
-                aria-label={t.settings}
-                title={t.settings}
-                onClick={(event) =>
-                  openSettings("general", event.currentTarget)
-                }
-              >
-                <SettingsIcon />
-              </button>
-            </div>
-          </div>
-        }
-        header={
-          <>
-            <div className="sidebar-top">
-              <div className="sidebar-brand">
-                <button
-                  type="button"
-                  className="brand-button"
-                  aria-label="Artemis"
-                  onClick={() => changeSidebarOpen(true)}
-                >
-                  <ArtemisMark />
-                  <strong>Artemis</strong>
-                  <span className="group-agent-identity">
-                    {uiText(locale, "Review01.localArtemis")}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="sidebar-collapse"
-                  aria-label={t.leftSidebar}
-                  aria-expanded={sidebarOpen}
-                  title={t.leftSidebar}
-                  onClick={() => changeSidebarOpen((open) => !open)}
-                >
-                  <LeftSidebarIcon />
-                </button>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="sidebar-new-task"
-              onClick={() => beginNewConversation()}
-            >
-              <ArtemisIcon name="edit-square" width={16} height={16} />
-              <span>{uiText(locale, "App.inline9")}</span>
-              <Keycap aria-hidden="true">
-                {snapshot.platform === "darwin" ? "⌘N" : "Ctrl+N"}
-              </Keycap>
-            </button>
-            <PanelHeader
-              actions={
-                <div className="sidebar-header-actions">
-                  <label
-                    className={
-                      query ? "sidebar-search has-query" : "sidebar-search"
-                    }
-                  >
-                    <SearchIcon />
-                    <input
-                      aria-label={t.search}
-                      ref={sidebarSearchInput}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder={t.search}
-                      value={query}
-                    />
-                    <Keycap aria-hidden="true">
-                      {snapshot.platform === "darwin" ? "⌘K" : "Ctrl+K"}
-                    </Keycap>
-                  </label>
-                </div>
-              }
-              className="sidebar-header"
-              headingLevel={2}
-              title={t.tasks}
-            />
-            <nav className="sidebar-nav" aria-label={t.activityBar}>
-              {navigationItems.map(([view, label, icon]) => (
-                <button
-                  type="button"
-                  className="activity-button nav-row"
-                  key={view}
-                  data-nav-view={view}
-                  aria-label={label}
-                  title={label}
-                  aria-current={activeView === view ? "page" : undefined}
-                  onClick={() => setActiveView(view)}
-                >
-                  {icon}
-                  <span>{label}</span>
-                  {view === "archive" &&
-                    snapshot.threads.some((thread) => thread.archived) && (
-                      <span className="sidebar-nav-count" aria-hidden="true">
-                        {
-                          snapshot.threads.filter((thread) => thread.archived)
-                            .length
-                        }
-                      </span>
-                    )}
-                  {view === "automations" && Boolean(automationCount) && (
-                    <span className="sidebar-nav-count" aria-hidden="true">
-                      {automationCount}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </>
-        }
-        label={t.projects}
-        open={sidebarOpen}
-        ref={projectSidebar}
-      >
-        <div
-          aria-label={t.projects}
-          className="project-tree"
-          onKeyDown={(event) =>
-            handleProjectTreeKeyDown(event.nativeEvent, {
-              container: projectTreeElement.current,
-              focusRow: focusProjectTreeRow,
-              collapseRow: collapseProjectTreeRow,
-              expandRow: expandProjectTreeRow,
-              activateRow: activateProjectTreeRow,
-              rtl: document.documentElement.dir === "rtl",
-            })
-          }
-          ref={projectTreeElement}
-          role="tree"
-        >
-          <section
-            aria-expanded={projectsExpanded}
-            aria-level={1}
-            className="project-group project-collection"
-            data-tree-kind="collection"
-            data-tree-level={1}
-            data-tree-row-id="collection:projects"
-            onFocus={(event) => {
-              if (event.target !== event.currentTarget) return;
-              setTreeActiveRowId("collection:projects");
-            }}
-            role="treeitem"
-            tabIndex={
-              treeActiveRowId === "collection:projects" ||
-              treeActiveRowId === undefined
-                ? 0
-                : -1
-            }
-          >
-            <div className="project-row project-group-row">
-              <button
-                aria-expanded={projectsExpanded}
-                aria-label={
-                  projectsExpanded ? t.collapseProjects : t.expandProjects
-                }
-                className="project-group-select"
-                onClick={() => toggleProjectsExpansion()}
-                title={projectsExpanded ? t.collapseProjects : t.expandProjects}
-                type="button"
-              >
-                <span className="project-group-title">{t.projects}</span>
-                <ChevronIcon />
-              </button>
-              <button
-                aria-label={
-                  hasExpandedProject
-                    ? t.collapseAllProjectHistories
-                    : t.expandAllProjectHistories
-                }
-                className="project-collapse-all"
-                disabled={projects.length === 0}
-                onClick={() =>
-                  setProjectHistoriesCollapsed(
-                    projects.map((project) => project.id),
-                    hasExpandedProject,
-                  )
-                }
-                title={
-                  hasExpandedProject
-                    ? t.collapseAllProjectHistories
-                    : t.expandAllProjectHistories
-                }
-                type="button"
-              >
-                <ArtemisIcon
-                  height={12}
-                  name={hasExpandedProject ? "collapse" : "expand"}
-                  width={12}
-                />
-              </button>
-              <Tooltip
-                align="end"
-                label={uiText(locale, "Review04.addProjectFolder")}
-              >
-                <button
-                  aria-label={uiText(locale, "Review04.addProjectFolder")}
-                  className="project-new-thread"
-                  onClick={() => void openProject()}
-                  type="button"
-                >
-                  <PlusIcon />
-                </button>
-              </Tooltip>
-            </div>
-            <div
-              className="project-collection-rows"
-              hidden={!projectsExpanded}
-              role="group"
-            >
-              {projects.map((project) => {
-                const hasActiveTask = snapshot.threads.some(
-                  (thread) =>
-                    thread.projectId === project.id &&
-                    (thread.status === "running" ||
-                      thread.status === "waiting-approval"),
-                );
-                const matchesProject = project.name
-                  .toLowerCase()
-                  .includes(query.trim().toLowerCase());
-                const projectThreads = orderProjectThreadsByPreference(
-                  sortProjectThreads(
-                    snapshot.threads
-                      .filter(
-                        (thread) =>
-                          thread.projectId === project.id && !thread.archived,
-                      )
-                      .filter(
-                        (thread) =>
-                          !isWorkspaceDraftThread(thread) &&
-                          (!imThreadStatus[thread.id]?.group?.native ||
-                            !!imThreadStatus[thread.id]?.group?.retired ||
-                            !!imThreadStatus[thread.id]?.parentThreadId),
-                      )
-                      .filter(
-                        (thread) =>
-                          matchesProject ||
-                          thread.title
-                            .toLowerCase()
-                            .includes(query.trim().toLowerCase()),
-                      ),
-                    snapshot.events,
-                    promptSubmittedAtByThread,
-                  ),
-                  runtimeSettings?.projectThreadOrder?.[project.id],
-                );
-                const expanded = expandedProjectIds.has(project.id);
-                const projectOpen = !collapsedProjectIds.has(project.id);
-                const visibleThreads = expanded
-                  ? projectThreads
-                  : projectThreads.slice(0, PROJECT_THREAD_PREVIEW_LIMIT);
-                return (
-                  <section
-                    aria-expanded={projectOpen}
-                    aria-level={2}
-                    data-tree-kind="project"
-                    className={`project-group nested-project${
-                      draggedProjectId === project.id ? " dragging" : ""
-                    }${
-                      projectDropTarget?.projectId === project.id
-                        ? ` drop-${projectDropTarget.edge}`
-                        : ""
-                    }`}
-                    hidden={!projectsExpanded}
-                    key={project.id}
-                    onDragOver={(event) => {
-                      if (!draggedProjectId || draggedProjectId === project.id)
-                        return;
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      const bounds = event.currentTarget
-                        .querySelector(":scope > .project-row")
-                        ?.getBoundingClientRect();
-                      if (!bounds) return;
-                      setProjectDropTarget({
-                        projectId: project.id,
-                        edge:
-                          event.clientY < bounds.top + bounds.height / 2
-                            ? "before"
-                            : "after",
-                      });
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      if (!draggedProjectId || !projectDropTarget) return;
-                      const previousOrder = projects.map(
-                        (candidate) => candidate.id,
-                      );
-                      const order = reorderProjectIds(
-                        previousOrder,
-                        draggedProjectId,
-                        projectDropTarget.projectId,
-                        projectDropTarget.edge,
-                      );
-                      setDraggedProjectId(undefined);
-                      setProjectDropTarget(undefined);
-                      void persistProjectOrder(order, previousOrder);
-                    }}
-                    data-tree-level={2}
-                    data-tree-row-id={`project:${project.id}`}
-                    onFocus={(event) => {
-                      if (event.target !== event.currentTarget) return;
-                      setTreeActiveRowId(`project:${project.id}`);
-                    }}
-                    role="treeitem"
-                    tabIndex={
-                      treeActiveRowId === `project:${project.id}` ? 0 : -1
-                    }
-                  >
-                    <div
-                      className={`project-row ${project.id === activeProjectId ? "active" : ""}`}
-                      draggable
-                      onDragEnd={() => {
-                        setDraggedProjectId(undefined);
-                        setProjectDropTarget(undefined);
-                      }}
-                      onDragStart={(event) => {
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", project.id);
-                        setDraggedProjectId(project.id);
-                        setProjectDropTarget(undefined);
-                      }}
-                    >
-                      <button
-                        aria-label={
-                          projectOpen
-                            ? t.collapseProjectHistory
-                            : t.expandProjectHistory
-                        }
-                        className="project-toggle"
-                        aria-expanded={projectOpen}
-                        aria-controls={`project-thread-list-${project.id}`}
-                        onClick={() => toggleProjectHistory(project.id)}
-                        title={
-                          projectOpen
-                            ? t.collapseProjectHistory
-                            : t.expandProjectHistory
-                        }
-                        type="button"
-                      >
-                        <FolderIcon open={projectOpen} />
-                      </button>
-                      <button
-                        className="project-select"
-                        onClick={() => toggleProjectHistory(project.id)}
-                        title={project.path}
-                      >
-                        <span className="project-title">{project.name}</span>
-                      </button>
-                      <Tooltip align="end" label={t.newTask}>
-                        <button
-                          aria-label={`${t.newTask}: ${project.name}`}
-                          className="project-new-thread"
-                          onClick={() => beginNewConversation(project.id)}
-                          type="button"
-                        >
-                          <ArtemisIcon
-                            name="edit-square"
-                            width={16}
-                            height={16}
-                          />
-                        </button>
-                      </Tooltip>
-                      <Tooltip align="end" label={t.moreProjectActions}>
-                        <button
-                          aria-label={t.moreProjectActions}
-                          aria-haspopup="menu"
-                          aria-expanded={projectMenuId === project.id}
-                          className="project-action"
-                          onClick={(event) => {
-                            projectMenuAnchor.current = event.currentTarget;
-                            setThreadMenuId(undefined);
-                            setProjectMenuId((current) =>
-                              current === project.id ? undefined : project.id,
-                            );
-                          }}
-                        >
-                          <ArtemisIcon name="more" width={16} height={16} />
-                        </button>
-                      </Tooltip>
-                      {projectMenuId === project.id && (
-                        <Popover
-                          anchorRef={projectMenuAnchor}
-                          align="end"
-                          className="project-menu"
-                          label={t.moreProjectActions}
-                          onOpenChange={(open) => {
-                            if (!open) setProjectMenuId(undefined);
-                          }}
-                          open
-                          role="menu"
-                        >
-                          <button
-                            role="menuitem"
-                            onClick={() => {
-                              setProjectMenuId(undefined);
-                              beginNewConversation(project.id);
-                            }}
-                          >
-                            <ArtemisIcon
-                              name="edit-square"
-                              width={16}
-                              height={16}
-                            />
-                            <span>
-                              {uiText(locale, "Review05.newProjectTask")}
-                            </span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            onClick={() => {
-                              setProjectMenuId(undefined);
-                              setAutomationDraftRequest((previous) => ({
-                                projectId: project.id,
-                                token: (previous?.token ?? 0) + 1,
-                              }));
-                              setActiveView("automations");
-                            }}
-                          >
-                            <ArtemisIcon
-                              name="automation"
-                              width={16}
-                              height={16}
-                            />
-                            <span>
-                              {uiText(locale, "Review06.newProjectAutomation")}
-                            </span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            onClick={() => {
-                              setProjectMenuId(undefined);
-                              setProjectInstructionsProject(project);
-                            }}
-                          >
-                            <ArtemisIcon
-                              name="document"
-                              width={16}
-                              height={16}
-                            />
-                            <span>
-                              {uiText(locale, "Review06.projectInstructions")}
-                            </span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            onClick={(event) => {
-                              setHooksQuery({ projectId: project.id });
-                              setProjectMenuId(undefined);
-                              openSettings("hooks", event.currentTarget);
-                            }}
-                          >
-                            <ArtemisIcon name="hooks" width={16} height={16} />
-                            <span>{uiText(locale, "Hooks.title")}</span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            disabled={
-                              hasActiveTask ||
-                              !snapshot.threads.some(
-                                (thread) =>
-                                  thread.projectId === project.id &&
-                                  !thread.archived,
-                              )
-                            }
-                            onClick={() =>
-                              void updateProjectThreads(project, "archive")
-                            }
-                          >
-                            <ArtemisIcon
-                              name="archive"
-                              width={16}
-                              height={16}
-                            />
-                            <span>{uiText(locale, "App.inline7")}</span>
-                          </button>
-                          <div role="separator" />
-                          <button
-                            role="menuitem"
-                            className="danger"
-                            disabled={
-                              hasActiveTask ||
-                              !snapshot.threads.some(
-                                (thread) => thread.projectId === project.id,
-                              )
-                            }
-                            onClick={() =>
-                              void updateProjectThreads(project, "delete")
-                            }
-                          >
-                            <ArtemisIcon name="trash" width={16} height={16} />
-                            <span>{uiText(locale, "App.inline8")}</span>
-                          </button>
-                          <button
-                            role="menuitem"
-                            className="danger"
-                            disabled={hasActiveTask}
-                            onClick={() => void removeProject(project)}
-                            title={
-                              hasActiveTask
-                                ? t.stopTasksBeforeRemove
-                                : uiText(locale, "Review05.removeFromSidebar")
-                            }
-                          >
-                            <ArtemisIcon name="close" width={16} height={16} />
-                            <span>
-                              {uiText(locale, "Review05.removeFromSidebar")}
-                            </span>
-                          </button>
-                        </Popover>
-                      )}
-                    </div>
-                    {projectOpen && (
-                      <div
-                        className="project-thread-list"
-                        id={`project-thread-list-${project.id}`}
-                        role="group"
-                      >
-                        {visibleThreads.map((thread) => (
-                          <div
-                            className={`project-thread-row${
-                              thread.id === activeThreadId ? " selected" : ""
-                            }${
-                              draggedThread?.threadId === thread.id
-                                ? " dragging"
-                                : ""
-                            }${
-                              threadDropTarget?.threadId === thread.id
-                                ? ` drop-${threadDropTarget.edge}`
-                                : ""
-                            }`}
-                            draggable={
-                              threadRename?.threadId !== thread.id &&
-                              !query.trim()
-                            }
-                            key={thread.id}
-                            aria-selected={thread.id === activeThreadId}
-                            aria-level={3}
-                            data-tree-kind="thread"
-                            data-tree-level={3}
-                            data-tree-row-id={`thread:${thread.id}`}
-                            onFocus={(event) => {
-                              if (event.target !== event.currentTarget) return;
-                              setTreeActiveRowId(`thread:${thread.id}`);
-                            }}
-                            role="treeitem"
-                            tabIndex={
-                              treeActiveRowId === `thread:${thread.id}` ? 0 : -1
-                            }
-                            onDragEnd={() => {
-                              setDraggedThread(undefined);
-                              setThreadDropTarget(undefined);
-                            }}
-                            onDragOver={(event) => {
-                              if (
-                                !draggedThread ||
-                                draggedThread.projectId !== project.id ||
-                                draggedThread.threadId === thread.id
-                              ) {
-                                return;
-                              }
-                              event.preventDefault();
-                              event.stopPropagation();
-                              event.dataTransfer.dropEffect = "move";
-                              const bounds =
-                                event.currentTarget.getBoundingClientRect();
-                              setThreadDropTarget({
-                                projectId: project.id,
-                                threadId: thread.id,
-                                edge:
-                                  event.clientY < bounds.top + bounds.height / 2
-                                    ? "before"
-                                    : "after",
-                              });
-                            }}
-                            onDragStart={(event) => {
-                              if (query.trim()) {
-                                event.preventDefault();
-                                return;
-                              }
-                              event.stopPropagation();
-                              event.dataTransfer.effectAllowed = "move";
-                              event.dataTransfer.setData(
-                                "text/plain",
-                                thread.id,
-                              );
-                              setDraggedThread({
-                                projectId: project.id,
-                                threadId: thread.id,
-                              });
-                              setThreadDropTarget(undefined);
-                            }}
-                            onDrop={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              if (
-                                !draggedThread ||
-                                !threadDropTarget ||
-                                draggedThread.projectId !== project.id ||
-                                threadDropTarget.projectId !== project.id
-                              ) {
-                                return;
-                              }
-                              const previousOrder = projectThreads.map(
-                                (candidate) => candidate.id,
-                              );
-                              const order = reorderThreadIds(
-                                previousOrder,
-                                draggedThread.threadId,
-                                threadDropTarget.threadId,
-                                threadDropTarget.edge,
-                              );
-                              setDraggedThread(undefined);
-                              setThreadDropTarget(undefined);
-                              void persistProjectThreadOrder(
-                                project.id,
-                                order,
-                                previousOrder,
-                              );
-                            }}
-                          >
-                            <>
-                              <button
-                                className="thread-select"
-                                onKeyDown={(event) =>
-                                  taskShortcut(event, thread)
-                                }
-                                onClick={() => {
-                                  discardNewConversationDraft();
-                                  setActiveView("workspace");
-                                  setActiveProjectId(project.id);
-                                  setActiveThreadId(thread.id);
-                                  setMode(thread.mode);
-                                  setThreadMenuId(undefined);
-                                }}
-                              >
-                                <ThreadStatusIndicator
-                                  thread={thread}
-                                  locale={locale}
-                                  events={snapshot.events[thread.id]}
-                                  historyState={historyPages[thread.id]?.state}
-                                />
-                                {imThreadStatus[thread.id] && (
-                                  <ImThreadConnection
-                                    status={imThreadStatus[thread.id]!}
-                                    channelIcon={
-                                      <ThreadChannelMark
-                                        channel={
-                                          imThreadStatus[thread.id]?.channel ??
-                                          ""
-                                        }
-                                        locale={locale}
-                                      />
-                                    }
-                                    locale={locale}
-                                  />
-                                )}
-                                <span
-                                  className="thread-title"
-                                  onPointerEnter={prepareThreadTitleScroll}
-                                  title={visibleThreadTitle(thread.title)}
-                                >
-                                  <ThreadTitleContent
-                                    hideChannel={
-                                      !!imThreadStatus[thread.id]?.group
-                                        ?.retired
-                                    }
-                                    title={thread.title}
-                                    locale={locale}
-                                  />
-                                </span>
-                                <ThreadWaitingBadge
-                                  thread={thread}
-                                  locale={locale}
-                                  events={snapshot.events[thread.id]}
-                                  historyState={historyPages[thread.id]?.state}
-                                />
-                                <time
-                                  className="thread-time"
-                                  dateTime={thread.updatedAt}
-                                  title={new Date(
-                                    thread.updatedAt,
-                                  ).toLocaleString(locale)}
-                                >
-                                  {thread.notification?.unread
-                                    ? uiText(locale, "App_copy.unreadShort")
-                                    : formatSidebarTime(
-                                        thread.updatedAt,
-                                        clockMs,
-                                        locale,
-                                      )}
-                                </time>
-                              </button>
-                              <Tooltip align="end" label={t.moreActions}>
-                                <button
-                                  aria-label={t.moreActions}
-                                  aria-haspopup="menu"
-                                  aria-expanded={threadMenuId === thread.id}
-                                  className="thread-action"
-                                  onClick={(event) => {
-                                    threadMenuAnchor.current =
-                                      event.currentTarget;
-                                    setProjectMenuId(undefined);
-                                    setThreadMenuId((current) =>
-                                      current === thread.id
-                                        ? undefined
-                                        : thread.id,
-                                    );
-                                  }}
-                                >
-                                  <ArtemisIcon
-                                    name="more"
-                                    width={16}
-                                    height={16}
-                                  />
-                                </button>
-                              </Tooltip>
-                              {threadMenuId === thread.id && (
-                                <Popover
-                                  anchorRef={threadMenuAnchor}
-                                  align="end"
-                                  className="thread-menu"
-                                  onKeyDown={(event) =>
-                                    taskShortcut(event, thread)
-                                  }
-                                  label={t.moreActions}
-                                  onOpenChange={(open) => {
-                                    if (!open) setThreadMenuId(undefined);
-                                  }}
-                                  open
-                                  role="menu"
-                                >
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => beginRenameThread(thread)}
-                                  >
-                                    <ArtemisIcon
-                                      name="edit"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>{t.renameTask}</span>
-                                    <Keycap>F2</Keycap>
-                                  </button>
-                                  <button
-                                    role="menuitem"
-                                    disabled={
-                                      thread.status === "running" ||
-                                      thread.status === "waiting-approval"
-                                    }
-                                    onClick={() => void forkThread(thread)}
-                                  >
-                                    <ArtemisIcon
-                                      name="fork"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>{t.forkTask}</span>
-                                  </button>
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => {
-                                      setThreadMenuId(undefined);
-                                      setSharingThreadId(thread.id);
-                                    }}
-                                  >
-                                    <ArtemisIcon
-                                      name="share"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>
-                                      {uiText(locale, "Review05.shareTask")}
-                                    </span>
-                                  </button>
-
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => void copyTaskLink(thread.id)}
-                                  >
-                                    <ArtemisIcon
-                                      name="copy"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>
-                                      {uiText(locale, "Review06.copyTaskLink")}
-                                    </span>
-                                  </button>
-
-                                  <div role="separator" />
-                                  <button
-                                    role="menuitem"
-                                    disabled={
-                                      thread.status === "running" ||
-                                      thread.status === "waiting-approval"
-                                    }
-                                    onClick={() =>
-                                      void setThreadArchived(thread, true)
-                                    }
-                                  >
-                                    <ArtemisIcon
-                                      name="archive"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>{t.archiveTask}</span>
-                                    <Keycap>
-                                      {snapshot.platform === "darwin"
-                                        ? "⌘⌫"
-                                        : "Ctrl+Backspace"}
-                                    </Keycap>
-                                  </button>
-                                  <button
-                                    role="menuitem"
-                                    className="danger"
-                                    disabled={
-                                      thread.status === "running" ||
-                                      thread.status === "waiting-approval"
-                                    }
-                                    onClick={() => void deleteThread(thread)}
-                                  >
-                                    <ArtemisIcon
-                                      name="trash"
-                                      width={16}
-                                      height={16}
-                                    />
-                                    <span>{t.deleteTask}</span>
-                                  </button>
-                                </Popover>
-                              )}
-                            </>
-                          </div>
-                        ))}
-                        {projectThreads.length >
-                          PROJECT_THREAD_PREVIEW_LIMIT && (
-                          <button
-                            aria-level={3}
-                            className="project-expand-toggle"
-                            data-tree-kind="show-more"
-                            data-tree-level={3}
-                            data-tree-row-id={`show-more:${project.id}`}
-                            onFocus={(event) => {
-                              if (event.target !== event.currentTarget) return;
-                              setTreeActiveRowId(`show-more:${project.id}`);
-                            }}
-                            role="treeitem"
-                            tabIndex={
-                              treeActiveRowId === `show-more:${project.id}`
-                                ? 0
-                                : -1
-                            }
-                            aria-expanded={expanded}
-                            onClick={() => toggleProjectPreview(project.id)}
-                            type="button"
-                          >
-                            {expanded ? t.showFewerTasks : t.showMoreTasks}
-                          </button>
-                        )}
-                        {query.trim() && projectThreads.length === 0 && (
-                          <span className="project-no-matches">
-                            {t.noTasks}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-            </div>
-          </section>
-          <section
-            aria-expanded={temporaryConversationsOpen}
-            aria-level={1}
-            className="project-group temporary-conversations"
-            data-tree-kind="temporary"
-            data-tree-level={1}
-            data-tree-row-id="temporary:conversations"
-            onFocus={(event) => {
-              if (event.target !== event.currentTarget) return;
-              setTreeActiveRowId("temporary:conversations");
-            }}
-            role="treeitem"
-            tabIndex={treeActiveRowId === "temporary:conversations" ? 0 : -1}
-          >
-            <div
-              className={`project-row project-group-row ${
-                !activeProjectId ? "active" : ""
-              }`}
-            >
-              <button
-                aria-controls="temporary-conversation-list"
-                aria-expanded={temporaryConversationsOpen}
-                aria-label={
-                  temporaryConversationsOpen
-                    ? t.collapseTemporaryConversations
-                    : t.expandTemporaryConversations
-                }
-                className="project-group-select"
-                onClick={() => void toggleTemporaryConversations()}
-                title={t.temporaryConversations}
-                type="button"
-              >
-                <span className="project-group-title">
-                  {t.temporaryConversations}
-                </span>
-                <ChevronIcon />
-              </button>
-              <Tooltip align="end" label={t.newTask}>
-                <button
-                  aria-label={`${t.newTask}: ${t.temporaryConversations}`}
-                  className="project-new-thread"
-                  onClick={beginTemporaryConversation}
-                  type="button"
-                >
-                  <PlusIcon />
-                </button>
-              </Tooltip>
-            </div>
-            <div
-              className="project-thread-list"
-              hidden={!temporaryConversationsOpen}
-              id="temporary-conversation-list"
-              role="group"
-            >
-              {temporaryThreads.map((thread) => (
-                <div
-                  aria-selected={thread.id === activeThreadId}
-                  aria-level={2}
-                  className={`project-thread-row ${thread.id === activeThreadId ? "selected" : ""}`}
-                  data-tree-kind="thread"
-                  data-tree-level={2}
-                  data-tree-row-id={`thread:${thread.id}`}
-                  key={thread.id}
-                  onFocus={(event) => {
-                    if (event.target !== event.currentTarget) return;
-                    setTreeActiveRowId(`thread:${thread.id}`);
-                  }}
-                  role="treeitem"
-                  tabIndex={treeActiveRowId === `thread:${thread.id}` ? 0 : -1}
-                >
-                  <>
-                    <button
-                      className="thread-select"
-                      onKeyDown={(event) => taskShortcut(event, thread)}
-                      onClick={() => {
-                        discardNewConversationDraft();
-                        setActiveView("workspace");
-                        setActiveProjectId(undefined);
-                        setActiveThreadId(thread.id);
-                        setMode(thread.mode);
-                        setThreadMenuId(undefined);
-                      }}
-                      type="button"
-                    >
-                      <ThreadStatusIndicator
-                        thread={thread}
-                        locale={locale}
-                        events={snapshot.events[thread.id]}
-                        historyState={historyPages[thread.id]?.state}
-                      />
-                      {imThreadStatus[thread.id] && (
-                        <ImThreadConnection
-                          status={imThreadStatus[thread.id]!}
-                          channelIcon={
-                            <ThreadChannelMark
-                              channel={imThreadStatus[thread.id]?.channel ?? ""}
-                              locale={locale}
-                            />
-                          }
-                          locale={locale}
-                        />
-                      )}
-                      <span
-                        className="thread-title"
-                        onPointerEnter={prepareThreadTitleScroll}
-                        title={visibleThreadTitle(thread.title)}
-                      >
-                        <ThreadTitleContent
-                          hideChannel={
-                            !!imThreadStatus[thread.id]?.group?.retired
-                          }
-                          title={thread.title}
-                          locale={locale}
-                        />
-                      </span>
-                      <ThreadWaitingBadge
-                        thread={thread}
-                        locale={locale}
-                        events={snapshot.events[thread.id]}
-                        historyState={historyPages[thread.id]?.state}
-                      />
-                      <time
-                        className="thread-time"
-                        dateTime={thread.updatedAt}
-                        title={new Date(thread.updatedAt).toLocaleString(
-                          locale,
-                        )}
-                      >
-                        {thread.notification?.unread
-                          ? uiText(locale, "App_copy.unreadShort")
-                          : formatSidebarTime(
-                              thread.updatedAt,
-                              clockMs,
-                              locale,
-                            )}
-                      </time>
-                    </button>
-                    <Tooltip align="end" label={t.moreActions}>
-                      <button
-                        aria-label={t.moreActions}
-                        aria-haspopup="menu"
-                        aria-expanded={threadMenuId === thread.id}
-                        className="thread-action"
-                        onClick={(event) => {
-                          threadMenuAnchor.current = event.currentTarget;
-                          setProjectMenuId(undefined);
-                          setThreadMenuId((current) =>
-                            current === thread.id ? undefined : thread.id,
-                          );
-                        }}
-                        type="button"
-                      >
-                        <ArtemisIcon name="more" width={16} height={16} />
-                      </button>
-                    </Tooltip>
-                    {threadMenuId === thread.id && (
-                      <Popover
-                        anchorRef={threadMenuAnchor}
-                        align="end"
-                        className="thread-menu"
-                        onKeyDown={(event) => taskShortcut(event, thread)}
-                        label={t.moreActions}
-                        onOpenChange={(open) => {
-                          if (!open) setThreadMenuId(undefined);
-                        }}
-                        open
-                        role="menu"
-                      >
-                        <button
-                          role="menuitem"
-                          onClick={() => beginRenameThread(thread)}
-                        >
-                          <ArtemisIcon name="edit" width={16} height={16} />
-                          <span>{t.renameTask}</span>
-                          <Keycap>F2</Keycap>
-                        </button>
-                        <button
-                          role="menuitem"
-                          disabled={
-                            thread.status === "running" ||
-                            thread.status === "waiting-approval"
-                          }
-                          onClick={() => void forkThread(thread)}
-                        >
-                          <ArtemisIcon name="fork" width={16} height={16} />
-                          <span>{t.forkTask}</span>
-                        </button>
-                        <button
-                          role="menuitem"
-                          onClick={() => {
-                            setThreadMenuId(undefined);
-                            setSharingThreadId(thread.id);
-                          }}
-                        >
-                          <ArtemisIcon name="share" width={16} height={16} />
-                          <span>{uiText(locale, "Review05.shareTask")}</span>
-                        </button>
-
-                        <button
-                          role="menuitem"
-                          onClick={() => void copyTaskLink(thread.id)}
-                        >
-                          <ArtemisIcon name="copy" width={16} height={16} />
-                          <span>{uiText(locale, "Review06.copyTaskLink")}</span>
-                        </button>
-
-                        <div role="separator" />
-                        <button
-                          role="menuitem"
-                          disabled={
-                            thread.status === "running" ||
-                            thread.status === "waiting-approval"
-                          }
-                          onClick={() => void setThreadArchived(thread, true)}
-                        >
-                          <ArtemisIcon name="archive" width={16} height={16} />
-                          <span>{t.archiveTask}</span>
-                          <Keycap>
-                            {snapshot.platform === "darwin"
-                              ? "⌘⌫"
-                              : "Ctrl+Backspace"}
-                          </Keycap>
-                        </button>
-                        <button
-                          role="menuitem"
-                          className="danger"
-                          disabled={
-                            thread.status === "running" ||
-                            thread.status === "waiting-approval"
-                          }
-                          onClick={() => void deleteThread(thread)}
-                        >
-                          <ArtemisIcon name="trash" width={16} height={16} />
-                          <span>{t.deleteTask}</span>
-                        </button>
-                      </Popover>
-                    )}
-                  </>
-                </div>
-              ))}
-              {query.trim() && temporaryThreads.length === 0 && (
-                <span className="project-no-matches">{t.noTasks}</span>
-              )}
-            </div>
-          </section>
-        </div>
-      </NavigationSidebar>
+      />
 
       <ApplicationShellResizer
         aria-valuemax={PROJECT_SIDEBAR_WIDTH_MAX}
@@ -9439,1336 +7612,112 @@ export function App() {
                     value={dockWidthNow}
                     valueText={`${t.rightSidebar}: ${dockWidthNow}px`}
                   />
-                  <WorkspaceDock
-                    id="workspace-tool-dock"
-                    label={t.rightSidebar}
-                    open={workspaceDockOpen}
-                    ref={workspaceDock}
-                    resizing={workspaceDockResizing}
-                    style={
-                      {
-                        "--workspace-dock-width": `${workspaceDockWidth ?? DEFAULT_WORKSPACE_DOCK_WIDTH}px`,
-                      } as CSSProperties
-                    }
-                  >
-                    <WorkspaceTabBar
-                      add={
-                        <div className="workspace-tab-add-wrap">
-                          <button
-                            className="right-sidebar-toggle"
-                            aria-expanded={workspaceDockOpen}
-                            aria-label={t.rightSidebar}
-                            title={t.rightSidebar}
-                            onClick={toggleRightSidebar}
-                            ref={
-                              workspaceDockOpen
-                                ? workspaceDockToggleElement
-                                : undefined
-                            }
-                            type="button"
-                          >
-                            <RightSidebarIcon />
-                          </button>
-                          <button
-                            aria-expanded={workspaceTabMenuOpen}
-                            aria-label={t.addTab}
-                            className="workspace-tab-add"
-                            onClick={(event) => {
-                              // 菜单画在透明子窗口里（独立原生层，盖得住
-                              // 设计面板的 WebContentsView）。开着时再点
-                              // "+"= 关闭（原生菜单语义）。
-                              if (workspaceTabMenuOpen) {
-                                setWorkspaceTabMenuOpen(false);
-                                void window.artemis.closeWorkspaceTabMenu();
-                                return;
-                              }
-                              setWorkspaceTabMenuOpen(true);
-                              const rect =
-                                event.currentTarget.getBoundingClientRect();
-                              // 设计任务一项目一份：tab 已开则不再列出，
-                              // 未开时选择复用既有 tab 而非新建。
-                              const designOpen = workspaceTabs.tabs.some(
-                                (tab) => tab.kind === "design",
-                              );
-                              const entries: WorkspaceTabMenuEntry[] = [
-                                ...(activeProject
-                                  ? [
-                                      {
-                                        kind: "review" as const,
-                                        label: t.reviewPanel,
-                                      },
-                                    ]
-                                  : []),
-                                { kind: "terminal", label: t.terminal },
-                                { kind: "browser", label: t.browser },
-                                { kind: "file", label: t.files },
-                                ...(designPluginAvailable && !designOpen
-                                  ? [
-                                      {
-                                        kind: "design" as const,
-                                        label: t.designTab,
-                                      },
-                                    ]
-                                  : []),
-                              ];
-                              void window.artemis.showWorkspaceTabMenu({
-                                html: buildWorkspaceTabMenuHtml(entries),
-                                anchorRight: rect.right,
-                                anchorTop: rect.bottom + 4,
-                              });
-                            }}
-                            title={t.addTab}
-                            type="button"
-                          >
-                            <ArtemisIcon
-                              className="icon"
-                              height={14}
-                              name="plus"
-                              width={14}
-                            />
-                          </button>
-                        </div>
-                      }
-                      label={t.rightSidebar}
-                      onKeyDown={(event) =>
-                        handleWorkspaceTabBarKeyDown(event, {
-                          tabs: workspaceTabs.tabs,
-                          activeTabId: workspaceTabs.activeTabId,
-                          rtl: localeDirection(locale) === "rtl",
-                          activate: (tabId) =>
-                            dispatchWorkspaceTab({
-                              type: "activate",
-                              tabId,
-                            }),
-                          focusTab: focusWorkspaceTab,
-                        })
-                      }
-                      overflow={workspaceTabScrollState.hasOverflow}
-                      scrollEnd={
-                        <button
-                          aria-label={t.scrollTabsRight}
-                          disabled={!workspaceTabScrollState.canScrollRight}
-                          onClick={() => scrollWorkspaceTabs(1)}
-                          title={t.scrollTabsRight}
-                          type="button"
-                        >
-                          <TabScrollIcon direction="right" />
-                        </button>
-                      }
-                      scrollProps={{
-                        onScroll: syncWorkspaceTabScrollState,
-                        onWheel: handleWorkspaceTabWheel,
-                      }}
-                      scrollRef={workspaceTabScroll}
-                      scrollStart={
-                        <button
-                          aria-label={t.scrollTabsLeft}
-                          disabled={!workspaceTabScrollState.canScrollLeft}
-                          onClick={() => scrollWorkspaceTabs(-1)}
-                          title={t.scrollTabsLeft}
-                          type="button"
-                        >
-                          <TabScrollIcon direction="left" />
-                        </button>
-                      }
-                      trackRef={workspaceTabTrack}
-                    >
-                      {workspaceTabs.tabs.map((tab) => (
-                        <WorkspaceTabSurface
-                          active={workspaceTabs.activeTabId === tab.id}
-                          closeIcon={<CloseIcon />}
-                          closeLabel={`${t.closeTab}: ${tab.title}`}
-                          closeTitle={t.closeTab}
-                          icon={
-                            <WorkspaceTabIcon
-                              childAgentId={tab.childAgentId}
-                              kind={tab.kind}
-                              path={tab.path}
-                            />
-                          }
-                          id={workspaceTabDomId(tab.id)}
-                          key={tab.id}
-                          label={tab.title}
-                          onClose={() =>
-                            closeWorkspaceTab(tab.id, { moveFocus: true })
-                          }
-                          onSelect={() =>
-                            dispatchWorkspaceTab({
-                              type: "activate",
-                              tabId: tab.id,
-                            })
-                          }
-                          panelId={`${workspaceTabDomId(tab.id)}-pane`}
-                          rootRef={
-                            workspaceTabs.activeTabId === tab.id
-                              ? activeWorkspaceTabElement
-                              : undefined
-                          }
-                          selectRef={(element) => {
-                            if (element) {
-                              workspaceTabButtons.current.set(tab.id, element);
-                            } else {
-                              workspaceTabButtons.current.delete(tab.id);
-                            }
-                          }}
-                          tabIndex={
-                            workspaceTabs.activeTabId === tab.id ||
-                            (!workspaceTabs.activeTabId &&
-                              workspaceTabs.tabs[0]?.id === tab.id)
-                              ? 0
-                              : -1
-                          }
-                          title={tab.path ?? tab.title}
-                        />
-                      ))}
-                    </WorkspaceTabBar>
-                    <div className="workspace-tab-content">
-                      {workspaceTabs.tabs.length === 0 && (
-                        <WorkspaceLauncher label={t.rightSidebar}>
-                          {activeProject && (
-                            <WorkspaceLauncherAction
-                              icon={<WorkspaceLauncherIcon kind="review" />}
-                              label={t.reviewPanel}
-                              onActivate={openReviewPanel}
-                              shortcut={
-                                snapshot.platform === "darwin"
-                                  ? "⌘⌥B"
-                                  : "Ctrl+Alt+B"
-                              }
-                            />
-                          )}
-                          <WorkspaceLauncherAction
-                            icon={<WorkspaceLauncherIcon kind="terminal" />}
-                            label={t.terminal}
-                            onActivate={openTerminalPanel}
-                            shortcut={
-                              snapshot.platform === "darwin" ? "⌘J" : "Ctrl+J"
-                            }
-                          />
-                          <WorkspaceLauncherAction
-                            icon={<WorkspaceLauncherIcon kind="browser" />}
-                            label={t.browser}
-                            onActivate={openBrowserPanel}
-                          />
-                          <WorkspaceLauncherAction
-                            icon={<WorkspaceLauncherIcon kind="files" />}
-                            label={t.files}
-                            onActivate={openFilesPanel}
-                          />
-                          {designPluginAvailable && (
-                            <WorkspaceLauncherAction
-                              icon={<WorkspaceLauncherIcon kind="design" />}
-                              label={t.designTab}
-                              onActivate={() => openWorkspaceTab("design")}
-                            />
-                          )}
-                        </WorkspaceLauncher>
-                      )}
-                      {workspaceTabs.tabs.map((tab) => (
-                        <WorkspaceTabPane
-                          active={workspaceTabs.activeTabId === tab.id}
-                          id={`${workspaceTabDomId(tab.id)}-pane`}
-                          key={tab.id}
-                          labelledBy={workspaceTabDomId(tab.id)}
-                        >
-                          {tab.kind === "review" && (
-                            <ReviewSurface
-                              busy={reviewTransitionPending || !reviewDiff}
-                              label={t.reviewPanel}
-                            >
-                              <ReviewToolbar>
-                                <div className="review-comparison-primary">
-                                  <div className="review-scope-select">
-                                    <SegmentedControl<ReviewScope>
-                                      label={t.comparison}
-                                      onValueChange={selectReviewScope}
-                                      options={[
-                                        ...(reviewScope === "turn"
-                                          ? [
-                                              {
-                                                value: "turn" as const,
-                                                label: t.thisTurn,
-                                              },
-                                            ]
-                                          : []),
-                                        {
-                                          value: "last-turn",
-                                          label: t.lastTurn,
-                                          count:
-                                            reviewCount("last-turn") ||
-                                            undefined,
-                                        },
-                                        {
-                                          value: "unstaged",
-                                          label: t.unstaged,
-                                          count:
-                                            reviewCount("unstaged") ||
-                                            undefined,
-                                        },
-                                        {
-                                          value: "staged",
-                                          label: t.staged,
-                                          count:
-                                            reviewCount("staged") || undefined,
-                                        },
-                                        { value: "branch", label: t.branch },
-                                      ]}
-                                      size="compact"
-                                      value={reviewScope}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="review-comparison-route">
-                                  {reviewScope === "branch" ? (
-                                    <>
-                                      <label className="base-ref-field">
-                                        <span>{t.baseRef}</span>
-                                        <input
-                                          aria-label={t.baseRef}
-                                          onChange={(event) =>
-                                            setReviewBaseRef(event.target.value)
-                                          }
-                                          placeholder={
-                                            reviewDiff?.baseRef ?? "main"
-                                          }
-                                          value={reviewBaseRef}
-                                        />
-                                      </label>
-                                      <span aria-hidden="true">→</span>
-                                      <strong>HEAD</strong>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span>HEAD</span>
-                                      <span aria-hidden="true">→</span>
-                                      <strong>
-                                        {reviewScope === "unstaged"
-                                          ? t.unstaged
-                                          : reviewScope === "staged"
-                                            ? t.staged
-                                            : reviewScope === "turn"
-                                              ? t.thisTurn
-                                              : t.lastTurn}
-                                      </strong>
-                                    </>
-                                  )}{" "}
-                                  <button
-                                    aria-label={
-                                      reviewRefreshing
-                                        ? t.refreshingDiff
-                                        : t.refreshDiff
-                                    }
-                                    aria-busy={reviewRefreshing}
-                                    className="review-toolbar-action"
-                                    disabled={
-                                      reviewRefreshing || !activeThreadId
-                                    }
-                                    onClick={async () => {
-                                      setReviewRefreshing(true);
-                                      try {
-                                        const diff = await refreshDiff(true);
-                                        if (diff?.available)
-                                          setToast(t.diffRefreshed);
-                                      } finally {
-                                        setReviewRefreshing(false);
-                                      }
-                                    }}
-                                    title={
-                                      reviewRefreshing
-                                        ? t.refreshingDiff
-                                        : t.refreshDiff
-                                    }
-                                    type="button"
-                                  >
-                                    <RefreshIcon />
-                                  </button>
-                                </div>
-                              </ReviewToolbar>
-                              <ReviewWorkspace>
-                                <ReviewFileSidebar label={t.changedFiles}>
-                                  <label className="review-file-filter">
-                                    <SearchIcon />
-                                    <input
-                                      aria-label={t.filterFiles}
-                                      onChange={(event) =>
-                                        setReviewFileQuery(event.target.value)
-                                      }
-                                      placeholder={t.filterFiles}
-                                      value={reviewFileQuery}
-                                    />
-                                  </label>
-                                  <div className="file-summary">
-                                    <span>{t.changedFiles}</span>
-                                    <strong>
-                                      {reviewDiff?.files.length ?? 0}
-                                    </strong>
-                                  </div>
-                                  <div className="review-file-list">
-                                    {filteredReviewFiles.map((file) => (
-                                      <button
-                                        aria-pressed={
-                                          selectedReviewFile?.id === file.id
-                                        }
-                                        className={
-                                          selectedReviewFile?.id === file.id
-                                            ? "review-file-entry selected"
-                                            : "review-file-entry"
-                                        }
-                                        key={file.id}
-                                        onClick={() =>
-                                          setSelectedReviewFilePath(file.path)
-                                        }
-                                        title={file.path}
-                                        type="button"
-                                      >
-                                        <WorkspaceFileIcon
-                                          path={file.path}
-                                          presentation={filePresentation(
-                                            file.path,
-                                          )}
-                                          symlink={false}
-                                        />
-                                        <span className="review-file-path">
-                                          {file.path.split(/[\\/]/).at(-1)}
-                                        </span>
-                                        <span className="review-file-stats">
-                                          {file.additions > 0 && (
-                                            <span className="addition">
-                                              +{file.additions}
-                                            </span>
-                                          )}
-                                          {file.deletions > 0 && (
-                                            <span className="deletion">
-                                              −{file.deletions}
-                                            </span>
-                                          )}
-                                        </span>
-                                        <span className="file-status">
-                                          {file.status === "added"
-                                            ? "A"
-                                            : file.status === "deleted"
-                                              ? "D"
-                                              : "M"}
-                                        </span>
-                                      </button>
-                                    ))}
-                                    {Boolean(
-                                      reviewDiff?.files.length &&
-                                      !filteredReviewFiles.length,
-                                    ) && (
-                                      <div className="review-file-list-empty">
-                                        {t.noMatchingFiles}
-                                      </div>
-                                    )}
-                                  </div>
-                                </ReviewFileSidebar>
-                                <ReviewDiffReader label={t.comparison}>
-                                  {!reviewDiff && (
-                                    <ReviewState state="loading">…</ReviewState>
-                                  )}
-                                  {reviewDiff?.available &&
-                                    !reviewDiff.files.length && (
-                                      <ReviewState state="empty">
-                                        <div className="review-empty-illustration">
-                                          <ReviewEmptyIcon />
-                                        </div>
-                                        <strong>{t.noChanges}</strong>
-                                        <p>{t.changesAppearHere}</p>
-                                      </ReviewState>
-                                    )}
-                                  {reviewDiff && !reviewDiff.available && (
-                                    <ReviewState state="error">
-                                      {reviewMessage(
-                                        locale,
-                                        reviewDiff.message ?? "",
-                                      )}
-                                    </ReviewState>
-                                  )}
-                                  {reviewDiff?.available &&
-                                    selectedReviewFile && (
-                                      <ReviewDiffSurface
-                                        data-language={
-                                          filePresentation(
-                                            selectedReviewFile.path,
-                                          ).language
-                                        }
-                                        key={selectedReviewFile.id}
-                                        state={
-                                          commentLineId ? "dirty" : "selected"
-                                        }
-                                      >
-                                        <ReviewDiffHeader>
-                                          <WorkspaceFileIcon
-                                            path={selectedReviewFile.path}
-                                            presentation={filePresentation(
-                                              selectedReviewFile.path,
-                                            )}
-                                            symlink={false}
-                                          />
-                                          <span className="review-file-path">
-                                            {selectedReviewFile.path}
-                                          </span>
-                                          <span className="review-file-stats">
-                                            <span className="addition">
-                                              +{selectedReviewFile.additions}
-                                            </span>
-                                            <span className="deletion">
-                                              −{selectedReviewFile.deletions}
-                                            </span>
-                                          </span>
-                                          <span className="file-status">
-                                            {selectedReviewFile.status ===
-                                            "added"
-                                              ? "A"
-                                              : selectedReviewFile.status ===
-                                                  "deleted"
-                                                ? "D"
-                                                : "M"}
-                                          </span>
-                                          <span className="review-actions">
-                                            {reviewScope === "unstaged" && (
-                                              <>
-                                                <button
-                                                  className="review-action"
-                                                  disabled={
-                                                    reviewBusy || turnActive
-                                                  }
-                                                  onClick={() =>
-                                                    void mutateReview("stage", {
-                                                      kind: "file",
-                                                      id: selectedReviewFile.id,
-                                                    })
-                                                  }
-                                                >
-                                                  {t.stage}
-                                                </button>
-                                                <button
-                                                  className="review-action danger"
-                                                  disabled={
-                                                    reviewBusy || turnActive
-                                                  }
-                                                  onClick={() =>
-                                                    void mutateReview(
-                                                      "revert",
-                                                      {
-                                                        kind: "file",
-                                                        id: selectedReviewFile.id,
-                                                      },
-                                                    )
-                                                  }
-                                                >
-                                                  {t.revert}
-                                                </button>
-                                              </>
-                                            )}
-                                            {reviewScope === "staged" && (
-                                              <button
-                                                className="review-action"
-                                                disabled={
-                                                  reviewBusy || turnActive
-                                                }
-                                                onClick={() =>
-                                                  void mutateReview("unstage", {
-                                                    kind: "file",
-                                                    id: selectedReviewFile.id,
-                                                  })
-                                                }
-                                              >
-                                                {t.unstage}
-                                              </button>
-                                            )}
-                                          </span>
-                                        </ReviewDiffHeader>
-                                        {selectedReviewFile.hunks.map(
-                                          (hunk) => (
-                                            <ReviewDiffHunk key={hunk.id}>
-                                              <div className="review-hunk">
-                                                <code title={hunk.header}>
-                                                  {hunk.header}
-                                                </code>
-                                                <span className="review-file-stats">
-                                                  <span className="addition">
-                                                    +{hunk.additions}
-                                                  </span>
-                                                  <span className="deletion">
-                                                    −{hunk.deletions}
-                                                  </span>
-                                                </span>
-                                                <span className="review-actions">
-                                                  {reviewScope ===
-                                                    "unstaged" && (
-                                                    <>
-                                                      <button
-                                                        className="review-action"
-                                                        disabled={
-                                                          reviewBusy ||
-                                                          turnActive
-                                                        }
-                                                        onClick={() =>
-                                                          void mutateReview(
-                                                            "stage",
-                                                            {
-                                                              kind: "hunk",
-                                                              id: hunk.id,
-                                                            },
-                                                          )
-                                                        }
-                                                      >
-                                                        {t.stage}
-                                                      </button>
-                                                      <button
-                                                        className="review-action danger"
-                                                        disabled={
-                                                          reviewBusy ||
-                                                          turnActive
-                                                        }
-                                                        onClick={() =>
-                                                          void mutateReview(
-                                                            "revert",
-                                                            {
-                                                              kind: "hunk",
-                                                              id: hunk.id,
-                                                            },
-                                                          )
-                                                        }
-                                                      >
-                                                        {t.revert}
-                                                      </button>
-                                                    </>
-                                                  )}
-                                                  {reviewScope === "staged" && (
-                                                    <button
-                                                      className="review-action"
-                                                      disabled={
-                                                        reviewBusy || turnActive
-                                                      }
-                                                      onClick={() =>
-                                                        void mutateReview(
-                                                          "unstage",
-                                                          {
-                                                            kind: "hunk",
-                                                            id: hunk.id,
-                                                          },
-                                                        )
-                                                      }
-                                                    >
-                                                      {t.unstage}
-                                                    </button>
-                                                  )}
-                                                </span>
-                                              </div>
-                                              <ReviewDiffLines>
-                                                {hunk.lines.map((line) => {
-                                                  const comments =
-                                                    reviewComments.filter(
-                                                      (comment) =>
-                                                        comment.scope ===
-                                                          reviewScope &&
-                                                        comment.lineId ===
-                                                          line.id,
-                                                    );
-                                                  return (
-                                                    <div
-                                                      className="review-line-group"
-                                                      key={line.id}
-                                                    >
-                                                      <ReviewDiffLine
-                                                        data-line-id={line.id}
-                                                        kind={line.kind}
-                                                      >
-                                                        {reviewScope !==
-                                                          "turn" && (
-                                                          <button
-                                                            aria-label={
-                                                              t.addComment
-                                                            }
-                                                            className="review-comment-trigger"
-                                                            onClick={() => {
-                                                              setCommentLineId(
-                                                                line.id,
-                                                              );
-                                                              setCommentBody(
-                                                                "",
-                                                              );
-                                                            }}
-                                                            title={t.addComment}
-                                                          >
-                                                            +
-                                                          </button>
-                                                        )}
-                                                        <span
-                                                          className="review-line-number"
-                                                          data-side="old"
-                                                        >
-                                                          {line.oldLine}
-                                                        </span>
-                                                        <span
-                                                          className="review-line-number"
-                                                          data-side="new"
-                                                        >
-                                                          {line.newLine}
-                                                        </span>
-                                                        <code>
-                                                          <HighlightedCodeLine
-                                                            content={
-                                                              line.text || " "
-                                                            }
-                                                            path={
-                                                              selectedReviewFile.path
-                                                            }
-                                                          />
-                                                        </code>
-                                                      </ReviewDiffLine>
-                                                      {comments.map(
-                                                        (comment) => (
-                                                          <div
-                                                            className="review-comment"
-                                                            key={comment.id}
-                                                          >
-                                                            <p dir="auto">
-                                                              {comment.body}
-                                                            </p>
-                                                            <button
-                                                              aria-label={
-                                                                t.deleteComment
-                                                              }
-                                                              className="text-button danger"
-                                                              disabled={
-                                                                reviewBusy
-                                                              }
-                                                              onClick={() =>
-                                                                void deleteReviewComment(
-                                                                  comment,
-                                                                )
-                                                              }
-                                                            >
-                                                              {t.deleteComment}
-                                                            </button>
-                                                          </div>
-                                                        ),
-                                                      )}
-                                                      {commentLineId ===
-                                                        line.id && (
-                                                        <div className="review-comment-editor">
-                                                          <header className="review-comment-heading">
-                                                            <span
-                                                              className="review-comment-avatar"
-                                                              aria-hidden="true"
-                                                            >
-                                                              {userInitials(
-                                                                username,
-                                                              )}
-                                                            </span>
-                                                            <strong>
-                                                              {username}
-                                                            </strong>
-                                                            {(line.newLine ??
-                                                              line.oldLine) !==
-                                                              undefined && (
-                                                              <span>
-                                                                {uiText(
-                                                                  locale,
-                                                                  "Review04.commentLine",
-                                                                  {
-                                                                    line:
-                                                                      line.newLine ??
-                                                                      line.oldLine ??
-                                                                      "",
-                                                                  },
-                                                                )}
-                                                              </span>
-                                                            )}
-                                                          </header>
-                                                          <textarea
-                                                            aria-label={
-                                                              t.commentPlaceholder
-                                                            }
-                                                            autoFocus
-                                                            dir="auto"
-                                                            onChange={(event) =>
-                                                              setCommentBody(
-                                                                event.target
-                                                                  .value,
-                                                              )
-                                                            }
-                                                            placeholder={
-                                                              t.commentPlaceholder
-                                                            }
-                                                            value={commentBody}
-                                                          />
-                                                          <span>
-                                                            <button
-                                                              className="text-button"
-                                                              onClick={() => {
-                                                                setCommentLineId(
-                                                                  undefined,
-                                                                );
-                                                                setCommentBody(
-                                                                  "",
-                                                                );
-                                                              }}
-                                                            >
-                                                              {t.cancelComment}
-                                                            </button>
-                                                            <button
-                                                              className="text-button"
-                                                              disabled={
-                                                                reviewBusy ||
-                                                                !commentBody.trim()
-                                                              }
-                                                              onClick={() =>
-                                                                void saveReviewComment(
-                                                                  line.id,
-                                                                )
-                                                              }
-                                                            >
-                                                              {t.saveComment}
-                                                            </button>
-                                                            <button
-                                                              className="primary-button compact"
-                                                              disabled={
-                                                                reviewBusy ||
-                                                                busy ||
-                                                                Boolean(
-                                                                  retiredGroup,
-                                                                ) ||
-                                                                !commentBody.trim() ||
-                                                                Boolean(
-                                                                  prompt.trim(),
-                                                                ) ||
-                                                                attachments.length >
-                                                                  0 ||
-                                                                selectedSkills.length >
-                                                                  0 ||
-                                                                customAgentTasks.length >
-                                                                  0
-                                                              }
-                                                              onClick={() =>
-                                                                void sendReviewComment(
-                                                                  line.id,
-                                                                )
-                                                              }
-                                                            >
-                                                              {uiText(
-                                                                locale,
-                                                                "Review.sendToArtemis",
-                                                              )}
-                                                            </button>
-                                                          </span>
-                                                        </div>
-                                                      )}
-                                                    </div>
-                                                  );
-                                                })}
-                                              </ReviewDiffLines>
-                                            </ReviewDiffHunk>
-                                          ),
-                                        )}
-                                      </ReviewDiffSurface>
-                                    )}
-                                </ReviewDiffReader>
-                              </ReviewWorkspace>
-                              <footer className="review-footer">
-                                <small className="review-footer-summary">
-                                  {[
-                                    reviewCount("staged") !== undefined
-                                      ? `${t.staged} ${reviewCount("staged")}`
-                                      : undefined,
-                                    reviewCount("unstaged") !== undefined
-                                      ? `${t.unstaged} ${reviewCount("unstaged")}`
-                                      : undefined,
-                                    commentBody.trim()
-                                      ? uiText(
-                                          locale,
-                                          "Review01.pendingComments",
-                                          { count: 1 },
-                                        )
-                                      : undefined,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                </small>
-                                <button
-                                  className="secondary-button compact"
-                                  disabled={
-                                    !reviewUndoAvailable ||
-                                    reviewBusy ||
-                                    Boolean(activeThread?.archived)
-                                  }
-                                  onClick={() => {
-                                    if (latestReviewUndoTurn)
-                                      void undoTurnChanges(
-                                        latestReviewUndoTurn,
-                                      );
-                                  }}
-                                  type="button"
-                                >
-                                  <ArtemisIcon
-                                    name="undo"
-                                    width={14}
-                                    height={14}
-                                  />
-                                  {uiText(locale, "Review06.restoreSnapshot")}
-                                </button>
-                                <button
-                                  className="primary-button compact"
-                                  disabled={
-                                    !activeProject ||
-                                    !reviewDiff?.available ||
-                                    projectBranchActionsDisabled ||
-                                    Boolean(activeThread?.archived)
-                                  }
-                                  onClick={() => {
-                                    setWorkspaceDockOpen(false);
-                                    setEnvironmentCommitRequest(
-                                      (value) => value + 1,
-                                    );
-                                  }}
-                                  type="button"
-                                >
-                                  <ArtemisIcon
-                                    name="commit"
-                                    width={14}
-                                    height={14}
-                                  />
-                                  {uiText(locale, "Review06.commit")}
-                                </button>
-                              </footer>
-                            </ReviewSurface>
-                          )}
-                          {tab.kind === "sources" && activeThread && (
-                            <SourcesPanel
-                              agents={environmentAgents}
-                              attachments={attachments}
-                              locale={locale}
-                              mcpUsages={environmentMcpUsages}
-                              onOpenUrl={openConversationExternalLink}
-                              onOpenAgent={openChildAgentPanel}
-                              onOpenFile={openResolvedWorkspaceFile}
-                              sources={environmentSources}
-                              threadId={activeThread.id}
-                            />
-                          )}
-                          {tab.kind === "goal" && activeThread?.goal && (
-                            <GoalEditorPanel
-                              clockMs={clockMs}
-                              goal={activeThread.goal}
-                              key={activeThread.goal.goalId}
-                              locale={locale}
-                              onError={(message) =>
-                                setToast({ error: true, message })
-                              }
-                              onSaved={updateThreadInSnapshot}
-                            />
-                          )}
-                          {tab.kind === "terminal" && (
-                            <Suspense
-                              fallback={
-                                <TerminalSurface
-                                  busy
-                                  className="terminal-panel view-loading"
-                                  label={tab.title}
-                                  state="connecting"
-                                >
-                                  <TerminalViewport>
-                                    <TerminalState state="connecting">
-                                      …
-                                    </TerminalState>
-                                  </TerminalViewport>
-                                </TerminalSurface>
-                              }
-                            >
-                              <TerminalPanel
-                                projectName={activeProject?.name}
-                                onNew={() =>
-                                  openWorkspaceTab("terminal", {
-                                    forceNew: true,
-                                  })
-                                }
-                                locale={locale}
-                                threadId={activeThread?.id}
-                                title={tab.title}
-                                emptyMessage={t.terminalLocked}
-                                theme={runtimeSettings?.theme ?? "system"}
-                              />
-                            </Suspense>
-                          )}
-                          {tab.kind === "browser" && (
-                            <WorkspaceBrowserPanel
-                              tabId={tab.id}
-                              onEvidence={(text, image) => {
-                                if (text)
-                                  setPrompt(
-                                    (current) =>
-                                      `${current}${current.trim() ? "\n\n" : ""}${text}`,
-                                  );
-                                if (image)
-                                  addPromptAttachments([
-                                    { name: "browser-evidence.jpg", ...image },
-                                  ]);
-                                window.requestAnimationFrame(() =>
-                                  promptInput.current?.focus(),
-                                );
-                              }}
-                              key={`${activeThreadId ?? "project"}:${tab.id}`}
-                              addressPlaceholder={t.browserAddress}
-                              backLabel={t.browserBack}
-                              emptyMessage={t.noHtmlPreview}
-                              forwardLabel={t.browserForward}
-                              goLabel={t.browserGo}
-                              initialUrl={tab.url}
-                              locale={locale}
-                              path={
-                                tab.url
-                                  ? undefined
-                                  : (tab.path ?? latestHtmlChange?.path)
-                              }
-                              refreshLabel={t.refreshPreview}
-                              revision={
-                                tab.revision ?? latestHtmlChange?.eventId
-                              }
-                              threadId={activeThreadId}
-                              title={tab.title}
-                            />
-                          )}
-                          {tab.kind === "markdown" && (
-                            <MarkdownReaderPanel
-                              editLabel={t.editFile}
-                              emptyMessage={t.noMarkdownPreview}
-                              imageFailureMessage={t.imageFailedToLoad}
-                              path={tab.path ?? latestMarkdownChange?.path}
-                              refreshLabel={t.refreshPreview}
-                              revision={
-                                tab.revision ?? latestMarkdownChange?.eventId
-                              }
-                              richLabel={t.richText}
-                              saveLabel={t.saveFile}
-                              savedLabel={t.saved}
-                              savingLabel={t.saving}
-                              sourceLabel={t.sourceText}
-                              threadId={activeThreadId}
-                              title={tab.title}
-                              unsavedLabel={t.unsaved}
-                            />
-                          )}
-                          {tab.kind === "design" && activeThreadId ? (
-                            designPluginAvailable ? (
-                              <Suspense fallback={<span>…</span>}>
-                                <DesignPluginPanel
-                                  key={`${activeThreadId}:${tab.id}`}
-                                  threadId={activeThreadId}
-                                  panelId="workspace"
-                                  active={workspaceTabs.activeTabId === tab.id}
-                                  onCandidate={(
-                                    text,
-                                    annotations,
-                                    document,
-                                    autoSend,
-                                    images,
-                                  ) => {
-                                    const trimmed = text.trim();
-                                    if (!trimmed || !activeThreadId) return;
-                                    void (async () => {
-                                      try {
-                                        // Keep the credential with this draft until the host
-                                        // accepts the actual startTurn/followUpTurn request.
-                                        const accepted =
-                                          await window.artemis.acceptDesignPanelCandidate(
-                                            activeThreadId,
-                                            trimmed,
-                                          );
-                                        if (
-                                          activeThreadIdRef.current !==
-                                          activeThreadId
-                                        ) {
-                                          await window.artemis.discardDesignPanelCandidate(
-                                            accepted.credential,
-                                          );
-                                          return;
-                                        }
-                                        const previous =
-                                          designPanelCredentials.current.get(
-                                            activeComposerDraftKey,
-                                          );
-                                        designPanelCredentials.current.delete(
-                                          activeComposerDraftKey,
-                                        );
-                                        if (previous)
-                                          await window.artemis
-                                            .discardDesignPanelCandidate(
-                                              previous.credential,
-                                            )
-                                            .catch(() => undefined);
-                                        if (autoSend === false) {
-                                          await window.artemis.stageDesignPanelSend(
-                                            accepted.credential,
-                                          );
-                                        } else {
-                                          designPanelCredentials.current.set(
-                                            activeComposerDraftKey,
-                                            {
-                                              text: trimmed,
-                                              credential: accepted.credential,
-                                            },
-                                          );
-                                        }
-                                        if (document?.html.trim()) {
-                                          const merged =
-                                            addDesignDocumentAttachment(
-                                              draftAttachments.current.get(
-                                                activeComposerDraftKey,
-                                              ) ?? [],
-                                              document,
-                                            );
-                                          if (merged) setAttachments(merged);
-                                        }
-                                        // 面板附图（OD imageAttachments）：dataURL
-                                        // → 裸图片附件（PromptImage，与粘贴同形）
-                                        if (images && images.length > 0) {
-                                          const imageAttachments =
-                                            images.flatMap((dataUrl, index) => {
-                                              const match =
-                                                /^data:(image\/(?:png|jpeg|webp|gif));base64,(.+)$/.exec(
-                                                  dataUrl,
-                                                );
-                                              if (!match) return [];
-                                              const mime = match[1] as
-                                                | "image/png"
-                                                | "image/jpeg"
-                                                | "image/webp"
-                                                | "image/gif";
-                                              return [
-                                                {
-                                                  name: `panel-image-${index + 1}.${mime === "image/jpeg" ? "jpg" : mime.slice(6)}`,
-                                                  mimeType: mime,
-                                                  data: match[2] ?? "",
-                                                },
-                                              ];
-                                            });
-                                          const withImages =
-                                            appendPromptAttachments(
-                                              draftAttachments.current.get(
-                                                activeComposerDraftKey,
-                                              ) ?? [],
-                                              imageAttachments,
-                                            );
-                                          draftAttachments.current.set(
-                                            activeComposerDraftKey,
-                                            withImages.attachments,
-                                          );
-                                          setAttachments(
-                                            withImages.attachments,
-                                          );
-                                        }
-                                        designAnnotationDrafts.current.set(
-                                          activeComposerDraftKey,
-                                          (() => {
-                                            const draft =
-                                              designAnnotationDrafts.current.get(
-                                                activeComposerDraftKey,
-                                              ) ?? new DesignAnnotationDraft();
-                                            draft.add(
-                                              annotations,
-                                              document ?? undefined,
-                                            );
-                                            return draft;
-                                          })(),
-                                        );
-                                        setPrompt(trimmed);
-                                        if (autoSend !== false) {
-                                          designPanelAutoSendText.current = {
-                                            draftKey: activeComposerDraftKey,
-                                            text: trimmed,
-                                          };
-                                        }
-                                        window.requestAnimationFrame(() =>
-                                          promptInput.current?.focus(),
-                                        );
-                                      } catch {
-                                        setToast({
-                                          error: true,
-                                          message: uiText(
-                                            locale,
-                                            "AppDesign.failedToAcceptTheCandidate",
-                                          ),
-                                        });
-                                      }
-                                    })();
-                                  }}
-                                  onBinding={(binding) => {
-                                    setDesignDocBinding(binding);
-                                  }}
-                                  failureMessage={t.designTab}
-                                />
-                              </Suspense>
-                            ) : (
-                              <div
-                                className="design-plugin-panel-disabled"
-                                style={{
-                                  display: "flex",
-                                  flex: 1,
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  padding: 24,
-                                  color:
-                                    "var(--artemis-color-text-secondary, #9399b2)",
-                                }}
-                              >
-                                {uiText(locale, "AppDesign.removed")}
-                              </div>
-                            )
-                          ) : null}
-                          {tab.kind === "office" &&
-                          activeThreadId &&
-                          tab.path ? (
-                            <Suspense fallback={<span>…</span>}>
-                              <OfficeFilePanel
-                                key={`${activeThreadId}:${tab.id}`}
-                                threadId={activeThreadId}
-                                path={tab.path}
-                                retryLabel={t.refreshPreview}
-                                onOpened={(artifactSessionId) =>
-                                  dispatchWorkspaceTab({
-                                    type: "update",
-                                    tabId: tab.id,
-                                    updates: { artifactSessionId },
-                                  })
-                                }
-                                view={
-                                  tab.artifactSessionId
-                                    ? threadState?.artifacts?.[
-                                        tab.artifactSessionId
-                                      ]
-                                    : undefined
-                                }
-                                locale={locale}
-                                onSnapshot={recoverOfficeSnapshot}
-                                annotationFocus={
-                                  officeAnnotationFocus?.threadId ===
-                                    activeThreadId &&
-                                  officeAnnotationFocus.path === tab.path
-                                    ? officeAnnotationFocus.annotation
-                                    : undefined
-                                }
-                                onAnnotate={(annotation) => {
-                                  if (busy) return false;
-                                  const next = addOfficeAnnotation(
-                                    draftAttachments.current.get(
-                                      activeComposerDraftKey,
-                                    ) ?? [],
-                                    tab.path!,
-                                    annotation,
-                                  );
-                                  if (!next) {
-                                    setToast(t.attachmentLimit);
-                                    return false;
-                                  }
-                                  setAttachments(next);
-                                  window.requestAnimationFrame(() =>
-                                    promptInput.current?.focus(),
-                                  );
-                                  return true;
-                                }}
-                              />
-                            </Suspense>
-                          ) : null}
-                          {tab.kind === "file" && (
-                            <WorkspaceFilesPanel
-                              locale={locale}
-                              onOpenOffice={(path) =>
-                                openWorkspaceTab("office", { path })
-                              }
-                              previewLabel={t.previewFile}
-                              binaryMessage={t.binaryFile}
-                              editFileLabel={t.editFile}
-                              imageFailureMessage={t.imageFailedToLoad}
-                              filterPlaceholder={t.filterFiles}
-                              onFileSelected={(path) =>
-                                dispatchWorkspaceTab({
-                                  type: "update",
-                                  tabId: tab.id,
-                                  updates: {
-                                    path,
-                                    title:
-                                      path
-                                        .replaceAll("\\", "/")
-                                        .split("/")
-                                        .at(-1) ?? t.files,
-                                  },
-                                })
-                              }
-                              onOpenHtml={openHtmlFromFiles}
-                              onOpenReader={(path) =>
-                                openWorkspaceTab("markdown", { path })
-                              }
-                              readerLabel={t.openLinkedFile}
-                              openFileMessage={t.openFileFromTree}
-                              refreshLabel={t.refreshPreview}
-                              richLabel={t.richText}
-                              saveLabel={t.saveFile}
-                              savedLabel={t.saved}
-                              selectedPath={tab.path}
-                              savingLabel={t.saving}
-                              sourceLabel={t.sourceText}
-                              threadId={activeThreadId}
-                              title={tab.title}
-                              unsavedLabel={t.unsaved}
-                            />
-                          )}
-                          {tab.kind === "agent-team" && (
-                            <AgentTeamPanel
-                              active={workspaceTabs.activeTabId === tab.id}
-                              controlPending={agentTeamControlPending}
-                              locale={locale}
-                              members={Object.values(
-                                threadState?.childAgents ?? {},
-                              ).filter(
-                                (child) => child.teamId === tab.agentTeamId,
-                              )}
-                              messages={(
-                                threadState?.agentTeamMessageOrder ?? []
-                              )
-                                .map(
-                                  (messageId) =>
-                                    threadState?.agentTeamMessages[messageId],
-                                )
-                                .filter(
-                                  (message): message is AgentTeamMessageState =>
-                                    Boolean(
-                                      message &&
-                                      message.teamId === tab.agentTeamId,
-                                    ),
-                                )}
-                              onOpenChildAgent={openChildAgentPanel}
-                              onStop={(team) => void stopAgentTeam(team)}
-                              runtimeAvailable={turnActive}
-                              team={
-                                tab.agentTeamId
-                                  ? threadState?.agentTeams[tab.agentTeamId]
-                                  : undefined
-                              }
-                            />
-                          )}
-                          {tab.kind === "child-agent" && (
-                            <ChildAgentPanel
-                              active={workspaceTabs.activeTabId === tab.id}
-                              child={
-                                tab.childAgentId
-                                  ? threadState?.childAgents[tab.childAgentId]
-                                  : undefined
-                              }
-                              clockMs={clockMs}
-                              locale={locale}
-                              onControl={(child, action) =>
-                                void controlChildAgent(child, action)
-                              }
-                              pendingAction={childAgentControlPending}
-                            />
-                          )}
-                        </WorkspaceTabPane>
-                      ))}
-                    </div>
-                  </WorkspaceDock>
+                  <AppWorkspaceDock
+                    {...{
+                      workspaceTabs,
+                      t,
+                      closeWorkspaceTab,
+                      dispatchWorkspaceTab,
+                      activeWorkspaceTabElement,
+                      workspaceTabButtons,
+                      workspaceDockOpen,
+                      toggleRightSidebar,
+                      workspaceDockToggleElement,
+                      workspaceTabMenuOpen,
+                      setWorkspaceTabMenuOpen,
+                      activeProject,
+                      designPluginAvailable,
+                      locale,
+                      focusWorkspaceTab,
+                      workspaceTabScrollState,
+                      scrollWorkspaceTabs,
+                      syncWorkspaceTabScrollState,
+                      handleWorkspaceTabWheel,
+                      workspaceTabScroll,
+                      workspaceTabTrack,
+                      openReviewPanel,
+                      snapshot,
+                      openTerminalPanel,
+                      openBrowserPanel,
+                      openFilesPanel,
+                      openWorkspaceTab,
+                      selectReviewScope,
+                      reviewScope,
+                      reviewCount,
+                      setReviewBaseRef,
+                      reviewDiff,
+                      reviewBaseRef,
+                      reviewRefreshing,
+                      activeThreadId,
+                      setReviewRefreshing,
+                      refreshDiff,
+                      setToast,
+                      setReviewFileQuery,
+                      reviewFileQuery,
+                      selectedReviewFile,
+                      setSelectedReviewFilePath,
+                      filteredReviewFiles,
+                      reviewBusy,
+                      turnActive,
+                      mutateReview,
+                      reviewComments,
+                      setCommentLineId,
+                      setCommentBody,
+                      deleteReviewComment,
+                      commentLineId,
+                      username,
+                      commentBody,
+                      saveReviewComment,
+                      busy,
+                      retiredGroup,
+                      prompt,
+                      attachments,
+                      selectedSkills,
+                      customAgentTasks,
+                      sendReviewComment,
+                      reviewUndoAvailable,
+                      activeThread,
+                      latestReviewUndoTurn,
+                      undoTurnChanges,
+                      projectBranchActionsDisabled,
+                      setWorkspaceDockOpen,
+                      setEnvironmentCommitRequest,
+                      reviewTransitionPending,
+                      environmentAgents,
+                      environmentMcpUsages,
+                      openConversationExternalLink,
+                      openChildAgentPanel,
+                      openResolvedWorkspaceFile,
+                      environmentSources,
+                      clockMs,
+                      updateThreadInSnapshot,
+                      runtimeSettings,
+                      setPrompt,
+                      addPromptAttachments,
+                      promptInput,
+                      latestHtmlChange,
+                      latestMarkdownChange,
+                      activeThreadIdRef,
+                      activeComposerDraftKey,
+                      designPanelCredentials,
+                      draftAttachments,
+                      setAttachments,
+                      designAnnotationDrafts,
+                      designPanelAutoSendText,
+                      setDesignDocBinding,
+                      threadState,
+                      recoverOfficeSnapshot,
+                      officeAnnotationFocus,
+                      openHtmlFromFiles,
+                      agentTeamControlPending,
+                      stopAgentTeam,
+                      controlChildAgent,
+                      childAgentControlPending,
+                      workspaceDock,
+                      workspaceDockResizing,
+                      workspaceDockWidth,
+                    }}
+                  />
                 </>
               )}
             </div>
@@ -11067,1617 +8016,14 @@ export function App() {
   );
 }
 
-function agentMemberStatus(status: ChildAgentState["status"], locale: Locale) {
-  const copy = UI_COPY.App_copy_9734[locale];
-  return { agentMemberStatusLabel: copy[status] }.agentMemberStatusLabel;
-}
+export { WorkspaceTabIcon } from "./app-icons.js";
 
-function agentMemberTone(status: ChildAgentState["status"]) {
-  return status === "completed"
-    ? "success"
-    : status === "failed" || status === "cancelled"
-      ? "danger"
-      : status === "running" || status === "blocked"
-        ? "warning"
-        : "neutral";
-}
+export { AgentTeamPanel } from "../conversation/agent-team-panel.js";
 
-export function AgentTeamPanel({
-  active,
-  controlPending,
-  locale,
-  members,
-  messages,
-  onOpenChildAgent,
-  onStop,
-  runtimeAvailable,
-  team,
-}: {
-  active: boolean;
-  controlPending: boolean;
-  locale: Locale;
-  members: ChildAgentState[];
-  messages: AgentTeamMessageState[];
-  onOpenChildAgent: (child: ChildAgentState) => void;
-  onStop: (team: AgentTeamState) => void;
-  runtimeAvailable: boolean;
-  team: AgentTeamState | undefined;
-}) {
-  const messageList = useRef<HTMLDivElement>(null);
-  const labels = UI_COPY.App_labels[locale];
-  const teamStatusLabels = UI_COPY.App_teamStatusLabels[locale];
-  const messageKindLabels = UI_COPY.App_messageKindLabels[locale];
-  const teamRunning =
-    team &&
-    (team.status === "forming" ||
-      team.status === "running" ||
-      team.status === "blocked" ||
-      team.status === "integrating");
-  const teamId = team?.teamId ?? "";
-  const memberAgentIds = team?.memberAgentIds;
-  const { memberById, currentMembers, childrenByParent } = useMemo(
-    () => indexAgentTeamTree(members, memberAgentIds ?? []),
-    [memberAgentIds, members],
-  );
-  const [expandedAgentIds, setExpandedAgentIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const expansionTeamId = useRef(teamId);
-  const manuallyToggledAgentIds = useRef(new Set<string>());
-  useEffect(() => {
-    const defaultExpanded = currentMembers
-      .filter(
-        (member) =>
-          (member.depth ?? 1) === 1 &&
-          (childrenByParent.get(member.agentId)?.length ?? 0) > 0,
-      )
-      .map((member) => member.agentId);
-    if (expansionTeamId.current !== teamId) {
-      expansionTeamId.current = teamId;
-      manuallyToggledAgentIds.current.clear();
-      setExpandedAgentIds(new Set(defaultExpanded));
-      return;
-    }
-    setExpandedAgentIds((current) => {
-      const next = new Set(current);
-      let changed = false;
-      for (const agentId of defaultExpanded) {
-        if (
-          !next.has(agentId) &&
-          !manuallyToggledAgentIds.current.has(agentId)
-        ) {
-          next.add(agentId);
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
-  }, [childrenByParent, currentMembers, teamId]);
-  const visibleMembers = useMemo(() => {
-    return visibleAgentTeamMembers(childrenByParent, expandedAgentIds);
-  }, [childrenByParent, expandedAgentIds]);
-  const agentName = (agentId: string) =>
-    agentId === "parent"
-      ? labels.parent
-      : agentId === "all"
-        ? labels.everyone
-        : (memberById.get(agentId)?.label ?? agentId);
+export { ChildAgentPanel } from "../conversation/child-agent-panel.js";
 
-  useLayoutEffect(() => {
-    if (!active || !messageList.current) return;
-    messageList.current.scrollTop = messageList.current.scrollHeight;
-  }, [active, messages.length]);
+export { ToolActivityGroupCard } from "../conversation/tool-activity-group-card.js";
 
-  if (!team) {
-    return (
-      <section className="agent-team-panel unavailable">
-        <div className="agent-team-empty">
-          <ChildAgentIcon
-            className="agent-team-empty-icon"
-            identity="agent-team"
-          />
-          <strong>{labels.title}</strong>
-          <p>{labels.unavailable}</p>
-          <span aria-hidden="true" className="agent-team-skeleton">
-            <i />
-            <i />
-            <i />
-          </span>
-        </div>
-      </section>
-    );
-  }
+export { TurnChangeSetCard } from "../conversation/turn-change-set-card.js";
 
-  return (
-    <section className={`agent-team-panel ${team.status}`}>
-      <header className="agent-team-header">
-        <div>
-          <span className="agent-team-eyebrow">
-            <ArtemisIcon name="agents" width={14} height={14} />
-            {labels.title}
-          </span>
-          <strong title={team.mission}>{team.mission}</strong>
-          <Badge
-            className="agent-panel-status"
-            tone={
-              team.status === "completed"
-                ? "success"
-                : team.status === "blocked" || team.status === "aborted"
-                  ? "danger"
-                  : "warning"
-            }
-          >
-            {(team.status === "running"
-              ? teamStatusLabels.teamRunning
-              : teamStatusLabels[team.status]) +
-              (!runtimeAvailable && teamRunning ? ` · ${labels.history}` : "")}
-          </Badge>
-        </div>
-      </header>
-      {team.error && <p className="agent-team-error">{team.error}</p>}
-      <div className="agent-team-grid">
-        <aside className="agent-team-members">
-          <h3>
-            {labels.teamMembers} · {currentMembers.length}
-          </h3>
-          <div className="agent-team-member-list">
-            {visibleMembers.map((member) => {
-              const childCount =
-                childrenByParent.get(member.agentId)?.length ?? 0;
-              const expanded = expandedAgentIds.has(member.agentId);
-              return (
-                <div
-                  className={`agent-team-member ${member.status}`}
-                  key={member.agentId}
-                  style={{
-                    paddingInlineStart: ((member.depth ?? 1) - 1) * 16,
-                  }}
-                >
-                  {childCount > 0 ? (
-                    <button
-                      aria-expanded={expanded}
-                      aria-label={`${expanded ? labels.collapse : labels.expand}: ${member.label}`}
-                      className="agent-team-member-disclosure"
-                      onClick={() => {
-                        manuallyToggledAgentIds.current.add(member.agentId);
-                        setExpandedAgentIds((current) => {
-                          const next = new Set(current);
-                          if (next.has(member.agentId)) {
-                            next.delete(member.agentId);
-                          } else {
-                            next.add(member.agentId);
-                          }
-                          return next;
-                        });
-                      }}
-                      type="button"
-                    >
-                      <ArtemisIcon name="chev-right" />
-                    </button>
-                  ) : null}
-                  <button
-                    className="agent-team-member-open"
-                    onClick={() => onOpenChildAgent(member)}
-                    type="button"
-                  >
-                    <ChildAgentIcon identity={member.agentId} />
-                    <span className="agent-team-member-summary">
-                      <strong>{member.label}</strong>
-                      <small>
-                        {member.customAgent
-                          ? customAgentInstanceIdentity(
-                              member.customAgent,
-                              locale,
-                            )
-                          : member.status === "completed"
-                            ? agentMemberStatus(member.status, locale)
-                            : (member.currentTool ??
-                              member.activity
-                                ?.split("\n")
-                                .find((line) => line.trim()) ??
-                              agentMemberStatus(member.status, locale))}
-                      </small>
-                    </span>
-                    {member.status === "completed" ? (
-                      <span className="agent-team-member-view">
-                        {labels.teamView}
-                      </span>
-                    ) : (
-                      <Badge
-                        className="agent-panel-status"
-                        tone={agentMemberTone(member.status)}
-                      >
-                        {agentMemberStatus(member.status, locale)}
-                      </Badge>
-                    )}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </aside>
-        <section className="agent-team-collaboration">
-          <h3>{labels.teamMessages}</h3>
-          <div className="agent-team-message-list" ref={messageList}>
-            {messages.length === 0 ? (
-              <p className="agent-team-message-empty">{labels.noMessages}</p>
-            ) : (
-              messages.map((message) => (
-                <article
-                  className={`agent-team-message ${message.kind}`}
-                  key={message.messageId}
-                >
-                  <header>
-                    <strong>{agentName(message.fromAgentId)}</strong>
-                    <span title={agentName(message.recipient)}>
-                      {messageKindLabels[message.kind]}
-                      {message.recipient !== "all" &&
-                      message.recipient !== "parent"
-                        ? ` → ${agentName(message.recipient)}`
-                        : ""}
-                    </span>
-                    <time>
-                      {new Intl.DateTimeFormat(locale, {
-                        hour: "2-digit",
-                        hourCycle: "h23",
-                        minute: "2-digit",
-                      }).format(new Date(message.createdAt))}
-                    </time>
-                  </header>
-                  <p>{message.content}</p>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-        {teamRunning && runtimeAvailable && (
-          <div className="agent-team-footer">
-            <Button
-              variant="quiet"
-              disabled={controlPending}
-              onClick={() => onStop(team)}
-            >
-              {labels.teamStop}
-            </Button>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-export function ChildAgentPanel({
-  active,
-  child,
-  clockMs,
-  locale,
-  onControl,
-  pendingAction,
-}: {
-  active: boolean;
-  child: ChildAgentState | undefined;
-  clockMs: number;
-  locale: Locale;
-  onControl: (
-    child: ChildAgentState,
-    action: "steer" | "cancel" | "retry",
-  ) => void;
-  pendingAction: string | undefined;
-}) {
-  const CHILD_AGENT_SCROLL_THRESHOLD = 64;
-  const childAgentScrollContainer = useRef<HTMLDivElement>(null);
-  const childAgentFollowOutput = useRef(true);
-  const labels = UI_COPY.App_labels_10125[locale];
-  const content = child?.error ?? child?.output ?? child?.activity;
-  const running = child?.status === "queued" || child?.status === "running";
-  const lastActivityMs = child?.lastActivityAt
-    ? Date.parse(child.lastActivityAt)
-    : undefined;
-  const silentMilliseconds = lastActivityMs
-    ? Math.max(0, clockMs - lastActivityMs)
-    : 0;
-  const health =
-    child?.health === "stalled" ||
-    (child?.status === "running" &&
-      !child?.currentTool &&
-      silentMilliseconds >= CHILD_UNRESPONSIVE_SILENCE_MILLISECONDS)
-      ? "stalled"
-      : child?.health === "suspect" ||
-          (child?.status === "running" && silentMilliseconds >= 60_000)
-        ? "suspect"
-        : "healthy";
-  const healthLabel =
-    child?.status === "running"
-      ? health === "stalled"
-        ? labels.unresponsive
-        : health === "suspect"
-          ? labels.longRunning
-          : undefined
-      : undefined;
-  const startedMilliseconds = child?.startedAt
-    ? Date.parse(child.startedAt)
-    : child?.updatedAt
-      ? Date.parse(child.updatedAt)
-      : clockMs;
-  const elapsedMilliseconds = Math.max(0, clockMs - startedMilliseconds);
-  const lastActivityLabel =
-    silentMilliseconds < 1_000
-      ? labels.justNow
-      : labels.ago.replace(
-          "{{duration}}",
-          formatRunDuration(silentMilliseconds, locale),
-        );
-  const currentToolElapsed = child?.currentToolStartedAt
-    ? Math.max(0, clockMs - Date.parse(child.currentToolStartedAt))
-    : undefined;
-  const controlPending = child
-    ? pendingAction?.startsWith(`${child.agentId}:`)
-    : false;
-  const handleChildAgentScroll = (event: ReactUIEvent<HTMLElement>) => {
-    const { clientHeight, scrollHeight, scrollTop } = event.currentTarget;
-    childAgentFollowOutput.current =
-      scrollHeight - scrollTop - clientHeight <= CHILD_AGENT_SCROLL_THRESHOLD;
-  };
-
-  useLayoutEffect(() => {
-    if (!active || !childAgentFollowOutput.current) return;
-    const container = childAgentScrollContainer.current;
-    if (!container) return;
-    container.scrollTop = container.scrollHeight;
-  }, [active, content, child?.status]);
-
-  return (
-    <section
-      aria-live="polite"
-      className={`child-agent-panel ${child?.status ?? "unavailable"} ${health}`}
-    >
-      <header className="child-agent-panel-header">
-        <span>
-          <strong>{child?.label ?? labels.subagent}</strong>
-          {child && (
-            <Badge
-              className="agent-panel-status"
-              tone={agentMemberTone(child.status)}
-            >
-              {agentMemberStatus(child.status, locale) +
-                (healthLabel ? ` · ${healthLabel}` : "")}
-            </Badge>
-          )}
-        </span>
-        {child && child.status !== "completed" && (
-          <div className="child-agent-panel-actions">
-            {running && (
-              <button
-                className="child-agent-panel-control"
-                disabled={controlPending}
-                onClick={() => onControl(child, "steer")}
-                type="button"
-              >
-                {labels.nudge}
-              </button>
-            )}
-            {(running || child.status === "cancelling") && (
-              <button
-                className="child-agent-panel-control danger"
-                disabled={controlPending || child.status === "cancelling"}
-                onClick={() => onControl(child, "cancel")}
-                type="button"
-              >
-                {labels.childStop}
-              </button>
-            )}
-            {(child.status === "failed" ||
-              child.status === "blocked" ||
-              child.status === "cancelled") && (
-              <button
-                className="child-agent-panel-control"
-                disabled={controlPending}
-                onClick={() => onControl(child, "retry")}
-                type="button"
-              >
-                {labels.retry}
-              </button>
-            )}
-          </div>
-        )}
-      </header>
-      {child?.customAgent && (
-        <p className="child-agent-panel-identity">
-          {customAgentInstanceIdentity(child.customAgent, locale)}
-        </p>
-      )}
-      {child && child.status !== "completed" && (
-        <details className="child-agent-panel-runtime-bar">
-          <summary>{labels.runtimeDetails}</summary>
-          <dl className="child-agent-panel-runtime">
-            <div>
-              <dt>{labels.elapsed}</dt>
-              <dd>{formatRunDuration(elapsedMilliseconds, locale)}</dd>
-            </div>
-            <div>
-              <dt>{labels.lastActivity}</dt>
-              <dd>{lastActivityLabel}</dd>
-            </div>
-            <div>
-              <dt>{labels.currentTool}</dt>
-              <dd>
-                {child.currentTool ?? "—"}
-                {child.currentTool && currentToolElapsed !== undefined
-                  ? ` · ${formatRunDuration(currentToolElapsed, locale)}`
-                  : ""}
-              </dd>
-            </div>
-            {healthLabel && (
-              <div className="child-agent-panel-health">
-                <dt>{labels.health}</dt>
-                <dd>{healthLabel}</dd>
-              </div>
-            )}
-          </dl>
-        </details>
-      )}
-      <div
-        className="child-agent-panel-body"
-        onScroll={handleChildAgentScroll}
-        ref={childAgentScrollContainer}
-      >
-        <div className="child-agent-panel-body-inner">
-          {!child ? (
-            <p className="child-agent-panel-empty">{labels.unavailable}</p>
-          ) : (
-            <>
-              {child.task && (
-                <section className="child-agent-panel-task">
-                  <span>{labels.task}</span>
-                  <p>{child.task}</p>
-                </section>
-              )}
-              {(child.activity || child.currentTool) && (
-                <section className="child-agent-panel-task">
-                  <span>{labels.activityLog}</span>
-                  {child.currentTool && (
-                    <div className="child-agent-activity-row">
-                      <span>{child.currentTool}</span>
-                      <Badge
-                        className="agent-panel-status"
-                        tone={agentMemberTone(child.status)}
-                      >
-                        {agentMemberStatus(child.status, locale)}
-                      </Badge>
-                    </div>
-                  )}
-                  {child.activity && (
-                    <MarkdownContent
-                      className="child-agent-activity-log"
-                      text={child.activity}
-                    />
-                  )}
-                </section>
-              )}
-              {child.output || child.error ? (
-                <section className="child-agent-panel-task">
-                  <span>{labels.result}</span>
-                  <MarkdownContent
-                    className={
-                      child.error
-                        ? "child-agent-panel-output error"
-                        : "child-agent-panel-output"
-                    }
-                    text={child.error ?? child.output ?? ""}
-                  />
-                </section>
-              ) : !child.activity && !child.currentTool ? (
-                <p className="child-agent-panel-empty">{labels.waiting}</p>
-              ) : null}
-              {child.status === "completed" && (
-                <Button
-                  className="child-agent-panel-retry"
-                  variant="quiet"
-                  disabled={controlPending}
-                  onClick={() => onControl(child, "retry")}
-                >
-                  {labels.retry}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ToolResultImages({ tool }: { tool: ToolState }) {
-  return tool.images?.map((image, index) => (
-    <a
-      key={index}
-      href={`data:${image.mimeType};base64,${image.data}`}
-      download={`generated-${tool.id}-${index}.${image.mimeType.split("/")[1]}`}
-    >
-      <img
-        className="tool-result-image"
-        alt={tool.name}
-        src={`data:${image.mimeType};base64,${image.data}`}
-      />
-    </a>
-  ));
-}
-
-export function ToolActivityGroupCard({
-  active,
-  locale,
-  onFileLink,
-  tools,
-  pluginForTool,
-  mcpForTool,
-}: {
-  active: boolean;
-  locale: Locale;
-  onFileLink: (href: string) => void;
-  tools: readonly ToolState[];
-  pluginForTool?: (tool: ToolState) => ToolPlugin | undefined;
-  mcpForTool?: (tool: ToolState) => McpServerStatus["config"] | undefined;
-}) {
-  const failed = tools.some((tool) => tool.status === "failed");
-  const [open, setExpanded] = useState(failed);
-  useEffect(() => {
-    if (failed) setExpanded(true);
-  }, [failed]);
-  const step = toolStepPresentation(tools, locale);
-  const lastTool = tools.at(-1);
-  const mcpServer = lastTool && mcpForTool?.(lastTool);
-  const view = toolActivityPatternView(tools, active, locale);
-  const firstPlugin = tools[0] && pluginForTool?.(tools[0]);
-  const plugin =
-    firstPlugin &&
-    tools.every((tool) => pluginForTool?.(tool)?.id === firstPlugin.id)
-      ? firstPlugin
-      : undefined;
-  const mixedActivity =
-    tools.some((tool) => toolActivityKind(tool.name, tool.input) === "bash") &&
-    tools.some((tool) =>
-      ["read", "search"].includes(toolActivityKind(tool.name, tool.input)),
-    );
-  const disclosureLabels = UI_COPY.App_disclosureLabels[locale];
-  const summary = mixedActivity
-    ? disclosureLabels.toolGroupCalls
-    : tools.length > 1 && view.fileActivity
-      ? view.kind === "write"
-        ? disclosureLabels.toolGroupEdit
-        : disclosureLabels.toolGroupRead
-      : view.summary;
-
-  return (
-    <ToolActivity
-      className={`tool-card ${view.state}${open ? " open" : ""}${plugin ? " tool-card-plugin" : ""}`}
-      collapseLabel={disclosureLabels.collapse}
-      disclosureIcon={<ArtemisIcon height={14} name="chev-right" width={14} />}
-      expandLabel={disclosureLabels.expand}
-      expanded={open}
-      icon={
-        <span className="tool-step-status" data-status={view.actualStatus}>
-          {view.actualStatus === "running" ? (
-            <RunningArc size={14} />
-          ) : (
-            <ArtemisIcon
-              name={view.actualStatus === "failed" ? "x-circle" : "check"}
-              width={14}
-              height={14}
-            />
-          )}
-        </span>
-      }
-      label={`${plugin ? `${plugin.displayName}, ` : ""}${summary}, ${view.statusLabel}`}
-      onExpandedChange={setExpanded}
-      state={view.state}
-      statusLabel={view.statusLabel}
-      summary={
-        <span className="tool-step-columns">
-          <span className="tool-step-kind">
-            {plugin ? (
-              <ResourceAvatar
-                kind="plugin"
-                name={plugin.displayName}
-                pluginName={plugin.name}
-                iconDataUrl={plugin.iconDataUrl}
-                brandColor={plugin.brandColor}
-              />
-            ) : step.icon === "mcp" || mcpServer ? (
-              <ResourceAvatar
-                kind="mcp"
-                name={
-                  mcpServer?.name ??
-                  (lastTool?.name ?? "")
-                    .replace(/^mcp__?/, "")
-                    .split("__")[0] ??
-                  ""
-                }
-                command={
-                  mcpServer?.transport === "stdio"
-                    ? [mcpServer.command, ...mcpServer.args].join(" ")
-                    : undefined
-                }
-                transport={mcpServer?.transport}
-              />
-            ) : (
-              <ArtemisIcon name={step.icon} width={14} height={14} />
-            )}
-          </span>
-          <span className="tool-step-verb">{step.verb}</span>
-          <span className="tool-step-target" title={step.target}>
-            {step.target}
-          </span>
-          <span className="tool-step-metadata">
-            {step.added !== undefined ? (
-              <>
-                <span className="diff-added">+{step.added}</span>{" "}
-                <span className="diff-deleted">−{step.deleted}</span>
-              </>
-            ) : (
-              step.metadata
-            )}
-          </span>
-        </span>
-      }
-    >
-      {(view.fileActivity || mixedActivity) && (
-        <ol className="tool-activity-list">
-          {tools.map((tool) => {
-            const detail = summarizeToolDetail(tool, locale);
-            const path = toolActivityPath(tool.input);
-            const prefix =
-              path && detail.endsWith(path)
-                ? detail.slice(0, -path.length)
-                : detail;
-            const row = (
-              <>
-                <span className="tool-item-label">
-                  {prefix}
-                  {path && detail.endsWith(path) && (
-                    <button
-                      className="tool-file-link"
-                      onClick={() => onFileLink(path)}
-                      type="button"
-                    >
-                      {path}
-                    </button>
-                  )}
-                </span>
-                <span className="tool-item-status" data-state={tool.status}>
-                  {toolActivityPatternView([tool], false, locale).statusLabel}
-                </span>
-              </>
-            );
-            return (
-              <li className={tool.status} key={tool.id}>
-                {mixedActivity && (tool.input !== undefined || tool.output) ? (
-                  <details className="tool-item-details">
-                    <summary
-                      aria-label={`${uiText(locale, "EnvironmentPanel_labels.details")}: ${detail}`}
-                    >
-                      {row}
-                      <ArtemisIcon name="chev-right" height={12} width={12} />
-                    </summary>
-                    <pre>
-                      {[
-                        formatToolInput(tool.name, tool.input),
-                        formatToolOutput(tool.name, tool.output),
-                      ]
-                        .filter(Boolean)
-                        .join("\n")}
-                    </pre>
-                  </details>
-                ) : (
-                  row
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-      {(view.fileActivity || mixedActivity) &&
-        tools.some((tool) => tool.images?.length) && (
-          <div className="tool-details">
-            {tools.map((tool) => (
-              <ToolResultImages key={tool.id} tool={tool} />
-            ))}
-          </div>
-        )}
-      {!mixedActivity && view.kind === "bash" && view.bashTranscript && (
-        <pre aria-live="polite" className="bash-transcript" role="log">
-          {view.bashTranscript}
-        </pre>
-      )}
-      {!view.fileActivity && view.kind !== "bash" && (
-        <div className="tool-details">
-          {tools.map((tool) => {
-            const input = formatToolInput(tool.name, tool.input);
-            const output = formatToolOutput(tool.name, tool.output);
-            const detailPlugin = !plugin ? pluginForTool?.(tool) : undefined;
-            if (!input && !output && !detailPlugin && !tool.images?.length)
-              return null;
-            return (
-              <section
-                key={tool.id}
-                className={
-                  tool.parentToolCallId ? "tool-nested-call" : undefined
-                }
-                data-parent-tool-call={tool.parentToolCallId}
-              >
-                {detailPlugin ? (
-                  <span className="tool-detail-plugin">
-                    <ResourceAvatar
-                      kind="plugin"
-                      name={detailPlugin.displayName}
-                      pluginName={detailPlugin.name}
-                      iconDataUrl={detailPlugin.iconDataUrl}
-                      brandColor={detailPlugin.brandColor}
-                    />
-                    {detailPlugin.displayName}
-                  </span>
-                ) : null}
-                <span>{summarizeToolDetail(tool, locale)}</span>
-                {input && <pre>{input}</pre>}
-                {output && <pre>{output}</pre>}
-                <ToolResultImages tool={tool} />
-              </section>
-            );
-          })}
-        </div>
-      )}
-    </ToolActivity>
-  );
-}
-
-export function TurnChangeSetCard({
-  locale,
-  onReview,
-  onUndo,
-  turn,
-  undoEnabled,
-}: {
-  locale: Locale;
-  onReview: (turnId: string, path?: string) => void;
-  onUndo: (turnId: string) => void;
-  turn: TurnViewState;
-  undoEnabled: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const fileListId = useId();
-  const t = appCopy(locale);
-  const changeSet = turn.changeSet;
-  if (!changeSet || changeSet.files.length === 0) return null;
-  const multiple = changeSet.files.length > 1;
-  const visibleFiles = expanded ? changeSet.files : changeSet.files.slice(0, 3);
-  const remainingFileCount = changeSet.files.length - 3;
-  const hasTextChanges = changeSet.files.some((file) => !file.binary);
-  const singleBinary = !multiple && changeSet.files[0]!.binary;
-  const title = multiple
-    ? t.editedFiles.replace("{{count}}", String(changeSet.files.length))
-    : `${t.editedFile} ${changeSet.files[0]!.path.split("/").at(-1)}`;
-  const fileRow = (file: (typeof changeSet.files)[number]) => {
-    const separator = file.path.lastIndexOf("/") + 1;
-    return (
-      <li key={file.path}>
-        <button
-          aria-label={`${t.reviewChanges} ${file.path}`}
-          className="turn-change-file"
-          onClick={() => onReview(turn.id, file.path)}
-          title={file.path}
-          type="button"
-        >
-          <span className="turn-change-file-path">
-            <span className="turn-change-directory">
-              {file.path.slice(0, separator)}
-            </span>
-            <span>{file.path.slice(separator)}</span>
-          </span>
-          {file.binary ? (
-            <small>{t.binaryChange}</small>
-          ) : (
-            <span className="turn-change-file-stats">
-              {file.additions > 0 && (
-                <span className="addition" data-count={file.additions}>
-                  +{file.additions}
-                </span>
-              )}
-              {file.deletions > 0 && (
-                <span className="deletion" data-count={file.deletions}>
-                  −{file.deletions}
-                </span>
-              )}
-            </span>
-          )}
-        </button>
-      </li>
-    );
-  };
-
-  return (
-    <TurnChangeSummary
-      aria-description={t.taskPeriodChanges}
-      className={`turn-change-card ${changeSet.status}`}
-      header={
-        <>
-          <div className="turn-change-heading">
-            <span className="turn-change-icon" aria-hidden="true">
-              <ArtemisIcon className="icon" name="changes" />
-            </span>
-            <div className="turn-change-heading-copy">
-              <strong title={multiple ? title : changeSet.files[0]!.path}>
-                {title}
-              </strong>
-              {singleBinary ? (
-                <span className="turn-change-binary">{t.binaryChange}</span>
-              ) : (
-                hasTextChanges && (
-                  <span className="turn-change-total">
-                    <span className="addition" data-count={changeSet.additions}>
-                      +{changeSet.additions}
-                    </span>
-                    <span className="deletion" data-count={changeSet.deletions}>
-                      −{changeSet.deletions}
-                    </span>
-                  </span>
-                )
-              )}
-            </div>
-          </div>
-          <div className="turn-change-actions">
-            {changeSet.status === "undone" ? (
-              <span className="turn-change-undone">{t.changesUndone}</span>
-            ) : (
-              <button
-                disabled={!undoEnabled}
-                onClick={() => onUndo(turn.id)}
-                title={changeSet.message}
-                type="button"
-              >
-                {t.undoChanges}
-                <ArtemisIcon className="icon" name="undo" />
-              </button>
-            )}
-            <button
-              className="turn-change-review"
-              onClick={() => onReview(turn.id)}
-              type="button"
-            >
-              {t.reviewChanges}
-            </button>
-          </div>
-        </>
-      }
-      label={title}
-      state={changeSet.status === "unavailable" ? "failed" : changeSet.status}
-    >
-      <ol className="turn-change-files" id={fileListId}>
-        {visibleFiles.map(fileRow)}
-      </ol>
-      {remainingFileCount > 0 && (
-        <button
-          aria-controls={fileListId}
-          aria-expanded={expanded}
-          className="turn-change-more"
-          onClick={() => setExpanded((current) => !current)}
-          type="button"
-        >
-          {(expanded ? t.hideMoreFiles : t.showMoreFiles).replace(
-            "{{count}}",
-            String(remainingFileCount),
-          )}
-          <ChevronIcon />
-        </button>
-      )}
-      {changeSet.message && (
-        <p className="turn-change-message">{changeSet.message}</p>
-      )}
-    </TurnChangeSummary>
-  );
-}
-
-export function Timeline({
-  events,
-  imChannel,
-  imGroup,
-  installedPlugins,
-  installedSkills,
-  mcpServers,
-  state,
-  locale,
-  onExternalLink,
-  onFileLink,
-  onFileLinkContextMenu,
-  onOpenChildAgent,
-  onOpenTurnReview,
-  onCopyText,
-  onFork,
-  onShare,
-  onEditUserMessage,
-  onResolve,
-  onResolveUserInput,
-  onUndoTurnChanges,
-}: {
-  events?: readonly AgentEvent[] | undefined;
-  imChannel?: string | undefined;
-  imGroup?: ImGroupContext | undefined;
-  installedPlugins: readonly InstalledArtemisPlugin[];
-  installedSkills: readonly InstalledSkill[];
-  mcpServers?: readonly McpServerStatus[] | undefined;
-  state: ThreadViewState;
-  locale: Locale;
-  onExternalLink: (href: string) => void;
-  onFileLink: (href: string) => void;
-  onFileLinkContextMenu: (
-    href: string,
-    position: { x: number; y: number },
-  ) => void;
-  onOpenChildAgent: (child: ChildAgentState) => void;
-  onOpenTurnReview: (turnId: string, path?: string) => void;
-  onCopyText: (text: string) => Promise<void>;
-  onFork?: (() => void) | undefined;
-  onShare?: (() => void) | undefined;
-  onEditUserMessage: ((text: string) => void) | undefined;
-  onResolve: ResolveApprovalDecision;
-  onResolveUserInput: (resolution: UserInputResolution) => Promise<void>;
-  onUndoTurnChanges: (turnId: string) => void;
-}) {
-  const t = appCopy(locale);
-  const messageTimestamps = useMemo(() => {
-    const timestamps = new Map<string, string>();
-    if (!imGroup) return timestamps;
-    for (const event of events ?? []) {
-      const payload = event.payload;
-      const key =
-        payload.type === "user.message"
-          ? `user:${payload.messageId}`
-          : payload.type === "message.part.delta"
-            ? `part:${payload.partId}`
-            : undefined;
-      if (key && !timestamps.has(key)) timestamps.set(key, event.timestamp);
-    }
-    return timestamps;
-  }, [events, imGroup]);
-  const renderMessageTime = (entry: string, savedTimestamp?: string) => {
-    const timestamp = savedTimestamp ?? messageTimestamps.get(entry);
-    return timestamp ? (
-      <time
-        dateTime={timestamp}
-        title={new Date(timestamp).toLocaleString(locale)}
-      >
-        {new Date(timestamp).toLocaleTimeString(locale, {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
-      </time>
-    ) : null;
-  };
-
-  const resolvePlugin = useMemo(
-    () =>
-      createToolPluginResolver(
-        installedPlugins,
-        mcpServers?.flatMap((server) => server.tools) ?? [],
-      ),
-    [installedPlugins, mcpServers],
-  );
-  const pluginForTool = (tool: ToolState) =>
-    resolvePlugin(
-      tool,
-      state.entryTurnIds[`tool:${tool.id}`],
-      state.mcpToolUses,
-    );
-  const mcpForTool = (tool: ToolState) => {
-    const turnId = state.entryTurnIds[`tool:${tool.id}`];
-    const usage = state.mcpToolUses[`${turnId ?? ""}\0parent\0${tool.id}`];
-    const servers = mcpServers?.filter((server) =>
-      usage
-        ? server.config.id === usage.serverId
-        : server.tools.some((registered) => registered.piName === tool.name),
-    );
-    return servers?.length === 1 ? servers[0]?.config : undefined;
-  };
-  const groupedTimeline = useMemo(() => {
-    const assigned = new Set<string>();
-    const turns = state.turnOrder.flatMap((turnId) => {
-      const turn = state.turns[turnId];
-      if (!turn) return [];
-      for (const entry of turn.order) assigned.add(entry);
-      return [
-        {
-          turn,
-          entries: groupTimelineActivities(
-            turn.order,
-            state.tools,
-            state.messageParts,
-          ),
-        },
-      ];
-    });
-    return {
-      turns,
-      unassigned: groupTimelineActivities(
-        state.order.filter((entry) => !assigned.has(entry)),
-        state.tools,
-        state.messageParts,
-      ),
-    };
-  }, [
-    state.order,
-    state.tools,
-    state.turnOrder,
-    state.turns,
-    state.messageParts,
-  ]);
-  const activeTimelineEntries = groupedTimeline.turns.findLast(
-    ({ turn }) => turn.status === "running",
-  )?.entries;
-  const activeToolGroupKey =
-    activeTimelineEntries && state.queue.steering.length === 0
-      ? latestVisibleToolGroupKey(activeTimelineEntries, state.messageParts)
-      : undefined;
-  const childStatusLabels = UI_COPY.App_childStatusLabels[locale];
-  const latestCompletedTurnId = state.turnOrder.findLast(
-    (turnId) => state.turns[turnId]?.status === "completed",
-  );
-  const renderTimelineEntry = (
-    timelineEntry: ReturnType<typeof groupTimelineActivities>[number],
-    groupWorkRecord?: ReactNode,
-  ): ReactNode => {
-    if (timelineEntry.kind === "tool-group") {
-      const tools = timelineEntry.toolIds.flatMap((toolId) => {
-        const tool = state.tools[toolId];
-        return tool ? [tool] : [];
-      });
-      return tools.length > 0 ? (
-        <ToolActivityGroupCard
-          active={timelineEntry.key === activeToolGroupKey}
-          key={timelineEntry.key}
-          locale={locale}
-          onFileLink={onFileLink}
-          tools={tools}
-          pluginForTool={pluginForTool}
-          mcpForTool={mcpForTool}
-        />
-      ) : null;
-    }
-    const entry = timelineEntry.entry;
-    const separator = entry.indexOf(":");
-    const kind = entry.slice(0, separator);
-    const id = entry.slice(separator + 1);
-    if (separator < 0 || !id) return null;
-    const turn = state.turns[state.entryTurnIds[entry] ?? ""];
-    if (kind === "plan") {
-      const plan = state.plans?.find((p) => p.planId === id);
-      return plan &&
-        firstPendingComposerDecision(state)?.entry !==
-          `plan:${plan.planId}:${plan.revision}` ? (
-        <PlanConfirmationCard key={entry} plan={plan} locale={locale} />
-      ) : null;
-    }
-    if (kind === "user") {
-      const message = state.userMessages[id];
-      if (!message) return null;
-      const messageAttachments = userMessageAttachments(state, id);
-      const images = messageAttachments.filter(
-        (source) => source.kind === "image",
-      );
-      const files = messageAttachments.filter(
-        (source) => source.kind === "file",
-      );
-      const skillNames = selectedSkillNamesForPrompt(message.text);
-      // 结构化批注块是发给模型的载荷；气泡只显示用户自己的话
-      // （OD 把批注渲染成附件卡片，这里是显示侧等价物）。
-      const visibleText = promptWithoutSelectedSkills(
-        stripDesignAnnotationBlock(imUserMessageText(message.text, imGroup)),
-      );
-      const imageAttachments = images.length > 0 && (
-        <div className="message-attachments">
-          {images.map((source) => (
-            <MessageImageAttachment
-              key={`${state.threadId}:${source.sourceId}`}
-              threadId={state.threadId}
-              sourceId={source.sourceId}
-              name={source.name}
-              thumbnail={source.attachment?.thumbnail}
-              locale={locale}
-            />
-          ))}
-        </div>
-      );
-      const editable =
-        onEditUserMessage !== undefined &&
-        (turn?.status === "cancelled" || turn?.status === "failed");
-      return (
-        <Fragment key={entry}>
-          {!imGroup && imageAttachments}
-          <ConversationMessage
-            actions={
-              <>
-                <Tooltip label={t.copyMessage}>
-                  <button
-                    aria-label={t.copyMessage}
-                    className="message-action"
-                    onClick={() => void onCopyText(visibleText || message.text)}
-                    type="button"
-                  >
-                    <CopyIcon />
-                  </button>
-                </Tooltip>
-                {editable && (
-                  <button
-                    aria-label={t.editAndResend}
-                    className="message-action"
-                    onClick={() => onEditUserMessage(message.text)}
-                    title={t.editAndResend}
-                    type="button"
-                  >
-                    <EditIcon />
-                  </button>
-                )}
-              </>
-            }
-            capabilities={
-              skillNames.length > 0 ? (
-                <>
-                  {skillNames.map((name) => {
-                    const skill = installedSkills.find(
-                      (candidate) => candidate.name === name,
-                    );
-                    const plugin = installedPlugins.find((candidate) =>
-                      candidate.skillNames.includes(name),
-                    );
-                    return (
-                      <span className="user-message-capability" key={name}>
-                        <span
-                          className={`user-message-capability-icon${plugin ? " plugin-icon" : ""}`}
-                        >
-                          <ResourceAvatar
-                            kind="skill"
-                            name={name}
-                            pluginName={plugin?.name}
-                            iconDataUrl={plugin?.iconDataUrl}
-                            brandColor={plugin?.brandColor}
-                          />
-                        </span>
-                        <strong>{skill?.name ?? name}</strong>
-                      </span>
-                    );
-                  })}
-                </>
-              ) : undefined
-            }
-            className="user-message"
-            key={entry}
-            kind="user"
-          >
-            {imGroup && (
-              <div className="group-message-heading">
-                <span
-                  className="group-message-avatar"
-                  aria-hidden="true"
-                  style={memberAvatarStyle(imGroup.spaceId)}
-                >
-                  {Array.from(uiText(locale, "ImGroupMembers.message13"))[0]}
-                </span>
-                <strong>{uiText(locale, "ImGroupMembers.message13")}</strong>
-                {imChannel && (
-                  <span>{imChannelDisplayName(imChannel, locale)}</span>
-                )}
-                {renderMessageTime(entry, message.timestamp)}
-              </div>
-            )}
-            {imGroup && imageAttachments}
-            {files.length > 0 && (
-              <div className="message-attachments">
-                {files.map((source) => (
-                  <FileAttachment
-                    key={source.sourceId}
-                    name={source.name}
-                    id={source.attachment?.id}
-                    threadId={state.threadId}
-                    locale={locale}
-                    compact
-                  />
-                ))}
-              </div>
-            )}
-            {visibleText && (
-              <div className="user-message-text">{visibleText}</div>
-            )}
-          </ConversationMessage>
-        </Fragment>
-      );
-    }
-    if (kind === "compaction") {
-      const compaction = state.contextCompactions[id];
-      if (!compaction) return null;
-      return (
-        <ContextCompactionStatus
-          compaction={compaction}
-          key={entry}
-          locale={locale}
-        />
-      );
-    }
-    if (kind === "part") {
-      const part = state.messageParts[id];
-      if (!part) return null;
-      if (part.type === "thinking") return null;
-      return (
-        <ConversationMessage
-          actions={
-            turn?.status !== "running" ? (
-              <>
-                <Tooltip label={t.copyMessage}>
-                  <button
-                    aria-label={t.copyMessage}
-                    className="message-action"
-                    onClick={() => void onCopyText(part.text)}
-                    type="button"
-                  >
-                    <CopyIcon />
-                  </button>
-                </Tooltip>
-                {onFork && (
-                  <button
-                    className="message-action"
-                    aria-label={t.forkTask}
-                    title={t.forkTask}
-                    type="button"
-                    onClick={onFork}
-                  >
-                    <ArtemisIcon name="fork" width={14} height={14} />
-                  </button>
-                )}
-                {onShare && (
-                  <button
-                    className="message-action"
-                    aria-label={uiText(locale, "Share.title")}
-                    title={uiText(locale, "Share.title")}
-                    type="button"
-                    onClick={onShare}
-                  >
-                    <ArtemisIcon name="share" width={14} height={14} />
-                  </button>
-                )}
-                {turn?.finalPartId === id && (
-                  <span className="message-usage-meta">
-                    {turnUsageLabel(events ?? [], turn.id, locale)}
-                  </span>
-                )}
-              </>
-            ) : undefined
-          }
-          className="assistant-message"
-          key={entry}
-          kind="assistant"
-          state={turn?.status === "running" ? "streaming" : "ready"}
-        >
-          {imGroup && (
-            <div className="group-message-heading">
-              <span className="group-message-avatar">
-                <ArtemisLogo size={20} />
-              </span>
-              <strong>Artemis</strong>
-              <span className="group-agent-identity">
-                {uiText(locale, "Review01.localArtemis")}
-              </span>
-              {renderMessageTime(entry, part.timestamp)}
-            </div>
-          )}
-          {groupWorkRecord}
-          <MarkdownContent
-            fileLinkIcons
-            videoThreadId={state.threadId}
-            locale={locale}
-            onExternalLink={onExternalLink}
-            onFileLink={onFileLink}
-            onFileLinkContextMenu={onFileLinkContextMenu}
-            text={part.text}
-          />
-        </ConversationMessage>
-      );
-    }
-    if (kind === "input") {
-      const input = state.userInputs[id];
-      if (!input || input.status === "pending") return null;
-      if (isMultiQuestionUserInput(input)) {
-        return (
-          <MultiQuestionUserInputCard
-            active={false}
-            input={input}
-            key={entry}
-            locale={locale}
-            onResolve={onResolveUserInput}
-          />
-        );
-      }
-      return (
-        <UserInputCard
-          active={false}
-          input={input}
-          key={entry}
-          locale={locale}
-          onResolve={onResolveUserInput}
-        />
-      );
-    }
-    if (kind === "approval") {
-      const approval = state.approvals[id];
-      if (!approval || approval.status === "pending") return null;
-      return (
-        <ApprovalDecisionCard
-          key={entry}
-          approval={approval}
-          locale={locale}
-          onResolve={onResolve}
-          {...(approval.actorAgentId
-            ? {
-                actorLabel: `${t.agentActor}: ${state.childAgents[approval.actorAgentId]?.label ?? approval.actorAgentId}`,
-              }
-            : {})}
-        />
-      );
-    }
-    if (kind === "child") {
-      const child = state.childAgents[id];
-      if (child?.parentAgentId && child.parentAgentId !== "parent") {
-        return null;
-      }
-      return child ? (
-        <AgentActivity
-          indicator={
-            <AgentActivityStatus
-              child={child}
-              locale={locale}
-              showIcon={false}
-            />
-          }
-          className={`child-agent-card work-record-agent ${child.status} ${child.health ?? "healthy"}`}
-          icon={
-            child.status === "running" ? (
-              <RunningArc size={14} />
-            ) : (
-              <ArtemisIcon
-                width={14}
-                height={14}
-                name={
-                  child.status === "completed"
-                    ? "check"
-                    : child.status === "failed"
-                      ? "x-circle"
-                      : child.status === "blocked"
-                        ? "alert"
-                        : "clock"
-                }
-              />
-            )
-          }
-          key={entry}
-          label={`${child.label}, ${childStatusLabels[child.status]}`}
-          onActivate={() => onOpenChildAgent(child)}
-          state={child.status}
-          statusLabel={childStatusLabels[child.status]}
-          title={
-            <>
-              <ArtemisIcon name="agent" width={14} height={14} />
-              <span className="tool-step-verb">
-                {uiText(locale, "WorkRecord.agent")}
-              </span>
-              <span className="tool-step-target">
-                {child.label}
-                {child.activity ? ` · ${child.activity}` : ""}
-              </span>
-            </>
-          }
-        />
-      ) : null;
-    }
-    return null;
-  };
-
-  return (
-    <TimelineSurface
-      className="timeline"
-      data-group={imGroup ? "true" : undefined}
-    >
-      {groupedTimeline.turns.map(({ entries, turn }, turnIndex) => (
-        <HistoryTurn
-          key={`${state.threadId}:${turn.id}`}
-          cacheKey={`${state.threadId}:${turn.id}`}
-          active={turn.status === "running"}
-          initialVisible={turnIndex >= groupedTimeline.turns.length - 12}
-        >
-          {() => {
-            if (turn.status === "running") {
-              const firstExecution = entries.findIndex(
-                (entry) =>
-                  entry.kind !== "entry" || !entry.entry.startsWith("user:"),
-              );
-              const leadingUserCount =
-                firstExecution < 0 ? entries.length : firstExecution;
-              const runningEntries = entries.slice(leadingUserCount);
-              const groupAnswer = imGroup
-                ? runningEntries.findLast(
-                    (entry) =>
-                      entry.kind === "entry" &&
-                      entry.entry.startsWith("part:") &&
-                      state.messageParts[entry.entry.slice(5)]?.type === "text",
-                  )
-                : undefined;
-              const workEntries = runningEntries.filter(
-                (entry) => entry !== groupAnswer,
-              );
-              const workRecord = (
-                <WorkRecord
-                  turn={turn}
-                  changedFileCount={turnChangedFileCount(events ?? [], turn)}
-                  locale={locale}
-                  entries={workEntries}
-                  childAgents={state.childAgents}
-                >
-                  {workEntries.map((entry) => renderTimelineEntry(entry))}
-                </WorkRecord>
-              );
-              return (
-                <TimelineTurn
-                  className="timeline-turn"
-                  key={turn.id}
-                  state={turn.status}
-                >
-                  {entries
-                    .slice(0, leadingUserCount)
-                    .map((entry) => renderTimelineEntry(entry))}
-                  {groupAnswer
-                    ? renderTimelineEntry(groupAnswer, workRecord)
-                    : workRecord}
-                  <TurnChangeSetCard
-                    locale={locale}
-                    onReview={onOpenTurnReview}
-                    onUndo={onUndoTurnChanges}
-                    turn={turn}
-                    undoEnabled={
-                      turn.id === latestCompletedTurnId &&
-                      state.status === "idle" &&
-                      turn.changeSet?.undoAvailable === true
-                    }
-                  />
-                </TimelineTurn>
-              );
-            }
-            const finalEntry = turn.finalPartId
-              ? entries.find(
-                  (entry) =>
-                    entry.kind === "entry" &&
-                    entry.entry === `part:${turn.finalPartId}`,
-                )
-              : entries.findLast(
-                  (entry) =>
-                    entry.kind === "entry" && entry.entry.startsWith("part:"),
-                );
-            const userEntries = entries.filter(
-              (entry) =>
-                entry.kind === "entry" && entry.entry.startsWith("user:"),
-            );
-            const planEntries = entries.filter(
-              (entry) =>
-                entry.kind === "entry" && entry.entry.startsWith("plan:"),
-            );
-            const executionEntries = entries.filter(
-              (entry) =>
-                entry !== finalEntry &&
-                !userEntries.includes(entry) &&
-                !planEntries.includes(entry),
-            );
-            const workRecord = (
-              <WorkRecord
-                turn={turn}
-                changedFileCount={turnChangedFileCount(events ?? [], turn)}
-                locale={locale}
-                entries={executionEntries}
-                childAgents={state.childAgents}
-              >
-                {() =>
-                  executionEntries.map((entry) => renderTimelineEntry(entry))
-                }
-              </WorkRecord>
-            );
-            return (
-              <TimelineTurn
-                className={`timeline-turn ${turn.status}`}
-                key={turn.id}
-                state={turn.status}
-              >
-                {userEntries.map((entry) => renderTimelineEntry(entry))}
-                {imGroup && finalEntry ? (
-                  renderTimelineEntry(finalEntry, workRecord)
-                ) : (
-                  <>
-                    {workRecord}
-                    {finalEntry ? renderTimelineEntry(finalEntry) : null}
-                  </>
-                )}
-                {planEntries.map((entry) => renderTimelineEntry(entry))}
-                <TurnChangeSetCard
-                  locale={locale}
-                  onReview={onOpenTurnReview}
-                  onUndo={onUndoTurnChanges}
-                  turn={turn}
-                  undoEnabled={
-                    turn.id === latestCompletedTurnId &&
-                    state.status === "idle" &&
-                    turn.changeSet?.undoAvailable === true
-                  }
-                />
-              </TimelineTurn>
-            );
-          }}
-        </HistoryTurn>
-      ))}
-      {groupedTimeline.unassigned.map((entry) => renderTimelineEntry(entry))}
-      {state.queue.steering.map((message, index) => (
-        <ConversationMessage
-          className="user-message steering-message"
-          key={`steering:${index}:${message}`}
-          kind="steering"
-          state="queued"
-        >
-          {message}
-        </ConversationMessage>
-      ))}
-    </TimelineSurface>
-  );
-}
-
-function ContextCompactionStatus({
-  compaction,
-  locale,
-}: {
-  compaction: ThreadViewState["contextCompactions"][string];
-  locale: Locale;
-}) {
-  const t = appCopy(locale);
-  const completionDeadline = compaction.completedAt
-    ? Date.parse(compaction.completedAt) +
-      COMPACTION_COMPLETION_NOTICE_MILLISECONDS
-    : 0;
-  const [visible, setVisible] = useState(
-    () => compaction.status !== "completed" || completionDeadline > Date.now(),
-  );
-
-  useEffect(() => {
-    if (compaction.status !== "completed") {
-      setVisible(true);
-      return;
-    }
-    const remainingMilliseconds = completionDeadline - Date.now();
-    if (remainingMilliseconds <= 0) {
-      setVisible(false);
-      return;
-    }
-    setVisible(true);
-    const timer = window.setTimeout(
-      () => setVisible(false),
-      remainingMilliseconds,
-    );
-    return () => window.clearTimeout(timer);
-  }, [compaction.id, compaction.status, completionDeadline]);
-
-  if (!visible) return null;
-  const label =
-    compaction.status === "running"
-      ? t.contextCompacting
-      : compaction.status === "failed"
-        ? t.contextCompactionFailed
-        : compaction.status === "cancelled"
-          ? t.contextCompactionCancelled
-          : t.contextCompacted;
-  return (
-    <TurnStatus
-      className={`turn-status compaction-status ${compaction.status}`}
-      label={label}
-      state={compaction.status === "cancelled" ? "idle" : compaction.status}
-      statusLabel={compaction.error ?? label}
-    />
-  );
-}
+export { Timeline } from "../conversation/timeline.js";

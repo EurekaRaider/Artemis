@@ -1,3 +1,7 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -63,8 +67,8 @@ function expectToken(
   expect(tokens).toContainEqual({ kind, text });
 }
 
-const appSource = source("../../src/renderer/app/App.tsx");
-const stylesSource = source("../../src/renderer/styles/styles.css");
+const appSource = readRendererAppSources();
+const stylesSource = readDesktopStyles("styles");
 const publicUiStylesSource = source("../../../../packages/ui/src/styles.css");
 const publicWorkspaceSource = source(
   "../../../../packages/ui/src/workspace.tsx",
@@ -93,9 +97,9 @@ const workspacePreviewSource = source(
 const workspaceTextFileSource = source(
   "../../src/main/workspace/workspace-text-file.ts",
 );
-const apiSource = source("../../src/shared/api.ts");
-const preloadSource = source("../../src/preload/preload.ts");
-const mainSource = source("../../src/main/main.ts");
+const apiSource = readSharedApiSources();
+const preloadSource = readPreloadBridgeSources();
+const mainSource = readMainProcessSources();
 const fileEditorSources = [
   workspaceFilesSource,
   workspaceEditorSource,
@@ -265,8 +269,8 @@ describe("Codex-like workspace tab layout contract", () => {
       reduceWorkspaceTabs(remaining, { type: "close", tabId: "terminal" })
         .dockOpen,
     ).toBe(false);
-    expect(appSource).toContain(
-      "onClose={() =>\n                            closeWorkspaceTab(tab.id, { moveFocus: true })",
+    expect(appSource).toMatch(
+      /onClose=\{\(\) =>\s*closeWorkspaceTab\(tab\.id, \{ moveFocus: true \}\)/u,
     );
     expect(appSource).toContain("workspaceTabs.tabs.length === 0");
   });

@@ -1,3 +1,6 @@
+import { readPreloadBridgeSources, readSharedApiSources } from '../../fixtures/application/api-source.js';
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -132,10 +135,10 @@ describe("workspace file links", () => {
   });
 
   it("keeps reveal and execution behind validated main-process IPC", () => {
-    const appSource = source("../../../src/renderer/app/App.tsx");
-    const mainSource = source("../../../src/main/main.ts");
-    const preloadSource = source("../../../src/preload/preload.ts");
-    const apiSource = source("../../../src/shared/api.ts");
+    const appSource = readRendererAppSources();
+    const mainSource = readMainProcessSources();
+    const preloadSource = readPreloadBridgeSources();
+    const apiSource = readSharedApiSources();
 
     expect(appSource).toContain("inspectWorkspaceFileLink(");
     expect(appSource).toContain("openWorkspaceTab(file.viewer");

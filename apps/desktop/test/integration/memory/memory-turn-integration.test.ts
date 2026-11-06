@@ -1,12 +1,10 @@
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const mainSource = readFileSync(
-  fileURLToPath(new URL("../../../src/main/main.ts", import.meta.url)),
-  "utf8",
-);
+const mainSource = readMainProcessSources();
 const workerSource = readFileSync(
   fileURLToPath(new URL("../../../src/agent/agent-worker.ts", import.meta.url)),
   "utf8",
@@ -95,8 +93,8 @@ describe("memory turn integration contract", () => {
     );
     expect(userEvent).toContain("text");
     expect(userEvent).not.toContain("memoryContext");
-    expect(turnStart).toContain("emitInitialTurn(\n      thread.id,");
-    expect(turnStart).toContain("requestText,\n      input.mode,");
+    expect(turnStart).toMatch(/emitInitialTurn\(\s*thread\.id,/u);
+    expect(turnStart).toMatch(/requestText,\s*input\.mode,/u);
     expect(checkpoint).toContain("text: requestText");
     expect(checkpoint).toContain("memoryContext");
     expect(turnStart).toContain("dispatchCheckpoint(checkpoint)");

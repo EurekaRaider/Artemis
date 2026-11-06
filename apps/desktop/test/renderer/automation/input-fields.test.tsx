@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { SettingsPanel } from "../../../src/renderer/app/SettingsPanel.js";
+import { AutomationPage } from "../../../src/renderer/automation/AutomationPage.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 //
 // D#76 PR9C §5 test matrix: input field contracts for the two real product
 // entries that own the renderer's only date and file inputs:
@@ -32,8 +36,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import "../../../src/renderer/app/i18n.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
-import { AutomationPage } from "../../../src/renderer/automation/AutomationPage.js";
-import { SettingsPanel } from "../../../src/renderer/app/SettingsPanel.js";
+
 import {
   filterVisibleModels,
   loadBundledModelCatalog,
@@ -46,14 +49,8 @@ import type {
 } from "@artemis/protocol";
 import type { SettingsSnapshot } from "../../../src/shared/api.js";
 
-const stylesSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/styles/styles.css"),
-  "utf8",
-);
-const appSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/app/App.tsx"),
-  "utf8",
-);
+const stylesSource = readDesktopStyles("styles");
+const appSource = readRendererAppSources();
 const rendererDir = resolve(process.cwd(), "src/renderer");
 const rendererSources: Record<string, string> = {};
 const collectRendererSources = (dir: string) => {
@@ -871,11 +868,9 @@ describe("settings management operation contract (MIG5A)", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "Edit: second" }),
       );
-      expect(
-        screen.getByLabelText("Model ID, e.g. deepseek-r1:8b"),
-      ).toHaveValue("second");
+      expect(screen.getByLabelText("Model ID")).toHaveValue("second");
       await userEvent.click(
-        screen.getByRole("button", { name: "Save provider connection" }),
+        screen.getByRole("button", { name: "Save provider" }),
       );
       expect(saveProviderConnection).toHaveBeenCalledExactlyOnceWith(
         provider,

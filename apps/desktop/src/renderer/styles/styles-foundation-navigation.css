@@ -1,0 +1,752 @@
+:root {
+  color-scheme: light dark;
+  --ui-font: var(--artemis-typography-body-family);
+  --mono-font: var(--artemis-typography-mono-family);
+  font-family: var(--ui-font);
+  font-synthesis: none;
+  --bg: var(--artemis-color-canvas);
+  --panel: var(--artemis-color-surface-raised);
+  --panel-2: var(--artemis-color-surface-base);
+  --panel-3: var(--artemis-color-surface-sunken);
+  --environment-panel-bg: var(--artemis-color-surface-base);
+  --environment-selected-bg: var(--artemis-color-interaction-selected);
+  --border: var(--artemis-color-border-default);
+  --border-soft: var(--artemis-color-border-subtle);
+  --text: var(--artemis-color-text-primary);
+  --muted: var(--artemis-color-text-secondary);
+  --muted-2: var(--artemis-color-text-tertiary);
+  --accent: var(--artemis-color-accent-primary);
+  --accent-text: var(--artemis-color-accent-on-primary);
+  --hover: var(--artemis-color-interaction-hover);
+  --selected: var(--artemis-color-interaction-selected);
+  --success: var(--artemis-color-status-success);
+  --warning: var(--artemis-color-status-warning);
+  --danger: var(--artemis-color-status-danger);
+  --syntax-keyword: light-dark(#7f3fbf, #c586f3);
+  --syntax-type: light-dark(#267f99, #4ec9b0);
+  --syntax-function: light-dark(#795e26, #dcdcaa);
+  --syntax-string: light-dark(#367a28, #a8d783);
+  --syntax-comment: light-dark(#767b84, #7d8590);
+  --syntax-number: light-dark(#1264a3, #79c0ff);
+  --syntax-variable: light-dark(#9a5d00, #f2c97d);
+  --syntax-operator: light-dark(#333333, #d4d4d4);
+  --syntax-punctuation: light-dark(#555555, #c8c8c8);
+  --file-typescript: light-dark(#1670c5, #5ba8ff);
+  --file-c: light-dark(#286c9b, #659ad2);
+  --file-cpp: light-dark(#3c6f9f, #6c9bd2);
+  --file-markdown: light-dark(#258347, #74c991);
+  --file-json: light-dark(#9a6714, #e5b454);
+  --file-markup: light-dark(#b84f2f, #ef8f69);
+  --file-style: light-dark(#7048b5, #b88cff);
+  --file-shell: light-dark(#277a55, #73c99a);
+  --file-git: light-dark(#d84f32, #f06a4b);
+  --file-prettier: light-dark(#278b8b, #62c4c4);
+  --file-cmake: light-dark(#236cae, #5ba8ff);
+  --file-license: light-dark(#9a6714, #e5b454);
+  --file-text: light-dark(#3279a8, #73b7e8);
+  --seti-blue: light-dark(#498ba7, #519aba);
+  --seti-grey: light-dark(#627379, #6d8086);
+  --seti-grey-light: light-dark(#8a8d8d, #d4d7d6);
+  --seti-green: light-dark(#6f9939, #8dc149);
+  --seti-orange: light-dark(#b75f28, #e37933);
+  --seti-pink: light-dark(#c4456c, #f55385);
+  --seti-purple: light-dark(#815e9e, #a074c4);
+  --seti-red: light-dark(#a93438, #cc3e44);
+  --seti-white: light-dark(#6f737a, #d4d7d6);
+  --seti-yellow: light-dark(#8f8f2e, #cbcb41);
+  --seti-ignore: light-dark(#627379, #6d8086);
+  /* Custom sub-agent identity hues (D#152): decorative dots only, mirroring
+     the Apple system palette so they stay legible in both themes. */
+  --custom-agent-gray: light-dark(#8e8e93, #98989d);
+  --custom-agent-red: light-dark(#ff3b30, #ff453a);
+  --custom-agent-orange: light-dark(#ff9500, #ff9f0a);
+  --custom-agent-yellow: light-dark(#ffcc00, #ffd60a);
+  --custom-agent-green: light-dark(#34c759, #30d158);
+  --custom-agent-teal: light-dark(#5ac8fa, #64d2ff);
+  --custom-agent-blue: light-dark(#007aff, #0a84ff);
+  --custom-agent-purple: light-dark(#af52de, #bf5af2);
+  --custom-agent-pink: light-dark(#ff2d55, #ff375f);
+  --icon-size-xs: 12px;
+  --icon-size-sm: 14px;
+  --icon-size-base: 16px;
+  --icon-size-lg: 20px;
+  --icon-size-xl: 24px;
+  --font: var(--ui-font);
+  --surface: var(--artemis-color-surface-base);
+  --surface-raised: var(--artemis-color-surface-raised);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  /* macOS 窗口 vibrancy 需要背景链路留透明：body 不画底，
+     主区由 .workspace 的实色兜底（非 macOS 窗口本身是不透明底色）。 */
+  background: transparent;
+  color: var(--text);
+  font-size: var(--artemis-typography-body-size);
+  font-family: var(--ui-font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+@layer artemis.reset {
+  button,
+  input,
+  select,
+  textarea {
+    color: inherit;
+    font: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+
+  button {
+    background: transparent;
+    border: 0;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible,
+  [role="treeitem"]:focus-visible {
+    outline: 2px solid var(--artemis-color-focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+.artemis-mark {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  box-shadow: none;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  min-height: 32px;
+  min-width: 32px;
+  overflow: hidden;
+  width: 32px;
+}
+
+.artemis-mark img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.model-button,
+.text-button {
+  align-items: center;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  display: inline-flex;
+  justify-content: center;
+}
+
+.sidebar {
+  --panel: var(--artemis-color-surface-raised);
+  --panel-2: var(--artemis-color-surface-base);
+  --panel-3: var(--artemis-color-surface-sunken);
+}
+
+.composer-wrap {
+  --panel: var(--artemis-color-surface-raised);
+  --panel-2: var(--artemis-color-surface-composer);
+  --panel-3: var(--artemis-color-surface-sunken);
+}
+
+.sidebar-header,
+.terminal-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.sidebar-header {
+  color: var(--muted);
+  flex: 0 0 56px;
+  font-size: 13.5px;
+  font-weight: 400;
+  height: 56px;
+  background: transparent;
+  border-block-end: 0;
+  gap: 8px;
+}
+
+.sidebar-header [data-part="content"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.sidebar-header-actions {
+  align-items: center;
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  width: 100%;
+}
+
+.sidebar-search {
+  & {
+    align-items: center;
+    border-radius: var(--artemis-radius-input);
+    color: var(--muted-2);
+    display: flex;
+    justify-content: flex-start;
+    overflow: hidden;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease,
+      width 160ms ease;
+    width: 100%;
+    flex: 1;
+  }
+
+  & input {
+    background: transparent;
+    border: 0;
+    height: 18px;
+    opacity: 1;
+    outline: 0;
+    padding: 0;
+    width: 100%;
+    margin-inline-start: 0;
+    line-height: 18px;
+    flex: 1;
+    color: var(--text);
+  }
+
+  &:focus-within input,
+  &.has-query input {
+    opacity: 1;
+    width: 100%;
+  }
+}
+
+.project-tree {
+  flex: none;
+  min-height: 0;
+  padding: 2px 8px 8px;
+}
+
+.project-collection-rows > .nested-project:first-child,
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.nested-project {
+  margin-inline-start: 0;
+}
+
+.nested-project + .nested-project {
+  margin-top: 2px;
+}
+
+.project-row,
+.project-thread-row {
+  align-items: center;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  min-width: 0;
+  position: relative;
+  text-align: start;
+  width: 100%;
+}
+
+.project-row {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  height: 30px;
+  line-height: 19.5px;
+  padding-inline-end: 6px;
+}
+
+.project-row span,
+.thread-title,
+.sources-panel-links strong,
+.sources-panel-links span,
+.catalog-progress-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-select,
+.thread-select {
+  --sidebar-marker-column: 20px;
+
+  column-gap: 7px;
+  display: grid;
+  grid-template-columns: var(--sidebar-marker-column) minmax(0, 1fr);
+}
+
+.project-thread-row:hover,
+.project-row:hover,
+.project-group-row:focus-within {
+  background: var(--hover);
+}
+
+/* 悬浮/选中背景上下各收 0.5px（合计 1px）：用背景图尺寸实现，
+   避免 content-box 裁剪与圆角/padding 相互干扰。 */
+.project-thread-row:hover {
+  background: linear-gradient(var(--hover), var(--hover)) center / 100%
+    calc(100% - 1px) no-repeat;
+}
+
+.project-thread-row.selected {
+  background: linear-gradient(var(--selected), var(--selected)) center / 100%
+    calc(100% - 1px) no-repeat;
+}
+
+.project-select {
+  align-items: center;
+  background: transparent;
+  cursor: pointer;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  padding-block: 5px;
+  padding-inline: 8px 6px;
+  text-align: start;
+}
+
+.project-group-select {
+  align-items: center;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  padding: 6px 6px 6px 10px;
+  text-align: start;
+  gap: 9px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--muted-2);
+}
+
+.project-toggle {
+  align-items: center;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--muted-2);
+  cursor: pointer;
+  display: flex;
+  height: 20px;
+  justify-content: center;
+
+  position: absolute;
+  width: 20px;
+  z-index: 1;
+  inset-inline-start: 8px;
+}
+
+.project-toggle:focus-visible {
+  outline: 1px solid var(--muted-2);
+  outline-offset: -1px;
+}
+
+.project-toggle .icon {
+  color: inherit;
+  flex: 0 0 auto;
+  height: 16px;
+  width: 16px;
+}
+
+.project-title {
+  grid-column: 2;
+}
+
+.project-thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 0;
+  margin-top: 2px;
+}
+
+.project-thread-list[hidden] {
+  display: none;
+}
+
+.nested-project {
+  position: relative;
+  transition:
+    opacity 120ms ease,
+    transform 160ms ease;
+}
+
+.nested-project.dragging,
+.project-thread-row.dragging {
+  opacity: 0.52;
+}
+
+.nested-project.drop-before::before,
+.nested-project.drop-after::after {
+  background: var(--blue);
+  border-radius: 999px;
+  content: "";
+  height: 2px;
+  inset-inline: 4px;
+  position: absolute;
+  z-index: 3;
+}
+
+.nested-project.drop-before::before {
+  top: -4px;
+}
+
+.nested-project.drop-after::after {
+  bottom: -4px;
+}
+
+.nested-project > .project-row[draggable="true"],
+.project-thread-row[draggable="true"] {
+  cursor: grab;
+}
+
+.nested-project > .project-row[draggable="true"]:active,
+.project-thread-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.project-thread-row {
+  margin-left: 0;
+  min-height: 30px;
+  padding-left: 0;
+  transition:
+    opacity 120ms ease,
+    transform 160ms ease;
+  padding-inline-end: 6px;
+  color: var(--muted);
+}
+
+.project-thread-row.drop-before::before,
+.project-thread-row.drop-after::after {
+  background: var(--blue);
+  border-radius: 999px;
+  content: "";
+  height: 2px;
+  inset-inline: 5px;
+  position: absolute;
+  z-index: 3;
+}
+
+.project-thread-row.drop-before::before {
+  top: -2px;
+}
+
+.project-thread-row.drop-after::after {
+  bottom: -2px;
+}
+
+.project-expand-toggle {
+  align-self: flex-start;
+  color: var(--muted-2);
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 22px;
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.project-expand-toggle:hover {
+  color: var(--muted);
+}
+
+.project-no-matches {
+  color: var(--muted-2);
+  font-size: 12px;
+  padding: 7px 8px 7px 30px;
+}
+
+.thread-select {
+  align-items: center;
+  background: transparent;
+  cursor: pointer;
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+  padding-block: 4.5px;
+  padding-inline: 8px 6px;
+  grid-template-columns: var(--sidebar-marker-column) minmax(0, 1fr) auto;
+  position: relative;
+  text-align: start;
+  min-height: 30px;
+}
+
+.thread-select .thread-title {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  font-size: 12.5px;
+  font-weight: 400;
+  grid-column: 2;
+  gap: 5px;
+  min-width: 0;
+  line-height: 18.75px;
+}
+
+.thread-title > [data-artemis-component="tooltip-anchor"] {
+  flex: none;
+}
+
+.thread-title .thread-channel-logo,
+.im-thread-indicators .thread-channel-logo {
+  flex: none;
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 3px;
+}
+
+.thread-title .thread-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.thread-select:has(.im-thread-indicators) {
+  grid-template-columns: var(--sidebar-marker-column) auto minmax(0, 1fr) auto;
+}
+
+.thread-select:has(.im-thread-indicators) .thread-title {
+  grid-column: 3;
+}
+
+.im-thread-indicators {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  grid-column: 2;
+}
+
+.im-thread-retired,
+.im-thread-separator {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.im-thread-separator {
+  margin-inline: 1px;
+}
+
+.im-thread-connection,
+.im-thread-computers {
+  color: var(--muted);
+  display: inline-flex;
+}
+
+.im-thread-indicators svg {
+  flex: none;
+  /* 会话行图标比项目行（16px）小一号。 */
+  inline-size: 15px;
+  block-size: 15px;
+}
+
+.im-thread-connection {
+  &[data-state="connected"] {
+    color: var(--success);
+  }
+
+  &[data-state="connecting"] {
+    color: var(--warning);
+  }
+
+  &[data-state="error"] {
+    color: var(--danger);
+  }
+}
+
+.im-thread-computers[data-state="offline"],
+.im-thread-connection[data-state="removed"] {
+  color: var(--muted-2);
+  opacity: 0.38;
+}
+.thread-title-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateX(0);
+  white-space: nowrap;
+}
+
+.thread-title[data-overflowing="true"]:hover .thread-title-text {
+  overflow: visible;
+  text-overflow: clip;
+  width: max-content;
+  will-change: transform;
+}
+
+@keyframes thread-title-scroll {
+  0%,
+  15% {
+    transform: translateX(0);
+  }
+
+  85%,
+  100% {
+    transform: translateX(var(--thread-title-scroll-distance, 0));
+  }
+}
+
+.thread-select .thread-status-indicator {
+  grid-column: 1;
+  justify-self: end;
+}
+
+.thread-select:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.thread-rename-dialog {
+  & {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    color: var(--text);
+    padding: 28px;
+    width: min(480px, calc(100vw - 48px));
+  }
+
+  & header,
+  & footer {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  & h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  & p {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 8px 0 24px;
+  }
+}
+
+.thread-rename-close {
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  height: 28px;
+  place-items: center;
+  width: 28px;
+}
+
+.thread-rename-input {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  padding: 12px;
+  width: 100%;
+}
+
+.thread-rename-dialog {
+  & footer {
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 28px;
+  }
+
+  & footer button {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    min-width: 72px;
+    padding: 10px 18px;
+  }
+
+  & .thread-rename-save {
+    background: var(--text);
+    color: var(--panel-2);
+  }
+
+  & .thread-rename-save:disabled {
+    opacity: 0.4;
+  }
+}
+
+.project-action,
+.project-new-thread,
+.thread-action {
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+  font-size: 13px;
+  height: 20px;
+  opacity: 0;
+  width: 20px;
+  flex: 0 0 auto;
+}
+
+.project-action svg,
+.project-new-thread svg,
+.thread-action svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.project-new-thread .icon {
+  height: 14px;
+  width: 14px;
+}
+
+.project-row.active .project-new-thread,
+.project-new-thread:focus-visible,
+.project-row.active .project-action,
+.project-action:focus-visible,
+.project-thread-row:hover .thread-action,
+.project-thread-row:focus-within .thread-action,
+.thread-action[aria-expanded="true"],
+.thread-action:focus-visible {
+  opacity: 1;
+}

@@ -1,3 +1,4 @@
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 // Custom sub-agent instance display contract (D#152 PR4): every surface
 // that lists a child agent surfaces the frozen definition name, revision,
 // resolved model, and invocation source. Helper behavior is tested
@@ -12,10 +13,7 @@ import {
   customAgentSourceLabel,
 } from "../../../src/renderer/settings/custom-agent-identity.js";
 
-const appSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/app/App.tsx"),
-  "utf8",
-);
+const appSource = readRendererAppSources();
 const environmentPanelSource = readFileSync(
   resolve(process.cwd(), "src/renderer/workspace/EnvironmentPanel.tsx"),
   "utf8",

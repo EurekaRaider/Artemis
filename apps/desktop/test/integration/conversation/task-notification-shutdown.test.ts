@@ -1,67 +1,59 @@
-import { readFileSync } from "node:fs";
-import { transformSync } from "esbuild";
+import { app } from "electron";
 import { describe, expect, it, vi } from "vitest";
+import { registerConversationHistoryIpc } from "../../../src/main/ipc/conversation-history.js";
+import { installApplicationLifecycle } from "../../../src/main/application/lifecycle.js";
+import type { ApplicationServices } from "../../../src/main/application/application-services.js";
+import { IPC } from "../../../src/shared/api.js";
 
-const main = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
-
+vi.mock("electron", () => ({
+  app: { on: vi.fn(), quit: vi.fn() },
+  dialog: {},
+  shell: {},
+}));
+function taskView(services: object) {
+  const listeners = new Map<string, (...args: any[]) => void>();
+  registerConversationHistoryIpc({
+    ...services,
+    ipcMain: {
+      handle: vi.fn(),
+      on: (channel: string, handler: (...args: any[]) => void) =>
+        listeners.set(channel, handler),
+    },
+  } as unknown as ApplicationServices);
+  return listeners.get(IPC.taskView)!;
+}
 describe("task notification shutdown", () => {
   it("binds floating preview only to validated current-session messages", () => {
-    const start = main.indexOf("  ipcMain.on(IPC.taskView,");
-    const end = main.indexOf("  const taskSummaries", start);
-    let handler: (event: unknown, input: unknown) => void;
     const sender = { mainFrame: {} };
     const setThread = vi.fn();
     const notifications = { refresh: vi.fn(), isViewing: () => false };
-    new Function(
-      "ipcMain",
-      "IPC",
-      "mainWindow",
-      "taskNotifications",
-      "store",
-      "shuttingDown",
-      "emitPayload",
-      "computerPreviewWindow",
-      transformSync(main.slice(start, end), { loader: "ts" }).code,
-    )(
-      {
-        on: (_channel: string, callback: typeof handler) => {
-          handler = callback;
-        },
-      },
-      { taskView: "task-view" },
-      { webContents: sender },
-      notifications,
-      {
+    const handler = taskView({
+      mainWindow: { webContents: sender },
+      taskNotifications: notifications,
+      store: {
         getThread: (id: string) =>
           ["one", "two"].includes(id) ? { id } : undefined,
       },
-      false,
-      vi.fn(),
-      { setThread },
-    );
+      shuttingDown: false,
+      emitPayload: vi.fn(),
+      computerPreviewWindow: { setThread },
+    });
     const event = { sender, senderFrame: sender.mainFrame };
-    handler!({ ...event, sender: {} }, { threadId: "one" });
-    handler!({ ...event, senderFrame: {} }, { threadId: "one" });
-    handler!(event, { threadId: "missing" });
-    handler!(event, { threadId: "one", dockOpen: "true" });
+    handler({ ...event, sender: {} }, { threadId: "one" });
+    handler({ ...event, senderFrame: {} }, { threadId: "one" });
+    handler(event, { threadId: "missing" });
+    handler(event, { threadId: "one", dockOpen: "true" });
     expect(setThread).not.toHaveBeenCalled();
-    handler!(event, { threadId: "one" });
-    handler!(event, { threadId: "two", dockOpen: true });
-    handler!(event, {});
+    handler(event, { threadId: "one" });
+    handler(event, { threadId: "two", dockOpen: true });
+    handler(event, {});
     expect(setThread.mock.calls).toEqual([
       ["one", false],
       ["two", true],
       [undefined, false],
     ]);
   });
-
   it("ignores late task-view messages before touching a closing store", () => {
-    const start = main.indexOf("  ipcMain.on(IPC.taskView,");
-    const end = main.indexOf("  const taskSummaries", start);
-    let handler: (event: unknown, input: unknown) => void;
     const sender = { mainFrame: {} };
     const store = {
       getThread: vi.fn(() => {
@@ -69,30 +61,15 @@ describe("task notification shutdown", () => {
       }),
     };
     const refresh = vi.fn();
-    new Function(
-      "ipcMain",
-      "IPC",
-      "mainWindow",
-      "taskNotifications",
-      "store",
-      "shuttingDown",
-      "emitPayload",
-      transformSync(main.slice(start, end), { loader: "ts" }).code,
-    )(
-      {
-        on: (_channel: string, callback: typeof handler) => {
-          handler = callback;
-        },
-      },
-      { taskView: "task-view" },
-      { webContents: sender },
-      { refresh },
+    const handler = taskView({
+      mainWindow: { webContents: sender },
+      taskNotifications: { refresh },
       store,
-      true,
-      vi.fn(),
-    );
+      shuttingDown: true,
+      emitPayload: vi.fn(),
+    });
     expect(() =>
-      handler!(
+      handler(
         { sender, senderFrame: sender.mainFrame },
         { threadId: "one", seenSeq: 4 },
       ),
@@ -100,45 +77,23 @@ describe("task notification shutdown", () => {
     expect(store.getThread).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
-
   it("keeps the database open until will-quit, after windows finish closing", () => {
-    const handlers = new Map<string, () => void>();
     const close = vi.fn();
     const stopIm = vi.fn();
     const disposeShares = vi.fn();
-    new Function(
-      "app",
-      "store",
-      "imService",
-      "disposeShares",
-      `
-      let shuttingDown = false;
-      const hookSessionsEnded = true, hooksService = undefined;
-      const automationScheduler = undefined, terminalService = undefined;
-      const packagedNodePtyRuntimeReady = undefined, packagedNodePtyRuntime = undefined;
-      const mcpClientManager = undefined, agentProcess = undefined, computerUseHost = undefined;
-      const computerPreviewHost = undefined, computerPreviewWindow = undefined, browserSessionHost = undefined;
-      const trustedExtensionManager = undefined, providerLoginService = undefined;
-      const appearanceService = undefined;
-      const pluginDispatch = undefined, designPanelHost = undefined;
-      const threadHistoryService = undefined, releaseUpdateManager = undefined;
-      const conversationShareService = { dispose: disposeShares };
-      const sleepPrevention = { dispose: () => {} };
-      const pendingUserInputs = { cancelWhere: () => [] };
-      const pendingMultiUserInputs = { cancelWhere: () => [] };
-      const stopAgentCapacityMonitoring = () => {};
-      ${transformSync(main.slice(main.indexOf('app.on("before-quit",')), { loader: "ts" }).code}
-    `,
-    )(
-      {
-        on: (event: string, callback: () => void) =>
-          handlers.set(event, callback),
-      },
-      { close },
-      { stop: stopIm },
-      disposeShares,
-    );
-    handlers.get("before-quit")!();
+    vi.mocked(app.on).mockClear();
+    installApplicationLifecycle({
+      store: { close },
+      imService: { stop: stopIm },
+      hookSessionsEnded: true,
+      conversationShareService: { dispose: disposeShares },
+      sleepPrevention: { dispose: vi.fn() },
+      pendingUserInputs: { cancelWhere: () => [] },
+      pendingMultiUserInputs: { cancelWhere: () => [] },
+      stopAgentCapacityMonitoring: vi.fn(),
+    } as unknown as ApplicationServices);
+    const handlers = new Map(vi.mocked(app.on).mock.calls);
+    handlers.get("before-quit")!({ preventDefault: vi.fn() });
     expect(disposeShares).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
     expect(stopIm).not.toHaveBeenCalled();

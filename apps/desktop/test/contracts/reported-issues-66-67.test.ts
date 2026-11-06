@@ -1,17 +1,18 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 const root = join(import.meta.dirname, "../..");
-const main = readFileSync(join(root, "src/main/main.ts"), "utf8");
-const api = readFileSync(join(root, "src/shared/api.ts"), "utf8");
-const preload = readFileSync(join(root, "src/preload/preload.ts"), "utf8");
-const app = readFileSync(join(root, "src/renderer/app/App.tsx"), "utf8");
-const styles = readFileSync(
-  join(root, "src/renderer/styles/styles.css"),
-  "utf8",
-);
+const main = readMainProcessSources();
+const api = readSharedApiSources();
+const preload = readPreloadBridgeSources();
+const app = readRendererAppSources();
+const styles = readDesktopStyles("styles");
 
 describe("reported issues 66 and 67", () => {
   it("brokers explicit local paths only through an active Work or Codemode turn", () => {

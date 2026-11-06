@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import { estimateTextTokens, textWithinTokenBudget } from "@artemis/protocol";
-import type { AttachmentWork } from "./attachment-worker.js";
+import type { AttachmentWork } from "./attachment-work.js";
 
 export const INDEX_VERSION = 2;
 const CHUNK = 16384;

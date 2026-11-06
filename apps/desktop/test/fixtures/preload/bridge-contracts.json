@@ -1,0 +1,2395 @@
+{
+  "computer": [
+    {
+      "name": "bindPreviewCanvas",
+      "kind": "texture"
+    },
+    {
+      "name": "unbindPreviewCanvas",
+      "kind": "texture"
+    },
+    {
+      "name": "browserSession",
+      "kind": "invoke",
+      "channel": "artemis:browser-session",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "onBrowserSession",
+      "kind": "event",
+      "channel": "artemis:browser-session"
+    },
+    {
+      "name": "getComputerPreviews",
+      "kind": "invoke",
+      "channel": "artemis:computer-previews",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "computerPreview",
+      "kind": "invoke",
+      "channel": "artemis:computer-preview",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "onComputerPreviews",
+      "kind": "event",
+      "channel": "artemis:computer-previews"
+    },
+    {
+      "name": "onComputerPreviewExpand",
+      "kind": "event",
+      "channel": "artemis:computer-preview-expand"
+    },
+    {
+      "name": "browserPreview",
+      "kind": "invoke",
+      "channel": "artemis:browser-preview",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "registerComputerBrowser",
+      "kind": "invoke",
+      "channel": "artemis:computer-register-browser",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "getComputerState",
+      "kind": "invoke",
+      "channel": "artemis:computer-state",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "controlComputer",
+      "kind": "invoke",
+      "channel": "artemis:computer-control",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "computerRuntimeStatus",
+      "kind": "invoke",
+      "channel": "artemis:computer-runtime-status",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "checkComputerRuntimeUpdates",
+      "kind": "invoke",
+      "channel": "artemis:computer-runtime-check",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "cancelComputerRuntimeDownload",
+      "kind": "invoke",
+      "channel": "artemis:computer-runtime-cancel",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "getComputerPermissions",
+      "kind": "invoke",
+      "channel": "artemis:computer-permissions",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "revokeComputerPermission",
+      "kind": "invoke",
+      "channel": "artemis:computer-revoke-permission",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "onComputerState",
+      "kind": "event",
+      "channel": "artemis:computer-state"
+    },
+    {
+      "name": "onComputerBrowserOpen",
+      "kind": "event",
+      "channel": "artemis:computer-browser-open"
+    }
+  ],
+  "hooks": [
+    {
+      "name": "listHooks",
+      "kind": "invoke",
+      "channel": "artemis:hooks-list",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "trustHooks",
+      "kind": "invoke",
+      "channel": "artemis:hooks-trust",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "changeHook",
+      "kind": "invoke",
+      "channel": "artemis:hooks-change",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "inspectHook",
+      "kind": "invoke",
+      "channel": "artemis:hooks-inspect",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "task-notifications": [
+    {
+      "name": "reportTaskView",
+      "kind": "send",
+      "channel": "artemis:task-view",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "onThreadTitleUpdated",
+      "kind": "event",
+      "channel": "artemis:thread-title-updated"
+    },
+    {
+      "name": "onImTaskCreated",
+      "kind": "event",
+      "channel": "artemis:im-task-created"
+    }
+  ],
+  "im": [
+    {
+      "name": "getImStatus",
+      "kind": "invoke",
+      "channel": "artemis:im-status",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "saveImSettings",
+      "kind": "invoke",
+      "channel": "artemis:im-save",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "manageIm",
+      "kind": "invoke",
+      "channel": "artemis:im-manage",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "history": [
+    {
+      "name": "getSnapshot",
+      "kind": "invoke",
+      "channel": "artemis:snapshot",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "onWindowMaterialChanged",
+      "kind": "event",
+      "channel": "artemis:window-material-changed"
+    },
+    {
+      "name": "getThreadHistory",
+      "kind": "invoke",
+      "channel": "artemis:thread-history",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "getThreadEvents",
+      "kind": "invoke",
+      "channel": "artemis:thread-events",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "prepareConversationShare",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 2,
+      "args": [
+        {
+          "type": "prepare",
+          "threadId": "argument-0",
+          "options": "argument-1"
+        }
+      ]
+    },
+    {
+      "name": "updateConversationShare",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 3,
+      "args": [
+        {
+          "type": "update",
+          "previewId": "argument-0",
+          "options": "argument-1",
+          "excludedIds": "argument-2"
+        }
+      ]
+    },
+    {
+      "name": "uploadConversationShare",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 2,
+      "args": [
+        {
+          "type": "upload",
+          "previewId": "argument-0",
+          "destination": "argument-1"
+        }
+      ]
+    },
+    {
+      "name": "cancelConversationShare",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 1,
+      "args": [
+        {
+          "type": "cancel",
+          "previewId": "argument-0"
+        }
+      ]
+    },
+    {
+      "name": "exportConversationShare",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 1,
+      "args": [
+        {
+          "type": "export",
+          "previewId": "argument-0"
+        }
+      ]
+    },
+    {
+      "name": "listConversationShares",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 1,
+      "args": [
+        {
+          "type": "list",
+          "threadId": "argument-0"
+        }
+      ]
+    },
+    {
+      "name": "deleteConversationShare",
+      "kind": "invoke",
+      "channel": "artemis:conversation-share",
+      "arity": 1,
+      "args": [
+        {
+          "type": "delete",
+          "id": "argument-0"
+        }
+      ]
+    },
+    {
+      "name": "getThreadTaskSummary",
+      "kind": "invoke",
+      "channel": "artemis:thread-task-summary",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "getTokenUsageEvents",
+      "kind": "invoke",
+      "channel": "artemis:token-usage-events",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "getPromptHistory",
+      "kind": "invoke",
+      "channel": "artemis:prompt-history",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "rendererReady",
+      "kind": "ready"
+    }
+  ],
+  "projects": [
+    {
+      "name": "openProject",
+      "kind": "invoke",
+      "channel": "artemis:project-open",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "removeProject",
+      "kind": "invoke",
+      "channel": "artemis:project-remove",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "readProjectInstructions",
+      "kind": "invoke",
+      "channel": "artemis:project-instructions-read",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "writeProjectInstructions",
+      "kind": "invoke",
+      "channel": "artemis:project-instructions-write",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "onThreadLinkOpen",
+      "kind": "event",
+      "channel": "artemis:thread-link-open"
+    },
+    {
+      "name": "getProjectGitInfo",
+      "kind": "invoke",
+      "channel": "artemis:project-git-info",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "getProjectPullRequest",
+      "kind": "invoke",
+      "channel": "artemis:project-pull-request",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "switchProjectBranch",
+      "kind": "invoke",
+      "channel": "artemis:project-git-branch-switch",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "createProjectBranch",
+      "kind": "invoke",
+      "channel": "artemis:project-git-branch-create",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "commitProjectChanges",
+      "kind": "invoke",
+      "channel": "artemis:project-git-commit",
+      "arity": 4,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2",
+        "argument-3"
+      ]
+    },
+    {
+      "name": "pushProjectBranch",
+      "kind": "invoke",
+      "channel": "artemis:project-git-push",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "attachments": [
+    {
+      "name": "onAttachmentImportProgress",
+      "kind": "event",
+      "channel": "artemis:attachment-import-progress"
+    },
+    {
+      "name": "retryPromptAttachment",
+      "kind": "invoke",
+      "channel": "artemis:prompt-attachment-retry",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "preparePromptAttachment",
+      "kind": "invoke",
+      "channel": "artemis:prompt-attachment-prepare",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "selectPromptAttachments",
+      "kind": "invoke",
+      "channel": "artemis:prompt-attachments-select",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "previewPromptFile",
+      "kind": "invoke",
+      "channel": "artemis:prompt-file-preview",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "previewPromptAttachment",
+      "kind": "invoke",
+      "channel": "artemis:prompt-attachment-preview",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "cancelPromptAttachment",
+      "kind": "invoke",
+      "channel": "artemis:prompt-attachment-cancel",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "readPromptAttachments",
+      "kind": "attachments"
+    },
+    {
+      "name": "readTaskSourceImage",
+      "kind": "invoke",
+      "channel": "artemis:task-source-image-read",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "conversation": [
+    {
+      "name": "createThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-create",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setThreadModelSelection",
+      "kind": "invoke",
+      "channel": "artemis:thread-model-set",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "renameThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-rename",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "setThreadGoal",
+      "kind": "invoke",
+      "channel": "artemis:thread-goal-set",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "getThreadGoalObjective",
+      "kind": "invoke",
+      "channel": "artemis:thread-goal-objective-get",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "updateThreadGoalObjective",
+      "kind": "invoke",
+      "channel": "artemis:thread-goal-objective-update",
+      "arity": 4,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2",
+        "argument-3"
+      ]
+    },
+    {
+      "name": "pauseThreadGoal",
+      "kind": "invoke",
+      "channel": "artemis:thread-goal-pause",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "resumeThreadGoal",
+      "kind": "invoke",
+      "channel": "artemis:thread-goal-resume",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "clearThreadGoal",
+      "kind": "invoke",
+      "channel": "artemis:thread-goal-clear",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "archiveThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-archive",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "deleteThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-delete",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "forkThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-fork",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "compactThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-compact",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "prepareThread",
+      "kind": "invoke",
+      "channel": "artemis:thread-prepare",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "branchizeWorktree",
+      "kind": "invoke",
+      "channel": "artemis:worktree-branchize",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "listWorktreeCleanupCandidates",
+      "kind": "invoke",
+      "channel": "artemis:worktree-list-cleanup",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "cleanupWorktree",
+      "kind": "invoke",
+      "channel": "artemis:worktree-cleanup",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "restoreWorktreeSnapshot",
+      "kind": "invoke",
+      "channel": "artemis:worktree-restore-snapshot",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "handoffWorkspace",
+      "kind": "invoke",
+      "channel": "artemis:worktree-handoff",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "acceptPlan",
+      "kind": "invoke",
+      "channel": "artemis:plan-accept",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "revisePlan",
+      "kind": "invoke",
+      "channel": "artemis:plan-revise",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "startTurn",
+      "kind": "invoke",
+      "channel": "artemis:turn-start",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "reportTurnRendered",
+      "kind": "send",
+      "channel": "artemis:turn-rendered",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "steerTurn",
+      "kind": "invoke",
+      "channel": "artemis:turn-steer",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "followUpTurn",
+      "kind": "invoke",
+      "channel": "artemis:turn-follow-up",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "clearTurnQueue",
+      "kind": "invoke",
+      "channel": "artemis:turn-queue-clear",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "steerTurnQueue",
+      "kind": "invoke",
+      "channel": "artemis:turn-queue-steer",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "steerQueuedTurn",
+      "kind": "invoke",
+      "channel": "artemis:turn-queue-steer-item",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "replaceTurnQueue",
+      "kind": "invoke",
+      "channel": "artemis:turn-queue-replace",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "cancelTurn",
+      "kind": "invoke",
+      "channel": "artemis:turn-cancel",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "undoTurnChanges",
+      "kind": "invoke",
+      "channel": "artemis:turn-changes-undo",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "controlChildAgent",
+      "kind": "invoke",
+      "channel": "artemis:child-agent-control",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "controlAgentTeam",
+      "kind": "invoke",
+      "channel": "artemis:agent-team-control",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "resolveApproval",
+      "kind": "invoke",
+      "channel": "artemis:approval-resolve",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "resolveUserInput",
+      "kind": "invoke",
+      "channel": "artemis:user-input-resolve",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "automation": [
+    {
+      "name": "listAutomations",
+      "kind": "invoke",
+      "channel": "artemis:automation-list",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "listAutomationRuns",
+      "kind": "invoke",
+      "channel": "artemis:automation-run-list",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "saveAutomation",
+      "kind": "invoke",
+      "channel": "artemis:automation-save",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setAutomationEnabled",
+      "kind": "invoke",
+      "channel": "artemis:automation-enable",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "authorizeAutomation",
+      "kind": "invoke",
+      "channel": "artemis:automation-authorize",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "deleteAutomation",
+      "kind": "invoke",
+      "channel": "artemis:automation-delete",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "runAutomationNow",
+      "kind": "invoke",
+      "channel": "artemis:automation-run-now",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "review": [
+    {
+      "name": "getReviewDiff",
+      "kind": "invoke",
+      "channel": "artemis:review-diff",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "mutateReviewDiff",
+      "kind": "invoke",
+      "channel": "artemis:review-mutate",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "listReviewComments",
+      "kind": "invoke",
+      "channel": "artemis:review-comment-list",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "addReviewComment",
+      "kind": "invoke",
+      "channel": "artemis:review-comment-add",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "deleteReviewComment",
+      "kind": "invoke",
+      "channel": "artemis:review-comment-delete",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "workspace-previews": [
+    {
+      "name": "openWorkspacePdf",
+      "kind": "invoke",
+      "channel": "artemis:workspace-pdf-open",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "openWorkspaceVideo",
+      "kind": "invoke",
+      "channel": "artemis:workspace-video-open",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "releaseWorkspaceVideo",
+      "kind": "invoke",
+      "channel": "artemis:workspace-video-release",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "ensureDesignPanel",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-ensure",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "setDesignPanelBounds",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-bounds",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "setDesignPanelVisible",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-visible",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "releaseDesignPanel",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-release",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "acceptDesignPanelCandidate",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-candidate-accept",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "discardDesignPanelCandidate",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-candidate-discard",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "consumeDesignPanelSend",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-send-consume",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "stageDesignPanelSend",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-send-stage",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "reportDesignPanelSendOutcome",
+      "kind": "invoke",
+      "channel": "artemis:design-panel-send-outcome",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "onDesignPanelCandidate",
+      "kind": "event",
+      "channel": "artemis:design-panel-candidate"
+    },
+    {
+      "name": "onDesignPanelBinding",
+      "kind": "event",
+      "channel": "artemis:design-panel-binding"
+    },
+    {
+      "name": "showWorkspaceTabMenu",
+      "kind": "invoke",
+      "channel": "artemis:workspace-tab-menu-show",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "closeWorkspaceTabMenu",
+      "kind": "invoke",
+      "channel": "artemis:workspace-tab-menu-close",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "onWorkspaceTabMenuSelect",
+      "kind": "event",
+      "channel": "artemis:workspace-tab-menu-select"
+    },
+    {
+      "name": "onWorkspaceTabMenuClosed",
+      "kind": "event",
+      "channel": "artemis:workspace-tab-menu-closed"
+    },
+    {
+      "name": "openWorkspaceHtml",
+      "kind": "invoke",
+      "channel": "artemis:workspace-html-open",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "releaseWorkspaceHtml",
+      "kind": "invoke",
+      "channel": "artemis:workspace-html-release",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "office": [
+    {
+      "name": "openOfficeFile",
+      "kind": "invoke",
+      "channel": "artemis:office-open",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "readOfficeSnapshot",
+      "kind": "invoke",
+      "channel": "artemis:office-snapshot",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "editOfficeFile",
+      "kind": "invoke",
+      "channel": "artemis:office-edit",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "saveWorkspaceCsv",
+      "kind": "invoke",
+      "channel": "artemis:workspace-csv-save",
+      "arity": 4,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2",
+        "argument-3"
+      ]
+    },
+    {
+      "name": "openOfficePreview",
+      "kind": "invoke",
+      "channel": "artemis:office-preview",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "officeCapabilityStatus",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-status",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "checkOfficeCapabilityUpdates",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-check-updates",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "installOfficeCapability",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-install",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "importOfficeCapability",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-import",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "cancelOfficeCapability",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-cancel",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "activateOfficeCapability",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-activate",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "deactivateOfficeCapability",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-deactivate",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "uninstallOfficeCapability",
+      "kind": "invoke",
+      "channel": "artemis:office-capability-uninstall",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "design": [
+    {
+      "name": "designCapabilityStatus",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-status",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "designCapabilityAvailability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-availability",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "onDesignCapabilityAvailability",
+      "kind": "event",
+      "channel": "artemis:design-capability-availability"
+    },
+    {
+      "name": "checkDesignCapabilityUpdates",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-check-updates",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "installDesignCapability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-install",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "importDesignCapability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-import",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "cancelDesignCapability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-cancel",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "activateDesignCapability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-activate",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "deactivateDesignCapability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-deactivate",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "uninstallDesignCapability",
+      "kind": "invoke",
+      "channel": "artemis:design-capability-uninstall",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "workspace-files": [
+    {
+      "name": "readWorkspaceTextFile",
+      "kind": "invoke",
+      "channel": "artemis:workspace-text-file-read",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "readWorkspaceImage",
+      "kind": "invoke",
+      "channel": "artemis:workspace-image-read",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "listWorkspaceDirectory",
+      "kind": "invoke",
+      "channel": "artemis:workspace-directory-list",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "readWorkspaceFile",
+      "kind": "invoke",
+      "channel": "artemis:workspace-file-read",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "writeWorkspaceFile",
+      "kind": "invoke",
+      "channel": "artemis:workspace-file-write",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "inspectWorkspaceFileLink",
+      "kind": "invoke",
+      "channel": "artemis:workspace-file-link-inspect",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "revealWorkspaceFile",
+      "kind": "invoke",
+      "channel": "artemis:workspace-file-reveal",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "runWorkspaceFile",
+      "kind": "invoke",
+      "channel": "artemis:workspace-file-run",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "terminal": [
+    {
+      "name": "openTerminal",
+      "kind": "invoke",
+      "channel": "artemis:terminal-open",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "writeTerminal",
+      "kind": "invoke",
+      "channel": "artemis:terminal-write",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "resizeTerminal",
+      "kind": "invoke",
+      "channel": "artemis:terminal-resize",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "closeTerminal",
+      "kind": "invoke",
+      "channel": "artemis:terminal-close",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "onTerminalData",
+      "kind": "event",
+      "channel": "artemis:terminal-data"
+    },
+    {
+      "name": "onTerminalExit",
+      "kind": "event",
+      "channel": "artemis:terminal-exit"
+    }
+  ],
+  "appearance": [
+    {
+      "name": "getAppearanceState",
+      "kind": "invoke",
+      "channel": "artemis:appearance-get",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "resolveSkin",
+      "kind": "invoke",
+      "channel": "artemis:appearance-resolve",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "releaseSkinResources",
+      "kind": "invoke",
+      "channel": "artemis:appearance-release",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setSkinSelection",
+      "kind": "invoke",
+      "channel": "artemis:appearance-select",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "onAppearanceStateChanged",
+      "kind": "event",
+      "channel": "artemis:appearance-changed"
+    }
+  ],
+  "settings": [
+    {
+      "name": "getSettings",
+      "kind": "invoke",
+      "channel": "artemis:settings-get",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "setLanguage",
+      "kind": "invoke",
+      "channel": "artemis:settings-language-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setTheme",
+      "kind": "invoke",
+      "channel": "artemis:settings-theme-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setMaterial",
+      "kind": "invoke",
+      "channel": "artemis:settings-material-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setComposerPredictions",
+      "kind": "invoke",
+      "channel": "artemis:settings-composer-predictions-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setPreventSleep",
+      "kind": "invoke",
+      "channel": "artemis:settings-prevent-sleep-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setApprovalPolicy",
+      "kind": "invoke",
+      "channel": "artemis:settings-approval-policy-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setLocalFullAccess",
+      "kind": "invoke",
+      "channel": "artemis:settings-local-full-access-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setShellRuntimeConfiguration",
+      "kind": "invoke",
+      "channel": "artemis:settings-shell-runtime-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setAgentConcurrency",
+      "kind": "invoke",
+      "channel": "artemis:settings-agent-concurrency-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setModelSelection",
+      "kind": "invoke",
+      "channel": "artemis:settings-model-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "addModel",
+      "kind": "invoke",
+      "channel": "artemis:settings-model-add",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "removeModel",
+      "kind": "invoke",
+      "channel": "artemis:settings-model-delete",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setProfileAvatar",
+      "kind": "invoke",
+      "channel": "artemis:settings-profile-avatar-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setProjectOrder",
+      "kind": "invoke",
+      "channel": "artemis:settings-project-order-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setProjectThreadOrder",
+      "kind": "invoke",
+      "channel": "artemis:settings-project-thread-order-set",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "setExpandedProjectIds",
+      "kind": "invoke",
+      "channel": "artemis:settings-expanded-project-ids-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setCollapsedProjectIds",
+      "kind": "invoke",
+      "channel": "artemis:settings-collapsed-project-ids-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setProjectSidebarWidth",
+      "kind": "invoke",
+      "channel": "artemis:settings-project-sidebar-width-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setTemporaryConversationsOpen",
+      "kind": "invoke",
+      "channel": "artemis:settings-temporary-conversations-open-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setWorkspaceDockWidth",
+      "kind": "invoke",
+      "channel": "artemis:settings-workspace-dock-width-set",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "saveApiKey",
+      "kind": "invoke",
+      "channel": "artemis:settings-api-key-save",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "saveProviderConnection",
+      "kind": "invoke",
+      "channel": "artemis:settings-provider-save",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "deleteProviderConnection",
+      "kind": "invoke",
+      "channel": "artemis:settings-provider-delete",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "deleteCredential",
+      "kind": "invoke",
+      "channel": "artemis:settings-credential-delete",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "providerLoginOptions",
+      "kind": "invoke",
+      "channel": "artemis:provider-login-options",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "providerLoginStart",
+      "kind": "invoke",
+      "channel": "artemis:provider-login-start",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "providerLoginStatus",
+      "kind": "invoke",
+      "channel": "artemis:provider-login-status",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "providerLoginAnswer",
+      "kind": "invoke",
+      "channel": "artemis:provider-login-answer",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "providerLoginCancel",
+      "kind": "invoke",
+      "channel": "artemis:provider-login-cancel",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "importPiCredentials",
+      "kind": "invoke",
+      "channel": "artemis:settings-pi-import",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "saveGlobalAgents",
+      "kind": "invoke",
+      "channel": "artemis:settings-global-agents-save",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "custom-agents": [
+    {
+      "name": "customAgentsGet",
+      "kind": "invoke",
+      "channel": "artemis:custom-agents-get",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "customAgentsCreate",
+      "kind": "invoke",
+      "channel": "artemis:custom-agents-create",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "customAgentsUpdate",
+      "kind": "invoke",
+      "channel": "artemis:custom-agents-update",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "customAgentsDelete",
+      "kind": "invoke",
+      "channel": "artemis:custom-agents-delete",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "customAgentsPreviewCapabilities",
+      "kind": "invoke",
+      "channel": "artemis:custom-agents-preview-capabilities",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    }
+  ],
+  "configuration-import": [
+    {
+      "name": "scanConfigurationImports",
+      "kind": "invoke",
+      "channel": "artemis:settings-import-scan",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "importConfiguration",
+      "kind": "invoke",
+      "channel": "artemis:settings-import-apply",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "mcp": [
+    {
+      "name": "saveMcpServer",
+      "kind": "invoke",
+      "channel": "artemis:mcp-server-save",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "setMcpServerEnabled",
+      "kind": "invoke",
+      "channel": "artemis:mcp-server-enable",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "reconnectMcpServer",
+      "kind": "invoke",
+      "channel": "artemis:mcp-server-reconnect",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "authorizeMcpServer",
+      "kind": "invoke",
+      "channel": "artemis:mcp-server-authorize",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "removeMcpServer",
+      "kind": "invoke",
+      "channel": "artemis:mcp-server-remove",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "confirmResourceAction",
+      "kind": "invoke",
+      "channel": "artemis:resource-confirm",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "listMcpServers",
+      "kind": "invoke",
+      "channel": "artemis:resource-mcp-list",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "searchMcpCatalog",
+      "kind": "invoke",
+      "channel": "artemis:resource-mcp-search",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "installMcpCatalog",
+      "kind": "invoke",
+      "channel": "artemis:resource-mcp-install",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "name": "searchSkillCatalog",
+      "kind": "invoke",
+      "channel": "artemis:resource-skill-search",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "listInstalledSkills",
+      "kind": "invoke",
+      "channel": "artemis:resource-skill-list",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "installSkillCatalog",
+      "kind": "invoke",
+      "channel": "artemis:resource-skill-install",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "installLocalSkill",
+      "kind": "invoke",
+      "channel": "artemis:resource-skill-install-local",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setSkillEnabled",
+      "kind": "invoke",
+      "channel": "artemis:resource-skill-enable",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "removeSkill",
+      "kind": "invoke",
+      "channel": "artemis:resource-skill-remove",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "integrations": [
+    {
+      "name": "listArtemisPlugins",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-list",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "inspectLocalArtemisPlugin",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-inspect-local",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "loadArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-load",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "getArtemisPluginMarketplaces",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-list",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "addArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-add",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "inspectArtemisPluginMarketplaceTrust",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-trust",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "inspectOfflineArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-inspect-offline",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "addOfflineArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-add-offline",
+      "arity": 3,
+      "args": [
+        "argument-0",
+        "argument-1",
+        "argument-2"
+      ]
+    },
+    {
+      "name": "listConnectorDefinitions",
+      "kind": "invoke",
+      "channel": "artemis:connector-definitions",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "listConnectorConnections",
+      "kind": "invoke",
+      "channel": "artemis:connector-connections",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "connectConnector",
+      "kind": "invoke",
+      "channel": "artemis:connector-connect",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "cancelConnectorAuthorization",
+      "kind": "invoke",
+      "channel": "artemis:connector-cancel",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "reconnectConnector",
+      "kind": "invoke",
+      "channel": "artemis:connector-reconnect",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "disconnectConnector",
+      "kind": "invoke",
+      "channel": "artemis:connector-disconnect",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "selectArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-select",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "refreshArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-refresh",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "removeArtemisPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-remove",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "reorderArtemisPluginMarketplaces",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-marketplace-reorder",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "loadBundledPluginMarketplace",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-runtime-marketplace",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "installBundledPlugins",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-runtime-install",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "installArtemisPlugin",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-install",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "updateArtemisPlugin",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-update",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "setArtemisPluginEnabled",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-enable",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "removeArtemisPlugin",
+      "kind": "invoke",
+      "channel": "artemis:resource-plugin-remove",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "extensions": [
+    {
+      "name": "trustExtension",
+      "kind": "invoke",
+      "channel": "artemis:extension-trust",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "retrustExtension",
+      "kind": "invoke",
+      "channel": "artemis:extension-retrust",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    },
+    {
+      "name": "setTrustedExtensionEnabled",
+      "kind": "invoke",
+      "channel": "artemis:extension-enable",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "setTrustedExtensionNetwork",
+      "kind": "invoke",
+      "channel": "artemis:extension-network",
+      "arity": 2,
+      "args": [
+        "argument-0",
+        "argument-1"
+      ]
+    },
+    {
+      "name": "removeTrustedExtension",
+      "kind": "invoke",
+      "channel": "artemis:extension-remove",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "updates-diagnostics": [
+    {
+      "name": "checkForUpdates",
+      "kind": "invoke",
+      "channel": "artemis:update-check",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "downloadUpdate",
+      "kind": "invoke",
+      "channel": "artemis:update-download",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "installUpdate",
+      "kind": "invoke",
+      "channel": "artemis:update-install",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "exportDiagnostics",
+      "kind": "invoke",
+      "channel": "artemis:diagnostics-export",
+      "arity": 0,
+      "args": []
+    },
+    {
+      "name": "reportRendererError",
+      "kind": "send",
+      "channel": "artemis:diagnostics-renderer-error",
+      "arity": 1,
+      "args": [
+        "argument-0"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "onMcpServerStatus",
+      "kind": "event",
+      "channel": "artemis:mcp-server-status"
+    },
+    {
+      "name": "onResourceInstallProgress",
+      "kind": "event",
+      "channel": "artemis:resource-install-progress"
+    },
+    {
+      "name": "onUpdateStatus",
+      "kind": "event",
+      "channel": "artemis:update-status"
+    },
+    {
+      "name": "onAgentEvent",
+      "kind": "event",
+      "channel": "artemis:agent-event"
+    },
+    {
+      "name": "onAgentEvents",
+      "kind": "event",
+      "channel": "artemis:agent-events"
+    },
+    {
+      "name": "onAgentActivities",
+      "kind": "event",
+      "channel": "artemis:agent-activities"
+    },
+    {
+      "name": "onAutomationEvent",
+      "kind": "event",
+      "channel": "artemis:automation-event"
+    },
+    {
+      "name": "onAutomationThreadOpen",
+      "kind": "event",
+      "channel": "artemis:automation-thread-open"
+    },
+    {
+      "name": "onProjectGitChanged",
+      "kind": "event",
+      "channel": "artemis:project-git-changed"
+    }
+  ]
+}

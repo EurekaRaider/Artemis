@@ -1,3 +1,7 @@
+import { readPreloadBridgeSources, readSharedApiSources } from '../fixtures/application/api-source.js';
+import { readResourceCenterSources } from "../fixtures/application/resource-center-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -6,14 +10,19 @@ import { describe, expect, it } from "vitest";
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
-const mainSource = source("../../src/main/main.ts");
-const preloadSource = source("../../src/preload/preload.ts");
-const resourceCenterSource = source(
-  "../../src/renderer/plugins/ResourceCenter.tsx",
-);
+const mainSource = readMainProcessSources();
+const smokeSource = [
+  "../../scripts/verify/ui/smoke/window-capture.ts",
+  "../../scripts/verify/ui/smoke/prepare-view.ts",
+  "../fixtures/smoke/startup.ts",
+]
+  .map(source)
+  .join("\n");
+const preloadSource = readPreloadBridgeSources();
+const resourceCenterSource = readResourceCenterSources();
 const settingsPanelSource = source("../../src/renderer/app/SettingsPanel.tsx");
-const appSource = source("../../src/renderer/app/App.tsx");
-const apiSource = source("../../src/shared/api.ts");
+const appSource = readRendererAppSources();
+const apiSource = readSharedApiSources();
 const ciWorkflowSource = source("../../../../.github/workflows/ci.yml");
 const gitAttributesSource = source("../../../../.gitattributes");
 const environmentVerifierSource = source(
@@ -50,9 +59,13 @@ describe("desktop startup latency guardrails", () => {
   });
 
   it("creates the renderer without awaiting Agent runtime warm-up", () => {
-    const startup = mainSource.slice(mainSource.indexOf("app\n  .whenReady()"));
-    const warmup = startup.indexOf("agentRuntimeReady = applyAgentRuntime();");
-    const createWindow = startup.indexOf("mainWindow = createMainWindow();");
+    const startup = source("../../src/main/application/startup.ts");
+    const warmup = startup.indexOf(
+      "services.agentRuntimeReady = applyAgentRuntime();",
+    );
+    const createWindow = startup.indexOf(
+      "services.mainWindow = createMainWindow();",
+    );
 
     expect(warmup).toBeGreaterThanOrEqual(0);
     expect(createWindow).toBeGreaterThan(warmup);
@@ -63,10 +76,12 @@ describe("desktop startup latency guardrails", () => {
   });
 
   it("shows the first window before update recovery and terminal runtime preparation", () => {
-    const startup = mainSource.slice(mainSource.indexOf("app\n  .whenReady()"));
-    const createWindow = startup.indexOf("mainWindow = createMainWindow();");
+    const startup = source("../../src/main/application/startup.ts");
+    const createWindow = startup.indexOf(
+      "services.mainWindow = createMainWindow();",
+    );
     const updateRecovery = startup.indexOf(
-      "releaseUpdateReady = releaseUpdateManager.initialize();",
+      "services.releaseUpdateReady = services.releaseUpdateManager.initialize();",
     );
 
     expect(createWindow).toBeGreaterThanOrEqual(0);
@@ -74,8 +89,8 @@ describe("desktop startup latency guardrails", () => {
     expect(startup.slice(0, createWindow)).not.toContain(
       "preparePackagedNodePtyRuntime(",
     );
-    expect(mainSource).toContain("show: !smokeArtifacts");
-    expect(mainSource).toContain("await releaseUpdateReady");
+    expect(mainSource).toContain("show: hostOptions?.show ?? true");
+    expect(mainSource).toContain("await services.releaseUpdateReady");
 
     const terminalOpen = mainSource.slice(
       mainSource.indexOf("IPC.terminalOpen"),
@@ -136,16 +151,16 @@ describe("desktop startup latency guardrails", () => {
     expect(environmentVerifierSource).toContain(
       "dock.feedbackLayout?.reducedMotion === false",
     );
-    expect(mainSource).toContain(
+    expect(smokeSource).toContain(
       "await settingsStore.setThemePreference(smokeTheme)",
     );
     expect(screenshotMatrixSource).toContain(
       "accessibility.themePreference === variant.theme",
     );
-    expect(mainSource).toContain(
+    expect(smokeSource).toContain(
       "const actionOpacityDeadline = performance.now() + 1_000",
     );
-    expect(mainSource).toContain("Number(actionOpacity) >= 0.99");
+    expect(smokeSource).toContain("Number(actionOpacity) >= 0.99");
     expect(conversationVerifierSource).toContain(
       "Math.round(20 * devicePixelRatio) - 1",
     );

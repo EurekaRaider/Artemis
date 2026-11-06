@@ -1,3 +1,4 @@
+import type { ReleaseUpdateStatus } from "./update-contracts.js";
 import type { WindowsInstalledUpdater } from "./windows-installed-updater.js";
 import { checkWindowsRelease } from "./windows-release-check.js";
 import { spawn } from "node:child_process";
@@ -25,28 +26,6 @@ export interface UpdaterAdapter {
   downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
   on(event: string, listener: (...args: any[]) => void): this;
-}
-
-export interface ReleaseUpdateStatus {
-  state:
-    | "disabled"
-    | "idle"
-    | "checking"
-    | "available"
-    | "downloading"
-    | "downloaded"
-    | "error";
-  currentVersion: string;
-  upToDate?: boolean;
-  availableVersion?: string;
-  manualDownloadUrl?: string;
-  manualUpdate?: boolean;
-  completedVersion?: string;
-  progress?: number;
-  downloadedBytes?: number;
-  totalBytes?: number;
-  rollbackAvailable: boolean;
-  message?: string;
 }
 
 export interface UpdateFeedEnvironment {
@@ -440,3 +419,5 @@ export class ReleaseUpdateManager {
     watchdog.unref();
   }
 }
+
+export type { ReleaseUpdateStatus } from "./update-contracts.js";

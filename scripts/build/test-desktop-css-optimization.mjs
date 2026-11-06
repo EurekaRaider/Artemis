@@ -92,3 +92,21 @@ test("preserves charset, import, and layer statement terminators around nesting"
     ],
   );
 });
+
+test("emits fonts and provider artwork as shared assets without changing other inlining", async () => {
+  const { desktopAssetInlining } =
+    await import("./desktop-css-optimization.mjs");
+  assert.equal(typeof desktopAssetInlining, "function");
+  assert.equal(
+    desktopAssetInlining(
+      "/node_modules/katex/dist/fonts/KaTeX_Size4-Regular.woff2",
+    ),
+    false,
+  );
+  assert.equal(desktopAssetInlining("C:\\app\\fonts\\interface.woff2"), false);
+  assert.equal(
+    desktopAssetInlining("/src/settings/assets/provider.svg"),
+    false,
+  );
+  assert.equal(desktopAssetInlining("/src/icons/inline.svg"), undefined);
+});

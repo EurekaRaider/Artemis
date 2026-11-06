@@ -1,12 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
+
 import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 import { threadCommandSchema } from "@artemis/protocol";
 
-const main = readFileSync(
-  new URL("../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const main = readMainProcessSources();
 const start = main.indexOf("  ipcMain.handle(\n    IPC.threadDelete,");
 const end = main.indexOf("  ipcMain.handle(\n    IPC.threadFork,", start);
 function fixture(temporary = false) {
@@ -70,9 +68,10 @@ function fixture(temporary = false) {
     designPanelHost: { releasePanel: vi.fn() },
   };
   new Function(
+    "services",
     ...Object.keys(scope),
     transformSync(main.slice(start, end), { loader: "ts" }).code,
-  )(...Object.values(scope));
+  )(scope, ...Object.values(scope));
   return {
     run: () => handler(undefined, "thread"),
     scope,

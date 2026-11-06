@@ -1,41 +1,50 @@
+import { createResourceDialogRenderers } from "./resource-dialog-renderers.js";
+import { createCapabilityCardRenderers } from "./capability-card-renderers.js";
+import { createPluginCardRenderers } from "./plugin-card-renderers.js";
+import {
+  isLegacyOfficePlugin,
+  pluginPageText,
+  labels,
+  CatalogIcon,
+  GearIcon,
+  RefreshIcon,
+  PlusIcon,
+  TrashIcon,
+  BackIcon,
+  EmptyResource,
+  CatalogSearchNotice,
+  FEATURED_PLUGINS,
+} from "./resource-presentation.js";
+import {
+  type ResourceCenterProps,
+  type McpInstallDraft,
+  type ManagementTab,
+  type CatalogSearchTab,
+  type CatalogSearchPhase,
+  type ResourceRemovalDraft,
+} from "./resource-types.js";
 import designPluginIcon from "../assets/design-plugin-icon.svg";
 // Microsoft Fluent UI: https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/assets/brand-icons/product/svg/office_48x1.svg
 import officeSuiteIcon from "../assets/office-suite-icon.svg";
-import { COMPUTER_USE_RUNTIME_RESOURCES } from "../../shared/i18n/computer-use-resources.js";
-import { PluginConnectionDialog } from "./PluginConnectionDialog.js";
+
 import { PluginInstallDialog } from "./PluginInstallDialog.js";
-import { OfficeCapabilityPanel } from "../office/OfficeCapabilityPanel.js";
-import { DesignCapabilityPanel } from "../design/DesignCapabilityPanel.js";
+
 import { designPackCopy } from "../design/design-pack-copy.js";
 import { officeCopy } from "../office/office-copy.js";
-import { PluginUninstallDialog } from "./PluginUninstallDialog.js";
-import { ResourceRemovalDialog } from "./ResourceRemovalDialog.js";
-import resourceCenterIcon from "../assets/resource-center-icon.png";
+
 import {
   localizedPluginText,
   localizedPluginCategory,
 } from "../../shared/i18n/plugin-localization.js";
-import { bundledPluginDescription } from "../../shared/i18n/bundled-plugin-copy.js";
+
 import { statusText } from "../../shared/i18n/status-text.js";
 import { uiText } from "../../shared/i18n/ui-text.js";
-import { UI_COPY } from "../../shared/i18n/ui-copy.js";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
-import type { AppLocale, CapabilityPackStatus } from "@artemis/protocol";
+import type { CapabilityPackStatus } from "@artemis/protocol";
 import { Button, IconButton } from "@artemis/ui/actions";
-import {
-  Dialog,
-  EmptyState,
-  InlineNotice,
-  LoadingState,
-} from "@artemis/ui/feedback";
+import { Dialog, InlineNotice } from "@artemis/ui/feedback";
 import { SearchField, Select, Switch, TextField } from "@artemis/ui/forms";
 import {
   ManagementCard,
@@ -56,10 +65,8 @@ import type {
   InstalledSkill,
   McpCatalogInstallOption,
   McpCatalogItem,
-  McpServerConfig,
   McpServerStatus,
   ResourceInstallProgress,
-  SettingsSnapshot,
   SkillCatalogItem,
 } from "../../shared/api.js";
 import { McpServerEditor } from "../mcp/McpServerEditor.js";
@@ -67,58 +74,14 @@ import { ArtemisIcon } from "@artemis/ui/icons";
 import {
   resourceIconName,
   ResourceAvatar,
-  SemanticResourceIcon,
-  type ResourceIconKind,
   type ResourceIconName,
 } from "./resource-icons.js";
-
-interface ResourceCenterProps {
-  headerActionTarget?: HTMLElement | null | undefined;
-  onReviewHooks?(pluginId: string, trigger: HTMLButtonElement): void;
-  locale: AppLocale;
-  settings?: SettingsSnapshot;
-  onConfirm(
-    message: string,
-    tone?: "default" | "danger",
-    options?: { title?: string; acceptLabel?: string },
-  ): Promise<boolean>;
-  onSettingsChange(settings: SettingsSnapshot): void;
-}
-
-interface McpInstallDraft {
-  item: McpCatalogItem;
-  option: McpCatalogInstallOption;
-  values: Record<string, string>;
-}
-
-type ManagementTab = "plugins" | "mcp" | "skills";
-type CatalogSearchTab = Extract<ManagementTab, "mcp" | "skills">;
-type CatalogSearchPhase = "idle" | "searching" | "complete";
-type ResourceKind = ResourceIconKind;
-
-type ResourceRemovalDraft =
-  | { kind: "mcp"; server: McpServerStatus }
-  | { kind: "skill"; skill: InstalledSkill };
 
 let installedSkillsCache: InstalledSkill[] | undefined;
 let installedPluginsCache: InstalledArtemisPlugin[] | undefined;
 let marketplaceStateCache: ArtemisPluginMarketplaceState | undefined;
 let runtimeMarketplaceCache: ArtemisPluginMarketplace | undefined;
 let runtimeMarketplaceLoaded = false;
-
-function isLegacyOfficePlugin(plugin: ArtemisPluginPreview): boolean {
-  return (
-    ["bundled", "runtime"].includes(plugin.source.kind) &&
-    ["documents", "spreadsheets", "presentations", "pdf"].includes(plugin.name)
-  );
-}
-
-function pluginPageText(value: string): string {
-  return value
-    .replace(/\b(?:OpenAI\s+Codex|OpenAI|Codex|ChatGPT)\b/giu, "Artemis")
-    .replace(/\s{2,}/gu, " ")
-    .trim();
-}
 
 async function loadInstalledSkills(): Promise<InstalledSkill[]> {
   if (!installedSkillsCache) {
@@ -132,88 +95,6 @@ async function loadInstalledPlugins(): Promise<InstalledArtemisPlugin[]> {
     installedPluginsCache = await window.artemis.listArtemisPlugins();
   }
   return installedPluginsCache;
-}
-
-const labels = UI_COPY.ResourceCenter_labels;
-
-function CatalogIcon({ kind }: { kind: ResourceKind }) {
-  return <SemanticResourceIcon icon={resourceIconName("", kind)} />;
-}
-
-function SearchIcon() {
-  return <ArtemisIcon name="search" />;
-}
-
-function GearIcon() {
-  return <ArtemisIcon name="gear" />;
-}
-
-function RefreshIcon() {
-  return <ArtemisIcon name="refresh" />;
-}
-
-function PlusIcon() {
-  return <ArtemisIcon name="plus" />;
-}
-
-function TrashIcon() {
-  return <ArtemisIcon name="trash" />;
-}
-
-function BackIcon() {
-  return <ArtemisIcon name="chev-left" />;
-}
-
-function EmptyResource({ children }: { children: string }) {
-  return <p className="resource-empty-inline">{children}</p>;
-}
-
-export function CatalogSearchNotice({
-  children,
-  loading = false,
-}: {
-  children: string;
-  loading?: boolean;
-}) {
-  return loading ? (
-    <LoadingState
-      aria-atomic="true"
-      aria-live="polite"
-      label={children}
-      lines={1}
-    />
-  ) : (
-    <EmptyState
-      aria-atomic="true"
-      aria-live="polite"
-      role="status"
-      title={children}
-    />
-  );
-}
-
-const FEATURED_PLUGINS = [
-  "documents",
-  "pdf",
-  "spreadsheets",
-  "presentations",
-  "figma",
-  "github",
-  "google-drive",
-  "gmail",
-  "computer-use",
-  "data-analytics",
-];
-
-function installedCapabilityVersion(
-  status: CapabilityPackStatus | undefined,
-): string | undefined {
-  return (
-    status?.activeVersion ??
-    status?.versions.toSorted((left, right) =>
-      right.version.localeCompare(left.version, "en", { numeric: true }),
-    )[0]?.version
-  );
 }
 
 export function ResourceCenter({
@@ -269,6 +150,31 @@ export function ResourceCenter({
   const [resourceRemovalDraft, setResourceRemovalDraft] =
     useState<ResourceRemovalDraft>();
   const [mcpServers, setMcpServers] = useState(settings?.mcpServers ?? []);
+  const resourceDialogRenderers = createResourceDialogRenderers({
+    pluginUninstallDraft,
+    pluginDisplayName,
+    locale,
+    setPluginUninstallDraft,
+    removePlugin,
+    runResourceOperation,
+    resourceRemovalDraft,
+    visualForSkill,
+    visualForMcp,
+    setResourceRemovalDraft,
+    removeSkill,
+    removeMcp,
+    setDesignPackOpen,
+    designPackOpen,
+    officeCapabilityInstalled,
+    setOfficeCapabilityInstalled,
+    setOfficeCapabilityOpen,
+    officeCapabilityOpen,
+    connectionPlugin,
+    setConnectionPlugin,
+    setMcpServers,
+    onSettingsChange,
+  });
+
   const [skillResults, setSkillResults] = useState<SkillCatalogItem[]>([]);
   const [installedSkills, setInstalledSkills] = useState<InstalledSkill[]>([]);
   const [marketplaceState, setMarketplaceState] = useState<
@@ -301,6 +207,25 @@ export function ResourceCenter({
   const operationPendingRef = useRef(false);
   const t = labels[locale];
   const office = officeCopy(locale);
+  const capabilityCardRenderers = createCapabilityCardRenderers({
+    officePackStatus,
+    officeUpdating,
+    setOfficeUpdating,
+    setOfficePackStatus,
+    setOfficeCapabilityActive,
+    setOfficeCapabilityInstalled,
+    runResourceOperation,
+    office,
+    t,
+    setOfficeCapabilityOpen,
+    locale,
+    designPackStatus,
+    setDesignPackStatus,
+    designPackInstalled,
+    operationPending,
+    setDesignPackOpen,
+  });
+
   // Older installed receipts may lack dependencies that are present in the
   // current catalog used to render the Office entry buttons.
   const hasOfficePlugins = [
@@ -1287,6 +1212,36 @@ export function ResourceCenter({
   const marketplaceSourceById = new Map(
     (marketplaceState?.sources ?? []).map((source) => [source.id, source]),
   );
+  const pluginCardRenderers = createPluginCardRenderers({
+    installedSkills,
+    installedPlugins,
+    t,
+    locale,
+    officeCapabilityActive,
+    mcpServers,
+    installedPluginIds,
+    computerRuntime,
+    marketplaceSourceForPlugin,
+    marketplaceSourceById,
+    pluginMarketplaceLabel,
+    marketplaceSourceLabel,
+    office,
+    operationPending,
+    setPluginInstallDraft,
+    updatePlugin,
+    onReviewHooks,
+    busyId,
+    installProgress,
+    officePackStatus,
+    officeUpdating,
+    setMessage,
+    setOfficeUpdating,
+    runResourceOperation,
+    officeCapabilityInstalled,
+    setOfficeCapabilityOpen,
+    setConnectionPlugin,
+    setPluginUninstallDraft,
+  });
 
   function pluginsForMarketplace(sourceId: string): ArtemisPluginPreview[] {
     const marketplace = marketplaceBySourceId.get(sourceId);
@@ -1885,722 +1840,47 @@ export function ResourceCenter({
   function pluginSkillConflict(
     plugin: ArtemisPluginPreview,
   ): string | undefined {
-    for (const skill of plugin.skills) {
-      const installed = installedSkills.find(
-        (candidate) => candidate.name === skill.name,
-      );
-      if (!installed) continue;
-      if (
-        (plugin.source.kind === "builtin" ||
-          plugin.source.kind === "bundled" ||
-          plugin.source.kind === "runtime") &&
-        plugin.source.pluginName === skill.name
-      ) {
-        continue;
-      }
-      const owner = installedPlugins.find((candidate) =>
-        candidate.skillNames.includes(skill.name),
-      );
-      return `${t.skillConflict}: ${pluginPageText(skill.name)} · ${pluginPageText(
-        owner ? pluginDisplayName(owner) : t.skills,
-      )}`;
-    }
-    return undefined;
+    return pluginCardRenderers.pluginSkillConflict(plugin);
   }
 
   function pluginDisplayName(plugin: ArtemisPluginPreview): string {
-    return pluginPageText(localizedPluginText(plugin, locale).displayName);
+    return pluginCardRenderers.pluginDisplayName(plugin);
   }
 
   function pluginDescription(plugin: ArtemisPluginPreview): string {
-    const copy = localizedPluginText(plugin, locale);
-    if (
-      plugin.source.kind === "builtin" ||
-      plugin.source.kind === "bundled" ||
-      plugin.source.kind === "runtime"
-    ) {
-      const translated = bundledPluginDescription(
-        locale,
-        plugin.source.pluginName,
-        officeCapabilityActive,
-      );
-      if (translated) return translated;
-    }
-    const translated = plugin.localizations?.[locale];
-    if (translated?.shortDescription || translated?.description) {
-      return pluginPageText(
-        translated.shortDescription || translated.description!,
-      );
-    }
-    return pluginPageText(
-      copy.shortDescription || copy.description || plugin.name,
-    );
+    return pluginCardRenderers.pluginDescription(plugin);
   }
 
   function pluginHasConnection(plugin: InstalledArtemisPlugin): boolean {
-    return mcpServers.some(
-      (server) =>
-        server.config.connector &&
-        plugin.mcpServerIds.includes(server.config.id),
-    );
+    return pluginCardRenderers.pluginHasConnection(plugin);
   }
 
-  function renderPluginUninstall() {
-    return pluginUninstallDraft ? (
-      <PluginUninstallDialog
-        plugin={pluginUninstallDraft}
-        displayName={pluginDisplayName(pluginUninstallDraft)}
-        locale={locale}
-        onCancel={() => setPluginUninstallDraft(undefined)}
-        onUninstall={() => {
-          setPluginUninstallDraft(undefined);
-          runResourceOperation(() => removePlugin(pluginUninstallDraft));
-        }}
-      />
-    ) : null;
+  function renderPluginUninstall(): import("react").JSX.Element | null {
+    return resourceDialogRenderers.renderPluginUninstall();
   }
 
-  function renderResourceRemoval() {
-    if (!resourceRemovalDraft) return null;
-    const draft = resourceRemovalDraft;
-    const name =
-      draft.kind === "mcp" ? draft.server.config.name : draft.skill.name;
-    const visual =
-      draft.kind === "mcp"
-        ? visualForMcp(draft.server)
-        : visualForSkill(draft.skill);
-    return (
-      <ResourceRemovalDialog
-        avatar={<ResourceAvatar {...visual} kind={draft.kind} name={name} />}
-        kind={draft.kind}
-        name={name}
-        locale={locale}
-        onCancel={() => setResourceRemovalDraft(undefined)}
-        onRemove={() => {
-          setResourceRemovalDraft(undefined);
-          runResourceOperation(() =>
-            draft.kind === "mcp"
-              ? removeMcp(draft.server.config.id)
-              : removeSkill(draft.skill),
-          );
-        }}
-      />
-    );
+  function renderResourceRemoval(): import("react").JSX.Element | null {
+    return resourceDialogRenderers.renderResourceRemoval();
   }
 
-  function renderOfficePackCard() {
-    const status = officePackStatus;
-    const installedVersion = installedCapabilityVersion(status);
-    const installed = Boolean(status?.versions.length);
-    const working =
-      officeUpdating || Boolean(status && status.phase !== "idle");
-    const run = (operation: () => Promise<void>) =>
-      runResourceOperation(async () => {
-        setOfficeUpdating(true);
-        try {
-          await operation();
-          const status = await window.artemis.officeCapabilityStatus();
-          setOfficePackStatus(status);
-          setOfficeCapabilityActive(Boolean(status.activeVersion));
-          setOfficeCapabilityInstalled(status.versions.length > 0);
-          window.dispatchEvent(new Event("artemis:resources-changed"));
-        } finally {
-          setOfficeUpdating(false);
-        }
-      });
-    return (
-      <ManagementCard className="plugin-market-card office-pack-card">
-        <div className="plugin-market-card-heading">
-          <ResourceAvatar
-            kind="plugin"
-            name="office"
-            iconDataUrl={officeSuiteIcon}
-          />
-          <div className="plugin-market-card-titles">
-            <strong>
-              {"Office"}
-              <span className="plugin-market-card-vn">
-                {installedVersion ? `v${installedVersion}` : ""}
-              </span>
-            </strong>
-          </div>
-        </div>
-        <div className="plugin-market-copy">
-          <small>{office.shared}</small>
-        </div>
-        <div className="plugin-market-card-footer">
-          <details
-            className="plugin-market-card-actions"
-            data-installed={installed}
-            open={working || !installed ? true : undefined}
-          >
-            <summary>
-              <ArtemisIcon name="check" width={14} height={14} />
-              {t.installed}
-            </summary>
-            <div className="plugin-card-menu-body">
-              {working ? (
-                <>
-                  <progress
-                    aria-label={office.working}
-                    max={status?.totalBytes || 1}
-                    value={status?.downloadedBytes}
-                  />
-                  <Button
-                    variant="quiet"
-                    onClick={() => void window.artemis.cancelOfficeCapability()}
-                  >
-                    {office.cancel}
-                  </Button>
-                </>
-              ) : installed ? (
-                <>
-                  {status?.updateVersion && (
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        run(() => window.artemis.installOfficeCapability())
-                      }
-                    >
-                      {office.updateNow.replace(
-                        "{version}",
-                        status.updateVersion,
-                      )}
-                    </Button>
-                  )}
-                  <Button
-                    variant="secondary"
-                    className="management-destructive-action plugin-market-remove-action"
-                    icon={<TrashIcon />}
-                    disabled={status?.versions.some((version) => version.inUse)}
-                    title={
-                      status?.versions.some((version) => version.inUse)
-                        ? office.inUse
-                        : undefined
-                    }
-                    onClick={() =>
-                      run(() => window.artemis.uninstallOfficeCapability())
-                    }
-                  >
-                    {office.remove}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    status?.availableVersion
-                      ? run(() => window.artemis.installOfficeCapability())
-                      : setOfficeCapabilityOpen(true)
-                  }
-                >
-                  {t.install}
-                </Button>
-              )}
-            </div>
-          </details>
-        </div>
-      </ManagementCard>
-    );
+  function renderOfficePackCard(): import("react").JSX.Element {
+    return capabilityCardRenderers.renderOfficePackCard();
   }
 
   /** 随应用提供的设计插件卡：安装/卸载决定设计面板入口的显隐（todo ⑤）。 */
-  function renderDesignPackCard() {
-    const copy = designPackCopy(locale);
-    const status = designPackStatus;
-    const installedVersion = installedCapabilityVersion(status);
-    const installed = Boolean(status?.versions.length);
-    const working = Boolean(status && status.phase !== "idle");
-    const run = (operation: () => Promise<void>) =>
-      runResourceOperation(async () => {
-        await operation();
-        setDesignPackStatus(await window.artemis.designCapabilityStatus());
-        window.dispatchEvent(new Event("artemis:resources-changed"));
-      });
-    return (
-      <ManagementCard className="plugin-market-card design-pack-card">
-        <div className="plugin-market-card-heading">
-          <ResourceAvatar
-            kind="plugin"
-            name="design"
-            iconDataUrl={designPluginIcon}
-          />
-          <div className="plugin-market-card-titles">
-            <strong
-              title={`${uiText(
-                locale,
-                "App_copy.designTab",
-              )}${installedVersion ? ` v${installedVersion}` : ""}`}
-            >
-              {uiText(locale, "App_copy.designTab")}
-              {/* 与通用卡一致：已安装时在名称后跟小号 v+版本号。 */}
-              {designPackInstalled && installedVersion && (
-                <span className="plugin-market-card-vn">
-                  v{installedVersion}
-                </span>
-              )}
-            </strong>
-          </div>
-        </div>
-        <div className="plugin-market-copy">
-          <small>{copy.manageDescription}</small>
-        </div>
-        <div className="plugin-market-card-footer">
-          <details
-            className="plugin-market-card-actions"
-            data-installed={installed}
-            open={working || !installed ? true : undefined}
-          >
-            <summary>
-              <ArtemisIcon name="check" width={14} height={14} />
-              {t.installed}
-            </summary>
-            <div className="plugin-card-menu-body">
-              {working ? (
-                <div
-                  className="office-capability-progress"
-                  role="status"
-                  style={{ display: "flex", alignItems: "center", gap: 10 }}
-                >
-                  <progress
-                    max={status?.totalBytes || 1}
-                    value={status?.downloadedBytes}
-                    style={{ width: 140 }}
-                  />
-                  <Button
-                    variant="quiet"
-                    size="compact"
-                    onClick={() => void window.artemis.cancelDesignCapability()}
-                  >
-                    {copy.cancel}
-                  </Button>
-                </div>
-              ) : installed ? (
-                <>
-                  {status?.updateVersion ? (
-                    <Button
-                      className="plugin-market-update-action"
-                      variant="secondary"
-                      size="compact"
-                      disabled={operationPending}
-                      onClick={() =>
-                        run(() => window.artemis.installDesignCapability())
-                      }
-                    >
-                      {copy.updateNow.replace(
-                        "{version}",
-                        status.updateVersion,
-                      )}
-                    </Button>
-                  ) : null}
-                  <Button
-                    className="management-destructive-action plugin-market-remove-action"
-                    icon={<TrashIcon />}
-                    variant="secondary"
-                    disabled={
-                      operationPending ||
-                      status?.versions.some((version) => version.inUse)
-                    }
-                    title={
-                      status?.versions.some((version) => version.inUse)
-                        ? copy.inUse
-                        : undefined
-                    }
-                    onClick={() =>
-                      run(() => window.artemis.uninstallDesignCapability())
-                    }
-                  >
-                    {t.remove}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="secondary"
-                  disabled={operationPending}
-                  onClick={() => {
-                    if (status?.availableVersion) {
-                      run(() => window.artemis.installDesignCapability());
-                      return;
-                    }
-                    // 无在线版本：管理弹窗承载离线导入路径。
-                    setDesignPackOpen(true);
-                  }}
-                >
-                  {t.install}
-                </Button>
-              )}
-            </div>
-          </details>
-        </div>
-      </ManagementCard>
-    );
+  function renderDesignPackCard(): import("react").JSX.Element {
+    return capabilityCardRenderers.renderDesignPackCard();
   }
 
-  function renderPluginConnection() {
-    if (designPackOpen)
-      return (
-        <DesignCapabilityPanel
-          locale={locale}
-          onClose={() => setDesignPackOpen(false)}
-        />
-      );
-    if (officeCapabilityOpen)
-      return (
-        <OfficeCapabilityPanel
-          locale={locale}
-          installed={officeCapabilityInstalled !== false}
-          onInstalledChange={setOfficeCapabilityInstalled}
-          onClose={() => setOfficeCapabilityOpen(false)}
-        />
-      );
-    return connectionPlugin ? (
-      <PluginConnectionDialog
-        key={connectionPlugin.id}
-        plugin={connectionPlugin}
-        locale={locale}
-        closeLabel={uiText(locale, "App_copy.renameClose")}
-        onClose={() => setConnectionPlugin(undefined)}
-        onChanged={async () => {
-          const next = await window.artemis.getSettings();
-          setMcpServers(next.mcpServers);
-          onSettingsChange(next);
-        }}
-      />
-    ) : null;
+  function renderPluginConnection(): import("react").JSX.Element | null {
+    return resourceDialogRenderers.renderPluginConnection();
   }
 
-  function renderPluginCard(plugin: ArtemisPluginPreview, sourceId?: string) {
-    const installed = installedPluginIds.has(plugin.id);
-    const installedPlugin = installedPlugins.find(
-      (candidate) => candidate.id === plugin.id,
-    );
-    const computer =
-      plugin.source.kind === "builtin" &&
-      plugin.source.pluginName === "computer-use";
-    const runtimeCopy = COMPUTER_USE_RUNTIME_RESOURCES[locale];
-    const computerWorking = Boolean(
-      computerRuntime && computerRuntime.phase !== "idle",
-    );
-    const installedVersion = computer
-      ? computerRuntime?.activeVersion
-      : installedPlugin?.version;
-    const displayVersion =
-      installedVersion ??
-      (!installed && !computer ? plugin.version : undefined);
-    const conflict = installed ? undefined : pluginSkillConflict(plugin);
-    const displayName = pluginDisplayName(plugin);
-    const description = pluginDescription(plugin);
-    const hasOfficeCapability = plugin.capabilityDependencies?.some(
-      (dependency) => dependency.id === "office-core",
-    );
-    const source =
-      plugin.source.kind === "builtin" ||
-      plugin.source.kind === "bundled" ||
-      plugin.source.kind === "runtime"
-        ? undefined
-        : sourceId
-          ? marketplaceSourceById.get(sourceId)
-          : marketplaceSourceForPlugin(plugin);
-    const sourceLabel = source
-      ? marketplaceSourceLabel(source)
-      : pluginMarketplaceLabel(plugin);
-    const diagnostic = conflict
-      ? conflict
-      : plugin.installable
-        ? plugin.warnings.join(" · ")
-        : plugin.unsupported.join(", ");
-    return (
-      <ManagementCard className="plugin-market-card" key={plugin.id}>
-        <div className="plugin-market-card-heading">
-          {computer ? (
-            <span
-              className="resource-avatar"
-              data-plugin="true"
-              data-icon="monitor"
-              style={{ "--resource-plugin-hue": 225 } as CSSProperties}
-            >
-              <ArtemisIcon name="monitor" />
-            </span>
-          ) : (
-            <ResourceAvatar
-              brandColor={plugin.brandColor}
-              iconDataUrl={plugin.iconDataUrl}
-              iconKey={plugin.hasHooks ? "hook-plugin" : undefined}
-              kind="plugin"
-              name={plugin.name}
-            />
-          )}
-          <div className="plugin-market-card-titles">
-            <strong
-              title={`${displayName}${displayVersion ? ` v${displayVersion}` : ""}`}
-            >
-              {displayName}
-            </strong>
-            {displayVersion && (
-              <span className="plugin-market-card-vn">v{displayVersion}</span>
-            )}
-          </div>
-        </div>
-        <div className="plugin-market-copy">
-          <small title={description}>{description}</small>
-          {Boolean(plugin.skins?.length) && (
-            <small>
-              <ArtemisIcon name="palette" />{" "}
-              {uiText(locale, "Appearance.visualSkin")}: {plugin.skins!.length}
-            </small>
-          )}
-          {computer && computerRuntime && (
-            <>
-              {!computerRuntime.supported && (
-                <small>{runtimeCopy.supported}</small>
-              )}
-              {computerRuntime.pendingVersion && (
-                <small>
-                  {runtimeCopy.waiting.replace(
-                    "{version}",
-                    computerRuntime.pendingVersion,
-                  )}
-                </small>
-              )}
-              {computerRuntime.migrationRequired && (
-                <small>{runtimeCopy.migration}</small>
-              )}
-              {(computerRuntime.error || computerRuntime.updateError) && (
-                <InlineNotice tone="warning">
-                  {computerRuntime.error || computerRuntime.updateError}
-                </InlineNotice>
-              )}
-              {computerWorking && (
-                <progress
-                  aria-label={office.working}
-                  max={computerRuntime.totalBytes || 1}
-                  value={computerRuntime.downloadedBytes}
-                />
-              )}
-            </>
-          )}
-          {diagnostic && (
-            <InlineNotice className="plugin-market-diagnostic" tone="warning">
-              {pluginPageText(diagnostic)}
-            </InlineNotice>
-          )}
-        </div>
-        <div className="plugin-market-card-footer">
-          <span className="plugin-permission-tags">
-            {plugin.mcpServers.length > 0 && (
-              <span>
-                <ArtemisIcon name="mcp" />
-                {t.mcp} {plugin.mcpServers.length}
-              </span>
-            )}
-            {plugin.skills.length > 0 && (
-              <span>
-                <ArtemisIcon name="skill" />
-                {t.skills} {plugin.skills.length}
-              </span>
-            )}
-            {plugin.hasHooks && (
-              <span>
-                <ArtemisIcon name="hooks" />
-                {uiText(locale, "Hooks.title")}
-              </span>
-            )}
-          </span>
-          <details
-            className="plugin-market-card-actions"
-            data-office={hasOfficeCapability || undefined}
-            data-computer={computer || undefined}
-            data-installed={installed}
-            open={installed ? undefined : true}
-          >
-            <summary>
-              <ArtemisIcon name="check" width={14} height={14} />
-              {t.installed}
-            </summary>
-            <div className="plugin-card-menu-body">
-              {computer &&
-                installed &&
-                computerRuntime &&
-                (computerRuntime.updateVersion ||
-                  computerRuntime.migrationRequired ||
-                  computerRuntime.pendingVersion ||
-                  computerWorking) && (
-                  <Button
-                    variant="secondary"
-                    size="compact"
-                    disabled={
-                      operationPending ||
-                      computerWorking ||
-                      (Boolean(computerRuntime.pendingVersion) &&
-                        !computerRuntime.error) ||
-                      !computerRuntime.supported
-                    }
-                    onClick={() =>
-                      installedPlugin
-                        ? void updatePlugin(installedPlugin)
-                        : setPluginInstallDraft(plugin)
-                    }
-                  >
-                    {computerWorking
-                      ? office.working
-                      : computerRuntime.error
-                        ? uiText(locale, "App_copy.queueRetry")
-                        : computerRuntime.pendingVersion
-                          ? runtimeCopy.ready
-                          : computerRuntime.migrationRequired
-                            ? runtimeCopy.install
-                            : office.updateNow.replace(
-                                "{version}",
-                                computerRuntime.updateVersion!,
-                              )}
-                  </Button>
-                )}
-              {computer && computerRuntime?.phase === "downloading" && (
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  onClick={() => {
-                    void window.artemis.cancelComputerRuntimeDownload();
-                  }}
-                >
-                  {t.cancel}
-                </Button>
-              )}
-              {installed && plugin.hasHooks && onReviewHooks && (
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  icon={<ArtemisIcon name="hooks" />}
-                  onClick={(event) =>
-                    onReviewHooks(plugin.id, event.currentTarget)
-                  }
-                >
-                  {uiText(locale, "Hooks.title")}
-                </Button>
-              )}
-              {installed && installedPlugin ? (
-                <>
-                  {hasOfficeCapability &&
-                    (officePackStatus?.updateVersion || officeUpdating) && (
-                      <>
-                        {officeUpdating && (
-                          <progress
-                            aria-label={office.working}
-                            max={officePackStatus?.totalBytes || 1}
-                            value={officePackStatus?.downloadedBytes}
-                            style={{ width: 100 }}
-                          />
-                        )}
-                        <Button
-                          className="plugin-market-update-action"
-                          variant="secondary"
-                          size="compact"
-                          disabled={
-                            operationPending ||
-                            Boolean(
-                              officePackStatus &&
-                              officePackStatus.phase !== "idle",
-                            )
-                          }
-                          onClick={() =>
-                            runResourceOperation(async () => {
-                              setMessage(undefined);
-                              setOfficeUpdating(true);
-                              try {
-                                await window.artemis.installOfficeCapability();
-                              } finally {
-                                setOfficeUpdating(false);
-                              }
-                            })
-                          }
-                        >
-                          {officeUpdating
-                            ? office.working
-                            : office.updateNow.replace(
-                                "{version}",
-                                officePackStatus!.updateVersion!,
-                              )}
-                        </Button>
-                      </>
-                    )}
-                  {hasOfficeCapability ? (
-                    <Button
-                      className="plugin-market-configure-action"
-                      disabled={officeUpdating}
-                      icon={
-                        <ArtemisIcon
-                          name={
-                            officeCapabilityInstalled === false
-                              ? "push"
-                              : "gear"
-                          }
-                        />
-                      }
-                      variant="secondary"
-                      title={
-                        officeCapabilityInstalled === false
-                          ? office.shared
-                          : office.manageDescription
-                      }
-                      onClick={() => setOfficeCapabilityOpen(true)}
-                    >
-                      {officeCapabilityInstalled === false
-                        ? office.runtime
-                        : office.manage}
-                    </Button>
-                  ) : null}
-                  {pluginHasConnection(installedPlugin) && (
-                    <Button
-                      className="plugin-market-configure-action"
-                      icon={<GearIcon />}
-                      variant="secondary"
-                      disabled={operationPending || busyId === plugin.id}
-                      onClick={() => setConnectionPlugin(installedPlugin)}
-                    >
-                      {t.configure}
-                    </Button>
-                  )}
-                  <Button
-                    className="management-destructive-action plugin-market-remove-action"
-                    icon={<TrashIcon />}
-                    disabled={operationPending || busyId === plugin.id}
-                    onClick={() => setPluginUninstallDraft(installedPlugin)}
-                    variant="secondary"
-                  >
-                    {t.remove}
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  className="resource-inline-action"
-                  variant="secondary"
-                  disabled={
-                    operationPending ||
-                    !plugin.installable ||
-                    (computer && computerRuntime?.supported === false) ||
-                    (computer && computerWorking) ||
-                    Boolean(conflict) ||
-                    busyId === plugin.id ||
-                    installProgress !== undefined
-                  }
-                  onClick={() => setPluginInstallDraft(plugin)}
-                  title={
-                    diagnostic ||
-                    (plugin.installable ? t.install : t.needsSetup)
-                  }
-                >
-                  {conflict
-                    ? t.skillConflict
-                    : plugin.installable
-                      ? t.install
-                      : t.needsSetup}
-                </Button>
-              )}
-            </div>
-          </details>
-        </div>
-      </ManagementCard>
-    );
+  function renderPluginCard(
+    plugin: ArtemisPluginPreview,
+    sourceId?: string,
+  ): import("react").JSX.Element {
+    return pluginCardRenderers.renderPluginCard(plugin, sourceId);
   }
 
   if (mode === "add-plugin") {
@@ -4130,3 +3410,5 @@ export function ResourceCenter({
     </ResourceSurface>
   );
 }
+
+export { CatalogSearchNotice } from "./resource-presentation.js";

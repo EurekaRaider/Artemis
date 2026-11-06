@@ -1,3 +1,7 @@
+import { readSharedApiSources } from '../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
@@ -12,13 +16,13 @@ function source(relativePath: string): string {
   );
 }
 
-const appSource = source("../../src/renderer/app/App.tsx");
+const appSource = readRendererAppSources();
 const childAgentIconSource = source(
   "../../src/renderer/components/ChildAgentIcon.tsx",
 );
-const stylesSource = source("../../src/renderer/styles/styles.css");
-const apiSource = source("../../src/shared/api.ts");
-const mainSource = source("../../src/main/main.ts");
+const stylesSource = readDesktopStyles("styles");
+const apiSource = readSharedApiSources();
+const mainSource = readMainProcessSources();
 const workerSource = source("../../src/agent/agent-worker.ts");
 
 describe("agent-team workbench", () => {

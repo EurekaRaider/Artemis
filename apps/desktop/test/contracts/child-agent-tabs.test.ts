@@ -1,3 +1,5 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
@@ -25,8 +27,8 @@ function between(
   return value.slice(start, end);
 }
 
-const appSource = source("../../src/renderer/app/App.tsx");
-const stylesSource = source("../../src/renderer/styles/styles.css");
+const appSource = readRendererAppSources();
+const stylesSource = readDesktopStyles("styles");
 const workspaceTabsSource = source(
   "../../src/renderer/workspace/workspace-tabs.ts",
 );
@@ -55,11 +57,7 @@ describe("Codex-style child-agent workspace tabs", () => {
   });
 
   it("renders each open child agent from the live protocol reducer state", () => {
-    const dockSource = between(
-      appSource,
-      "<WorkspaceDock",
-      "{settingsOpen && (",
-    );
+    const dockSource = source("../../src/renderer/app/AppWorkspaceDock.tsx");
 
     expect(dockSource).toContain('tab.kind === "child-agent"');
     expect(dockSource).toContain("threadState?.childAgents[tab.childAgentId]");

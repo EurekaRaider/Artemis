@@ -1,20 +1,14 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readAgentRuntimeSources } from "../fixtures/application/agent-runtime-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const apiSource = readFileSync(
-  new URL("../../src/shared/api.ts", import.meta.url),
-  "utf8",
-);
-const preloadSource = readFileSync(
-  new URL("../../src/preload/preload.ts", import.meta.url),
-  "utf8",
-);
-const mainSource = readFileSync(
-  new URL("../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const apiSource = readSharedApiSources();
+const preloadSource = readPreloadBridgeSources();
+const mainSource = readMainProcessSources();
 const settingsPanelSource = readFileSync(
   new URL("../../src/renderer/app/SettingsPanel.tsx", import.meta.url),
   "utf8",
@@ -24,7 +18,7 @@ const mcpServerEditorSource = readFileSync(
   "utf8",
 );
 const mcpManagerSource = readFileSync(
-  new URL("../../src/main/mcp/mcp-client-manager.ts", import.meta.url),
+  new URL("../../src/main/mcp/mcp-connection-factory.ts", import.meta.url),
   "utf8",
 );
 const extensionManagerSource = readFileSync(
@@ -38,13 +32,7 @@ const terminalServiceSource = readFileSync(
   new URL("../../src/main/terminal/terminal-service.ts", import.meta.url),
   "utf8",
 );
-const agentRuntimeSource = readFileSync(
-  new URL(
-    "../../../../packages/agent-host/src/runtime/runtime.ts",
-    import.meta.url,
-  ),
-  "utf8",
-);
+const agentRuntimeSource = readAgentRuntimeSources();
 
 describe("local full access setting", () => {
   it("wires the default-off setting through the snapshot and isolated IPC", () => {
@@ -64,7 +52,7 @@ describe("local full access setting", () => {
       "ipcMain.handle(\n    IPC.settingsLocalFullAccessSet",
     );
     expect(mainSource).toContain(
-      "await settingsStore.setLocalFullAccess(Boolean(enabled))",
+      "await services.settingsStore.setLocalFullAccess(Boolean(enabled))",
     );
   });
 
@@ -137,7 +125,7 @@ describe("local full access setting", () => {
     );
 
     expect(handler).toContain(
-      "await settingsStore.setLocalFullAccess(Boolean(enabled))",
+      "await services.settingsStore.setLocalFullAccess(Boolean(enabled))",
     );
     expect(handler).not.toContain("mcpClientManager");
     expect(handler).not.toContain("initializeOptionalCapabilities");

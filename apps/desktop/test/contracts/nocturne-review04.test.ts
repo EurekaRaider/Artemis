@@ -1,12 +1,12 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
 import { readFileSync } from "node:fs";
 import postcss from "postcss";
 import { describe, expect, it } from "vitest";
 import { findCssDeclarations } from "./css-test-utils.js";
 
-const style = (name: string) =>
-  readFileSync(
-    new URL(`../../src/renderer/styles/${name}`, import.meta.url),
-    "utf8",
+const style = (name: "nocturne.css" | "prototype-migration.css") =>
+  readDesktopStyles(
+    name.replace(/\.css$/, "") as "nocturne" | "prototype-migration",
   );
 const nocturne = style("nocturne.css");
 const locales = ["zh-CN", "zh-TW"] as const;

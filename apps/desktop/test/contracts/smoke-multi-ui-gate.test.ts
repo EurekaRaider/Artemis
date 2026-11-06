@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const mainSource = readFileSync(
-  fileURLToPath(new URL("../../src/main/main.ts", import.meta.url)),
+  fileURLToPath(new URL("../fixtures/smoke/user-input.ts", import.meta.url)),
   "utf8",
 );
 const verifyScriptSource = readFileSync(
@@ -26,6 +26,11 @@ const verifyScriptSource = readFileSync(
       import.meta.url,
     ),
   ),
+  "utf8",
+);
+
+const windowSource = readFileSync(
+  new URL("../../scripts/verify/ui/smoke/window-capture.ts", import.meta.url),
   "utf8",
 );
 
@@ -65,15 +70,15 @@ describe("smoke multi-question UI sentinel gate (D#76 PR10C review, severe 1)", 
   });
 
   it("treats a sentinel-less multi-question-ui view as unknown in the prepareSmokeView activation path", () => {
-    const activationPoint = mainSource.indexOf("const prepareSmokeView");
+    const activationPoint = windowSource.indexOf("const prepareSmokeView");
     expect(
       activationPoint,
       "main.ts 缺少 prepareSmokeView 激活点",
     ).toBeGreaterThan(-1);
     // Anchor at the view normalization rather than a character budget, so
     // unrelated smoke drivers cannot move the guard out of the scan.
-    const gateRegion = mainSource.slice(
-      mainSource.lastIndexOf("const rawSmokeView", activationPoint),
+    const gateRegion = windowSource.slice(
+      windowSource.lastIndexOf("const rawSmokeView", activationPoint),
       activationPoint,
     );
     expect(

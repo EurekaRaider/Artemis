@@ -1,3 +1,7 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { uiText } from "../../../src/shared/i18n/ui-text.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -6,18 +10,15 @@ import { describe, expect, it } from "vitest";
 import { findCssDeclarations } from "../../contracts/css-test-utils.js";
 
 const root = join(import.meta.dirname, "../../..");
-const api = readFileSync(join(root, "src/shared/api.ts"), "utf8");
-const preload = readFileSync(join(root, "src/preload/preload.ts"), "utf8");
-const main = readFileSync(join(root, "src/main/main.ts"), "utf8");
-const app = readFileSync(join(root, "src/renderer/app/App.tsx"), "utf8");
+const api = readSharedApiSources();
+const preload = readPreloadBridgeSources();
+const main = readMainProcessSources();
+const app = readRendererAppSources();
 const page = readFileSync(
   join(root, "src/renderer/automation/AutomationPage.tsx"),
   "utf8",
 );
-const styles = readFileSync(
-  join(root, "src/renderer/styles/styles.css"),
-  "utf8",
-);
+const styles = readDesktopStyles("styles");
 const publicStyles = readFileSync(
   join(root, "../../packages/ui/src/styles.css"),
   "utf8",

@@ -1,3 +1,4 @@
+import { compareExactContract } from "./internal/compare-contract.js";
 import {
   forwardRef,
   type ButtonHTMLAttributes,
@@ -272,44 +273,14 @@ export function validateProfessionalComponentContracts(
   candidate: unknown,
 ): ProfessionalComponentContractValidationResult {
   const errors: string[] = [];
-  const compare = (actual: unknown, expected: unknown, path: string): void => {
-    if (Array.isArray(expected)) {
-      if (!Array.isArray(actual) || actual.length !== expected.length) {
-        errors.push(`${path} must contain ${expected.length} entries`);
-        return;
-      }
-      expected.forEach((entry, index) =>
-        compare(actual[index], entry, `${path}[${index}]`),
-      );
-      return;
-    }
-    if (typeof expected === "object" && expected !== null) {
-      if (
-        typeof actual !== "object" ||
-        actual === null ||
-        Array.isArray(actual)
-      ) {
-        errors.push(`${path} must be an object`);
-        return;
-      }
-      const actualRecord = actual as Record<string, unknown>;
-      const expectedRecord = expected as Record<string, unknown>;
-      const actualKeys = Object.keys(actualRecord).sort();
-      const expectedKeys = Object.keys(expectedRecord).sort();
-      if (JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)) {
-        errors.push(`${path} fields are not exact`);
-        return;
-      }
-      for (const key of expectedKeys) {
-        compare(actualRecord[key], expectedRecord[key], `${path}.${key}`);
-      }
-      return;
-    }
-    if (actual !== expected) {
-      errors.push(`${path} must equal ${String(expected)}`);
-    }
-  };
-  compare(candidate, PROFESSIONAL_COMPONENT_CONTRACTS, "contracts");
+
+  compareExactContract(
+    candidate,
+    PROFESSIONAL_COMPONENT_CONTRACTS,
+    "contracts",
+    errors,
+    { formatValue: String },
+  );
   return Object.freeze({
     valid: errors.length === 0,
     errors: Object.freeze(errors),

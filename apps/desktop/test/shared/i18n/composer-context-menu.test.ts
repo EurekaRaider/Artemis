@@ -1,3 +1,7 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { uiText } from "../../../src/shared/i18n/ui-text.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -8,14 +12,14 @@ import { findCssDeclarations } from "../../contracts/css-test-utils.js";
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
-const appSource = source("../../../src/renderer/app/App.tsx");
+const appSource = readRendererAppSources();
 const contextSource = source(
   "../../../src/renderer/conversation/ComposerContextBar.tsx",
 );
-const apiSource = source("../../../src/shared/api.ts");
-const preloadSource = source("../../../src/preload/preload.ts");
-const mainSource = source("../../../src/main/main.ts");
-const stylesSource = source("../../../src/renderer/styles/styles.css");
+const apiSource = readSharedApiSources();
+const preloadSource = readPreloadBridgeSources();
+const mainSource = readMainProcessSources();
+const stylesSource = readDesktopStyles("styles");
 
 describe("composer project and Git context menus", () => {
   it("renders the context bar with real project switching actions", () => {

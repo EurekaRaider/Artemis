@@ -16,7 +16,7 @@ it("queues cold macOS URL events until startup connects the main entry and deliv
     await writeFile(join(directory, "package.json"), '{"type":"module"}');
     await writeFile(
       join(directory, "main.js"),
-      "export function openThreadLink(url) { globalThis.__reviewBootstrapOpened.push(url); }",
+      "export function startDesktopApplication() {} export function openThreadLink(url) { globalThis.__reviewBootstrapOpened.push(url); }",
     );
     await build({
       entryPoints: [

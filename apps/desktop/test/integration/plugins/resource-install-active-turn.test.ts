@@ -1,12 +1,11 @@
-import { readFileSync } from "node:fs";
+import { ipcHandlerSource } from "../../fixtures/ipc/source-handler.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
+
 import { join } from "node:path";
 import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 
-const main = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const main = readMainProcessSources();
 
 function between(start: string, end: string): string {
   const from = main.indexOf(start);
@@ -21,6 +20,20 @@ const channels = [
   "resourceSkillInstall",
   "resourceSkillInstallLocal",
 ] as const;
+
+const registrations = Object.fromEntries(
+  await Promise.all(
+    channels.map(async (channel) => [
+      channel,
+      await ipcHandlerSource(
+        channel.startsWith("resourcePlugin")
+          ? "plugin-management"
+          : "resource-catalog",
+        channel,
+      ),
+    ]),
+  ),
+);
 
 function fixture(channel: (typeof channels)[number]) {
   let handler: (...args: unknown[]) => Promise<unknown>;
@@ -79,6 +92,7 @@ function fixture(channel: (typeof channels)[number]) {
     join,
   };
   const reset = new Function(
+    "services",
     ...Object.keys(scope),
     transformSync(
       between(
@@ -87,13 +101,13 @@ function fixture(channel: (typeof channels)[number]) {
       ) +
         between(
           "async function resetAgentThreadsForToolChange(",
-          "type ModelSettingsSnapshot",
+          "async function tightenThreadToRestrictedProfile(",
         ) +
-        between(`  ipcMain.handle(\n    IPC.${channel},`, "  ipcMain.handle(") +
+        registrations[channel] +
         "\nreturn resetAgentThreadsForToolChange;",
       { loader: "ts" },
     ).code,
-  )(...Object.values(scope)) as () => Promise<void>;
+  )(scope, ...Object.values(scope)) as () => Promise<void>;
   return {
     scope,
     install,

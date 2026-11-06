@@ -1,3 +1,7 @@
+import { readPreloadBridgeSources, readSharedApiSources } from '../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,7 +43,7 @@ describe("Desktop skin production boundaries", () => {
       bootstrap.indexOf("resolveReady?.()"),
     );
 
-    const app = source("src/renderer/app/App.tsx");
+    const app = readRendererAppSources();
     expect(app).toContain("desktopSkinHost.setTheme(theme)");
     expect(app).toContain("desktopSkinReady.then(() => {");
     expect(app).toContain("window.artemis.rendererReady()");
@@ -66,12 +70,10 @@ describe("Desktop skin production boundaries", () => {
   });
 
   it("does not branch JSX or Desktop CSS on a skin selector", () => {
-    expect(source("src/renderer/app/App.tsx")).not.toMatch(
+    expect(readRendererAppSources()).not.toMatch(
       /data-artemis-skin|artemisSkin/u,
     );
-    expect(source("src/renderer/styles/styles.css")).not.toMatch(
-      /data-artemis-skin/u,
-    );
+    expect(readDesktopStyles("styles")).not.toMatch(/data-artemis-skin/u);
   });
 
   it("builds renderer theme packages before every direct Desktop entry", () => {
@@ -93,9 +95,9 @@ describe("Desktop skin production boundaries", () => {
 
   it("keeps native chrome outside the skin graph and Terminal behind public tokens", () => {
     const terminal = source("src/renderer/terminal/TerminalPanel.tsx");
-    const mainProcess = source("src/main/main.ts");
-    const preload = source("src/preload/preload.ts");
-    const sharedApi = source("src/shared/api.ts");
+    const mainProcess = readMainProcessSources();
+    const preload = readPreloadBridgeSources();
+    const sharedApi = readSharedApiSources();
     for (const productionSource of [mainProcess, preload, sharedApi]) {
       expect(productionSource).not.toMatch(
         /desktop-skin|artemisSkin|data-artemis-skin|theme-contract|theme-artemis/iu,
@@ -125,7 +127,7 @@ describe("Desktop skin production boundaries", () => {
   });
 
   it("keeps the temporary smoke preload aligned with renderer security evidence", () => {
-    const preload = source("src/preload/preload.ts");
+    const preload = readPreloadBridgeSources();
     const verifier = source("scripts/verify/ui/verify-desktop-skin.mjs");
     for (const marker of [
       "contextIsolated: process.contextIsolated === true",

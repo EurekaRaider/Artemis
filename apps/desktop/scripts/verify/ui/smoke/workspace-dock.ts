@@ -1,8 +1,8 @@
 import { app, BrowserWindow, session, WebContentsView } from "electron";
 import { createServer } from "node:http";
-import type { BrowserSessionHost } from "./browser-session-host.js";
-import { BROWSER_SESSION_PARTITION } from "../../shared/i18n/browser-locale.js";
-import { selectSmokeWorkspaceMenu } from "./smoke-workspace-menu.js";
+import type { BrowserSessionHost } from "../../../../src/main/workspace/browser-session-host.js";
+import { BROWSER_SESSION_PARTITION } from "../../../../src/shared/i18n/browser-locale.js";
+import { selectSmokeWorkspaceMenu } from "../../../../src/main/workspace/smoke-workspace-menu.js";
 
 export async function driveSmokeWorkspaceDockEvidence(
   window: BrowserWindow,

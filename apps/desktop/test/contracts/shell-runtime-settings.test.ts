@@ -1,15 +1,11 @@
+import { readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const mainSource = readFileSync(
-  new URL("../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
-const preloadSource = readFileSync(
-  new URL("../../src/preload/preload.ts", import.meta.url),
-  "utf8",
-);
+const mainSource = readMainProcessSources();
+const preloadSource = readPreloadBridgeSources();
 const settingsSource = readFileSync(
   new URL("../../src/renderer/app/SettingsPanel.tsx", import.meta.url),
   "utf8",

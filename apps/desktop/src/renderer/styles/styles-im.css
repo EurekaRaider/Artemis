@@ -1,0 +1,1604 @@
+.automation-interval-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.8fr);
+}
+
+.automation-dialog input[type="date"] {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font: inherit;
+  padding: 8px 9px;
+}
+
+.automation-form-grid {
+  display: grid;
+  align-items: start;
+  gap: 14px 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.automation-window-fields {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.automation-time-picker.open {
+  z-index: 3;
+}
+
+.automation-time-trigger {
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  height: 36px;
+  padding: 0 10px;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+  width: 100%;
+}
+
+.automation-time-trigger:hover {
+  background: color-mix(in srgb, var(--panel-2) 78%, var(--panel-3));
+  border-color: color-mix(in srgb, var(--border) 58%, var(--muted));
+}
+
+.automation-time-trigger:focus-visible,
+.automation-time-picker.open .automation-time-trigger {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+  outline: none;
+}
+
+.automation-time-clock,
+.automation-time-chevron {
+  color: var(--muted);
+  height: 16px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  width: 16px;
+}
+
+.automation-time-clock {
+  justify-self: start;
+}
+
+.automation-time-chevron {
+  justify-self: end;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.automation-time-value {
+  align-items: baseline;
+  display: inline-flex;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 520;
+  gap: 2px;
+  justify-self: start;
+  letter-spacing: 0.02em;
+}
+
+.automation-time-colon {
+  color: var(--muted);
+}
+
+.automation-time-popover {
+  animation: automation-time-popover-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--panel-2);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, var(--muted));
+  border-radius: 11px;
+  bottom: calc(100% + 8px);
+  box-shadow:
+    0 16px 38px rgb(7 9 12 / 36%),
+    inset 0 1px color-mix(in srgb, white 7%, transparent);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  left: 0;
+  padding: 6px;
+  position: absolute;
+  transform-origin: bottom left;
+  width: 200px;
+  z-index: 2;
+}
+
+.automation-time-popover::after {
+  background: var(--panel-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, var(--muted));
+  border-right: 1px solid color-mix(in srgb, var(--border) 76%, var(--muted));
+  bottom: -5px;
+  content: "";
+  height: 9px;
+  left: 22px;
+  position: absolute;
+  transform: rotate(45deg);
+  width: 9px;
+}
+
+.automation-time-column {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.automation-time-heading {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 620;
+  letter-spacing: 0.08em;
+  padding-left: 8px;
+  text-transform: uppercase;
+}
+
+.automation-time-divider {
+  background: var(--border);
+  margin: 24px 0 2px;
+}
+
+.automation-time-list {
+  background: transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  display: grid;
+  gap: 2px;
+  height: 168px;
+  max-height: 168px;
+  overscroll-behavior: contain;
+  overflow-y: auto;
+  padding: 1px 3px 1px 1px;
+  scrollbar-color: var(--border) transparent;
+  scrollbar-width: thin;
+  width: 100%;
+}
+
+.automation-time-option {
+  & {
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    color: var(--muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    min-height: 28px;
+    padding: 0 8px;
+    transition:
+      background 110ms ease,
+      color 110ms ease,
+      transform 110ms ease;
+    width: 100%;
+  }
+
+  &:hover {
+    background: var(--panel-3);
+    color: var(--text);
+  }
+
+  &.selected {
+    background: var(--selected);
+    color: var(--text);
+    font-weight: 650;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &:focus-visible {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 76%, white);
+    outline: none;
+  }
+}
+
+@keyframes automation-time-popover-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .automation-time-popover {
+    animation: none;
+  }
+
+  .automation-time-chevron,
+  .automation-time-option,
+  .automation-time-trigger {
+    transition: none;
+  }
+}
+
+.automation-weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.automation-weekdays label {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  display: flex;
+  gap: 5px;
+  padding: 5px 8px;
+}
+
+.automation-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .automation-page > [data-part="content"] {
+    padding: 24px 20px;
+  }
+  .automation-editor-body {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .automation-configuration {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+  .automation-prompt-field [data-part="control"] {
+    min-height: 128px;
+  }
+  .automation-dialog {
+    padding: 20px 20px 0;
+    gap: 20px;
+  }
+  .automation-dialog-footer {
+    flex-wrap: wrap;
+  }
+  .automation-dialog-actions {
+    margin-inline-start: auto;
+  }
+  .automation-card-footer {
+    grid-template-columns: 1fr;
+  }
+  .automation-card-footer .automation-actions {
+    grid-row: 1;
+    grid-column: 1;
+    justify-content: flex-start;
+  }
+  .automation-history {
+    grid-row: 2;
+  }
+
+  .automation-header {
+    display: grid;
+    align-items: start;
+    gap: 14px;
+  }
+
+  .automation-header > [data-part="actions"] {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
+  .automation-card-heading {
+    flex-direction: column;
+  }
+
+  .automation-state {
+    align-self: flex-start;
+    max-width: 100%;
+  }
+
+  .automation-form-grid,
+  .automation-window-fields {
+    grid-template-columns: 1fr;
+  }
+}
+/* Locale direction is applied at the document root. Keep technical content
+   stable and left-to-right while the surrounding application follows RTL. */
+:root[dir="rtl"] body {
+  direction: rtl;
+}
+
+:root[dir="rtl"]
+  :is(
+    .review-diff-reader,
+    .workspace-code-line,
+    [data-artemis-component="workspace-source-editor"],
+    [data-artemis-component="workspace-file-header"] [data-part="path"],
+    .review-file-path,
+    code,
+    pre
+  ) {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
+:root[dir="rtl"]
+  :is(
+    .tool-card [data-part="disclosure"] > span,
+    .resource-back-button svg,
+    .mcp-editor-back svg
+  ) {
+  transform: scaleX(-1);
+}
+
+:root[dir="rtl"]
+  :is([data-artemis-component="workspace-file-tree-row"], .review-file-path) {
+  unicode-bidi: isolate;
+}
+
+.im-actions,
+.im-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+/* 项目行所在容器（management-section content）有 12px gap：相邻行用负
+   margin 压到 6px 视觉行距。 */
+/* Per-project permission editor: focused dialog like the rename task dialog. */
+.im-identifier {
+  user-select: text;
+}
+.im-settings details > summary {
+  cursor: pointer;
+  padding-block: 12px;
+}
+.settings-section
+  > [data-part="content"]
+  > :is([data-artemis-component="textarea-field"], .configuration-import) {
+  margin-block: 6px;
+}
+.im-test-steps {
+  display: grid;
+  gap: 16px;
+  padding-inline-start: 24px;
+}
+.im-command {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.im-settings li {
+  margin-block: 8px;
+}
+.im-settings {
+  --success: light-dark(#078b3c, #07c160);
+  --artemis-color-switch-on: #07c160;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  gap: 12px;
+  padding: 0;
+  box-sizing: border-box;
+}
+.im-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  flex: none;
+}
+.im-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 22.5px;
+}
+.im-header > p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+}
+.im-header > [data-artemis-component="switch"] {
+  max-width: 100%;
+}
+.im-dot {
+  & {
+    display: inline-block;
+    inline-size: 8px;
+    block-size: 8px;
+    border: 0;
+    border-radius: 50%;
+    flex: none;
+    color: var(--muted);
+  }
+  &[data-state="connected"] {
+    color: var(--success);
+    background: currentColor;
+  }
+  &[data-state="error"],
+  &[data-state="partial_error"] {
+    color: var(--danger);
+    background: currentColor;
+  }
+  &[data-state="connecting"],
+  &[data-state="saving"],
+  &[data-state="warning"] {
+    color: var(--warning);
+    background: currentColor;
+  }
+}
+.im-settings [data-artemis-component="checkbox"],
+.im-group-dialog [data-artemis-component="checkbox"] {
+  min-block-size: 28px;
+}
+
+/* 步骤卡是唯一容器：卡内管理分区去卡片壳（背景/边框/圆角/内距），
+   只保留标题、描述与内容的排版结构。 */
+.im-flow-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+/* 卡内的旧向导编号标题（如「4 · 绑定你的 IM 账号」）与外层卡标题重复，
+   视觉隐藏（sr-only 保住 aria-labelledby 的可访问名），描述保留。 */
+.im-flow-section > header h2 {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* ④卡：三档模式与内置临时会话行。 */
+/* ⑤卡：测试任务诚实版四段轨道。 */
+.im-test-track {
+  & {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--panel-3);
+    list-style: none;
+  }
+  & li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  & li::before {
+    content: "";
+    inline-size: 7px;
+    block-size: 7px;
+    flex: none;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.5;
+  }
+  & li[data-state="done"] {
+    color: var(--text);
+  }
+  & li[data-state="done"]::before {
+    background: var(--success);
+    opacity: 1;
+  }
+  & li[data-state="guide"] {
+    font-style: normal;
+    opacity: 0.85;
+  }
+}
+/* ===== 两栏布局（2026-09 定稿规划）：左=连接服务+授权项目，右=渠道列表/详情 ===== */
+/* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 状态摘要；点击下钻单渠道详情。
+   授权是设备级全局共用，行上不重复计数。 */
+/* 各屏幕共用外壳：flex 定高链的一环，撑出时由内部滚动兜底。
+   （类名为运行时拼接 im-flow im-<screen>，收敛契约按动态类登记。） */
+.im-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  padding: 4px 4px 14px;
+}
+.im-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 14px;
+  /* 两栏边框封顶在弹窗可视高度（与弹窗底部保留边距），内容超高时在栏内滚动。 */
+  flex: 1;
+  min-height: 0;
+}
+.im-col-left,
+.im-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  /* 顶部留白交给首行头部自担，保证「卡顶→标题」与「标题→分隔线」等距。 */
+  padding: 0 14px 14px;
+}
+@media (max-width: 680px) {
+  .im-two-col {
+    grid-template-columns: 1fr;
+  }
+  .im-service-meta {
+    block-size: auto;
+  }
+}
+.im-channel-list {
+  border: 0;
+  background: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-channel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+  cursor: pointer;
+  text-align: start;
+  color: inherit;
+}
+.im-channel-row:hover {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+.im-channel-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* 飞书渠道标 = ZCode 同款彩色官方 logo（位图资产），圆角对齐图标钮。 */
+.im-channel-logo {
+  border-radius: 5px;
+  flex: none;
+}
+/* 左栏连接服务：固定标题、连接状态和常驻内容。 */
+.im-service-block {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.im-service-head,
+.im-channel-list-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  /* 两栏头部等高：固定块高+垂直居中，上下留白天然对称（左栏钮 32px→各 14px）。 */
+  block-size: 60px;
+  box-sizing: border-box;
+  padding-block: 0;
+  margin-block: 0;
+  border-block-end: 1px solid var(--border-soft);
+}
+.im-service-head strong,
+.im-channel-list-head strong {
+  font-size: 15px;
+  font-weight: 640;
+}
+.im-channel-list-head svg {
+  color: var(--muted);
+  flex: none;
+}
+.im-service-head > svg {
+  color: var(--muted);
+  flex: none;
+}
+/* 回复模式值展示（固定流式卡片）：右栏卡右侧的下拉形态值。 */
+.im-reply-mode-select {
+  inline-size: max-content;
+  min-inline-size: 150px;
+  max-inline-size: 100%;
+}
+.im-reply-mode-select [data-part="trigger"] {
+  box-sizing: border-box;
+  width: 100%;
+}
+/* 服务状态胶囊（信号灯+已就绪/已断开）：居「连接服务」标题左侧。 */
+.im-service-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.im-service-state {
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+/* 启动/停止双态钮（图标+文字）：停止=描边+播放三角「启动」，运行=绿图标「停止」。 */
+.im-power-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 590;
+  line-height: 18px;
+  cursor: pointer;
+}
+.im-power-toggle svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+/* 电源状态钮：就绪=红电源+「断开」动作，断开=红斜杠+「连接」动作。 */
+.im-power-toggle {
+  &[data-state="on"] {
+    color: var(--text);
+  }
+  &[data-state="on"] svg {
+    color: var(--danger);
+  }
+  &[data-state="off"] {
+    color: var(--muted);
+  }
+  &[data-state="off"] svg {
+    color: var(--danger);
+  }
+  &:hover {
+    color: var(--text);
+    border-color: var(--muted-2);
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  &:focus-visible {
+    outline: 1px solid var(--muted-2);
+    outline-offset: 2px;
+  }
+}
+.im-service-device-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-block: 0;
+}
+.im-service-device-line > svg {
+  color: var(--muted);
+  flex: none;
+}
+.im-device-id {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 顶部信息区随提示换行增高，避免覆盖下方入口。 */
+.im-service-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  padding-block: 16px 6px;
+}
+/* 服务提示保持紧凑，技术标识仅在高级详情中展示。 */
+/* 高级/手动注册两张入口卡：头部行=标题+右侧箭头，点击进入整幅二级卡。 */
+.im-gateway-fold {
+  & {
+    display: block;
+    width: 100%;
+    padding: 0;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--text) 4.5%, transparent);
+  }
+  & .im-gateway-fold-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    box-sizing: border-box;
+    min-block-size: 52px;
+    font-size: 13px;
+    font-weight: 590;
+    line-height: 21px;
+    color: var(--text);
+  }
+  & > summary::-webkit-details-marker {
+    display: none;
+  }
+  & .im-gateway-fold-head::after {
+    content: "";
+    flex: none;
+    margin-inline-start: auto;
+    inline-size: 7px;
+    block-size: 7px;
+    border-inline-end: 1.5px solid var(--muted);
+    border-block-end: 1.5px solid var(--muted);
+    transform: rotate(-45deg);
+    transition: transform 180ms ease;
+  }
+}
+/* hover 与渠道卡同款：文字色低透明度填充+边框微亮，只在卡面呈现。 */
+.im-gateway-fold:hover {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+/* IM 二级详情弹窗共享壳：头部=标题+关闭钮（无分隔线，与内容连成一体），
+   内容区超高时内部滚动。表单类（团队 Gateway 手动注册/「高级」）560px；
+   渠道主从布局 896px 对齐 ZCode 弹窗标准（max-w-4xl）。 */
+.im-detail-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 94vw);
+  max-width: calc(100vw - 32px);
+  max-block-size: min(820px, 88dvh, calc(100dvh - 40px));
+  overflow: hidden;
+  padding: 0;
+  --border-soft: var(--artemis-color-border-subtle);
+}
+.im-detail-dialog.im-channel-dialog {
+  width: min(896px, 94vw);
+  /* 缺省高度公式：正常打开时由运行时量测注入主弹窗实际高度（主弹窗
+     高度内容驱动），保证两个面板齐平；内容超出时内部滚动。 */
+  min-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+  max-block-size: min(680px, 88dvh, calc(100dvh - 52px));
+}
+.im-detail-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 16px 18px 10px;
+}
+.im-detail-dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-detail-dialog-close {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  flex: none;
+  margin-inline-start: auto;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.im-detail-dialog-close:hover {
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--text);
+}
+.im-detail-dialog-body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 12px 18px 16px;
+  font-size: 12.5px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+.im-detail-dialog-body .im-channel-md {
+  /* 主从布局占满弹窗整幅，不参与表单限宽。 */
+  max-inline-size: none;
+}
+.im-channel-dialog {
+  & .im-detail-dialog-body {
+    /* 渠道弹窗：单一主从区撑满 body 高度；超高时整体裁切，
+     只在右栏详情内滚动（头部与左栏导航保持固定）。 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  & .im-detail-dialog-body > .im-channel-md {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+  & .im-bot-detail {
+    overflow-y: auto;
+    min-block-size: 0;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  & .im-bot-nav {
+    overflow-y: auto;
+    min-block-size: 0;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+}
+/* 渠道二级面板（ZCode 式主从）：左 300px 导航（新建入口 + 机器人卡 +
+   设置行），右栏背板卡随选中切换机器人详情 / 新建 / 指引 / 导入 / 验证，
+   纵向撑满弹窗（≈1:2 宽度比）。 */
+.im-channel-body.im-channel-md {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+@media (max-width: 720px) {
+  .im-channel-body.im-channel-md {
+    grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr);
+  }
+}
+.im-bot-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.im-bot-new {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-new:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-bot-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  inline-size: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-card:hover,
+.im-bot-card[data-selected],
+.im-bot-new[data-selected] {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+}
+/* 机器人名单行：logo+名字+信号灯组；名字可截断，logo/信号灯恒完整。 */
+.im-bot-card-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-card-state {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+/* 名字跑马灯：静态省略号，悬停溢出时匀速滚动（≈30px/s）。 */
+.im-marquee {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.im-marquee[data-playing] {
+  text-overflow: clip;
+}
+.im-marquee-track {
+  display: inline-flex;
+  gap: 24px;
+  will-change: transform;
+}
+.im-marquee[data-playing] .im-marquee-track {
+  animation: im-marquee-scroll var(--mq-dur) linear infinite;
+}
+.im-marquee-copy {
+  flex: none;
+}
+@keyframes im-marquee-scroll {
+  to {
+    transform: translateX(var(--mq-shift));
+  }
+}
+.im-bot-nav-divider {
+  block-size: 1px;
+  margin: 2px 0;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.im-bot-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  inline-size: 100%;
+  padding: 11px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  text-align: start;
+}
+.im-bot-nav-row:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-bot-nav-row[data-selected] {
+  background: color-mix(in srgb, var(--text) 8.5%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+}
+.im-bot-nav-caret {
+  font-size: 13px;
+}
+/* 右栏背板卡（ZCode 式）：比弹窗背板浅一档的整幅卡片，包住详情/
+   指引/导入/验证所有右栏内容，纵向撑满。 */
+.im-bot-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+.im-bot-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-bot-profile-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* 行尾删除入口：28px 按钮框（hover 出底色）+ 16px 图标，hover 危险色。 */
+.im-bot-profile-head {
+  & .im-connection-removal {
+    margin-inline-start: auto;
+    flex: none;
+  }
+  & .im-connection-removal .im-icon-action {
+    border-radius: 8px;
+  }
+  & .im-connection-removal .im-icon-action:hover {
+    background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  }
+  & .im-connection-removal .im-icon-action svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+/* 名称与配对状态叠放，logo 左侧跨两行（ZCode 同款头部）。 */
+.im-bot-profile-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.im-bot-profile-head strong {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.im-bot-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* 背板卡上的嵌套卡：再浅一档，层次同 ZCode 截图。 */
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.im-bot-section-copy {
+  & {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  & strong {
+    font-size: 12.5px;
+    font-weight: 590;
+    color: var(--text);
+  }
+  & p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+}
+.im-bot-section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+/* 关联凭据卡展开扫码（ZCode 式）：卡头行换行，二维码区占满整行。 */
+.im-bot-section[data-scan-open] {
+  flex-wrap: wrap;
+}
+.im-bot-scan {
+  flex: 1 1 100%;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+/* 右栏创建页（ZCode 式：新建占据整卡）：头部=渠道标+标题，
+   表单节奏与详情卡一致。 */
+.im-bot-create {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.im-bot-create-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.im-bot-create-head strong {
+  font-size: 15px;
+  font-weight: 640;
+  color: var(--text);
+}
+.im-bot-create .im-actions {
+  margin-top: 2px;
+}
+.im-bot-join {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.im-bot-join > strong {
+  font-size: 13px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-bot-join > p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.im-bot-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* 服务内容在小窗口中独立滚动，标题保持可见。 */
+/* 面板头部图标：与「标题+副标题」文字块等高、同色系。 */
+.im-header-mark {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--muted);
+}
+.im-header-mark svg {
+  block-size: 42px;
+  inline-size: 42px;
+}
+.im-channel-row > .im-channel-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.im-channel-row strong {
+  font-size: 14px;
+  font-weight: 590;
+  color: var(--text);
+}
+.im-channel-row-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted-2);
+}
+.im-channel-row-summary .im-dot {
+  flex: none;
+}
+/* 卡尾胶囊按钮：纯视觉复件（点击=整卡行为），文字小而轻。 */
+.im-capsule-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  line-height: 16px;
+  font-weight: 510;
+  color: var(--text);
+  background: transparent;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+}
+.im-channel-row:hover > .im-capsule-btn {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-channel-row-bots {
+  color: var(--muted);
+}
+/* 渠道详情（右栏下钻）：返回行 + 原渠道主体。 */
+.im-verify-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.im-fine {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+/* 飞书扫码接入块：说明居左、操作钮居右；扫码中二维码恒为白底（对比度）。 */
+.im-scan {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.im-scan-copy {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-inline-end: auto;
+}
+.im-scan-copy h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text);
+}
+.im-scan-active {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+.im-scan-qr {
+  width: 190px;
+  height: 190px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--artemis-radius-control, 8px);
+  background: #fff;
+}
+/* 设备流用户码条 + 等待 spinner（ZCode 式扫码卡）。 */
+.im-scan-active .im-scan-copy {
+  gap: 10px;
+}
+.im-scan-copy p {
+  margin: 0;
+}
+.im-scan-active .im-scan-qr {
+  /* 二维码与右栏文字列（指引+用户码条+等待行，实测 103px）上下齐平。 */
+  width: 103px;
+  height: 103px;
+}
+.im-scan-code {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+.im-scan-code code {
+  font-family: var(--mono-font);
+  font-size: 15px;
+  font-weight: 640;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.im-scan-wait {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.im-scan-spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-block-start-color: transparent;
+  border-radius: 50%;
+  animation: im-scan-spin 900ms linear infinite;
+}
+@keyframes im-scan-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.im-icon-action:focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: 1px;
+}
+.im-settings h4 {
+  margin-block: 0 8px;
+}
+.im-accounts {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.im-accounts:empty {
+  display: none;
+}
+.im-identity {
+  border-bottom: 1px solid var(--border);
+  justify-content: space-between;
+}
+.im-identity > .im-identifier,
+.im-identity > .im-account-copy,
+.sidebar-header [data-part="actions"],
+.sources-agent-row > div {
+  min-width: 0;
+  flex: 1;
+}
+.im-unpair-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+}
+.im-unpair-confirm > span {
+  flex-basis: 100%;
+}
+.im-identifier,
+.im-settings textarea {
+  font-family: var(--mono-font);
+  overflow-wrap: anywhere;
+}
+.plugin-market-copy {
+  flex: 1;
+}
+.im-settings :is(button, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--artemis-color-focus-ring);
+  outline-offset: 2px;
+}
+@media (forced-colors: active) {
+  .im-dot {
+    color: CanvasText;
+  }
+}
+
+/* At high zoom, keep every outer tab reachable without consuming the IM viewport. */
+@media (max-width: 52rem) and (max-height: 36rem) {
+  .settings-panel:has(.im-settings)
+    [data-artemis-component="settings-surface"]
+    > [data-part="body"]
+    > [data-part="navigation"] {
+    max-block-size: min(112px, 25vh);
+    overflow-y: auto;
+  }
+}
+.im-diagnostics {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.im-diagnostics p,
+.goal-editor-content > .workspace-panel-section-title {
+  margin: 0 0 8px;
+}
+
+.sidebar-search > svg,
+.project-select > svg {
+  width: 12px;
+  height: 12px;
+}
+.project-group-select > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  opacity: 0;
+}
+.project-group-select[aria-expanded="false"] > svg {
+  transform: rotate(-90deg);
+}
+.project-thread-row.selected .thread-title {
+  font-weight: 510;
+  color: var(--text);
+}
+.composer-context-trigger > svg {
+  width: 11px;
+  height: 11px;
+}
+.left-sidebar-toggle[aria-expanded="true"],
+.right-sidebar-toggle[aria-expanded="true"] {
+  background: var(--artemis-color-accent-subtle);
+  color: var(--accent);
+}
+.composer-context-trigger > svg:last-child {
+  width: 9px;
+  height: 9px;
+}
+.settings-header {
+  background: transparent;
+  border-block-end: 0;
+  min-height: 0;
+  padding: calc(var(--artemis-space-3) / 2) var(--artemis-space-4);
+}
+.settings-header [data-part="title"] {
+  font-size: 14px;
+  font-weight: 620;
+  line-height: 21px;
+}
+.settings-section {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  gap: 8px;
+}
+.settings-section > [data-part="content"] {
+  gap: 0;
+}
+.settings-section > [data-part="header"] [data-part="title"] {
+  color: var(--muted-2);
+  font-size: 13px;
+  font-weight: 620;
+  letter-spacing: 0;
+  line-height: 16.5px;
+}
+.settings-profile-avatar-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.settings-avatar-hint,
+.settings-row-description {
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted-2);
+  max-width: 52ch;
+}
+.settings-row-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+}
+.settings-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--muted-2);
+  line-height: 16.5px;
+}
+@media (max-width: 980px) {
+  .settings-panel
+    [data-artemis-component="settings-surface"]
+    > [data-part="body"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-panel [data-part="navigation"] {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--border-soft);
+    overflow-x: auto;
+  }
+  .settings-panel .settings-tabs {
+    flex-direction: row;
+    min-width: max-content;
+  }
+  .settings-panel .settings-tabs [data-part="tab"] {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+@media (max-width: 720px) {
+  .settings-panel {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 24px);
+  }
+}
+@container (max-width: 540px) {
+  [data-artemis-component="workspace-file-layout"] > [data-part="body"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(200px, 1fr) minmax(130px, 0.5fr);
+  }
+  [data-artemis-component="workspace-file-tree"] {
+    border-inline-start: 0;
+    border-block-start: var(--artemis-border-width-default) solid
+      var(--border-soft);
+  }
+}
+
+[data-artemis-component="workspace-file-layout"] {
+  container-type: inline-size;
+}
+
+.settings-form-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-soft);
+  min-width: 0;
+}
+
+.settings-row-control {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+}
+
+.settings-row-control [data-artemis-component="select"] {
+  max-width: 230px;
+}
+
+.settings-number-field {
+  width: 128px;
+  max-width: 100%;
+}
+
+.settings-panel input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  width: 18px;
+  height: 20px;
+  margin: 0;
+  opacity: 1;
+  cursor: pointer;
+  background: var(--muted-2);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 24'%3E%3Cpath d='m3 8 4-4 4 4M3 16l4 4 4-4' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 12px 20px no-repeat;
+}
+
+.settings-panel input[type="number"]:hover::-webkit-inner-spin-button {
+  background: var(--text);
+}
+
+@media (forced-colors: active) {
+  .settings-panel input[type="number"]::-webkit-inner-spin-button {
+    background: ButtonText;
+    forced-color-adjust: none;
+  }
+}
+
+.settings-section [data-artemis-component="button"] {
+  min-height: 28px;
+  height: auto;
+  font-size: 12px;
+  padding: 5px 10px;
+  line-height: 18px;
+}
+
+.settings-section > [data-part="content"] > [data-artemis-component="button"] {
+  align-self: flex-end;
+  margin-block: 9px;
+}
+
+.settings-section [data-artemis-component="text-field"] [data-part="control"] {
+  min-height: 32px;
+  height: 32px;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: var(--artemis-radius-control);
+  border-color: var(--artemis-color-border-surface);
+}
+
+.settings-section
+  [data-artemis-component="textarea-field"]
+  [data-part="control"] {
+  font-family: var(--mono-font);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 6px 10px;
+  min-height: 180px;
+}
+
+.settings-section
+  [data-artemis-component="textarea-field"]
+  [data-part="description"] {
+  font-size: 11px;
+}
+
+.settings-section .settings-empty {
+  min-height: 60px;
+  padding: 12px 0;
+}
+
+/* HistoryTurn already releases offscreen DOM and preserves its measured height.
+   CSS size skipping would cache an estimated height instead, then change it
+   again as mounted content enters the viewport. Keep one owner for sizing. */
+[data-history-turn],
+[data-history-turn] [data-artemis-component="timeline-turn"] > *,
+[data-history-turn]
+  [data-artemis-component="turn-execution-disclosure"]
+  [data-part="content"]
+  > * {
+  content-visibility: visible;
+  contain-intrinsic-size: none;
+}

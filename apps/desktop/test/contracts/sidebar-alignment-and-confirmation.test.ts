@@ -1,3 +1,5 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -7,11 +9,9 @@ import { describe, expect, it } from "vitest";
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
-const appSource = source("../../src/renderer/app/App.tsx");
-const stylesSource = source("../../src/renderer/styles/styles.css");
-const compositionSource = source(
-  "../../src/renderer/styles/prototype-migration.css",
-);
+const appSource = readRendererAppSources();
+const stylesSource = readDesktopStyles("styles");
+const compositionSource = readDesktopStyles("prototype-migration");
 
 function sourceBetween(value: string, start: string, end: string): string {
   const startIndex = value.indexOf(start);
@@ -44,7 +44,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
   it("uses one exact text column for folder and conversation labels while preserving the selected row", () => {
     const projectTree = sourceBetween(
       appSource,
-      '<div\n          aria-label={t.projects}\n          className="project-tree"',
+      'className="project-tree"',
       "</NavigationSidebar>",
     );
     expect(projectTree).toContain(
@@ -127,7 +127,7 @@ describe("Codex sidebar alignment and in-app confirmations", () => {
   it("scrolls only overflowing conversation titles while their text is hovered", () => {
     const projectTree = sourceBetween(
       appSource,
-      '<div\n          aria-label={t.projects}\n          className="project-tree"',
+      'className="project-tree"',
       "</NavigationSidebar>",
     );
 

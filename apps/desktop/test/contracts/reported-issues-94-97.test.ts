@@ -1,3 +1,5 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 import { findCssDeclarations } from "./css-test-utils.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -7,9 +9,9 @@ import { describe, expect, it } from "vitest";
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
-const appSource = source("../../src/renderer/app/App.tsx");
+const appSource = readRendererAppSources();
 const panelSource = source("../../src/renderer/workspace/EnvironmentPanel.tsx");
-const stylesSource = source("../../src/renderer/styles/styles.css");
+const stylesSource = readDesktopStyles("styles");
 const publicUiStylesSource = source("../../../../packages/ui/src/styles.css");
 
 function cssDeclarations(selector: string): string {

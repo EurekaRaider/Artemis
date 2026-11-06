@@ -1,3 +1,8 @@
+import { readAgentRuntimeSources } from "../../fixtures/application/agent-runtime-source.js";
+import {
+  readSharedApiSources,
+  readPreloadBridgeSources,
+} from "../../fixtures/application/api-source.js";
 import { uiText } from "../../../src/shared/i18n/ui-text.js";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,8 +14,8 @@ const desktopRoot = join(import.meta.dirname, "../../..");
 describe("agent capacity settings surface", () => {
   it("exposes automatic and manual global concurrency through the isolated preload API", async () => {
     const [apiSource, preloadSource, settingsSource] = await Promise.all([
-      readFile(join(desktopRoot, "src/shared/api.ts"), "utf8"),
-      readFile(join(desktopRoot, "src/preload/preload.ts"), "utf8"),
+      readSharedApiSources(),
+      readPreloadBridgeSources(),
       readFile(join(desktopRoot, "src/renderer/app/SettingsPanel.tsx"), "utf8"),
     ]);
     expect(apiSource).toContain("setAgentConcurrency(");
@@ -38,10 +43,7 @@ describe("agent capacity settings surface", () => {
   });
 
   it("keeps logical tree capacity separate from active global capacity", async () => {
-    const runtimeSource = await readFile(
-      join(desktopRoot, "../../packages/agent-host/src/runtime/runtime.ts"),
-      "utf8",
-    );
+    const runtimeSource = readAgentRuntimeSources();
     expect(runtimeSource).toContain("AGENT_TEAM_LOGICAL_MAXIMUM");
     expect(runtimeSource).toContain("AGENT_TEAM_MAXIMUM_DEPTH");
     expect(runtimeSource).toContain("AGENT_TEAM_MAXIMUM_DIRECT_CHILDREN");

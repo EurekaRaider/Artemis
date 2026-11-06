@@ -7,6 +7,7 @@ import { packageGateway } from "../../../../scripts/build/package-gateway.mjs";
 
 import { ensureNodePtySpawnHelpersExecutable } from "./node-pty-permissions.mjs";
 import { buildComputerUse } from "./build-computer-use.mjs";
+import { desktopMainEntry } from "./electron-entrypoints.mjs";
 
 const require = createRequire(import.meta.url);
 const packageBuild = process.env.ARTEMIS_PACKAGE_BUILD === "1";
@@ -98,7 +99,7 @@ await Promise.all([
   }),
   build({
     ...shared,
-    entryPoints: ["src/main/bootstrap.ts"],
+    entryPoints: [desktopMainEntry(packageBuild)],
     banner: esmRequireBridge,
     format: "esm",
     outfile: "dist-electron/main.js",

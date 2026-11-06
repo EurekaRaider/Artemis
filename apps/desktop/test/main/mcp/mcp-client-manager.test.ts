@@ -1,3 +1,5 @@
+import { readAgentRuntimeSources } from "../../fixtures/application/agent-runtime-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import {
@@ -87,14 +89,22 @@ const resolveCachedNpxCommand = (
     resolveCachedNpxCommand?: ResolveCachedNpxCommand;
   }
 ).resolveCachedNpxCommand;
-const mcpClientManagerSource = readFileSync(
-  new URL("../../../src/main/mcp/mcp-client-manager.ts", import.meta.url),
-  "utf8",
-);
-const mainProcessSource = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const mcpClientManagerSource = [
+  "mcp-connection-limits",
+  "mcp-client-manager",
+  "mcp-connection-factory",
+  "mcp-runtime-paths",
+  "mcp-stdio-lifecycle",
+  "mcp-tool-name",
+]
+  .map((name) =>
+    readFileSync(
+      new URL(`../../../src/main/mcp/${name}.ts`, import.meta.url),
+      "utf8",
+    ),
+  )
+  .join("\n");
+const mainProcessSource = readMainProcessSources();
 const protocolHostMessagesSource = readFileSync(
   new URL(
     "../../../../../packages/protocol/src/host-messages.ts",
@@ -102,13 +112,7 @@ const protocolHostMessagesSource = readFileSync(
   ),
   "utf8",
 );
-const agentRuntimeSource = readFileSync(
-  new URL(
-    "../../../../../packages/agent-host/src/runtime/runtime.ts",
-    import.meta.url,
-  ),
-  "utf8",
-);
+const agentRuntimeSource = readAgentRuntimeSources();
 
 const config: McpServerConfig = {
   id: "test-server",

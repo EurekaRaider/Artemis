@@ -1,3 +1,6 @@
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -31,19 +34,26 @@ import {
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
-const appSource = source("../../../src/renderer/app/App.tsx");
+const appSource = readRendererAppSources();
 const panelSource = source(
   "../../../src/renderer/workspace/EnvironmentPanel.tsx",
 );
-const stylesSource = source("../../../src/renderer/styles/styles.css");
-const nocturneStylesSource = source(
-  "../../../src/renderer/styles/nocturne.css",
-);
+const stylesSource = readDesktopStyles("styles");
+const nocturneStylesSource = readDesktopStyles("nocturne");
 const workflowSource = source("../../../../../packages/ui/src/workflow.tsx");
 const publicUiStylesSource = source(
   "../../../../../packages/ui/src/styles.css",
 );
-const mainSource = source("../../../src/main/main.ts");
+const mainSource = readMainProcessSources();
+const smokeSource = [
+  "../../../test/fixtures/smoke/workspace.ts",
+  "../../../test/fixtures/smoke/ipc/workspace.ts",
+  "../../../scripts/verify/ui/smoke/window-capture.ts",
+  "../../../scripts/verify/ui/smoke/prepare-view.ts",
+  "../../../scripts/verify/ui/smoke/collect-evidence.ts",
+]
+  .map(source)
+  .join("\n");
 const watcherSource = source(
   "../../../src/main/workspace/project-git-watcher.ts",
 );
@@ -146,7 +156,7 @@ describe("task environment panel state", () => {
   it("links the trigger to the named Environment dialog", () => {
     expect(panelSource).toContain("const panelId = useId()");
     expect(panelSource).toContain("controls={panelId}");
-    expect(mainSource).toContain(
+    expect(smokeSource).toContain(
       'rule: "environment-trigger-dialog-relationship"',
     );
   });
@@ -289,49 +299,51 @@ describe("task environment panel state", () => {
   });
 
   it("provides a deterministic Chinese Electron smoke fixture", () => {
-    expect(mainSource).toContain("seedSmokeEnvironmentFixture");
-    expect(mainSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
-    expect(mainSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
-    expect(mainSource).toContain("view === 'environment-agents'");
-    expect(mainSource).toContain("view.startsWith('environment-pr-checks')");
-    expect(mainSource).toContain('"environment-pr-checks-empty"');
-    expect(mainSource).toContain("view === 'environment-sources'");
-    expect(mainSource).toContain("view === 'environment-open'");
-    expect(mainSource).toContain("view === 'environment-branch-menu'");
-    expect(mainSource).toContain('view?.startsWith("environment")');
-    expect(mainSource).toContain('view?.startsWith("icon-sizing-environment")');
-    expect(mainSource).toMatch(
+    expect(smokeSource).toContain("seedSmokeEnvironmentFixture");
+    expect(smokeSource).toContain("ARTEMIS_SMOKE_WINDOW_WIDTH");
+    expect(smokeSource).toContain("ARTEMIS_SMOKE_RESIZE_WIDTH");
+    expect(smokeSource).toContain("view === 'environment-agents'");
+    expect(smokeSource).toContain("view.startsWith('environment-pr-checks')");
+    expect(smokeSource).toContain('"environment-pr-checks-empty"');
+    expect(smokeSource).toContain("view === 'environment-sources'");
+    expect(smokeSource).toContain("view === 'environment-open'");
+    expect(smokeSource).toContain("view === 'environment-branch-menu'");
+    expect(smokeSource).toContain('view?.startsWith("environment")');
+    expect(smokeSource).toContain(
+      'view?.startsWith("icon-sizing-environment")',
+    );
+    expect(smokeSource).toMatch(
       /const smokeView = process\.env\.ARTEMIS_SMOKE_VIEW;\s+if \(\s+smokeView\?\.startsWith\("environment"\)/u,
     );
-    expect(mainSource).toContain('return { status: "not-found" };');
-    expect(mainSource).toContain('"environment-empty"');
-    expect(mainSource).toContain("environment-repository");
-    expect(mainSource).toContain("view === 'environment-outside-click'");
-    expect(mainSource).toContain("new PointerEvent('pointerdown'");
-    expect(mainSource).toContain("view === 'environment-dock-open'");
-    expect(mainSource).toContain("view === 'environment-commit-dialog'");
-    expect(mainSource).toContain("view === 'environment-commit-new-branch'");
-    expect(mainSource).toContain(
+    expect(smokeSource).toContain('return { status: "not-found" };');
+    expect(smokeSource).toContain('"environment-empty"');
+    expect(smokeSource).toContain("environment-repository");
+    expect(smokeSource).toContain("view === 'environment-outside-click'");
+    expect(smokeSource).toContain("new PointerEvent('pointerdown'");
+    expect(smokeSource).toContain("view === 'environment-dock-open'");
+    expect(smokeSource).toContain("view === 'environment-commit-dialog'");
+    expect(smokeSource).toContain("view === 'environment-commit-new-branch'");
+    expect(smokeSource).toContain(
       "view === 'environment-commit-and-push-execute'",
     );
-    expect(mainSource).toContain("view === 'environment-push-execute'");
-    expect(mainSource).toContain(
+    expect(smokeSource).toContain("view === 'environment-push-execute'");
+    expect(smokeSource).toContain(
       "document.querySelector('.right-sidebar-toggle')?.click()",
     );
-    expect(mainSource).toContain("workspaceDock?.getAnimations()");
-    expect(mainSource).toContain("animation.currentTime = duration / 2");
-    expect(mainSource).toContain(
+    expect(smokeSource).toContain("workspaceDock?.getAnimations()");
+    expect(smokeSource).toContain("animation.currentTime = duration / 2");
+    expect(smokeSource).toContain(
       "document.querySelector('.environment-trigger')?.click()",
     );
-    expect(mainSource).toContain("environmentPanelOpen");
-    expect(mainSource).toContain("workspaceWidth");
-    expect(mainSource).toContain("timelineScrollBounds");
-    expect(mainSource).toContain("timelineContentBounds");
-    expect(mainSource).toContain("workspaceContentBounds");
-    expect(mainSource).toContain("workspaceDockResizerBounds");
-    expect(mainSource).not.toContain("environment-conversation-overlap");
-    expect(mainSource).toContain('type: "mcp.tool.used"');
-    expect(mainSource).toContain('type: "task.source.added"');
+    expect(smokeSource).toContain("environmentPanelOpen");
+    expect(smokeSource).toContain("workspaceWidth");
+    expect(smokeSource).toContain("timelineScrollBounds");
+    expect(smokeSource).toContain("timelineContentBounds");
+    expect(smokeSource).toContain("workspaceContentBounds");
+    expect(smokeSource).toContain("workspaceDockResizerBounds");
+    expect(smokeSource).not.toContain("environment-conversation-overlap");
+    expect(smokeSource).toContain('type: "mcp.tool.used"');
+    expect(smokeSource).toContain('type: "task.source.added"');
     expect(panelSource).toContain('source.kind === "web-search"');
     expect(panelSource).toContain("onViewAllSources()");
     expect(panelSource).toContain("const activityPreviewLimit = 2");

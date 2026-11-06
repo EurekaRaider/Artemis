@@ -1,3 +1,4 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,12 +63,7 @@ it("preserves the computer preview hover blur in embedded and floating windows",
 });
 
 it("keeps material-specific geometry and lens highlights out of other surfaces", () => {
-  const sheet = postcss.parse(
-    readFileSync(
-      new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
-      "utf8",
-    ),
-  );
+  const sheet = postcss.parse(readDesktopStyles("nocturne"));
   const violations: string[] = [];
   sheet.walkDecls((declaration) => {
     const selectors: string[] = [];

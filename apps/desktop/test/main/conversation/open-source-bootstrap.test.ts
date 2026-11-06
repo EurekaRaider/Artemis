@@ -25,7 +25,7 @@ vi.mock("electron", () => ({
 }));
 vi.mock("../../../src/main/main.js", () => {
   state.enter();
-  return { openThreadLink: vi.fn() };
+  return { openThreadLink: vi.fn(), startDesktopApplication: vi.fn() };
 });
 vi.mock("../../../src/main/updates/windows-package-access.js", () => ({
   ensureWindowsPackageAccess: vi.fn(),

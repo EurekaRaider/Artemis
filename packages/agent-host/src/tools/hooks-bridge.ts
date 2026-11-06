@@ -11,7 +11,7 @@ import type {
   HookResult,
   RunMode,
 } from "@artemis/protocol";
-import type { AgentBroker } from "../runtime/runtime.js";
+import type { AgentBroker } from "../runtime/runtime-types.js";
 
 interface HookBridgeOptions {
   broker: AgentBroker;

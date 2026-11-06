@@ -11,11 +11,11 @@
       "reason": "The finite before/after edge is appended to both draggable row class lists at runtime.",
       "sources": [
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/app/AppNavigation.tsx",
           "contains": "` drop-${projectDropTarget.edge}`"
         },
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/app/AppNavigation.tsx",
           "contains": "` drop-${threadDropTarget.edge}`"
         },
         {
@@ -34,11 +34,11 @@
       "reason": "TransientNotice appends the finite composer/view placement to the shared notice class.",
       "sources": [
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/app/transient-notice.tsx",
           "contains": "placement: \"composer\" | \"view\";"
         },
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/app/transient-notice.tsx",
           "contains": "${placement}-notice"
         }
       ]
@@ -74,7 +74,7 @@
       "reason": "Agent-team messages append the protocol-owned finite message kind to the collaboration row class.",
       "sources": [
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/conversation/agent-team-panel.tsx",
           "contains": "className={`agent-team-message ${message.kind}`}"
         },
         {
@@ -125,11 +125,11 @@
       "reason": "Child status and health finite domains are appended to card and panel classes at runtime.",
       "sources": [
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/conversation/timeline.tsx",
           "contains": "className={`child-agent-card work-record-agent ${child.status} ${child.health ?? \"healthy\"}`}"
         },
         {
-          "path": "apps/desktop/src/renderer/app/App.tsx",
+          "path": "apps/desktop/src/renderer/conversation/child-agent-panel.tsx",
           "contains": "className={`child-agent-panel ${child?.status ?? \"unavailable\"} ${health}`}"
         }
       ]

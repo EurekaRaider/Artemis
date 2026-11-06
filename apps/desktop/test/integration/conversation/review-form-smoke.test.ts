@@ -1,9 +1,13 @@
 import { readFileSync } from "node:fs";
+
 import { expect, it, vi } from "vitest";
 
 it("waits for the Review action before clicking and checking its SegmentedControl", async () => {
   const main = readFileSync(
-    new URL("../../../src/main/main.ts", import.meta.url),
+    new URL(
+      "../../../scripts/verify/ui/smoke/prepare-view.ts",
+      import.meta.url,
+    ),
     "utf8",
   );
   const start = main.indexOf("if (view === 'turn-changes-form-controls') {");

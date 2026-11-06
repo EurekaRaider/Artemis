@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { macosAppRuntimeReadOnlyPaths } from "../../../src/main/platform/macos-app-runtime.js";
 
 const mcpClientManagerSource = readFileSync(
-  new URL("../../../src/main/mcp/mcp-client-manager.ts", import.meta.url),
+  new URL("../../../src/main/mcp/mcp-runtime-paths.ts", import.meta.url),
   "utf8",
 );
 const trustedExtensionManagerSource = readFileSync(

@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
+import { CustomAgentMentionMenu } from "../../../src/renderer/settings/CustomAgentMention.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 // Composer @ sub-agent mention contract (D#152 PR4): cursor-tracked @query
 // candidates (enabled + project-effective only), keyboard selection that
 // removes the typed fragment and binds a structured draft reference, and
 // the max-one-chip gate. The send-path wiring is locked by source contract
 // (same convention as renderer-layout.test.ts).
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+
 import { useRef, useState } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  CustomAgentMentionMenu,
   customAgentColorToken,
   customAgentEffectiveForProject,
   useCustomAgentMention,
@@ -22,10 +22,7 @@ import type { CustomAgentSummary } from "../../../src/shared/api.js";
 import { pluginBrandIcon } from "../../../src/renderer/plugins/plugin-brand-icons.js";
 import "../../fixtures/renderer-test-utils.js";
 
-const appSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/app/App.tsx"),
-  "utf8",
-);
+const appSource = readRendererAppSources();
 
 function summary(overrides: Partial<CustomAgentSummary>): CustomAgentSummary {
   return {

@@ -15,7 +15,7 @@ import { spawn } from "node:child_process";
 import { DatabaseSync, backup } from "node:sqlite";
 import { gt } from "semver";
 import { type UpdateIndexPayload } from "./signed-update-index.js";
-import type { ReleaseUpdateStatus } from "./release-update-manager.js";
+import type { ReleaseUpdateStatus } from "./update-contracts.js";
 
 interface Recovery {
   sequence: number;

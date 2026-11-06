@@ -1,13 +1,6 @@
-import { readFileSync } from "node:fs";
-import { transformSync } from "esbuild";
+import { createTaskRouting } from "../../../src/main/notifications/task-routing.js";
+import { IPC } from "../../../src/shared/api.js";
 import { describe, expect, it, vi } from "vitest";
-
-const main = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
-const start = main.indexOf("function openTaskNotification(");
-const end = main.indexOf("function scheduleTurnChangeSetCompletion(", start);
 
 describe("native notification navigation", () => {
   it.each([true, false])(
@@ -21,24 +14,23 @@ describe("native notification navigation", () => {
         focus: vi.fn(),
         webContents: { send: vi.fn() },
       };
-      const load = new Function(
-        "mainWindow",
-        "notificationRendererReady",
-        "createMainWindow",
-        "IPC",
-        `let pendingNotificationThreadId;
-      ${transformSync(main.slice(start, end), { loader: "ts" }).code}
-      return { open: openTaskNotification, pending: () => pendingNotificationThreadId };`,
-      );
-      const navigation = load(window, ready, vi.fn(), {
-        automationThreadOpen: "open-task",
-      });
+      const services = {
+        mainWindow: window,
+        notificationRendererReady: ready,
+        pendingNotificationThreadId: undefined as string | undefined,
+        createMainWindow: vi.fn(),
+      };
+      const routing = createTaskRouting(services as never);
+      const navigation = {
+        open: routing.openTaskNotification,
+        pending: () => services.pendingNotificationThreadId,
+      };
       navigation.open("one");
       expect(window.restore).toHaveBeenCalledOnce();
       expect(window.focus).toHaveBeenCalledOnce();
       if (ready) {
         expect(window.webContents.send).toHaveBeenCalledWith(
-          "open-task",
+          IPC.automationThreadOpen,
           "one",
         );
         expect(navigation.pending()).toBeUndefined();

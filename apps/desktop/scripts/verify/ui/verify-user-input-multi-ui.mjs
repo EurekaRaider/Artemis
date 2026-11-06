@@ -30,7 +30,7 @@ const customAnswer = "Ship after the changelog lands.";
 
 // D#76 PR10C A8: the multi-question card must be driven by REAL UI
 // operations — CDP Input-level mouse presses and key events against the
-// built production renderer, with main.ts contributing only the #124-style
+// built production renderer, with test/fixtures/smoke/user-input.ts contributing only the #124-style
 // seeding channel. Four launches: the full Q1 -> Q2 -> Q3 interactive round
 // in both themes, the mixed-expiry timeout arm, and the thread-cancel arm.
 const steps = [
@@ -1858,7 +1858,7 @@ try {
       ARTEMIS_SMOKE_LOCALE: locale,
       ARTEMIS_SMOKE_THEME: theme,
       ARTEMIS_SMOKE_VIEW: view,
-      // PR10C review (severe 1): main.ts arms the multi-question seeding
+      // PR10C review (severe 1): the dedicated fixture arms the multi-question seeding
       // channel and the view activation only behind this dedicated
       // sentinel, so a bare ARTEMIS_SMOKE_VIEW match seeds nothing.
       ARTEMIS_SMOKE_MULTI_UI: "1",
@@ -1951,7 +1951,7 @@ try {
       driver:
         "Real UI operations over the DevTools protocol: every answer, navigation, and activation is a CDP Input-level mouse press or key event against the built production renderer; store evidence is read back through the renderer's own window.artemis.getThreadEvents IPC.",
       seeding:
-        "main.ts contributes only the ARTEMIS_SMOKE_VIEW=multi-question-ui* seeding gate: a real pendingMultiUserInputs registration plus a real user-input.requested payload through emitPayload (the #124 smoke channel), the legacy regression card through the real handleUserInputBrokerRequest, and per-view arms for the already-expired question and the cancel target.",
+        "test/fixtures/smoke/user-input.ts contributes only the ARTEMIS_SMOKE_VIEW=multi-question-ui* seeding gate: a real pendingMultiUserInputs registration plus a real user-input.requested payload through emitPayload (the #124 smoke channel), the legacy regression card through the real handleUserInputBrokerRequest, and per-view arms for the already-expired question and the cancel target.",
       timeoutDrive:
         "The five-minute per-question timers cannot be shortened, so the timeout arm seeds the first question with an already-past deadline and closes it through the timer's own resolution function (completeMultiUserInputQuestion, source 'timeout') — the same disclosed fallback as the #124 checklist §6-2.",
       cancelDrive:

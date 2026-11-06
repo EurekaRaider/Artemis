@@ -1,13 +1,20 @@
+import { readSharedApiSources, readPreloadBridgeSources } from '../fixtures/application/api-source.js';
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
+const smokeSource = [
+  "../../scripts/verify/ui/smoke/window-capture.ts",
+  "../../scripts/verify/ui/smoke/collect-evidence.ts",
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), "utf8"))
+  .join("\n");
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const appSource = readFileSync(
-  fileURLToPath(new URL("../../src/renderer/app/App.tsx", import.meta.url)),
-  "utf8",
-);
+const appSource = readRendererAppSources();
 const tokenUsagePageSource = readFileSync(
   fileURLToPath(
     new URL(
@@ -47,24 +54,10 @@ const publicUiStylesSource = readFileSync(
   ),
   "utf8",
 );
-const stylesSource = readFileSync(
-  fileURLToPath(
-    new URL("../../src/renderer/styles/styles.css", import.meta.url),
-  ),
-  "utf8",
-);
-const apiSource = readFileSync(
-  fileURLToPath(new URL("../../src/shared/api.ts", import.meta.url)),
-  "utf8",
-);
-const preloadSource = readFileSync(
-  fileURLToPath(new URL("../../src/preload/preload.ts", import.meta.url)),
-  "utf8",
-);
-const mainSource = readFileSync(
-  fileURLToPath(new URL("../../src/main/main.ts", import.meta.url)),
-  "utf8",
-);
+const stylesSource = readDesktopStyles("styles");
+const apiSource = readSharedApiSources();
+const preloadSource = readPreloadBridgeSources();
+const mainSource = readMainProcessSources();
 const navigationVerifierSource = readFileSync(
   fileURLToPath(
     new URL(
@@ -110,16 +103,16 @@ describe("token usage navigation", () => {
     expect(navigationVerifierSource).toContain("button.controlledPanel?.id");
     expect(preloadSource).toContain("process.contextIsolated === true");
     expect(preloadSource).toContain("process.sandboxed === true");
-    expect(mainSource).toContain('window.webContents.on("console-message"');
-    expect(mainSource).toContain("processType: typeof globalThis.process");
-    expect(mainSource).toContain("requireType: typeof globalThis.require");
+    expect(smokeSource).toContain('window.webContents.on("console-message"');
+    expect(smokeSource).toContain("processType: typeof globalThis.process");
+    expect(smokeSource).toContain("requireType: typeof globalThis.require");
 
-    const focusEvidenceStart = mainSource.indexOf("const focusEvidenceView =");
-    const readyToShowEnd = mainSource.indexOf(
-      'window.on("unresponsive"',
+    const focusEvidenceStart = smokeSource.indexOf("const focusEvidenceView =");
+    const readyToShowEnd = smokeSource.indexOf(
+      "if (smokeScreenshot || smokeAccessibility)",
       focusEvidenceStart,
     );
-    const focusEvidenceSetup = mainSource.slice(
+    const focusEvidenceSetup = smokeSource.slice(
       focusEvidenceStart,
       readyToShowEnd,
     );
@@ -184,7 +177,9 @@ describe("token usage navigation", () => {
     expect(mainSource).toContain(
       "ipcMain.handle(IPC.tokenUsageEvents, () => {",
     );
-    expect(mainSource).toContain("return store.getTokenUsageEvents();");
+    expect(mainSource).toContain(
+      "return services.store.getTokenUsageEvents();",
+    );
     expect(tokenUsagePageSource).toContain(
       "window.artemis\n      .getTokenUsageEvents()",
     );

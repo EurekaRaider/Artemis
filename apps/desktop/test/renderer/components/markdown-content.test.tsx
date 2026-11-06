@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { MarkdownContent } from "../../../src/renderer/components/MarkdownContent.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 
 import { JSDOM } from "jsdom";
 import { findCssDeclarations } from "../../contracts/css-test-utils.js";
@@ -10,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import {
   externalLinkFaviconUrl,
   isWorkspaceFileHref,
-  MarkdownContent,
 } from "../../../src/renderer/components/MarkdownContent.js";
 import {
   workspaceFileIconPath,
@@ -270,18 +270,8 @@ describe("MarkdownContent", () => {
   });
 
   it("keeps file icons without automatic remote favicon requests in assistant messages", () => {
-    const appSource = readFileSync(
-      fileURLToPath(
-        new URL("../../../src/renderer/app/App.tsx", import.meta.url),
-      ),
-      "utf8",
-    );
-    const stylesSource = readFileSync(
-      fileURLToPath(
-        new URL("../../../src/renderer/styles/styles.css", import.meta.url),
-      ),
-      "utf8",
-    );
+    const appSource = readRendererAppSources();
+    const stylesSource = readDesktopStyles("styles");
     const assistantMessage = appSource.match(
       /<ConversationMessage[\s\S]*?className="assistant-message"[\s\S]*?kind="assistant"[\s\S]*?<MarkdownContent[\s\S]*?<\/ConversationMessage>/u,
     )?.[0];
@@ -321,12 +311,7 @@ describe("MarkdownContent", () => {
   });
 
   it("is used for assistant message content in the timeline", () => {
-    const appSource = readFileSync(
-      fileURLToPath(
-        new URL("../../../src/renderer/app/App.tsx", import.meta.url),
-      ),
-      "utf8",
-    );
+    const appSource = readRendererAppSources();
     const assistantMessage = appSource.match(
       /<ConversationMessage[\s\S]*?className="assistant-message"[\s\S]*?kind="assistant"[\s\S]*?<MarkdownContent[\s\S]*?<\/ConversationMessage>/u,
     )?.[0];

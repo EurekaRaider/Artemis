@@ -1,15 +1,11 @@
-import { readFileSync } from "node:fs";
+import { ipcHandlerSource } from "../../fixtures/ipc/source-handler.js";
+
 import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 
-const source = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const registration = await ipcHandlerSource("threads", "threadModelSet");
 
 function modelHandler() {
-  const start = source.indexOf("    IPC.threadModelSet,");
-  const end = source.indexOf("  ipcMain.handle(IPC.threadPrepare", start);
   const thread = {
     id: "current",
     status: "idle",
@@ -46,11 +42,12 @@ function modelHandler() {
     parseThreadCommand: (command: unknown) => command,
     randomUUID: () => "request-id",
   };
-  const compiled = transformSync(`ipcMain.handle(${source.slice(start, end)}`, {
+  const compiled = transformSync(registration, {
     loader: "ts",
     target: "es2022",
   }).code;
-  new Function(...Object.keys(dependencies), compiled)(
+  new Function("services", ...Object.keys(dependencies), compiled)(
+    dependencies,
     ...Object.values(dependencies),
   );
   return {

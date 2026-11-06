@@ -1,11 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
+
 import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 
-const main = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const main = readMainProcessSources();
 const start = main.indexOf("async function executeApprovedMcp(");
 const end = main.indexOf("async function executeApprovedExtension(", start);
 const executeSource = transformSync(main.slice(start, end), {
@@ -47,9 +45,10 @@ function fixture() {
     diagnosticBundleService: { record: vi.fn() },
   };
   const run = new Function(
+    "services",
     ...Object.keys(scope),
     `${executeSource}\nreturn executeApprovedMcp;`,
-  )(...Object.values(scope));
+  )(scope, ...Object.values(scope));
   const request = {
     threadId: "task",
     turnId: "turn",

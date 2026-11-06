@@ -1,3 +1,5 @@
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -6,8 +8,8 @@ import { describe, expect, it } from "vitest";
 const source = (relativePath: string) =>
   readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)), "utf8");
 
-const appSource = source("../../../src/renderer/app/App.tsx");
-const mainSource = source("../../../src/main/main.ts");
+const appSource = readRendererAppSources();
+const mainSource = readMainProcessSources();
 const buildSource = source("../../../scripts/build/build-electron.mjs");
 
 function sourceBetween(value: string, start: string, end: string): string {
@@ -33,7 +35,7 @@ describe("desktop resilience regressions", () => {
       "const setThreadArchived = useCallback(",
     );
 
-    expect(deleteHandler).toContain("if (!store)");
+    expect(deleteHandler).toContain("if (!services.store)");
     expect(deleteHandler).not.toContain("!store || !agentProcess");
     expect(deleteHandler).toContain("activeTurns.has(threadId)");
     expect(deleteHandler).toContain('type: "thread.delete"');
@@ -42,7 +44,7 @@ describe("desktop resilience regressions", () => {
     );
 
     const hostCleanupStart = deleteHandler.indexOf(
-      "if (agentProcess?.available)",
+      "if (services.agentProcess?.available)",
     );
     const cleanupRequest = deleteHandler.indexOf(
       'type: "thread.delete"',
@@ -53,6 +55,7 @@ describe("desktop resilience regressions", () => {
       cleanupRequest,
     );
     const sqliteDelete = deleteHandler.indexOf("store.deleteThread(threadId)");
+    expect(hostCleanupStart).toBeGreaterThanOrEqual(0);
     expect(cleanupRequest).toBeGreaterThanOrEqual(0);
     expect(cleanupFailureBoundary).toBeGreaterThan(cleanupRequest);
     expect(sqliteDelete).toBeGreaterThan(cleanupFailureBoundary);

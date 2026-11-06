@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 
 import { describe, expect, it } from "vitest";
 
@@ -67,10 +66,7 @@ describe("recoverable turn queues", () => {
   });
 
   it("restores the mirrored queue before marking a crashed Host turn failed", () => {
-    const mainSource = readFileSync(
-      fileURLToPath(new URL("../../../src/main/main.ts", import.meta.url)),
-      "utf8",
-    );
+    const mainSource = readMainProcessSources();
     const start = mainSource.indexOf(
       "function interruptTurnsAfterAgentHostExit",
     );

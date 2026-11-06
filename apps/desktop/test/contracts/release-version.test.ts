@@ -60,7 +60,7 @@ describe("release version", () => {
     }
 
     const mcp = readFileSync(
-      join(root, "apps/desktop/src/main/mcp/mcp-client-manager.ts"),
+      join(root, "apps/desktop/src/main/mcp/mcp-connection-factory.ts"),
       "utf8",
     );
     const themeArtemisSource = readFileSync(

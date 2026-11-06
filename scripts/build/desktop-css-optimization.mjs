@@ -1,6 +1,18 @@
 import CleanCSS from "clean-css";
 import postcss from "postcss";
 
+// Emit fonts once instead of embedding base64 bytes in CSS. Keep local asset
+// URLs so packaged file:// loading and lazy styles use the same font files.
+export function desktopAssetInlining(filePath) {
+  const normalized = filePath.replaceAll("\\", "/");
+  if (
+    /\.(?:woff2?|ttf|otf)$/i.test(normalized) ||
+    normalized.includes("/settings/assets/")
+  )
+    return false;
+  return undefined;
+}
+
 function containsCssNesting(node) {
   let nested = false;
   const inspect = (rule) => {

@@ -1,0 +1,309 @@
+/* Glass is limited to the navigation sidebar and computer operation overlays. */
+:root {
+  --nocturne-chart-1: light-dark(#ececef, #24262c);
+  --nocturne-chart-2: light-dark(oklch(0.9 0.04 255), oklch(0.34 0.05 255));
+  --nocturne-chart-3: light-dark(oklch(0.78 0.08 255), oklch(0.46 0.08 255));
+  --nocturne-chart-4: light-dark(oklch(0.62 0.12 255), oklch(0.61 0.11 255));
+  --nocturne-chart-5: light-dark(oklch(0.47 0.14 255), oklch(0.78 0.11 255));
+  --nocturne-chart-input: light-dark(oklch(0.5 0.14 255), oklch(0.62 0.13 255));
+  --nocturne-chart-output: light-dark(
+    oklch(0.6 0.11 185),
+    oklch(0.72 0.11 185)
+  );
+  --nocturne-chart-cache: light-dark(oklch(0.8 0.06 255), oklch(0.82 0.06 255));
+  --nocturne-chart-write: light-dark(#a3a6ae, #6e727c);
+  --nocturne-chart-model: light-dark(oklch(0.5 0.14 255), oklch(0.7 0.11 255));
+  --nocturne-s3: light-dark(#e6e6ea, #2b2e35);
+  --nocturne-switch-on: light-dark(
+    rgb(17 18 22 / 0.52),
+    rgb(255 255 255 / 0.38)
+  );
+  --nocturne-switch-off: light-dark(
+    rgb(17 18 22 / 0.12),
+    rgb(255 255 255 / 0.1)
+  );
+  --artemis-color-switch-on: var(--nocturne-switch-on);
+  --nocturne-btn-soft: light-dark(
+    rgb(17 18 22 / 0.06),
+    rgb(255 255 255 / 0.08)
+  );
+  --nocturne-btn-soft-hover: light-dark(
+    rgb(17 18 22 / 0.09),
+    rgb(255 255 255 / 0.12)
+  );
+  --nocturne-btn-soft-active: light-dark(
+    rgb(17 18 22 / 0.11),
+    rgb(255 255 255 / 0.06)
+  );
+  --nocturne-btn-edge:
+    inset 0 0 0 1px var(--border-soft),
+    inset 0 1px 0 light-dark(transparent, rgb(255 255 255 / 0.05));
+  --nocturne-glass-sidebar: light-dark(
+    rgb(244 245 248 / 0.58),
+    rgb(14 15 19 / 0.52)
+  );
+  --nocturne-side-selected: light-dark(
+    rgb(17 18 22 / 0.07),
+    rgb(255 255 255 / 0.075)
+  );
+  --nocturne-gold-line: light-dark(
+    rgb(192 138 30 / 0.42),
+    rgb(232 182 90 / 0.38)
+  );
+  --nocturne-gold-halo: light-dark(#fbf2df, rgb(232 182 90 / 0.12));
+}
+.app-shell {
+  --sidebar-expanded-width: 256px;
+}
+:root[data-artemis-skin="com.artemis.default"] {
+  --artemis-color-surface-base: var(--panel);
+  .app-shell {
+    --bg: light-dark(#fff, #141519);
+  }
+}
+.app-shell {
+  .workspace,
+  .conversation,
+  .timeline {
+    background: var(--bg);
+  }
+  .workspace-header {
+    flex-basis: 46px;
+    min-block-size: 46px;
+    block-size: 46px;
+    padding-block: 0;
+    border-block-end: 1px solid var(--border-soft);
+  }
+}
+.workspace-header {
+  .workspace-heading > strong {
+    font-weight: 600;
+  }
+  .header-actions {
+    gap: 8px;
+  }
+  :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle) {
+    inline-size: 30px;
+    block-size: 30px;
+    border-radius: 8px;
+  }
+  :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle) svg {
+    inline-size: 16px;
+    block-size: 16px;
+  }
+  .status-pill {
+    min-block-size: 22px;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+  .status-pill time {
+    font-variant-numeric: tabular-nums;
+  }
+}
+.app-shell {
+  .sidebar[data-state="ready"] {
+    border-inline-end: 1px solid var(--border-soft);
+  }
+  .sidebar .sidebar-top {
+    block-size: 46px;
+    min-block-size: 46px;
+    padding: 7px 10px;
+  }
+}
+.app-shell[data-platform="darwin"] .sidebar[data-state="ready"] .sidebar-top {
+  padding-block-start: 7px;
+}
+.app-shell {
+  .sidebar .sidebar-brand {
+    min-block-size: 32px;
+    margin: 0;
+    padding: 0;
+  }
+}
+.app-shell[data-platform="darwin"] .sidebar .brand-button {
+  visibility: hidden;
+}
+.app-shell {
+  .sidebar {
+    /* One quiet neutral wash for every selected sidebar row, in both materials. */
+    --selected: var(--nocturne-side-selected);
+    .sidebar-collapse {
+      inline-size: 26px;
+      block-size: 26px;
+    }
+    .sidebar-header {
+      display: flex;
+      padding: 4px 10px;
+    }
+    .sidebar-header [data-part="copy"] {
+      display: none;
+    }
+    .sidebar-header-actions {
+      inline-size: 100%;
+    }
+    .sidebar-search {
+      inline-size: 100%;
+      background: transparent;
+      border-color: transparent;
+    }
+    .sidebar-search:focus-within {
+      border-color: var(--artemis-color-focus-ring);
+    }
+    .sidebar-nav {
+      gap: 0;
+      padding: 0 0 12px;
+    }
+    .project-tree {
+      padding-inline: 10px 0;
+    }
+    .nav-row {
+      block-size: 30px;
+      min-block-size: 30px;
+      padding: 0 10px;
+      border-radius: 7px;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 400;
+    }
+    .nav-row svg {
+      inline-size: 16px;
+      block-size: 16px;
+    }
+    .sidebar-nav-count {
+      margin-inline-start: auto;
+      color: var(--muted-2);
+      font-size: 11.5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .sidebar-new-task {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 2px 10px 8px;
+      inline-size: calc(100% - 20px);
+      min-block-size: 34px;
+      padding: 0 12px;
+      border-radius: 8px;
+      color: var(--text);
+      background: light-dark(#fff, var(--nocturne-btn-soft));
+      box-shadow:
+        inset 0 0 0 1px var(--border),
+        0 1px 2px light-dark(rgb(17 18 22 / 0.06), transparent);
+      font-weight: 500;
+      font-size: 12.5px;
+      line-height: 1;
+    }
+  }
+}
+.sidebar-new-task kbd {
+  margin-inline-start: auto;
+  font-size: 10.5px;
+  color: inherit;
+  opacity: 0.55;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.app-shell {
+  .sidebar {
+    .project-thread-row {
+      min-block-size: 30px;
+      border-radius: 8px;
+    }
+    .project-thread-row .thread-time {
+      color: var(--muted-2);
+      font-size: 11.5px;
+    }
+    .sidebar-footer {
+      display: grid;
+      grid-auto-flow: column;
+      grid-template-columns: minmax(0, 1fr);
+      height: auto;
+      min-block-size: 0;
+      border-block-start: 1px solid var(--border-soft);
+      margin: 0 10px 10px;
+      padding: 8px 6px 0;
+    }
+    .app-version {
+      color: var(--muted-2);
+      font-size: 11.5px;
+    }
+  }
+}
+:root[data-material="glass"] {
+  .app-shell {
+    .sidebar[data-state="ready"] > [data-part="main"] {
+      border-radius: 0;
+      margin: 0;
+      box-shadow: none;
+      background: var(--nocturne-glass-sidebar);
+      backdrop-filter: none;
+    }
+  }
+}
+:root[data-material="solid"] .app-shell .sidebar > [data-part="main"],
+:root[data-material="solid"] .app-shell .sidebar-rail {
+  background: var(--artemis-color-background-sidebar);
+  backdrop-filter: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+:root[data-material="glass"] .app-shell .sidebar-rail {
+  background: var(--nocturne-glass-sidebar);
+  backdrop-filter: none;
+}
+:root[data-artemis-contrast="high"]
+  .app-shell
+  .sidebar[data-state]
+  > [data-part="main"],
+:root[data-artemis-contrast="high"] .app-shell .sidebar-rail {
+  background: var(--artemis-color-background-sidebar);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-transparency: reduce),
+  (prefers-contrast: more),
+  (forced-colors: active) {
+  :root[data-material] .app-shell .sidebar[data-state] > [data-part="main"],
+  :root[data-material] .app-shell .sidebar-rail,
+  :root
+    .workspace-header
+    :is(
+      .environment-trigger,
+      .left-sidebar-toggle,
+      .right-sidebar-toggle,
+      .status-pill
+    ) {
+    background: var(--artemis-color-background-sidebar);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+}
+
+:root[data-material="solid"]
+  .app-shell
+  .sidebar[data-state="ready"]
+  > [data-part="main"] {
+  background: var(--artemis-color-background-sidebar);
+}
+:root[data-artemis-contrast="high"]
+  .workspace-header
+  :is(
+    .environment-trigger,
+    .left-sidebar-toggle,
+    .right-sidebar-toggle,
+    .status-pill
+  ) {
+  background: var(--panel);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .sidebar *,
+  .app-shell .workspace-header {
+    transition: none;
+  }
+}

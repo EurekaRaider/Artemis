@@ -1,3 +1,5 @@
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 import { readFileSync } from "node:fs";
 import postcss from "postcss";
 import { findCssDeclarations } from "./css-test-utils.js";
@@ -5,22 +7,14 @@ import { describe, expect, it } from "vitest";
 import { artemisDarkTokens, artemisLightTokens } from "@artemis/theme-artemis";
 import { SEMANTIC_TOKEN_REGISTRY } from "@artemis/theme-contract";
 
-const desktop = postcss.parse(
-  readFileSync(
-    new URL("../../src/renderer/styles/styles.css", import.meta.url),
-    "utf8",
-  ),
-);
+const desktop = postcss.parse(readDesktopStyles("styles"));
 const shared = postcss.parse(
   readFileSync(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
     "utf8",
   ),
 );
-const nocturneSource = readFileSync(
-  new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
-  "utf8",
-);
+const nocturneSource = readDesktopStyles("nocturne");
 const providerStyles = readFileSync(
   new URL("../../src/renderer/settings/provider-settings.css", import.meta.url),
   "utf8",
@@ -95,15 +89,7 @@ describe("screenshot visual contracts", () => {
   });
 
   it("disables collapsed-sidebar hover transitions under reduced motion", () => {
-    const sheet = postcss.parse(
-      readFileSync(
-        new URL(
-          "../../src/renderer/styles/prototype-migration.css",
-          import.meta.url,
-        ),
-        "utf8",
-      ),
-    );
+    const sheet = postcss.parse(readDesktopStyles("prototype-migration"));
     const reduced = new Set<string>();
     sheet.walkAtRules("media", (media) => {
       if (media.params !== "(prefers-reduced-motion: reduce)") return;
@@ -311,10 +297,7 @@ describe("screenshot visual contracts", () => {
     ).toBe("var(--danger)");
   });
   it("uses the moonbow mark in the integrated sidebar", () => {
-    const app = readFileSync(
-      new URL("../../src/renderer/app/App.tsx", import.meta.url),
-      "utf8",
-    );
+    const app = readRendererAppSources();
     expect(app).toContain('className="sidebar-brand"');
     expect(app).toContain('className="rail-brand"');
     expect(app).toContain("<ArtemisLogo size={24} />");
@@ -529,15 +512,7 @@ describe("screenshot visual contracts", () => {
 });
 
 describe("control text readability", () => {
-  const prototype = postcss.parse(
-    readFileSync(
-      new URL(
-        "../../src/renderer/styles/prototype-migration.css",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-  );
+  const prototype = postcss.parse(readDesktopStyles("prototype-migration"));
   const cases = [
     ["input::placeholder", "color.surface.base"],
     ["textarea::placeholder", "color.surface.composer"],

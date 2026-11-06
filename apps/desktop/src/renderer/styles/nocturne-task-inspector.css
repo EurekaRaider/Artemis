@@ -1,0 +1,320 @@
+/* The single task inspector docks against the window edge. */
+.app-shell {
+  .workspace {
+    --environment-panel-inline-size: 304px;
+  }
+  .environment-popover {
+    position: fixed;
+    inset-block: 46px 0;
+    inset-inline-end: 0;
+    inset-inline-start: auto;
+    inline-size: 304px;
+    width: 304px;
+    max-inline-size: 304px;
+    max-height: none;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-inline-start: 1px solid var(--border-soft);
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    filter: none;
+    overflow: auto;
+    font-size: 13px;
+  }
+  .environment-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-block-size: 46px;
+    padding: 0 10px 0 16px;
+    background: var(--bg);
+    border-block-end: 1px solid var(--border-soft);
+  }
+}
+.environment-panel-header {
+  strong {
+    flex: 0 1 auto;
+    font-size: 14px;
+    line-height: 20px;
+  }
+  .environment-header-action:last-child {
+    margin-inline-start: auto;
+  }
+}
+.environment-project-name {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted-2);
+  font-size: 11.5px;
+}
+.app-shell {
+  .environment-popover {
+    .environment-section {
+      padding: 14px 16px;
+      margin: 0;
+      border: 0;
+    }
+    .environment-section + .environment-section {
+      border-block-start: 1px solid var(--border-soft);
+    }
+  }
+  .environment-section {
+    & > [data-part="section-header"] {
+      min-block-size: 20px;
+      margin-block-end: 8px;
+      color: var(--muted-2);
+    }
+  }
+  .environment-row,
+  .environment-workspace-trigger {
+    min-block-size: 34px;
+    border-radius: 9px;
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--border);
+    padding: 0 10px;
+    gap: 9px;
+  }
+  .environment-setting-row {
+    min-inline-size: 0;
+    gap: 8px;
+  }
+  .environment-branch-control {
+    inline-size: 100%;
+  }
+  .environment-branch-control .environment-row {
+    inline-size: 100%;
+  }
+}
+.environment-branch-control .environment-row-copy {
+  flex: 1;
+}
+.environment-sync-count {
+  flex: none;
+  color: var(--muted);
+  font: 11.5px var(--mono-font);
+  white-space: nowrap;
+}
+.environment-compare-row {
+  & {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-block-size: 22px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    color: var(--muted-2);
+    text-align: start;
+    font-size: 13px;
+    & > svg {
+      inline-size: 14px;
+      block-size: 14px;
+      flex: none;
+    }
+    & > strong {
+      margin-inline-start: auto;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-inline-size: 150px;
+      font: 12px/1.5 var(--mono-font);
+    }
+  }
+}
+.environment-sync-status,
+.environment-pr-empty {
+  color: var(--muted-2);
+  font-size: 11.5px;
+  line-height: 1.6;
+  margin: 0;
+}
+.environment-changed-files {
+  display: flex;
+  flex-direction: column;
+  max-block-size: 240px;
+  overflow: auto;
+}
+.environment-file-row {
+  & {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-block-size: 28px;
+    padding: 3px 0;
+    border: 0;
+    background: transparent;
+    text-align: start;
+    color: var(--text);
+  }
+  &:hover {
+    background: var(--hover);
+  }
+}
+.environment-file-name {
+  flex: 1;
+  min-inline-size: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 12.5px/1.5 var(--mono-font);
+}
+.environment-file-row .file-status {
+  flex: none;
+  font: 11px/1.5 var(--mono-font);
+  color: var(--artemis-color-status-warning-text);
+}
+.environment-file-row .file-status[data-status="deleted"] {
+  color: var(--danger);
+}
+.environment-file-row .file-status[data-status="renamed"] {
+  color: var(--muted-2);
+}
+.environment-diff-total {
+  white-space: nowrap;
+  font: 11.5px/1.5 var(--mono-font);
+}
+.environment-changes-section > header > .environment-diff-total {
+  font-size: 12px;
+}
+.environment-change-actions {
+  display: flex;
+  gap: 6px;
+  margin-block-start: 10px;
+}
+.app-shell {
+  .environment-change-actions {
+    button {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-inline-size: 0;
+      block-size: 26px;
+      min-block-size: 26px;
+      padding: 0 9px;
+      border-radius: 7px;
+      background: var(--panel);
+      box-shadow: inset 0 0 0 1px var(--border);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    svg {
+      inline-size: 14px;
+      block-size: 14px;
+    }
+  }
+  .environment-popover .environment-git-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    inline-size: 100%;
+    width: 100%;
+    max-width: none;
+    padding: 16px;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: var(--bg);
+  }
+}
+.environment-field-label {
+  margin-block-end: -10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted-2);
+}
+.app-shell {
+  .environment-git-message {
+    min-block-size: 0;
+    padding: 0;
+  }
+  .environment-git-message textarea {
+    min-block-size: 80px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    border-radius: 10px;
+    background: var(--surface);
+  }
+  .environment-git-include {
+    min-block-size: 28px;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+  }
+}
+.environment-git-include {
+  strong {
+    font-weight: 400;
+  }
+  .environment-diff-total {
+    margin-inline-start: auto;
+  }
+}
+.app-shell {
+  .environment-git-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 8px;
+    .environment-push-only {
+      grid-column: 1 / -1;
+      justify-self: start;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+    }
+    :is(button, button strong) {
+      font-size: 12.5px;
+      font-weight: 500;
+      line-height: 1;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    kbd {
+      display: none;
+    }
+    button {
+      display: flex;
+      gap: 6px;
+      min-block-size: 32px;
+      justify-content: center;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px;
+    }
+  }
+}
+.environment-git-progress {
+  & {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+  svg {
+    flex: none;
+  }
+}
+[dir="rtl"] .environment-back svg {
+  transform: rotate(180deg);
+}
+@media (max-width: 979px) {
+  .app-shell .environment-popover {
+    display: none;
+  }
+}

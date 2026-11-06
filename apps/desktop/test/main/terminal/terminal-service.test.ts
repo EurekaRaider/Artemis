@@ -1,3 +1,4 @@
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,12 +13,9 @@ const terminalServiceSource = readFileSync(
   new URL("../../../src/main/terminal/terminal-service.ts", import.meta.url),
   "utf8",
 );
-const mainSource = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const mainSource = readMainProcessSources();
 const mcpClientManagerSource = readFileSync(
-  new URL("../../../src/main/mcp/mcp-client-manager.ts", import.meta.url),
+  new URL("../../../src/main/mcp/mcp-connection-factory.ts", import.meta.url),
   "utf8",
 );
 const trustedExtensionManagerSource = readFileSync(

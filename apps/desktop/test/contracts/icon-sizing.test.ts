@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { readResourceCenterSources } from "../fixtures/application/resource-center-source.js";
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 //
 // D#76 PR9A §5 test matrix: the five-tier icon size token family
 // (xs 12 / sm 14 / base 16 / lg 20 / xl 24), the named consumer migrations,
@@ -17,10 +20,7 @@ import "../fixtures/renderer-test-utils.js";
 import * as EnvironmentPanelIcons from "../../src/renderer/workspace/EnvironmentPanelIcons.js";
 import { SemanticResourceIcon } from "../../src/renderer/plugins/resource-icons.js";
 
-const stylesSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/styles/styles.css"),
-  "utf8",
-);
+const stylesSource = readDesktopStyles("styles");
 const publicUiStylesSource = readFileSync(
   resolve(process.cwd(), "../../packages/ui/src/styles.css"),
   "utf8",
@@ -37,10 +37,7 @@ const artemisIconsSource = readFileSync(
   resolve(process.cwd(), "../../packages/ui/src/icons.tsx"),
   "utf8",
 );
-const resourceCenterSource = readFileSync(
-  resolve(process.cwd(), "src/renderer/plugins/ResourceCenter.tsx"),
-  "utf8",
-);
+const resourceCenterSource = readResourceCenterSources();
 
 function cssRuleBlock(styles: string, selector: string): string {
   const result = findCssDeclarations(styles, selector);
@@ -252,10 +249,7 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
   });
 
   it("uses a muted 32px archive line icon for the empty state", () => {
-    const nocturneSource = readFileSync(
-      resolve(process.cwd(), "src/renderer/styles/nocturne.css"),
-      "utf8",
-    );
+    const nocturneSource = readDesktopStyles("nocturne");
     const block = cssRuleBlock(nocturneSource, ".app-shell .archive-empty svg");
     expect(block).toMatch(/width:\s*32px/);
     expect(block).toMatch(/height:\s*32px/);
@@ -319,9 +313,9 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
       0,
     );
     expect(total).toBe(4);
-    expect(
-      readFileSync(resolve(process.cwd(), "src/renderer/app/App.tsx"), "utf8"),
-    ).toMatch(/<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u);
+    expect(readRendererAppSources()).toMatch(
+      /<ResourceAvatar\s+kind="skill"\s+name=\{name\}/u,
+    );
   });
 
   it("uses the Nocturne glyph catalog without substitute icons", () => {

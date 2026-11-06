@@ -1,0 +1,946 @@
+[
+  {
+    "kind": "handle",
+    "key": "projectInstructionsRead"
+  },
+  {
+    "kind": "handle",
+    "key": "projectInstructionsWrite"
+  },
+  {
+    "kind": "handle",
+    "key": "browserSession"
+  },
+  {
+    "kind": "handle",
+    "key": "computerPreviews"
+  },
+  {
+    "kind": "handle",
+    "key": "computerPreview"
+  },
+  {
+    "kind": "on",
+    "key": "computerPreviewMedia"
+  },
+  {
+    "kind": "on",
+    "key": "computerPreviewReport"
+  },
+  {
+    "kind": "handle",
+    "key": "computerRegisterBrowser"
+  },
+  {
+    "kind": "handle",
+    "key": "browserPreview"
+  },
+  {
+    "kind": "handle",
+    "key": "computerState"
+  },
+  {
+    "kind": "handle",
+    "key": "computerControl"
+  },
+  {
+    "kind": "handle",
+    "key": "computerPermissions"
+  },
+  {
+    "kind": "handle",
+    "key": "computerRevokePermission"
+  },
+  {
+    "kind": "handle",
+    "key": "hooksList"
+  },
+  {
+    "kind": "handle",
+    "key": "hooksTrust"
+  },
+  {
+    "kind": "handle",
+    "key": "hooksChange"
+  },
+  {
+    "kind": "handle",
+    "key": "hooksInspect"
+  },
+  {
+    "kind": "on",
+    "key": "taskView"
+  },
+  {
+    "kind": "handle",
+    "key": "threadTaskSummary"
+  },
+  {
+    "kind": "handle",
+    "key": "snapshot"
+  },
+  {
+    "kind": "handle",
+    "key": "threadHistory"
+  },
+  {
+    "kind": "handle",
+    "key": "threadEvents"
+  },
+  {
+    "kind": "handle",
+    "key": "tokenUsageEvents"
+  },
+  {
+    "kind": "handle",
+    "key": "promptHistory"
+  },
+  {
+    "kind": "handle",
+    "key": "imStatus"
+  },
+  {
+    "kind": "handle",
+    "key": "imSave"
+  },
+  {
+    "kind": "handle",
+    "key": "imManage"
+  },
+  {
+    "kind": "handle",
+    "key": "appearanceGet"
+  },
+  {
+    "kind": "handle",
+    "key": "appearanceResolve"
+  },
+  {
+    "kind": "handle",
+    "key": "appearanceRelease"
+  },
+  {
+    "kind": "handle",
+    "key": "appearanceSelect"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsGet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsProfileAvatarSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsProjectOrderSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsProjectThreadOrderSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsCollapsedProjectIdsSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsExpandedProjectIdsSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsProjectSidebarWidthSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsTemporaryConversationsOpenSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsWorkspaceDockWidthSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsLanguageSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsComposerPredictionsSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsPreventSleepSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsMaterialSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsThemeSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsApprovalPolicySet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsLocalFullAccessSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsShellRuntimeSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsAgentConcurrencySet"
+  },
+  {
+    "kind": "handle",
+    "key": "updateCheck"
+  },
+  {
+    "kind": "handle",
+    "key": "updateDownload"
+  },
+  {
+    "kind": "handle",
+    "key": "updateInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "diagnosticsExport"
+  },
+  {
+    "kind": "on",
+    "key": "diagnosticsRendererError"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsModelAdd"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsModelDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsModelSet"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsApiKeySave"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsProviderSave"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsProviderDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsCredentialDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsPiImport"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsGlobalAgentsSave"
+  },
+  {
+    "kind": "handle",
+    "key": "customAgentsGet"
+  },
+  {
+    "kind": "handle",
+    "key": "customAgentsCreate"
+  },
+  {
+    "kind": "handle",
+    "key": "customAgentsUpdate"
+  },
+  {
+    "kind": "handle",
+    "key": "customAgentsDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "customAgentsPreviewCapabilities"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsImportScan"
+  },
+  {
+    "kind": "handle",
+    "key": "settingsImportApply"
+  },
+  {
+    "kind": "handle",
+    "key": "mcpServerSave"
+  },
+  {
+    "kind": "handle",
+    "key": "mcpServerEnable"
+  },
+  {
+    "kind": "handle",
+    "key": "mcpServerReconnect"
+  },
+  {
+    "kind": "handle",
+    "key": "mcpServerAuthorize"
+  },
+  {
+    "kind": "handle",
+    "key": "mcpServerRemove"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceConfirm"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceMcpList"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceMcpSearch"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceMcpInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceSkillSearch"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceSkillList"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceSkillInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceSkillInstallLocal"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceSkillEnable"
+  },
+  {
+    "kind": "handle",
+    "key": "resourceSkillRemove"
+  },
+  {
+    "kind": "handle",
+    "key": "computerRuntimeStatus"
+  },
+  {
+    "kind": "handle",
+    "key": "computerRuntimeCheck"
+  },
+  {
+    "kind": "handle",
+    "key": "computerRuntimeCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginList"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginInspectLocal"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceLoad"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceList"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceTrust"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceInspectOffline"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceAddOffline"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceAdd"
+  },
+  {
+    "kind": "handle",
+    "key": "connectorDefinitions"
+  },
+  {
+    "kind": "handle",
+    "key": "connectorConnections"
+  },
+  {
+    "kind": "handle",
+    "key": "connectorConnect"
+  },
+  {
+    "kind": "handle",
+    "key": "connectorReconnect"
+  },
+  {
+    "kind": "handle",
+    "key": "connectorCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "connectorDisconnect"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceSelect"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceRefresh"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceRemove"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginMarketplaceReorder"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginRuntimeMarketplace"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginRuntimeInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginUpdate"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginEnable"
+  },
+  {
+    "kind": "handle",
+    "key": "resourcePluginRemove"
+  },
+  {
+    "kind": "handle",
+    "key": "extensionTrust"
+  },
+  {
+    "kind": "handle",
+    "key": "extensionRetrust"
+  },
+  {
+    "kind": "handle",
+    "key": "extensionEnable"
+  },
+  {
+    "kind": "handle",
+    "key": "extensionNetwork"
+  },
+  {
+    "kind": "handle",
+    "key": "extensionRemove"
+  },
+  {
+    "kind": "handle",
+    "key": "terminalOpen"
+  },
+  {
+    "kind": "handle",
+    "key": "terminalWrite"
+  },
+  {
+    "kind": "handle",
+    "key": "terminalResize"
+  },
+  {
+    "kind": "handle",
+    "key": "terminalClose"
+  },
+  {
+    "kind": "handle",
+    "key": "workspacePdfOpen"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceVideoOpen"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceVideoRelease"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelEnsure"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelBounds"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelVisible"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelRelease"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelCandidateAccept"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelSendConsume"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelSendStage"
+  },
+  {
+    "kind": "handle",
+    "key": "designPanelSendOutcome"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceTabMenuShow"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceTabMenuClose"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceHtmlOpen"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceHtmlRelease"
+  },
+  {
+    "kind": "handle",
+    "key": "officeOpen"
+  },
+  {
+    "kind": "handle",
+    "key": "officeSnapshot"
+  },
+  {
+    "kind": "handle",
+    "key": "officeEdit"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceCsvSave"
+  },
+  {
+    "kind": "handle",
+    "key": "officePreview"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityStatus"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityCheckUpdates"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityImport"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityActivate"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityDeactivate"
+  },
+  {
+    "kind": "handle",
+    "key": "officeCapabilityUninstall"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityStatus"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityAvailability"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityCheckUpdates"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityInstall"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityImport"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityActivate"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityDeactivate"
+  },
+  {
+    "kind": "handle",
+    "key": "designCapabilityUninstall"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceTextFileRead"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceImageRead"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceDirectoryList"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceFileRead"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceFileWrite"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceFileLinkInspect"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceFileReveal"
+  },
+  {
+    "kind": "handle",
+    "key": "workspaceFileRun"
+  },
+  {
+    "kind": "handle",
+    "key": "projectOpen"
+  },
+  {
+    "kind": "handle",
+    "key": "projectRemove"
+  },
+  {
+    "kind": "handle",
+    "key": "projectGitInfo"
+  },
+  {
+    "kind": "handle",
+    "key": "projectPullRequest"
+  },
+  {
+    "kind": "handle",
+    "key": "projectGitBranchSwitch"
+  },
+  {
+    "kind": "handle",
+    "key": "projectGitBranchCreate"
+  },
+  {
+    "kind": "handle",
+    "key": "projectGitCommit"
+  },
+  {
+    "kind": "handle",
+    "key": "projectGitPush"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentsSelect"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentsRead"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentRetry"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentImport"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentPrepare"
+  },
+  {
+    "kind": "handle",
+    "key": "promptFilePreview"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentPreview"
+  },
+  {
+    "kind": "handle",
+    "key": "promptAttachmentCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "taskSourceImageRead"
+  },
+  {
+    "kind": "handle",
+    "key": "threadCreate"
+  },
+  {
+    "kind": "handle",
+    "key": "threadModelSet"
+  },
+  {
+    "kind": "handle",
+    "key": "threadPrepare"
+  },
+  {
+    "kind": "handle",
+    "key": "conversationShare"
+  },
+  {
+    "kind": "handle",
+    "key": "threadRename"
+  },
+  {
+    "kind": "handle",
+    "key": "threadGoalSet"
+  },
+  {
+    "kind": "handle",
+    "key": "threadGoalObjectiveGet"
+  },
+  {
+    "kind": "handle",
+    "key": "threadGoalObjectiveUpdate"
+  },
+  {
+    "kind": "handle",
+    "key": "threadGoalPause"
+  },
+  {
+    "kind": "handle",
+    "key": "threadGoalResume"
+  },
+  {
+    "kind": "handle",
+    "key": "threadGoalClear"
+  },
+  {
+    "kind": "handle",
+    "key": "threadArchive"
+  },
+  {
+    "kind": "handle",
+    "key": "threadDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "threadFork"
+  },
+  {
+    "kind": "handle",
+    "key": "threadCompact"
+  },
+  {
+    "kind": "handle",
+    "key": "worktreeBranchize"
+  },
+  {
+    "kind": "handle",
+    "key": "worktreeListCleanup"
+  },
+  {
+    "kind": "handle",
+    "key": "worktreeCleanup"
+  },
+  {
+    "kind": "handle",
+    "key": "worktreeRestoreSnapshot"
+  },
+  {
+    "kind": "handle",
+    "key": "worktreeHandoff"
+  },
+  {
+    "kind": "handle",
+    "key": "providerLoginOptions"
+  },
+  {
+    "kind": "handle",
+    "key": "providerLoginStart"
+  },
+  {
+    "kind": "handle",
+    "key": "providerLoginStatus"
+  },
+  {
+    "kind": "handle",
+    "key": "providerLoginAnswer"
+  },
+  {
+    "kind": "handle",
+    "key": "providerLoginCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "planAccept"
+  },
+  {
+    "kind": "handle",
+    "key": "planRevise"
+  },
+  {
+    "kind": "handle",
+    "key": "turnStart"
+  },
+  {
+    "kind": "on",
+    "key": "turnRendered"
+  },
+  {
+    "kind": "handle",
+    "key": "turnSteer"
+  },
+  {
+    "kind": "handle",
+    "key": "turnFollowUp"
+  },
+  {
+    "kind": "handle",
+    "key": "turnQueueClear"
+  },
+  {
+    "kind": "handle",
+    "key": "turnQueueSteer"
+  },
+  {
+    "kind": "handle",
+    "key": "turnQueueSteerItem"
+  },
+  {
+    "kind": "handle",
+    "key": "turnQueueReplace"
+  },
+  {
+    "kind": "handle",
+    "key": "turnCancel"
+  },
+  {
+    "kind": "handle",
+    "key": "turnChangesUndo"
+  },
+  {
+    "kind": "handle",
+    "key": "childAgentControl"
+  },
+  {
+    "kind": "handle",
+    "key": "agentTeamControl"
+  },
+  {
+    "kind": "handle",
+    "key": "approvalResolve"
+  },
+  {
+    "kind": "handle",
+    "key": "userInputResolve"
+  },
+  {
+    "kind": "handle",
+    "key": "automationList"
+  },
+  {
+    "kind": "handle",
+    "key": "automationRunList"
+  },
+  {
+    "kind": "handle",
+    "key": "automationSave"
+  },
+  {
+    "kind": "handle",
+    "key": "automationEnable"
+  },
+  {
+    "kind": "handle",
+    "key": "automationAuthorize"
+  },
+  {
+    "kind": "handle",
+    "key": "automationDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "automationRunNow"
+  },
+  {
+    "kind": "handle",
+    "key": "reviewDiff"
+  },
+  {
+    "kind": "handle",
+    "key": "reviewMutate"
+  },
+  {
+    "kind": "handle",
+    "key": "reviewCommentList"
+  },
+  {
+    "kind": "handle",
+    "key": "reviewCommentAdd"
+  },
+  {
+    "kind": "handle",
+    "key": "reviewCommentDelete"
+  }
+]

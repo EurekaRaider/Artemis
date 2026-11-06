@@ -73,4 +73,20 @@
 - Never add test fixtures, synthetic or smoke-test data, verification-only IPC handlers, or test automation drivers to `main.ts`, `App.tsx`, or other production entrypoints and business modules. Keep them in dedicated test or verification files, organized by their owning module and feature.
 - Put fixtures and test helpers in `test/fixtures/<feature>/`, test scenarios in the matching `test/main/`, `test/renderer/`, or `test/integration/` feature directory, and desktop verification drivers in the appropriate `scripts/verify/{ui,native,features}/` feature directory. Use dedicated test or verification entrypoints to assemble them; production modules must not import test fixtures or verification drivers. Preserve this separation when moving existing embedded test code out of production files.
 - Keep public package exports, npm command names and compiled worker/preload paths stable when moving source files. Update CI path filters and script root resolution together.
+- Keep task/session execution in `main/conversation/`, Goal handling in its
+  conversation runtime, and approvals/tool dispatch in `main/broker/`.
+  `main.ts` composes these owners through narrow dependencies; do not add new
+  broker implementations or task execution branches to the entrypoint.
+- Contracts-only modules and their consumers must use explicit `import type` /
+  `export type`; check emitted import graphs when splitting modules so erased
+  type references do not introduce runtime imports or cycles.
+- Keep cross-process feature contracts in `shared/api/` and preload bridge
+  implementations in `preload/bridges/`. Preserve `shared/api.ts` exports,
+  `window.artemis`, channel names, argument order and listener disposal; bridge
+  regression fixtures belong in `test/fixtures/preload/`.
+- Preserve live service lookups across startup, restart and shutdown. Do not
+  capture a replaceable service in a long-lived callback during module creation.
+- Keep stylesheet entrypoints as ordered imports. Source-level checks must
+  follow local CSS imports recursively; never reorder rules or raise a bundle
+  budget simply to make a refactor pass.
 - Run `npm run verify:layout` after directory changes. Store verification output under ignored `artifacts/verification/<topic>/<run>/`; do not put generated reports at the repository root.

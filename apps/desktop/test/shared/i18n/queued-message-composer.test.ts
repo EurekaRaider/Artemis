@@ -1,19 +1,13 @@
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 import { uiText } from "../../../src/shared/i18n/ui-text.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const appSource = readFileSync(
-  fileURLToPath(new URL("../../../src/renderer/app/App.tsx", import.meta.url)),
-  "utf8",
-);
-const stylesSource = readFileSync(
-  fileURLToPath(
-    new URL("../../../src/renderer/styles/styles.css", import.meta.url),
-  ),
-  "utf8",
-);
+const appSource = readRendererAppSources();
+const stylesSource = readDesktopStyles("styles");
 const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../../packages/ui/src/styles.css", import.meta.url),

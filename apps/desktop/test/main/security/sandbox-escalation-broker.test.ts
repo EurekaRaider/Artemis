@@ -1,5 +1,6 @@
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+
 import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 import { isExecutionMode, type ApprovalPolicy } from "@artemis/protocol";
@@ -10,10 +11,7 @@ import {
 } from "../../../src/main/security/approval-mode.js";
 import { sandboxEscalationError } from "../../../src/main/security/sandbox-escalation.js";
 
-const main = readFileSync(
-  new URL("../../../src/main/main.ts", import.meta.url),
-  "utf8",
-);
+const main = readMainProcessSources();
 function source(start: string, end: string) {
   return main.slice(
     main.indexOf(start),
@@ -120,9 +118,10 @@ function fixture(
   };
   const build = () =>
     new Function(
+      "services",
       ...Object.keys(scope),
       `${compiled}\nreturn {handleMcpBrokerRequest, handleExtensionBrokerRequest, executeApprovedMcp, executeApprovedExtension};`,
-    )(...Object.values(scope));
+    )(scope, ...Object.values(scope));
   const request = {
     kind,
     approvalId: "approval",

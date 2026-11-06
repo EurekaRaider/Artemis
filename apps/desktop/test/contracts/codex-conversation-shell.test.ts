@@ -1,3 +1,11 @@
+import {
+  readSharedApiSources,
+  readPreloadBridgeSources,
+} from "../fixtures/application/api-source.js";
+import { readAgentRuntimeSources } from "../fixtures/application/agent-runtime-source.js";
+import { readDesktopStyles } from "../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
+import { readMainProcessSources } from "../fixtures/application/main-source.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import { artemisDarkTokens } from "@artemis/theme-artemis";
 import { findCssDeclarations } from "./css-test-utils.js";
@@ -6,38 +14,18 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const appSource = readFileSync(
-  fileURLToPath(new URL("../../src/renderer/app/App.tsx", import.meta.url)),
-  "utf8",
-);
-const stylesSource = readFileSync(
-  fileURLToPath(
-    new URL("../../src/renderer/styles/styles.css", import.meta.url),
-  ),
-  "utf8",
-);
-const nocturneStylesSource = readFileSync(
-  new URL("../../src/renderer/styles/nocturne.css", import.meta.url),
-  "utf8",
-);
+const appSource = readRendererAppSources();
+const stylesSource = readDesktopStyles("styles");
+const nocturneStylesSource = readDesktopStyles("nocturne");
 const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../packages/ui/src/styles.css", import.meta.url),
   ),
   "utf8",
 );
-const apiSource = readFileSync(
-  fileURLToPath(new URL("../../src/shared/api.ts", import.meta.url)),
-  "utf8",
-);
-const preloadSource = readFileSync(
-  fileURLToPath(new URL("../../src/preload/preload.ts", import.meta.url)),
-  "utf8",
-);
-const mainSource = readFileSync(
-  fileURLToPath(new URL("../../src/main/main.ts", import.meta.url)),
-  "utf8",
-);
+const apiSource = readSharedApiSources();
+const preloadSource = readPreloadBridgeSources();
+const mainSource = readMainProcessSources();
 const storeSource = readFileSync(
   fileURLToPath(new URL("../../src/main/settings/store.ts", import.meta.url)),
   "utf8",
@@ -46,15 +34,7 @@ const agentWorkerSource = readFileSync(
   fileURLToPath(new URL("../../src/agent/agent-worker.ts", import.meta.url)),
   "utf8",
 );
-const agentRuntimeSource = readFileSync(
-  fileURLToPath(
-    new URL(
-      "../../../../packages/agent-host/src/runtime/runtime.ts",
-      import.meta.url,
-    ),
-  ),
-  "utf8",
-);
+const agentRuntimeSource = readAgentRuntimeSources();
 const hostMessagesSource = readFileSync(
   fileURLToPath(
     new URL(
@@ -275,7 +255,9 @@ describe("Codex conversation shell contract", () => {
       "compactionSettingsForContextWindow(contextWindow)",
     );
     expect(agentRuntimeSource).toContain('event.type === "compaction_start"');
-    expect(agentRuntimeSource).toContain("this.emitContextUsage(hosted, true)");
+    expect(agentRuntimeSource).toContain(
+      "services.emitContextUsage(hosted, true)",
+    );
     expect(agentRuntimeSource).toContain('event.type === "compaction_end"');
     expect(agentRuntimeSource).toContain('event.type === "turn_end"');
     expect(agentRuntimeSource).toContain("event.result?.estimatedTokensAfter");
@@ -429,11 +411,11 @@ describe("Codex conversation shell contract", () => {
     expect(agentWorkerSource).toContain(
       "await host.deleteThread(command.threadId, command.sessionFile)",
     );
-    expect(agentRuntimeSource).toContain(
-      "async deleteThread(threadId: string, sessionFile?: string)",
+    expect(agentRuntimeSource).toMatch(
+      /async function deleteThread\(\s*threadId: string,\s*sessionFile\?: string,?\s*\)/u,
     );
     expect(agentRuntimeSource).toMatch(
-      /await deletePiSessionTranscript\(\s*sessionFile,\s*join\(this\.agentDir, "sessions"\),?\s*\)/u,
+      /await deletePiSessionTranscript\(\s*sessionFile,\s*join\(services\.agentDir, "sessions"\),?\s*\)/u,
     );
 
     const rendererDelete = sourceBetween(

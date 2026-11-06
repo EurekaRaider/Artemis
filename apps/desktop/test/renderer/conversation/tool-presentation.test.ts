@@ -1,3 +1,5 @@
+import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
+import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -58,14 +60,8 @@ const toolPresentation = (await import(modulePath).catch(() => ({}))) as {
   summarizeToolDetail?: SummarizeToolDetail;
   summarizeToolGroup?: SummarizeToolGroup;
 };
-const appSource = readFileSync(
-  new URL("../../../src/renderer/app/App.tsx", import.meta.url),
-  "utf8",
-);
-const stylesSource = readFileSync(
-  new URL("../../../src/renderer/styles/styles.css", import.meta.url),
-  "utf8",
-);
+const appSource = readRendererAppSources();
+const stylesSource = readDesktopStyles("styles");
 const adapterSource = readFileSync(
   new URL(
     "../../../src/renderer/conversation/agent-pattern-adapters.ts",
@@ -384,10 +380,7 @@ describe("tool presentation", () => {
     expect(toolCard).not.toContain("<strong>{tool.name}</strong>");
     expect(toolCard).not.toContain("<span>{tool.status}</span>");
     expect(toolCard).not.toContain("defaultOpen");
-    const nocturne = readFileSync(
-      new URL("../../../src/renderer/styles/nocturne.css", import.meta.url),
-      "utf8",
-    );
+    const nocturne = readDesktopStyles("nocturne");
     expect(nocturne).toContain(
       "grid-template-columns: 18px 18px 44px minmax(0, 1fr) auto",
     );

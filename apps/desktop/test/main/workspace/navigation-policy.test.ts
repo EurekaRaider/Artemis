@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 
 import { describe, expect, it, vi } from "vitest";
 import { transformSync } from "esbuild";
@@ -11,10 +10,7 @@ import {
   isRendererNavigationAllowed,
 } from "../../../src/main/workspace/navigation-policy.js";
 
-const mainSource = readFileSync(
-  fileURLToPath(new URL("../../../src/main/main.ts", import.meta.url)),
-  "utf8",
-);
+const mainSource = readMainProcessSources();
 
 describe("renderer navigation policy", () => {
   it("allows only the packaged renderer entry in production", () => {
