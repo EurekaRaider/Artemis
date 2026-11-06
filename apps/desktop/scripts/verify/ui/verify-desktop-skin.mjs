@@ -55,10 +55,6 @@ const electronPath = createRequire(import.meta.url)("electron");
 const smokeRendererDirectory = join(appDirectory, "dist-renderer-skin-smoke");
 const rendererDirectory = join(appDirectory, "dist-renderer");
 const electronDirectory = join(appDirectory, "dist-electron");
-const smokePreloadSourcePath = join(
-  appDirectory,
-  "src/preload/.desktop-skin-smoke-preload.ts",
-);
 const screenshots = [];
 const expectedTokenCount = Object.keys(SEMANTIC_TOKEN_REGISTRY).length;
 const runtimeViewport = Object.freeze({ width: 1_420, height: 920 });
@@ -169,63 +165,35 @@ async function firstPath(root, name) {
 }
 
 async function buildSmokePreload() {
+  const preloadDirectory = join(appDirectory, "src/preload");
   const productionSource = await readFile(
-    join(appDirectory, "src/preload/preload.ts"),
+    join(preloadDirectory, "preload.ts"),
     "utf8",
   );
-  const withCounters = productionSource
-    .replace(
-      'import { contextBridge, ipcRenderer, webUtils } from "electron";',
-      'import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";',
-    )
-    .replace(
-      "const api: ArtemisApi = {",
-      'let desktopSkinSmokeTerminalOpenCount = 0;\nlet desktopSkinSmokeTerminalWriteCount = 0;\nlet desktopSkinSmokeTerminalResizeCount = 0;\nlet desktopSkinSmokeTerminalCloseCount = 0;\nlet desktopSkinSmokeTerminalLastResize = null;\nlet desktopSkinSmokeRendererReadyCount = 0;\nlet desktopSkinSmokeTerminalData = "";\n\nconst api: ArtemisApi = {',
-    )
-    .replace(
-      "rendererReady: () =>\n    ipcRenderer.send(IPC.rendererReady, {\n      contextIsolated: process.contextIsolated === true,\n      sandboxed: process.sandboxed === true,\n    }),",
-      "rendererReady: () => {\n    desktopSkinSmokeRendererReadyCount += 1;\n    ipcRenderer.send(IPC.rendererReady, {\n      contextIsolated: process.contextIsolated === true,\n      sandboxed: process.sandboxed === true,\n    });\n  },",
-    )
-    .replace(
-      "openTerminal: (input) => ipcRenderer.invoke(IPC.terminalOpen, input),",
-      "openTerminal: (input) => {\n    desktopSkinSmokeTerminalOpenCount += 1;\n    return ipcRenderer.invoke(IPC.terminalOpen, input);\n  },",
-    )
-    .replace(
-      "writeTerminal: (terminalId, data) =>\n    ipcRenderer.invoke(IPC.terminalWrite, terminalId, data),",
-      "writeTerminal: (terminalId, data) => {\n    desktopSkinSmokeTerminalWriteCount += 1;\n    return ipcRenderer.invoke(IPC.terminalWrite, terminalId, data);\n  },",
-    )
-    .replace(
-      "resizeTerminal: (terminalId, cols, rows) =>\n    ipcRenderer.invoke(IPC.terminalResize, terminalId, cols, rows),",
-      "resizeTerminal: (terminalId, cols, rows) => {\n    desktopSkinSmokeTerminalResizeCount += 1;\n    desktopSkinSmokeTerminalLastResize = { cols, rows };\n    return ipcRenderer.invoke(IPC.terminalResize, terminalId, cols, rows);\n  },",
-    )
-    .replace(
-      "closeTerminal: (terminalId) =>\n    ipcRenderer.invoke(IPC.terminalClose, terminalId),",
-      "closeTerminal: (terminalId) => {\n    desktopSkinSmokeTerminalCloseCount += 1;\n    return ipcRenderer.invoke(IPC.terminalClose, terminalId);\n  },",
-    )
-    .replace(
-      "    ipcRenderer.on(IPC.terminalData, handler);",
-      "    ipcRenderer.on(IPC.terminalData, (_event, value) => {\n      desktopSkinSmokeTerminalData = (desktopSkinSmokeTerminalData + value.data).slice(-16_384);\n    });\n    ipcRenderer.on(IPC.terminalData, handler);",
-    )
-    .replace(
-      'contextBridge.exposeInMainWorld("artemis", api);',
-      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", {\n  terminalData: () => desktopSkinSmokeTerminalData,\n  terminalOpenCount: () => desktopSkinSmokeTerminalOpenCount,\n  terminalWriteCount: () => desktopSkinSmokeTerminalWriteCount,\n  terminalResizeCount: () => desktopSkinSmokeTerminalResizeCount,\n  terminalLastResize: () => desktopSkinSmokeTerminalLastResize,\n  terminalCloseCount: () => desktopSkinSmokeTerminalCloseCount,\n  rendererReadyCount: () => desktopSkinSmokeRendererReadyCount,\n  setZoomFactor: (value) => webFrame.setZoomFactor(value),\n  zoomFactor: () => webFrame.getZoomFactor(),\n});\ncontextBridge.exposeInMainWorld("artemis", api);',
-    );
+  const exposure = 'contextBridge.exposeInMainWorld("artemis", api);';
   assert(
-    withCounters !== productionSource &&
-      withCounters.includes("desktopSkinSmokeTerminalOpenCount += 1") &&
-      withCounters.includes("desktopSkinSmokeTerminalWriteCount += 1") &&
-      withCounters.includes("desktopSkinSmokeTerminalResizeCount += 1") &&
-      withCounters.includes("desktopSkinSmokeTerminalCloseCount += 1") &&
-      withCounters.includes("desktopSkinSmokeTerminalData =") &&
-      withCounters.includes("desktopSkinSmokeRendererReadyCount += 1") &&
-      withCounters.includes("webFrame.setZoomFactor(value)") &&
-      withCounters.includes("__ARTEMIS_SKIN_SMOKE_PRELOAD__"),
-    "Could not instrument the temporary smoke preload.",
+    productionSource.includes(exposure),
+    "Production preload API exposure is missing.",
   );
-  await writeFile(smokePreloadSourcePath, withCounters);
+  const instrumentation = join(
+    appDirectory,
+    "test/fixtures/preload/desktop-skin-instrumentation.ts",
+  );
+  const withCounters =
+    `import { webFrame } from "electron";\nimport { instrumentDesktopSkinPreload } from ${JSON.stringify(instrumentation)};\n` +
+    productionSource.replace(
+      exposure,
+      'contextBridge.exposeInMainWorld("__ARTEMIS_SKIN_SMOKE_PRELOAD__", instrumentDesktopSkinPreload(api, webFrame));\n' +
+        exposure,
+    );
   await esbuild({
     bundle: true,
-    entryPoints: [smokePreloadSourcePath],
+    stdin: {
+      contents: withCounters,
+      resolveDir: preloadDirectory,
+      sourcefile: "desktop-skin-smoke-preload.ts",
+      loader: "ts",
+    },
     external: ["electron"],
     format: "cjs",
     logLevel: "info",
@@ -1901,7 +1869,6 @@ try {
 } finally {
   try {
     await rm(smokeRendererDirectory, { recursive: true, force: true });
-    await rm(smokePreloadSourcePath, { force: true });
     run("npm", ["run", "build"], { cwd: appDirectory, timeout: 600_000 });
     standardEvidence = await standardArtifactEvidence();
   } catch (restoreError) {
