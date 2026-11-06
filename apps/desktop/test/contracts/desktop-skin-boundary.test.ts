@@ -1,4 +1,7 @@
-import { readPreloadBridgeSources, readSharedApiSources } from '../fixtures/application/api-source.js';
+import {
+  readPreloadBridgeSources,
+  readSharedApiSources,
+} from "../fixtures/application/api-source.js";
 import { readDesktopStyles } from "../fixtures/application/styles-source.js";
 import { readRendererAppSources } from "../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../fixtures/application/main-source.js";
@@ -117,7 +120,11 @@ describe("Desktop skin production boundaries", () => {
 
   it("uses stable PTY evidence across runtime layout transitions", () => {
     const verifier = source("scripts/verify/ui/verify-desktop-skin.mjs");
-    expect(verifier).toContain("desktopSkinSmokeTerminalData");
+    const instrumentation = source(
+      "test/fixtures/preload/desktop-skin-instrumentation.ts",
+    );
+    expect(instrumentation).toContain("terminalData: () => data");
+    expect(instrumentation).toContain(".slice(-16_384)");
     expect(verifier).toContain("terminalPromptReceived");
     expect(verifier).toContain("export PS1='Ar''temis> '; clear");
     expect(verifier).toContain("initial rendered synthetic PTY prompt");
@@ -134,11 +141,16 @@ describe("Desktop skin production boundaries", () => {
       "sandboxed: process.sandboxed === true",
     ]) {
       expect(preload).toContain(marker);
-      expect(verifier).toContain(marker);
+      expect(verifier).not.toContain(marker);
     }
-    expect(verifier).toContain("desktopSkinSmokeRendererReadyCount += 1");
-    expect(verifier).toContain(
-      "ipcRenderer.send(IPC.rendererReady, {\\n      contextIsolated:",
+    const instrumentation = source(
+      "test/fixtures/preload/desktop-skin-instrumentation.ts",
+    );
+    expect(verifier).toContain("instrumentDesktopSkinPreload(api, webFrame)");
+    expect(verifier).toMatch(/productionSource\.replace\(\s*exposure,/u);
+    expect(instrumentation).toContain("return original.rendererReady(...args)");
+    expect(instrumentation).not.toMatch(
+      /ipcRenderer|contextIsolated|sandboxed/u,
     );
   });
 });
