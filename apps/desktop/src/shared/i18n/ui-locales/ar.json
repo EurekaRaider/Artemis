@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "جارٍ تنزيل {{version}}",
   "Update.downloadedVersion": "تم تنزيل {{version}}",
   "Review06.queuedAfterTurn": "في قائمة الانتظار · تُرسل بعد الدور الحالي",
-  "Update.acknowledge": "حسنًا"
+  "Update.acknowledge": "حسنًا",
+  "ProviderForm.addTitle": "إضافة مزوّد مخصّص",
+  "ProviderForm.editTitle": "تعديل المزوّد المخصّص",
+  "ProviderForm.description": "اضبط الاتصال والنموذج لبدء الاستخدام.",
+  "ProviderForm.connection": "اتصال الخدمة",
+  "ProviderForm.name": "اسم الخدمة",
+  "ProviderForm.idHint": "أحرف لاتينية صغيرة أو أرقام أو نقاط أو شرطات سفلية أو شرطات.",
+  "ProviderForm.apiHint": "يستخدم نقطة النهاية {{path}}.",
+  "ProviderForm.model": "النموذج",
+  "ProviderForm.modelId": "معرّف النموذج",
+  "ProviderForm.capabilities": "قدرات النموذج وحدوده",
+  "ProviderForm.limitsSummary": "السياق {{context}} · الإخراج {{output}}",
+  "ProviderForm.advanced": "المعلمات المتقدمة",
+  "ProviderForm.keyHint": "اضبط بيانات الاعتماد بعد الحفظ. قد لا تحتاج الخدمات المحلية إلى مفتاح API.",
+  "ProviderForm.save": "حفظ الخدمة",
+  "ProviderForm.ready": "اكتملت الحقول المطلوبة",
+  "ProviderForm.required": "أكمل الحقول المطلوبة"
 }

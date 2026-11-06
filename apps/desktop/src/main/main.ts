@@ -19900,6 +19900,10 @@ function createMainWindow(): BrowserWindow {
                         throw new Error('Settings custom service picker action missing.');
                       }
                       customService.click();
+                      const capabilities = await waitForElement(
+                        '.provider-form-disclosure > summary',
+                      );
+                      capabilities?.click();
                       const checkboxRoot = await waitForElement(
                         '.provider-form [data-artemis-component="checkbox"]',
                       );

@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "{{version}} wird geladen",
   "Update.downloadedVersion": "{{version}} heruntergeladen",
   "Review06.queuedAfterTurn": "In Warteschlange · nach diesem Durchlauf senden",
-  "Update.acknowledge": "OK"
+  "Update.acknowledge": "OK",
+  "ProviderForm.addTitle": "Eigenen Anbieter hinzufügen",
+  "ProviderForm.editTitle": "Eigenen Anbieter bearbeiten",
+  "ProviderForm.description": "Verbindung und Modell konfigurieren, um zu beginnen.",
+  "ProviderForm.connection": "Dienstverbindung",
+  "ProviderForm.name": "Dienstname",
+  "ProviderForm.idHint": "Kleinbuchstaben, Zahlen, Punkte, Unterstriche oder Bindestriche.",
+  "ProviderForm.apiHint": "Verwendet den Endpunkt {{path}}.",
+  "ProviderForm.model": "Modell",
+  "ProviderForm.modelId": "Modell-ID",
+  "ProviderForm.capabilities": "Modellfunktionen und Limits",
+  "ProviderForm.limitsSummary": "Kontext {{context}} · Ausgabe {{output}}",
+  "ProviderForm.advanced": "Erweiterte Parameter",
+  "ProviderForm.keyHint": "Zugangsdaten nach dem Speichern konfigurieren. Lokale Dienste benötigen möglicherweise keinen API-Schlüssel.",
+  "ProviderForm.save": "Dienst speichern",
+  "ProviderForm.ready": "Pflichtfelder ausgefüllt",
+  "ProviderForm.required": "Bitte Pflichtfelder ausfüllen"
 }

@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "Téléchargement de {{version}}",
   "Update.downloadedVersion": "{{version}} téléchargé",
   "Review06.queuedAfterTurn": "En attente · envoyé après le tour actuel",
-  "Update.acknowledge": "D’accord"
+  "Update.acknowledge": "D’accord",
+  "ProviderForm.addTitle": "Ajouter un fournisseur personnalisé",
+  "ProviderForm.editTitle": "Modifier le fournisseur personnalisé",
+  "ProviderForm.description": "Configurez une connexion et un modèle pour commencer.",
+  "ProviderForm.connection": "Connexion du service",
+  "ProviderForm.name": "Nom du service",
+  "ProviderForm.idHint": "Lettres minuscules, chiffres, points, traits de soulignement ou traits d’union.",
+  "ProviderForm.apiHint": "Utilise le point d’accès {{path}}.",
+  "ProviderForm.model": "Modèle",
+  "ProviderForm.modelId": "ID du modèle",
+  "ProviderForm.capabilities": "Capacités et limites du modèle",
+  "ProviderForm.limitsSummary": "Contexte {{context}} · Sortie {{output}}",
+  "ProviderForm.advanced": "Paramètres avancés",
+  "ProviderForm.keyHint": "Configurez les identifiants après l’enregistrement. Les services locaux peuvent fonctionner sans clé API.",
+  "ProviderForm.save": "Enregistrer",
+  "ProviderForm.ready": "Champs obligatoires remplis",
+  "ProviderForm.required": "Remplissez les champs obligatoires"
 }

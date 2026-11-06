@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "正在下载 {{version}}",
   "Update.downloadedVersion": "{{version}} 已下载",
   "Review06.queuedAfterTurn": "排队中 · 当前回合结束后发送",
-  "Update.acknowledge": "好的"
+  "Update.acknowledge": "好的",
+  "ProviderForm.addTitle": "添加自定义服务",
+  "ProviderForm.editTitle": "编辑自定义服务",
+  "ProviderForm.description": "配置连接地址与模型，即可开始使用。",
+  "ProviderForm.connection": "服务连接",
+  "ProviderForm.name": "服务名称",
+  "ProviderForm.idHint": "小写字母、数字、点、下划线或连字符。",
+  "ProviderForm.apiHint": "使用 {{path}} 接口。",
+  "ProviderForm.model": "模型",
+  "ProviderForm.modelId": "模型 ID",
+  "ProviderForm.capabilities": "模型能力与限额",
+  "ProviderForm.limitsSummary": "上下文 {{context}} · 输出 {{output}}",
+  "ProviderForm.advanced": "高级参数",
+  "ProviderForm.keyHint": "密钥可在保存服务后配置；本地服务可留空。",
+  "ProviderForm.save": "保存服务",
+  "ProviderForm.ready": "必填项已完成",
+  "ProviderForm.required": "请填写必填项"
 }

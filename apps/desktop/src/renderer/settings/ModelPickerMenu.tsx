@@ -43,12 +43,23 @@ export function ModelPickerMenu({
     const update = () => {
       const anchor = composer.getBoundingClientRect();
       const boundary = conversation?.getBoundingClientRect();
-      const minLeft = Math.max(8, (boundary?.left ?? 0) + 8);
+      const style = getComputedStyle(composer);
+      const rtl = style.direction === "rtl";
+      const reservedInset =
+        Number.parseFloat(
+          style.getPropertyValue(
+            "--environment-panel-content-safe-inline-size",
+          ),
+        ) || 0;
+      const minLeft = Math.max(
+        8,
+        (boundary?.left ?? 0) + (rtl ? reservedInset : 0) + 8,
+      );
       const maxRight = Math.min(
         window.innerWidth - 8,
-        (boundary?.right ?? window.innerWidth) - 8,
+        (boundary?.right ?? window.innerWidth) - (rtl ? 0 : reservedInset) - 8,
       );
-      // The conversation clips overflow beside the workspace dock.
+      // Keep clear of both the dock and the environment panel over the conversation.
       menu.style.maxWidth = `${Math.max(0, maxRight - minLeft)}px`;
       const header = composer
         .closest(".workspace")
@@ -56,14 +67,12 @@ export function ModelPickerMenu({
       const top = Math.max(0, header?.getBoundingClientRect().bottom ?? 0);
       menu.style.maxHeight = `${Math.max(0, anchor.top - top - 18)}px`;
       const width = menu.getBoundingClientRect().width;
-      const style = getComputedStyle(composer);
       const offset = Number.parseFloat(
         style.getPropertyValue("--model-anchor") || "0",
       );
-      const anchorLeft =
-        style.direction === "rtl"
-          ? anchor.right - offset - width
-          : anchor.left + offset;
+      const anchorLeft = rtl
+        ? anchor.right - offset - width
+        : anchor.left + offset;
       const left = Math.min(
         Math.max(minLeft, anchorLeft),
         Math.max(minLeft, maxRight - width),

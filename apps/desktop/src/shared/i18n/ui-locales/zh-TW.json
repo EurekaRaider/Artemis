@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "正在下載 {{version}}",
   "Update.downloadedVersion": "{{version}} 已下載",
   "Review06.queuedAfterTurn": "排隊中 · 目前回合結束後傳送",
-  "Update.acknowledge": "好的"
+  "Update.acknowledge": "好的",
+  "ProviderForm.addTitle": "新增自訂服務",
+  "ProviderForm.editTitle": "編輯自訂服務",
+  "ProviderForm.description": "設定連線位址與模型，即可開始使用。",
+  "ProviderForm.connection": "服務連線",
+  "ProviderForm.name": "服務名稱",
+  "ProviderForm.idHint": "小寫字母、數字、點、底線或連字號。",
+  "ProviderForm.apiHint": "使用 {{path}} 介面。",
+  "ProviderForm.model": "模型",
+  "ProviderForm.modelId": "模型 ID",
+  "ProviderForm.capabilities": "模型能力與限制",
+  "ProviderForm.limitsSummary": "上下文 {{context}} · 輸出 {{output}}",
+  "ProviderForm.advanced": "進階參數",
+  "ProviderForm.keyHint": "可在儲存服務後設定金鑰；本機服務可留空。",
+  "ProviderForm.save": "儲存服務",
+  "ProviderForm.ready": "必填欄位已完成",
+  "ProviderForm.required": "請填寫必填欄位"
 }

@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "Mengunduh {{version}}",
   "Update.downloadedVersion": "{{version}} telah diunduh",
   "Review06.queuedAfterTurn": "Dalam antrean · dikirim setelah giliran ini",
-  "Update.acknowledge": "Baik"
+  "Update.acknowledge": "Baik",
+  "ProviderForm.addTitle": "Tambah penyedia kustom",
+  "ProviderForm.editTitle": "Edit penyedia kustom",
+  "ProviderForm.description": "Atur koneksi dan model untuk mulai menggunakan.",
+  "ProviderForm.connection": "Koneksi layanan",
+  "ProviderForm.name": "Nama layanan",
+  "ProviderForm.idHint": "Huruf kecil, angka, titik, garis bawah, atau tanda hubung.",
+  "ProviderForm.apiHint": "Menggunakan endpoint {{path}}.",
+  "ProviderForm.model": "Model",
+  "ProviderForm.modelId": "ID model",
+  "ProviderForm.capabilities": "Kemampuan dan batas model",
+  "ProviderForm.limitsSummary": "Konteks {{context}} · Output {{output}}",
+  "ProviderForm.advanced": "Parameter lanjutan",
+  "ProviderForm.keyHint": "Atur kredensial setelah menyimpan. Layanan lokal mungkin tidak memerlukan kunci API.",
+  "ProviderForm.save": "Simpan layanan",
+  "ProviderForm.ready": "Kolom wajib sudah lengkap",
+  "ProviderForm.required": "Lengkapi kolom wajib"
 }

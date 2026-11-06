@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "{{version}} をダウンロード中",
   "Update.downloadedVersion": "{{version}} ダウンロード済み",
   "Review06.queuedAfterTurn": "待機中 · 現在のターン終了後に送信",
-  "Update.acknowledge": "了解"
+  "Update.acknowledge": "了解",
+  "ProviderForm.addTitle": "カスタムサービスを追加",
+  "ProviderForm.editTitle": "カスタムサービスを編集",
+  "ProviderForm.description": "接続先とモデルを設定して利用を開始します。",
+  "ProviderForm.connection": "サービス接続",
+  "ProviderForm.name": "サービス名",
+  "ProviderForm.idHint": "半角小文字、数字、ピリオド、アンダースコア、ハイフン。",
+  "ProviderForm.apiHint": "{{path}} エンドポイントを使用します。",
+  "ProviderForm.model": "モデル",
+  "ProviderForm.modelId": "モデル ID",
+  "ProviderForm.capabilities": "モデルの機能と上限",
+  "ProviderForm.limitsSummary": "コンテキスト {{context}} · 出力 {{output}}",
+  "ProviderForm.advanced": "詳細パラメーター",
+  "ProviderForm.keyHint": "認証情報は保存後に設定できます。ローカルサービスではキーが不要な場合があります。",
+  "ProviderForm.save": "サービスを保存",
+  "ProviderForm.ready": "必須項目の入力完了",
+  "ProviderForm.required": "必須項目を入力してください"
 }

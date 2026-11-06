@@ -105,6 +105,10 @@ const ImSettingsPanel = lazy(() =>
 const DEFAULT_PROVIDER_CONTEXT_WINDOW = 1_000_000;
 const DEFAULT_PROVIDER_MAX_TOKENS = 128_000;
 const providerIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
+const providerTokenFormat = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 type ProviderThinkingLevel = NonNullable<
   ProviderConnection["models"][number]["highestThinkingLevel"]
 >;
@@ -265,6 +269,7 @@ export function SettingsPanel({
     useState<ProviderThinkingLevel>("high");
   const [providerImages, setProviderImages] = useState(false);
   const [providerAdvanced, setProviderAdvanced] = useState("{}");
+  const providerAdvancedDisclosure = useRef<HTMLDetailsElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [modelApplyResult, setModelApplyResult] = useState<{
@@ -443,6 +448,12 @@ ${model.providerId} · ${model.modelId}`,
     Number.isInteger(parsedProviderMaxTokens) &&
     parsedProviderMaxTokens >= 1 &&
     parsedProviderMaxTokens <= 1_000_000;
+  const providerFormValid =
+    providerIdValid &&
+    Boolean(baseUrl.trim()) &&
+    Boolean(providerModelId.trim()) &&
+    providerContextWindowValid &&
+    providerMaxTokensValid;
   const parsedAgentConcurrencyLimit = Number(agentConcurrencyLimit);
   const agentConcurrencyLimitValid =
     Number.isInteger(parsedAgentConcurrencyLimit) &&
@@ -642,6 +653,10 @@ ${model.providerId} · ${model.modelId}`,
     try {
       advanced = modelAdvancedOptionsSchema.parse(JSON.parse(providerAdvanced));
     } catch (error) {
+      if (providerAdvancedDisclosure.current) {
+        providerAdvancedDisclosure.current.open = true;
+        providerAdvancedDisclosure.current.querySelector("textarea")?.focus();
+      }
       await run(async () => {
         throw error;
       });
@@ -1537,156 +1552,295 @@ ${model.providerId} · ${model.modelId}`,
                     )}
                     {showProviderForm && (
                       <ManagementSection
-                        className="settings-section"
-                        description={t.providerHint}
-                        title={t.customProviders}
+                        className="settings-section custom-provider-section"
+                        description={uiText(locale, "ProviderForm.description")}
+                        title={uiText(
+                          locale,
+                          editingProviderId
+                            ? "ProviderForm.editTitle"
+                            : "ProviderForm.addTitle",
+                        )}
                       >
                         <form
-                          className="credential-form provider-form"
+                          className="provider-form"
                           onSubmit={(event) =>
                             void saveProviderConnection(event)
                           }
                         >
-                          <TextField
-                            autoCapitalize="none"
-                            autoCorrect="off"
-                            disabled={busy || Boolean(editingProviderId)}
-                            label={t.provider}
-                            labelVisibility="visible"
-                            maxLength={80}
-                            onValueChange={(value) =>
-                              setProviderId(value.toLocaleLowerCase("en-US"))
-                            }
-                            pattern="[a-z0-9][a-z0-9._-]*"
-                            placeholder={t.provider}
-                            spellCheck={false}
-                            value={providerId}
-                          />
-                          <TextField
-                            disabled={busy}
-                            label={t.providerName}
-                            labelVisibility="visible"
-                            onValueChange={setProviderName}
-                            placeholder={t.providerName}
-                            value={providerName}
-                          />
-                          <TextField
-                            disabled={busy}
-                            label={t.baseUrl}
-                            labelVisibility="visible"
-                            onValueChange={setBaseUrl}
-                            placeholder={t.baseUrl}
-                            type="url"
-                            value={baseUrl}
-                          />
-                          <Select<NonNullable<ProviderConnection["api"]>>
-                            label={t.providerApi}
-                            disabled={busy}
-                            onValueChange={setProviderApi}
-                            options={[
-                              {
-                                value: "openai-completions",
-                                label: t.chatCompletionsApi,
-                              },
-                              {
-                                value: "openai-responses",
-                                label: t.responsesApi,
-                              },
-                            ]}
-                            value={providerApi}
-                          />
-                          <TextField
-                            disabled={busy}
-                            label={t.modelId}
-                            labelVisibility="visible"
-                            onValueChange={setProviderModelId}
-                            placeholder={t.modelId}
-                            value={providerModelId}
-                          />
-                          <TextField
-                            disabled={busy}
-                            label={t.modelName}
-                            labelVisibility="visible"
-                            onValueChange={setProviderModelName}
-                            placeholder={t.modelName}
-                            value={providerModelName}
-                          />
-                          <TextField
-                            className="settings-field"
-                            disabled={busy}
-                            label={t.contextWindow}
-                            max={10_000_000}
-                            min={1_024}
-                            onValueChange={setProviderContextWindow}
-                            step={1}
-                            type="number"
-                            value={providerContextWindow}
-                          />
-                          <TextField
-                            className="settings-field"
-                            disabled={busy}
-                            label={t.maxTokens}
-                            max={1_000_000}
-                            min={1}
-                            onValueChange={setProviderMaxTokens}
-                            step={1}
-                            type="number"
-                            value={providerMaxTokens}
-                          />
-                          <span className="provider-capabilities">
-                            <Checkbox
-                              checked={providerReasoning}
-                              disabled={busy}
-                              label={t.reasoningModel}
-                              onCheckedChange={setProviderReasoning}
-                            />
-                            <Checkbox
-                              checked={providerImages}
-                              disabled={busy}
-                              label={t.imageInput}
-                              onCheckedChange={setProviderImages}
-                            />
-                          </span>
-                          {providerReasoning && (
-                            <Select<ProviderThinkingLevel>
-                              label={t.highestReasoningLevel}
-                              disabled={busy}
-                              onValueChange={setProviderHighestThinkingLevel}
-                              options={[
-                                { value: "minimal", label: t.thinkingMinimal },
-                                { value: "low", label: t.thinkingLow },
-                                { value: "medium", label: t.thinkingMedium },
-                                { value: "high", label: t.thinkingHigh },
-                                { value: "xhigh", label: t.thinkingXHigh },
-                                { value: "max", label: t.thinkingMax },
-                              ]}
-                              value={providerHighestThinkingLevel}
-                            />
-                          )}
-                          <TextAreaField
-                            label={uiText(locale, "Model.advanced")}
-                            value={providerAdvanced}
-                            onValueChange={setProviderAdvanced}
-                            disabled={busy}
-                            rows={5}
-                          />
-                          <Button
-                            disabled={
-                              busy ||
-                              !providerIdValid ||
-                              !baseUrl.trim() ||
-                              !providerModelId.trim() ||
-                              !providerContextWindowValid ||
-                              !providerMaxTokensValid
-                            }
-                            type="submit"
-                            variant="primary"
-                          >
-                            {t.saveProvider}
-                          </Button>
-                          <Button disabled={busy} onClick={resetProviderForm}>
-                            {t.cancel}
-                          </Button>
+                          <div className="provider-form-body">
+                            <fieldset className="provider-form-section">
+                              <legend>
+                                {uiText(locale, "ProviderForm.connection")}
+                              </legend>
+                              <TextField
+                                disabled={busy}
+                                label={uiText(locale, "ProviderForm.name")}
+                                onValueChange={setProviderName}
+                                placeholder={uiText(
+                                  locale,
+                                  "ResourceCenter_labels.optional",
+                                )}
+                                value={providerName}
+                              />
+                              <TextField
+                                autoCapitalize="none"
+                                autoCorrect="off"
+                                disabled={busy || Boolean(editingProviderId)}
+                                label={t.provider}
+                                labelVisibility="visible"
+                                description={uiText(
+                                  locale,
+                                  "ProviderForm.idHint",
+                                )}
+                                maxLength={80}
+                                onValueChange={(value) =>
+                                  setProviderId(
+                                    value.toLocaleLowerCase("en-US"),
+                                  )
+                                }
+                                pattern="[a-z0-9][a-z0-9._-]*"
+                                placeholder={t.provider}
+                                spellCheck={false}
+                                value={providerId}
+                              />
+                              <TextField
+                                disabled={busy}
+                                label="Base URL"
+                                labelVisibility="visible"
+                                onValueChange={setBaseUrl}
+                                placeholder="http://127.0.0.1:11434/v1"
+                                type="url"
+                                value={baseUrl}
+                              />
+                              <Select<NonNullable<ProviderConnection["api"]>>
+                                label={t.providerApi}
+                                labelVisibility="visible"
+                                description={uiText(
+                                  locale,
+                                  "ProviderForm.apiHint",
+                                  {
+                                    path:
+                                      providerApi === "openai-responses"
+                                        ? "/responses"
+                                        : "/chat/completions",
+                                  },
+                                )}
+                                disabled={busy}
+                                onValueChange={setProviderApi}
+                                options={[
+                                  {
+                                    value: "openai-completions",
+                                    label: "Chat Completions",
+                                  },
+                                  {
+                                    value: "openai-responses",
+                                    label: "Responses",
+                                  },
+                                ]}
+                                value={providerApi}
+                              />
+                            </fieldset>
+                            <fieldset className="provider-form-section">
+                              <legend>
+                                {uiText(locale, "ProviderForm.model")}
+                              </legend>
+                              <TextField
+                                disabled={busy}
+                                label={uiText(locale, "ProviderForm.modelId")}
+                                labelVisibility="visible"
+                                onValueChange={setProviderModelId}
+                                placeholder="deepseek-r1:8b"
+                                value={providerModelId}
+                              />
+                              <TextField
+                                disabled={busy}
+                                label={t.modelName}
+                                labelVisibility="visible"
+                                onValueChange={setProviderModelName}
+                                placeholder={uiText(
+                                  locale,
+                                  "ResourceCenter_labels.optional",
+                                )}
+                                value={providerModelName}
+                              />
+                            </fieldset>
+                            <details className="provider-form-disclosure">
+                              <summary>
+                                <ArtemisIcon
+                                  name="chevron"
+                                  aria-hidden="true"
+                                />
+                                <span>
+                                  <strong>
+                                    {uiText(
+                                      locale,
+                                      "ProviderForm.capabilities",
+                                    )}
+                                  </strong>
+                                  <small>
+                                    {[
+                                      uiText(
+                                        locale,
+                                        "ProviderForm.limitsSummary",
+                                        {
+                                          context: providerTokenFormat.format(
+                                            parsedProviderContextWindow,
+                                          ),
+                                          output: providerTokenFormat.format(
+                                            parsedProviderMaxTokens,
+                                          ),
+                                        },
+                                      ),
+                                      providerReasoning ? t.reasoningModel : "",
+                                      providerImages ? t.imageInput : "",
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </small>
+                                </span>
+                              </summary>
+                              <div className="provider-form-disclosure-content">
+                                <TextField
+                                  className="settings-field"
+                                  disabled={busy}
+                                  label={t.contextWindow}
+                                  max={10_000_000}
+                                  min={1_024}
+                                  onValueChange={setProviderContextWindow}
+                                  step={1}
+                                  type="number"
+                                  value={providerContextWindow}
+                                />
+                                <TextField
+                                  className="settings-field"
+                                  disabled={busy}
+                                  label={t.maxTokens}
+                                  max={1_000_000}
+                                  min={1}
+                                  onValueChange={setProviderMaxTokens}
+                                  step={1}
+                                  type="number"
+                                  value={providerMaxTokens}
+                                />
+                                <span className="provider-capabilities">
+                                  <Checkbox
+                                    checked={providerReasoning}
+                                    disabled={busy}
+                                    label={t.reasoningModel}
+                                    onCheckedChange={setProviderReasoning}
+                                  />
+                                  <Checkbox
+                                    checked={providerImages}
+                                    disabled={busy}
+                                    label={t.imageInput}
+                                    onCheckedChange={setProviderImages}
+                                  />
+                                </span>
+                                {providerReasoning && (
+                                  <Select<ProviderThinkingLevel>
+                                    label={t.highestReasoningLevel}
+                                    labelVisibility="visible"
+                                    disabled={busy}
+                                    onValueChange={
+                                      setProviderHighestThinkingLevel
+                                    }
+                                    options={[
+                                      {
+                                        value: "minimal",
+                                        label: t.thinkingMinimal,
+                                      },
+                                      { value: "low", label: t.thinkingLow },
+                                      {
+                                        value: "medium",
+                                        label: t.thinkingMedium,
+                                      },
+                                      { value: "high", label: t.thinkingHigh },
+                                      {
+                                        value: "xhigh",
+                                        label: t.thinkingXHigh,
+                                      },
+                                      { value: "max", label: t.thinkingMax },
+                                    ]}
+                                    value={providerHighestThinkingLevel}
+                                  />
+                                )}
+                              </div>
+                            </details>
+                            <details
+                              className="provider-form-disclosure"
+                              ref={providerAdvancedDisclosure}
+                            >
+                              <summary>
+                                <ArtemisIcon
+                                  name="chevron"
+                                  aria-hidden="true"
+                                />
+                                <span>
+                                  <strong>
+                                    {uiText(locale, "ProviderForm.advanced")}
+                                  </strong>
+                                  <small>
+                                    {uiText(
+                                      locale,
+                                      "ResourceCenter_labels.optional",
+                                    )}
+                                  </small>
+                                </span>
+                                <span className="provider-form-format">
+                                  JSON
+                                </span>
+                              </summary>
+                              <div className="provider-form-disclosure-content">
+                                <TextAreaField
+                                  label={uiText(locale, "Model.advanced")}
+                                  value={providerAdvanced}
+                                  onValueChange={setProviderAdvanced}
+                                  disabled={busy}
+                                  rows={5}
+                                />
+                                <p className="provider-form-advanced-help">
+                                  {t.providerHint}
+                                </p>
+                              </div>
+                            </details>
+                            <p className="provider-form-key-note">
+                              {uiText(locale, "ProviderForm.keyHint")}
+                            </p>
+                          </div>
+                          <footer className="provider-form-footer">
+                            <span
+                              className="provider-form-status"
+                              role="status"
+                            >
+                              {providerFormValid && (
+                                <ArtemisIcon
+                                  name="check-circle"
+                                  aria-hidden="true"
+                                />
+                              )}
+                              {uiText(
+                                locale,
+                                providerFormValid
+                                  ? "ProviderForm.ready"
+                                  : "ProviderForm.required",
+                              )}
+                            </span>
+                            <div className="provider-form-actions">
+                              <Button
+                                disabled={busy}
+                                onClick={resetProviderForm}
+                              >
+                                {t.cancel}
+                              </Button>
+                              <Button
+                                disabled={busy || !providerFormValid}
+                                type="submit"
+                                variant="primary"
+                              >
+                                {uiText(locale, "ProviderForm.save")}
+                              </Button>
+                            </div>
+                          </footer>
                         </form>
                       </ManagementSection>
                     )}

@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "Downloading {{version}}",
   "Update.downloadedVersion": "{{version}} downloaded",
   "Review06.queuedAfterTurn": "Queued · sent after the current turn",
-  "Update.acknowledge": "OK"
+  "Update.acknowledge": "OK",
+  "ProviderForm.addTitle": "Add custom provider",
+  "ProviderForm.editTitle": "Edit custom provider",
+  "ProviderForm.description": "Configure a connection and model to get started.",
+  "ProviderForm.connection": "Service connection",
+  "ProviderForm.name": "Service name",
+  "ProviderForm.idHint": "Lowercase letters, numbers, dots, underscores or hyphens.",
+  "ProviderForm.apiHint": "Uses the {{path}} endpoint.",
+  "ProviderForm.model": "Model",
+  "ProviderForm.modelId": "Model ID",
+  "ProviderForm.capabilities": "Model capabilities & limits",
+  "ProviderForm.limitsSummary": "Context {{context}} · Output {{output}}",
+  "ProviderForm.advanced": "Advanced parameters",
+  "ProviderForm.keyHint": "Configure credentials after saving. Local services may not need an API key.",
+  "ProviderForm.save": "Save provider",
+  "ProviderForm.ready": "Required fields completed",
+  "ProviderForm.required": "Complete the required fields"
 }

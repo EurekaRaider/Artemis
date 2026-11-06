@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "{{version}} 다운로드 중",
   "Update.downloadedVersion": "{{version}} 다운로드 완료",
   "Review06.queuedAfterTurn": "대기 중 · 현재 턴이 끝나면 전송",
-  "Update.acknowledge": "확인"
+  "Update.acknowledge": "확인",
+  "ProviderForm.addTitle": "사용자 지정 서비스 추가",
+  "ProviderForm.editTitle": "사용자 지정 서비스 편집",
+  "ProviderForm.description": "연결 주소와 모델을 설정하여 시작하세요.",
+  "ProviderForm.connection": "서비스 연결",
+  "ProviderForm.name": "서비스 이름",
+  "ProviderForm.idHint": "영문 소문자, 숫자, 마침표, 밑줄 또는 하이픈.",
+  "ProviderForm.apiHint": "{{path}} 엔드포인트를 사용합니다.",
+  "ProviderForm.model": "모델",
+  "ProviderForm.modelId": "모델 ID",
+  "ProviderForm.capabilities": "모델 기능 및 한도",
+  "ProviderForm.limitsSummary": "컨텍스트 {{context}} · 출력 {{output}}",
+  "ProviderForm.advanced": "고급 매개변수",
+  "ProviderForm.keyHint": "저장 후 인증 정보를 설정하세요. 로컬 서비스는 API 키가 필요하지 않을 수 있습니다.",
+  "ProviderForm.save": "서비스 저장",
+  "ProviderForm.ready": "필수 항목 입력 완료",
+  "ProviderForm.required": "필수 항목을 입력하세요"
 }

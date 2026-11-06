@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "Baixando {{version}}",
   "Update.downloadedVersion": "{{version}} baixado",
   "Review06.queuedAfterTurn": "Na fila · envio após o turno atual",
-  "Update.acknowledge": "OK"
+  "Update.acknowledge": "OK",
+  "ProviderForm.addTitle": "Adicionar provedor personalizado",
+  "ProviderForm.editTitle": "Editar provedor personalizado",
+  "ProviderForm.description": "Configure uma conexão e um modelo para começar.",
+  "ProviderForm.connection": "Conexão do serviço",
+  "ProviderForm.name": "Nome do serviço",
+  "ProviderForm.idHint": "Letras minúsculas, números, pontos, sublinhados ou hífens.",
+  "ProviderForm.apiHint": "Usa o endpoint {{path}}.",
+  "ProviderForm.model": "Modelo",
+  "ProviderForm.modelId": "ID do modelo",
+  "ProviderForm.capabilities": "Recursos e limites do modelo",
+  "ProviderForm.limitsSummary": "Contexto {{context}} · Saída {{output}}",
+  "ProviderForm.advanced": "Parâmetros avançados",
+  "ProviderForm.keyHint": "Configure as credenciais após salvar. Serviços locais podem não precisar de chave de API.",
+  "ProviderForm.save": "Salvar serviço",
+  "ProviderForm.ready": "Campos obrigatórios preenchidos",
+  "ProviderForm.required": "Preencha os campos obrigatórios"
 }

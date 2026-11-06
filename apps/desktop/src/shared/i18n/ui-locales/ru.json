@@ -2236,5 +2236,21 @@
   "Update.downloadingVersion": "Загрузка {{version}}",
   "Update.downloadedVersion": "{{version}} загружена",
   "Review06.queuedAfterTurn": "В очереди · отправка после текущего хода",
-  "Update.acknowledge": "Хорошо"
+  "Update.acknowledge": "Хорошо",
+  "ProviderForm.addTitle": "Добавить своего провайдера",
+  "ProviderForm.editTitle": "Изменить провайдера",
+  "ProviderForm.description": "Настройте подключение и модель, чтобы начать.",
+  "ProviderForm.connection": "Подключение к сервису",
+  "ProviderForm.name": "Название сервиса",
+  "ProviderForm.idHint": "Строчные латинские буквы, цифры, точки, подчёркивания или дефисы.",
+  "ProviderForm.apiHint": "Используется {{path}}.",
+  "ProviderForm.model": "Модель",
+  "ProviderForm.modelId": "ID модели",
+  "ProviderForm.capabilities": "Возможности и лимиты модели",
+  "ProviderForm.limitsSummary": "Контекст {{context}} · Вывод {{output}}",
+  "ProviderForm.advanced": "Расширенные параметры",
+  "ProviderForm.keyHint": "Настройте учётные данные после сохранения. Локальным сервисам ключ API может не требоваться.",
+  "ProviderForm.save": "Сохранить сервис",
+  "ProviderForm.ready": "Обязательные поля заполнены",
+  "ProviderForm.required": "Заполните обязательные поля"
 }

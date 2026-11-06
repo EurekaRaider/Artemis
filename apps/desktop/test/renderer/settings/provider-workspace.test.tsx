@@ -488,6 +488,131 @@ it("keeps the full catalog in the add-service picker and adds only the chosen dr
   expect(screen.getByLabelText("API key · unconfigured")).toHaveValue("");
 });
 
+async function openCustomProvider(settings: SettingsSnapshot) {
+  await open(settings);
+  await userEvent.click(
+    within(
+      document.querySelector(".provider-sidebar")! as HTMLElement,
+    ).getByRole("button", { name: "Add provider" }),
+  );
+  await userEvent.click(
+    within(screen.getByRole("dialog", { name: "Add provider" })).getByRole(
+      "button",
+      { name: "Custom service…" },
+    ),
+  );
+}
+
+it("preserves model capabilities and advanced parameters when their disclosures are collapsed before saving", async () => {
+  const settings = settingsSnapshot();
+  const save = vi.fn(async () => settings);
+  stubSettingsApi(settings, { saveProviderConnection: save });
+  await openCustomProvider(settings);
+  expect(screen.getByRole("button", { name: "Add provider" })).toHaveAttribute(
+    "data-state",
+    "selected",
+  );
+
+  const capabilities = screen
+    .getByText("Model capabilities & limits")
+    .closest("details")!;
+  const advanced = screen.getByText("Advanced parameters").closest("details")!;
+  expect(capabilities).not.toHaveAttribute("open");
+  expect(advanced).not.toHaveAttribute("open");
+  expect(screen.getByRole("button", { name: "Save provider" })).toBeDisabled();
+  await userEvent.type(screen.getByLabelText("Service name"), "Local service");
+  await userEvent.type(screen.getByLabelText("Provider ID"), "local-service");
+  await userEvent.type(
+    screen.getByLabelText("Base URL"),
+    "http://127.0.0.1:11434/v1",
+  );
+  await userEvent.type(screen.getByLabelText("Model ID"), "local-model");
+
+  await userEvent.click(
+    within(capabilities).getByText("Model capabilities & limits"),
+  );
+  await userEvent.clear(screen.getByLabelText("Context length"));
+  await userEvent.type(screen.getByLabelText("Context length"), "262144");
+  await userEvent.clear(screen.getByLabelText("Max output tokens"));
+  await userEvent.type(screen.getByLabelText("Max output tokens"), "8192");
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Supports reasoning" }),
+  );
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: "Supports image input" }),
+  );
+  expect(
+    screen.getByRole("button", { name: /Highest supported reasoning level/ }),
+  ).toBeVisible();
+  await userEvent.click(
+    within(capabilities).getByText("Model capabilities & limits"),
+  );
+  expect(capabilities).not.toHaveAttribute("open");
+  expect(capabilities.querySelector("summary")).toHaveTextContent(
+    "Context 262.1K · Output 8.2K · Supports reasoning · Supports image input",
+  );
+
+  await userEvent.click(within(advanced).getByText("Advanced parameters"));
+  await userEvent.clear(
+    screen.getByLabelText("Advanced model parameters (JSON)"),
+  );
+  fireEvent.change(screen.getByLabelText("Advanced model parameters (JSON)"), {
+    target: { value: '{"samplingParams":{"temperature":0.4}}' },
+  });
+  await userEvent.click(within(advanced).getByText("Advanced parameters"));
+  await userEvent.click(screen.getByRole("button", { name: "Save provider" }));
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
+  expect(save).toHaveBeenCalledWith(
+    {
+      id: "local-service",
+      name: "Local service",
+      baseUrl: "http://127.0.0.1:11434/v1",
+      api: "openai-completions",
+      models: [
+        {
+          id: "local-model",
+          name: "local-model",
+          reasoning: true,
+          highestThinkingLevel: "high",
+          input: ["text", "image"],
+          contextWindow: 262144,
+          maxTokens: 8192,
+          samplingParams: { temperature: 0.4 },
+        },
+      ],
+    },
+    undefined,
+  );
+});
+
+it("reopens invalid advanced JSON without calling the save API", async () => {
+  const settings = settingsSnapshot();
+  const save = vi.fn(async () => settings);
+  stubSettingsApi(settings, { saveProviderConnection: save });
+  await openCustomProvider(settings);
+  await userEvent.type(screen.getByLabelText("Provider ID"), "local");
+  await userEvent.type(
+    screen.getByLabelText("Base URL"),
+    "http://127.0.0.1:11434/v1",
+  );
+  await userEvent.type(screen.getByLabelText("Model ID"), "model");
+  const advanced = screen.getByText("Advanced parameters").closest("details")!;
+  await userEvent.click(within(advanced).getByText("Advanced parameters"));
+  fireEvent.change(screen.getByLabelText("Advanced model parameters (JSON)"), {
+    target: { value: "{invalid" },
+  });
+  await userEvent.click(within(advanced).getByText("Advanced parameters"));
+  await userEvent.click(screen.getByRole("button", { name: "Save provider" }));
+  await waitFor(() => expect(advanced).toHaveAttribute("open"));
+  expect(
+    screen.getByLabelText("Advanced model parameters (JSON)"),
+  ).toBeVisible();
+  expect(
+    screen.getByLabelText("Advanced model parameters (JSON)"),
+  ).toHaveFocus();
+  expect(save).not.toHaveBeenCalled();
+});
+
 it("saves an inline Base URL edit without changing the service's other settings", async () => {
   const provider = {
     id: syntheticModel.providerId,

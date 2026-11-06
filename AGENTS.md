@@ -70,5 +70,7 @@
 
 - Follow [the directory guide](docs/guides/repository-layout.md). Keep process boundaries and group feature code within them.
 - Tests mirror their source owner; structural checks belong in `test/contracts/` and shared fixtures in `test/fixtures/`. Source scanners must recurse into feature directories.
+- Never add test fixtures, synthetic or smoke-test data, verification-only IPC handlers, or test automation drivers to `main.ts`, `App.tsx`, or other production entrypoints and business modules. Keep them in dedicated test or verification files, organized by their owning module and feature.
+- Put fixtures and test helpers in `test/fixtures/<feature>/`, test scenarios in the matching `test/main/`, `test/renderer/`, or `test/integration/` feature directory, and desktop verification drivers in the appropriate `scripts/verify/{ui,native,features}/` feature directory. Use dedicated test or verification entrypoints to assemble them; production modules must not import test fixtures or verification drivers. Preserve this separation when moving existing embedded test code out of production files.
 - Keep public package exports, npm command names and compiled worker/preload paths stable when moving source files. Update CI path filters and script root resolution together.
 - Run `npm run verify:layout` after directory changes. Store verification output under ignored `artifacts/verification/<topic>/<run>/`; do not put generated reports at the repository root.

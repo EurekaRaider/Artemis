@@ -22,10 +22,11 @@ describe("integrated model picker", () => {
   });
 
   it.each(["ltr", "rtl"])(
-    "keeps the popup inside the conversation beside the dock in %s and after resizing",
+    "keeps the popup clear of the dock and overlaid environment panel in %s and after resizing",
     (direction) => {
       let boundaryLeft = 256;
       let boundaryRight = 952;
+      let reservedInset = 0;
       let updateLayout = () => {};
       const observe = vi.fn();
       const disconnect = vi.fn();
@@ -86,16 +87,38 @@ describe("integrated model picker", () => {
         </div>,
       );
       const menu = screen.getByRole("dialog");
+      const composer = container.querySelector<HTMLElement>(".composer")!;
       const expectInsideConversation = () => {
         const left = 280 + Number.parseFloat(menu.style.left);
         const width = menu.getBoundingClientRect().width;
-        expect(left).toBeGreaterThanOrEqual(boundaryLeft + 8);
-        expect(left + width).toBeLessThanOrEqual(boundaryRight - 8);
+        expect(left).toBeGreaterThanOrEqual(
+          boundaryLeft + (direction === "rtl" ? reservedInset : 0) + 8,
+        );
+        expect(left + width).toBeLessThanOrEqual(
+          boundaryRight - (direction === "rtl" ? 0 : reservedInset) - 8,
+        );
       };
       expectInsideConversation();
       expect(observe).toHaveBeenCalledWith(
         container.querySelector(".conversation"),
       );
+      reservedInset = 327;
+      composer.style.setProperty(
+        "--environment-panel-content-safe-inline-size",
+        `${reservedInset}px`,
+      );
+      updateLayout();
+      expectInsideConversation();
+      boundaryRight = 900;
+      updateLayout();
+      expect(menu.style.maxWidth).toBe("301px");
+      expectInsideConversation();
+      reservedInset = 0;
+      composer.style.removeProperty(
+        "--environment-panel-content-safe-inline-size",
+      );
+      updateLayout();
+      expectInsideConversation();
       boundaryLeft = 400;
       boundaryRight = 680;
       updateLayout();

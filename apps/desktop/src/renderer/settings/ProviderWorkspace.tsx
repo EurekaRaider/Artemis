@@ -184,6 +184,7 @@ export function ProviderWorkspace({
             className="provider-add-service"
             size="compact"
             variant="quiet"
+            selected={creating}
             disabled={locked}
             icon={<Plus size={14} aria-hidden="true" />}
             onClick={() => {
