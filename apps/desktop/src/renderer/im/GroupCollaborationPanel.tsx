@@ -1,17 +1,21 @@
+import { type Status, type GroupChoice } from "./groups/group-values.js";
+import { useGroupAuthorizationState } from "./groups/use-group-authorization-state.js";
+import { useGroupDirectory } from "./groups/use-group-directory.js";
+import { createGroupAuthorizationSummary } from "./groups/create-group-authorization-summary.js";
+import { useGroupAuthorizationFocus } from "./groups/use-group-authorization-focus.js";
+import { createGroupAuthorizationActions } from "./groups/create-group-authorization-actions.js";
+import { createGroupPolicyRenderers } from "./groups/create-group-policy-renderers.js";
+import { createGroupMemberRenderer } from "./groups/create-group-member-renderer.js";
+import { createGroupAuthorizationRenderer } from "./groups/create-group-authorization-renderer.js";
 import { isExecutionMode } from "@artemis/protocol";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
 import {
   imConversationKey,
-  imIdentityKey,
   imGroupRosterSchema,
-  imProjectPolicy,
-  imScopeConfirmation,
-  imAuthorizationCommandSchema,
   type AppLocale,
   type ExecutionGrant,
   type ImAuthorizationOperation,
   type ImConnectionStatus,
-  type ImStatus,
   type Project,
 } from "@artemis/protocol";
 import {
@@ -19,45 +23,34 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
-  ArrowsLeftRight,
   CaretRight,
   ChatCircleDots,
   FolderSimple,
   MagnifyingGlass,
-  Pause,
   Plus,
   ShieldCheck,
   Warning,
   UsersThree,
-  User,
   X,
 } from "@phosphor-icons/react";
 import groupChannelIcon from "../assets/im-group-icon.svg";
 import feishuChannelIcon from "../assets/feishu-channel.png";
 import slackChannelIcon from "../assets/slack-channel.svg";
-import { ArtemisIcon } from "@artemis/ui/icons";
+
 import { Button, IconButton } from "@artemis/ui/actions";
-import { Checkbox, Select, TextField } from "@artemis/ui/forms";
+import { Select, TextField } from "@artemis/ui/forms";
 import { Dialog, InlineNotice } from "@artemis/ui/feedback";
-import { uiTranslator } from "../../shared/i18n/ui-text";
+
 import { ImDataPermissions } from "./ImDataPermissions";
-import { imNativeGroupChoices, imNativeGroupDirectory } from "./ImNativeGroups";
+
 import { imChannelLabel } from "./ImNavigation";
 import {
-  authorizationDraftConflict,
   createAuthorizationDraft,
-  draftAuthorizationCommand,
   type AuthorizationDraft,
   type AuthorizationTarget,
 } from "./im-authorization-draft";
 import "./group-collaboration.css";
-import {
-  imGroupMemberStatus,
-  imMemberLabel,
-  imMemberTooltip,
-} from "./im-group-member-status";
 
-type GroupChoice = ReturnType<typeof imNativeGroupChoices>[number];
 function GroupLogo({ group }: { group: GroupChoice }) {
   const platform = group.platform ?? group.owner?.channel;
   return (
@@ -86,7 +79,6 @@ function GroupLogo({ group }: { group: GroupChoice }) {
   );
 }
 
-type Status = ImStatus & { spaces?: unknown[]; connections?: unknown[] };
 export function GroupCollaborationPanel({
   status,
   diagnostics,
@@ -104,349 +96,174 @@ export function GroupCollaborationPanel({
   onClose(): void;
   returnFocusRef: React.RefObject<HTMLButtonElement | null>;
 }) {
-  const t = uiTranslator(locale);
-  const [view, setView] = useState<"group" | "project">("group");
-  const [selected, setSelected] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
-  const [query, setQuery] = useState("");
-  const [draft, setDraft] = useState<AuthorizationDraft>();
-  const [presenceNow, setPresenceNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = window.setInterval(() => setPresenceNow(Date.now()), 2000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const [refreshingMembers, setRefreshingMembers] = useState(false);
-  const [discard, setDiscard] = useState<(() => void) | null>(null);
-  const [operation, setOperation] = useState<ImAuthorizationOperation>();
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const sending = useRef(false);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const body = useRef<HTMLDivElement>(null);
-  const groups = imNativeGroupChoices(
-    diagnostics,
-    status.spaces ?? [],
-    status.settings.deviceId,
+  const useGroupAuthorizationStateRuntime = useGroupAuthorizationState({
+    locale,
+  });
+  const {
     t,
-  );
-  const directory = imNativeGroupDirectory(groups)
-    .map((entry) => ({
-      ...entry,
-      targets: entry.targets.filter(
-        (group) =>
-          view === "group" ||
-          !projectFilter ||
-          group.saved?.nativeGroup?.projectId === projectFilter,
-      ),
-    }))
-    .filter((entry) => entry.targets.length > 0);
-  const visibleGroups = directory.filter((entry) =>
-    entry.targets.some((group) =>
-      group.label.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
-    ),
-  );
-  const key = (group: AuthorizationTarget) =>
-    imConversationKey(group.conversation);
-  const current = directory.find(
-    (entry) =>
-      entry.key === selected ||
-      entry.targets.some((group) => key(group) === selected),
-  );
-  const currentGroup = current?.targets[0];
-  const currentPlatform =
-    currentGroup?.platform ?? currentGroup?.identities[0]?.channel;
-  const memberTargets = current?.targets
-    .map((target) => ({ target, roster: rosterFor(target) }))
-    .sort(
-      (a, b) =>
-        Number(!!b.roster?.complete) - Number(!!a.roster?.complete) ||
-        (b.roster?.members.length ?? 0) - (a.roster?.members.length ?? 0),
-    );
-  const memberTarget = memberTargets?.[0];
-  const command = draft && draftAuthorizationCommand(draft);
-  const validCommand =
-    !!command &&
-    imAuthorizationCommandSchema.safeParse(command).success &&
-    (draft?.intent === "pause" || (draft?.grant.expiresAt ?? 0) > Date.now());
-  const currentDraftTarget =
-    draft?.target && groups.find((g) => key(g) === key(draft.target!));
-  const identityTarget = currentDraftTarget ?? draft?.target;
-  const identityRoster = imGroupRosterSchema.safeParse(
-    (identityTarget?.saved as { roster?: unknown } | undefined)?.roster,
-  );
-  const ownerIdentity = command?.owner;
-  const ownerKey = ownerIdentity && imIdentityKey(ownerIdentity);
-  const ownerPerson = identityRoster.success
-    ? identityRoster.data.members.find(
-        (member) => imIdentityKey(member.identity) === ownerKey,
-      )
-    : undefined;
-  const ownerParticipant = identityTarget?.saved?.participants.find(
-    (member) => imIdentityKey(member.identity) === ownerKey,
-  );
-  const identityConnection = (
-    status.connections as ImConnectionStatus[] | undefined
-  )?.find(
-    (item) =>
-      item.id === ownerIdentity?.connectionId &&
-      item.channel === ownerIdentity.channel,
-  );
-  const identityBot = identityRoster.success
-    ? identityRoster.data.members.find(
-        (member) =>
-          member.self &&
-          member.kind === "bot" &&
-          member.identity.connectionId === ownerIdentity?.connectionId &&
-          member.identity.channel === ownerIdentity.channel &&
-          member.identity.tenantId === ownerIdentity.tenantId &&
-          member.identity.appId === ownerIdentity.appId,
-      )
-    : undefined;
-  const displayIdentityName = (...names: (string | undefined)[]) =>
-    names
-      .find(
-        (name) =>
-          name?.trim() &&
-          ![
-            ...Object.values(ownerIdentity ?? {}),
-            ...Object.values(identityBot?.identity ?? {}),
-            status.settings.deviceId,
-          ].includes(name.trim()),
-      )
-      ?.trim() ?? t("GroupAuthorization.nameUnavailable");
-  const conflict =
-    !!draft &&
-    authorizationDraftConflict(draft, status.settings, currentDraftTarget);
-  const pending =
-    operation ??
-    status.authorizationOperations?.find(
-      (op) => op.state !== "complete" && op.state !== "superseded",
-    );
-  const locked =
-    submitting ||
-    (!!pending &&
-      pending.state !== "complete" &&
-      draft?.supersedes !== pending.command.operationId);
-  const active = draft?.grant;
-  const localScope = active?.security?.scopes[0];
-  const fullLocal = localScope?.localAccess === "full";
-  const confirmationControl = draft && command && (
-    <Checkbox
-      label={t(
-        fullLocal && draft.intent !== "pause"
-          ? "GroupAuthorization.confirmFullLocal"
-          : "GroupAuthorization.confirmSharing",
-      )}
-      checked={draft.confirmation === command.confirmationFingerprint}
-      disabled={locked || conflict || !validCommand}
-      onCheckedChange={(checked) =>
-        setDraft({
-          ...draft,
-          confirmation: checked ? command.confirmationFingerprint : "",
-          dirty: true,
-        })
-      }
-    />
-  );
-  const policyChanged =
-    !!draft?.editPolicy &&
-    JSON.stringify(imProjectPolicy(draft.grant)) !==
-      JSON.stringify(
-        draft.baseline.grants.find((g) => g.projectId === draft.projectId) &&
-          imProjectPolicy(
-            draft.baseline.grants.find((g) => g.projectId === draft.projectId)!,
-          ),
-      );
-  const affected = draft
-    ? groups.filter((g) => g.saved?.nativeGroup?.projectId === draft.projectId)
-    : [];
-  const expiration = (value: number) =>
-    new Intl.DateTimeFormat(locale, {
-      dateStyle: "full",
-      timeStyle: "long",
-    }).format(value);
-  useLayoutEffect(() => {
-    heading.current?.focus({ preventScroll: true });
-    if (body.current) body.current.scrollTop = 0;
-  }, [draft?.step, !!draft, !!discard, pending?.state]);
-  useLayoutEffect(() => {
-    if (conflict)
-      setDraft((previous) =>
-        previous?.confirmation ? { ...previous, confirmation: "" } : previous,
-      );
-  }, [conflict]);
-  function navigate(action: () => void) {
-    if (draft?.dirty && !pending && !submitting) setDiscard(() => action);
-    else action();
+    view,
+    setView,
+    selected,
+    setSelected,
+    projectFilter,
+    setProjectFilter,
+    query,
+    setQuery,
+    draft,
+    setDraft,
+    presenceNow,
+    refreshingMembers,
+    setRefreshingMembers,
+    discard,
+    setDiscard,
+    operation,
+    setOperation,
+    error,
+    setError,
+    submitting,
+    setSubmitting,
+    sending,
+    heading,
+    body,
+  } = useGroupAuthorizationStateRuntime;
+
+  const useGroupDirectoryRuntime = useGroupDirectory({
+    diagnostics,
+    status,
+    t,
+    view,
+    projectFilter,
+    query,
+    selected,
+    get rosterFor() {
+      return rosterFor;
+    },
+    draft,
+    operation,
+    submitting,
+  });
+  const {
+    groups,
+    directory,
+    visibleGroups,
+    key,
+    current,
+    currentGroup,
+    currentPlatform,
+    memberTarget,
+    command,
+    validCommand,
+    currentDraftTarget,
+    identityTarget,
+    ownerPerson,
+    ownerParticipant,
+    identityConnection,
+    identityBot,
+    displayIdentityName,
+    conflict,
+    pending,
+    locked,
+    active,
+    localScope,
+    fullLocal,
+  } = useGroupDirectoryRuntime;
+
+  const createGroupAuthorizationSummaryRuntime =
+    createGroupAuthorizationSummary({
+      draft,
+      command,
+      fullLocal,
+      t,
+      locked,
+      conflict,
+      validCommand,
+      setDraft,
+      groups,
+      locale,
+    });
+  const { confirmationControl, policyChanged, affected, expiration } =
+    createGroupAuthorizationSummaryRuntime;
+
+  const useGroupAuthorizationFocusRuntime = useGroupAuthorizationFocus({
+    heading,
+    body,
+    draft,
+    discard,
+    pending,
+    setDraft,
+    conflict,
+  });
+
+  const createGroupAuthorizationActionsRuntime =
+    createGroupAuthorizationActions({
+      setDiscard,
+      draft,
+      pending,
+      submitting,
+      setDraft,
+      setError,
+      setOperation,
+      status,
+      view,
+      sending,
+      command,
+      validCommand,
+      conflict,
+      setSubmitting,
+      refresh,
+      setSelected,
+      setRefreshingMembers,
+    });
+  function navigate(
+    action: () => void,
+  ): ReturnType<typeof createGroupAuthorizationActionsRuntime.navigate> {
+    return createGroupAuthorizationActionsRuntime.navigate(action);
   }
-  function change(patch: Partial<AuthorizationDraft>) {
-    setDraft(
-      (previous) =>
-        previous && { ...previous, ...patch, confirmation: "", dirty: true },
-    );
+  function change(
+    patch: Partial<AuthorizationDraft>,
+  ): ReturnType<typeof createGroupAuthorizationActionsRuntime.change> {
+    return createGroupAuthorizationActionsRuntime.change(patch);
   }
   function begin(
     target: AuthorizationTarget | undefined,
     projectId: string,
     intent: AuthorizationDraft["intent"],
     entry: AuthorizationDraft["entry"] = view,
-  ) {
-    setError("");
-    setOperation(undefined);
-    setDraft(
-      createAuthorizationDraft(
-        status.settings,
-        target,
-        projectId,
-        intent,
-        entry,
-      ),
+  ): ReturnType<typeof createGroupAuthorizationActionsRuntime.begin> {
+    return createGroupAuthorizationActionsRuntime.begin(
+      target,
+      projectId,
+      intent,
+      entry,
     );
   }
-  async function submit(retry?: ImAuthorizationOperation) {
-    if (
-      sending.current ||
-      (!retry &&
-        (!command ||
-          !validCommand ||
-          conflict ||
-          draft?.confirmation !== command.confirmationFingerprint))
-    )
-      return;
-    sending.current = true;
-    setSubmitting(true);
-    setError("");
-    try {
-      const result = (await window.artemis.manageIm(
-        retry
-          ? {
-              action: "retry-group-authorization",
-              operationId: retry.command.operationId,
-            }
-          : { action: "authorize-group", command: command! },
-      )) as ImAuthorizationOperation;
-      setOperation(result);
-      await refresh();
-      if (result.state === "complete") {
-        setSelected(imConversationKey(result.command.conversation));
-        setDraft(undefined);
-        setOperation(undefined);
-        if (result.group?.nativeGroup?.enabled) {
-          setRefreshingMembers(true);
-          try {
-            await window.artemis.manageIm({
-              action: "refresh-group-members",
-              spaceId: result.group.id,
-            });
-            await refresh();
-          } catch (error) {
-            // Authorization is already committed; roster refresh is independent.
-            setError(String(error));
-          } finally {
-            setRefreshingMembers(false);
-          }
-        }
-      }
-    } catch (e) {
-      // Preserve operation ID after a lost IPC reply. Query/retry it before any new command.
-      setError(String(e));
-      if (command) {
-        const latest = await window.artemis
-          .getImStatus()
-          .catch(() => undefined);
-        const recorded = latest?.authorizationOperations?.find(
-          (op) => op.command.operationId === command.operationId,
-        );
-        if (recorded) setOperation(recorded);
-      }
-    } finally {
-      sending.current = false;
-      setSubmitting(false);
-    }
+  function submit(
+    retry?: ImAuthorizationOperation,
+  ): ReturnType<typeof createGroupAuthorizationActionsRuntime.submit> {
+    return createGroupAuthorizationActionsRuntime.submit(retry);
   }
-  function policyFields() {
-    if (!draft || !active) return null;
-    const edit = (patch: Partial<typeof active>) =>
-      change({ editPolicy: true, grant: { ...active, ...patch } });
-    return (
-      <div className="im-field-stack im-group-policy-fields">
-        <Select
-          label={t("AutomationPage_text.mode")}
-          labelVisibility="visible"
-          value={active.mode}
-          disabled={locked}
-          options={[
-            { value: "plan", label: t("App_copy.plan") },
-            { value: "work", label: t("App_copy.work") },
-            { value: "codemode", label: t("App_copy.codemode") },
-          ]}
-          onValueChange={(value) => edit({ mode: value as typeof active.mode })}
-        />
-        <Select
-          label={t("ImSettingsPanel.message143")}
-          labelVisibility="visible"
-          disabled={locked || fullLocal}
-          value={fullLocal ? "automatic" : active.approval}
-          options={[
-            { value: "ask", label: t("ImSettingsPanel.message144") },
-            { value: "automatic", label: t("ImSettingsPanel.message145") },
-          ]}
-          onValueChange={(value) =>
-            edit({ approval: value as typeof active.approval })
-          }
-        />
-        {isExecutionMode(active.mode) && !fullLocal && (
-          <>
-            <Checkbox
-              label={t("ImSettingsPanel.message147")}
-              disabled={locked}
-              checked={active.shell}
-              onCheckedChange={(shell) => edit({ shell })}
-            />
-            <Checkbox
-              label={t("ImSettingsPanel.message148")}
-              disabled={locked}
-              checked={active.network}
-              onCheckedChange={(network) => edit({ network })}
-            />
-          </>
-        )}
-        <label>
-          <span>{t("GroupAuthorization.expiration")}</span>
-          <input
-            aria-label={t("GroupAuthorization.expiration")}
-            type="datetime-local"
-            disabled={locked}
-            value={new Date(
-              active.expiresAt -
-                new Date(active.expiresAt).getTimezoneOffset() * 60000,
-            )
-              .toISOString()
-              .slice(0, 16)}
-            onChange={(event) => {
-              const date = new Date(event.target.value).getTime();
-              if (Number.isFinite(date)) edit({ expiresAt: date });
-            }}
-          />
-        </label>
-      </div>
-    );
+
+  const createGroupPolicyRenderersRuntime = createGroupPolicyRenderers({
+    draft,
+    active,
+    change,
+    t,
+    locked,
+    fullLocal,
+    expiration,
+  });
+  function policyFields(): ReturnType<
+    typeof createGroupPolicyRenderersRuntime.policyFields
+  > {
+    return createGroupPolicyRenderersRuntime.policyFields();
   }
-  function policySummary(value: ExecutionGrant | undefined, compact = false) {
-    return (
-      value && (
-        <p title={compact ? expiration(value.expiresAt) : undefined}>
-          {t(`App_copy.${value.mode}`)} ·{" "}
-          {t(
-            value.approval === "ask"
-              ? "ImSettingsPanel.message144"
-              : "ImSettingsPanel.message145",
-          )}{" "}
-          {!compact && <> · {expiration(value.expiresAt)}</>}
-        </p>
-      )
-    );
+  function policySummary(
+    value: ExecutionGrant | undefined,
+    compact = false,
+  ): ReturnType<typeof createGroupPolicyRenderersRuntime.policySummary> {
+    return createGroupPolicyRenderersRuntime.policySummary(value, compact);
   }
+
   function rosterFor(target: GroupChoice) {
     const roster = imGroupRosterSchema.safeParse(
       (target.saved as { roster?: unknown } | undefined)?.roster,
@@ -481,295 +298,45 @@ export function GroupCollaborationPanel({
         ?.trim() ?? t("GroupAuthorization.nameUnavailable")
     );
   }
-  function memberList(target: GroupChoice, targets: GroupChoice[]) {
-    const roster = rosterFor(target);
-    const members = roster?.members ?? [];
-    const refreshTargets = targets.filter(
-      (group) =>
-        group.saved?.nativeGroup?.ownerDeviceId === status.settings.deviceId,
-    );
-    return (
-      <details className="im-group-members" key={current?.key}>
-        <summary>
-          <UsersThree size={16} aria-hidden="true" />
-          {t("GroupAuthorization.members")}
-          {members.length > 0 && <span>{members.length}</span>}
-          <CaretRight
-            className="im-group-members-caret"
-            size={14}
-            aria-hidden="true"
-          />
-        </summary>
-        {members.length > 0 ? (
-          <ul>
-            {members.map((member) => {
-              const presence =
-                member.kind === "bot"
-                  ? "online"
-                  : imGroupMemberStatus(
-                      member,
-                      status,
-                      target.saved?.id,
-                      Math.max(presenceNow, Date.now()),
-                    );
-              return (
-                <li key={imIdentityKey(member.identity)}>
-                  <span className="im-group-member-name">
-                    <span
-                      className="im-group-member-avatar"
-                      data-state={presence}
-                      role="img"
-                      aria-label={t(
-                        member.kind === "bot"
-                          ? "ImGroupMembers.message14"
-                          : member.kind === "human"
-                            ? "ImGroupMembers.message13"
-                            : "ImGroupMembers.message12",
-                      )}
-                    >
-                      {member.kind === "bot" ? (
-                        <ArtemisIcon name="bot" width={18} height={18} />
-                      ) : (
-                        <User size={18} weight="fill" aria-hidden="true" />
-                      )}
-                    </span>
-                    <span>
-                      {member.name?.trim() &&
-                      !Object.values(member.identity).includes(
-                        member.name.trim(),
-                      )
-                        ? member.name
-                        : t("GroupAuthorization.nameUnavailable")}
-                    </span>
-                  </span>
-                  <span
-                    className="im-group-member-status"
-                    title={
-                      member.kind === "bot"
-                        ? t("ImGroupMembers.message9")
-                        : imMemberTooltip(member, presence, locale)
-                    }
-                    data-state={presence}
-                  >
-                    <span className="im-group-member-dot" aria-hidden="true" />
-                    {member.kind === "bot"
-                      ? t("ImGroupMembers.message9")
-                      : imMemberLabel(presence, locale)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p>{t("GroupAuthorization.membersUnavailable")}</p>
-        )}
-        {roster && !roster.complete && members.length > 0 && (
-          <p>{t("GroupAuthorization.membersPartial")}</p>
-        )}
-        {refreshTargets.length > 0 && status.localGateway && (
-          <Button
-            size="compact"
-            variant="quiet"
-            disabled={locked || refreshingMembers}
-            icon={<ArrowClockwise aria-hidden="true" />}
-            onClick={async () => {
-              setRefreshingMembers(true);
-              try {
-                await Promise.all(
-                  refreshTargets.map((group) =>
-                    window.artemis.manageIm({
-                      action: "refresh-group-members",
-                      spaceId: group.saved!.id,
-                    }),
-                  ),
-                );
-                await refresh();
-              } catch (error) {
-                setError(String(error));
-              } finally {
-                setRefreshingMembers(false);
-              }
-            }}
-          >
-            {t("GroupAuthorization.refresh")}
-          </Button>
-        )}
-      </details>
-    );
+  const createGroupMemberRendererRuntime = createGroupMemberRenderer({
+    rosterFor,
+    status,
+    t,
+    presenceNow,
+    locale,
+    locked,
+    refreshingMembers,
+    setRefreshingMembers,
+    refresh,
+    setError,
+    current,
+  });
+  function memberList(
+    target: GroupChoice,
+    targets: GroupChoice[],
+  ): ReturnType<typeof createGroupMemberRendererRuntime.memberList> {
+    return createGroupMemberRendererRuntime.memberList(target, targets);
   }
-  function authorizationRow(target: GroupChoice) {
-    const saved = target.saved;
-    const grant = status.settings.grants.find(
-      (item) => item.projectId === saved?.nativeGroup?.projectId,
-    );
-    const scope = grant?.security?.scopes.find(
-      (item) => item.audience === target.value,
-    );
-    const name = botName(target);
-    const connection = (
-      status.connections as ImConnectionStatus[] | undefined
-    )?.find((c) => c.id === target.conversation.connectionId);
-    const state = !saved
-      ? "unbound"
-      : !saved.nativeGroup?.enabled
-        ? saved.nativeGroup?.recovery?.rejoinedAt
-          ? "rejoined"
-          : saved.nativeGroup?.recovery
-            ? "removed"
-            : "paused"
-        : !status.settings.enabled
-          ? "saved"
-          : connection?.state !== "connected"
-            ? "connecting"
-            : !grant || !scope || grant.expiresAt <= Date.now()
-              ? "review"
-              : !isExecutionMode(grant.mode)
-                ? "readOnly"
-                : !imScopeConfirmation(grant.security, scope)
-                  ? "writePending"
-                  : "executable";
-    const task = status.remoteTasks?.find(
-      (task) =>
-        !!saved?.id &&
-        !task.parentThreadId &&
-        task.currentGroupEntry !== false &&
-        task.group?.spaceId === saved?.id,
-    );
-    const disabled =
-      locked ||
-      status.authorizationVersion !== 1 ||
-      !status.localGateway ||
-      !target.owner;
-    return (
-      <section
-        className="im-group-bot-authorization"
-        aria-label={name}
-        key={key(target)}
-      >
-        <header className="im-group-bot-identity">
-          <span className="im-group-bot-avatar">
-            <ArtemisIcon name="bot" width={24} height={24} />
-          </span>
-          <div className="im-group-bot-name">
-            <h4>{name}</h4>
-            <span className="im-group-status" data-state={state}>
-              {t(`GroupAuthorization.${state}`)}
-            </span>
-          </div>
-        </header>
-        <div className="im-group-bot-permissions">
-          {saved?.nativeGroup?.projectId && (
-            <p className="im-group-project-name">
-              <FolderSimple size={16} weight="duotone" aria-hidden="true" />
-              {projects.find(
-                (project) => project.id === saved.nativeGroup!.projectId,
-              )?.name ?? t("GroupAuthorization.nameUnavailable")}
-            </p>
-          )}
-          {policySummary(
-            scope?.localAccess === "full" && grant
-              ? { ...grant, approval: "automatic" }
-              : grant,
-            true,
-          )}
-          {scope && (
-            <dl className="im-group-summary">
-              <dt>{t("GroupAuthorization.readScope")}</dt>
-              <dd>
-                {scope.localAccess === "full"
-                  ? t("GroupAuthorization.fullLocal")
-                  : scope.readPaths.length
-                    ? scope.readPaths.join(" · ")
-                    : t("ImDataPermissions.projectScope")}
-              </dd>
-              <dt>{t("GroupAuthorization.writeScope")}</dt>
-              <dd>
-                {!isExecutionMode(grant?.mode)
-                  ? t("GroupAuthorization.denied")
-                  : scope.localAccess === "full"
-                    ? t("GroupAuthorization.fullLocal")
-                    : scope.writeMode === "project"
-                      ? t("ImDataPermissions.message14")
-                      : scope.writePaths.join(" · ") ||
-                        t("GroupAuthorization.denied")}
-              </dd>
-            </dl>
-          )}
-          {!task && (
-            <p className="im-group-first-message">
-              {t("GroupAuthorization.firstMessage")}
-            </p>
-          )}
-        </div>
-        <div className="im-group-bot-actions">
-          <Button
-            variant="primary"
-            size="comfortable"
-            icon={<ShieldCheck weight="duotone" aria-hidden="true" />}
-            disabled={disabled}
-            onClick={() =>
-              begin(
-                target,
-                saved?.nativeGroup?.projectId ?? "",
-                !saved
-                  ? "create"
-                  : !saved.nativeGroup?.enabled
-                    ? "restore"
-                    : grant && grant.expiresAt <= Date.now()
-                      ? "renew"
-                      : "edit",
-                "group",
-              )
-            }
-          >
-            {t(
-              !saved
-                ? "GroupAuthorization.authorize"
-                : !saved.nativeGroup?.enabled
-                  ? "GroupAuthorization.restore"
-                  : "GroupAuthorization.edit",
-            )}
-          </Button>
-          {saved && (
-            <>
-              <Button
-                size="comfortable"
-                icon={<ArrowsLeftRight aria-hidden="true" />}
-                disabled={disabled}
-                onClick={() =>
-                  begin(target, saved.nativeGroup!.projectId, "rebind", "group")
-                }
-              >
-                {t("GroupAuthorization.rebind")}
-              </Button>
-              {saved.nativeGroup?.enabled && (
-                <Button
-                  size="comfortable"
-                  icon={<Pause aria-hidden="true" />}
-                  disabled={disabled}
-                  onClick={() =>
-                    begin(
-                      target,
-                      saved.nativeGroup!.projectId,
-                      "pause",
-                      "group",
-                    )
-                  }
-                >
-                  {t("GroupAuthorization.pause")}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-        {!target.owner && (
-          <InlineNotice tone="warning">
-            {t("GroupAuthorization.ownerRequired")}
-          </InlineNotice>
-        )}
-      </section>
-    );
+
+  const createGroupAuthorizationRendererRuntime =
+    createGroupAuthorizationRenderer({
+      status,
+      botName,
+      locked,
+      t,
+      projects,
+      policySummary,
+      begin,
+      key,
+    });
+  function authorizationRow(
+    target: GroupChoice,
+  ): ReturnType<
+    typeof createGroupAuthorizationRendererRuntime.authorizationRow
+  > {
+    return createGroupAuthorizationRendererRuntime.authorizationRow(target);
   }
+
   return (
     <Dialog
       open

@@ -1,9 +1,16 @@
+import { useOfficeWorkbenchState } from "./workbench/use-office-workbench-state.js";
+import { useOfficeAnnotationPosition } from "./workbench/use-office-annotation-position.js";
+import { useOfficeSession } from "./workbench/use-office-session.js";
+import { useOfficePdfPreview } from "./workbench/use-office-pdf-preview.js";
+import { useOfficeSelectionSync } from "./workbench/use-office-selection-sync.js";
+import { useOfficeSheetPagination } from "./workbench/use-office-sheet-pagination.js";
+import { createOfficeAnnotationActions } from "./workbench/create-office-annotation-actions.js";
+import { useOfficePageNavigation } from "./workbench/use-office-page-navigation.js";
+import { useOfficeSlideNavigation } from "./workbench/use-office-slide-navigation.js";
+import { createOfficeSelectionOptions } from "./workbench/create-office-selection-options.js";
 import { uiText } from "../../shared/i18n/ui-text.js";
-import { z } from "zod";
-import { useEffect, useMemo, useRef, useState } from "react";
+
 import {
-  artifactAnnotationSchema,
-  artifactSelectionSchema,
   type AppLocale,
   type ArtifactAnnotation,
   type ArtifactSelection,
@@ -13,44 +20,16 @@ import {
 import { Button, IconButton } from "@artemis/ui/actions";
 import { Switch, Select, TextAreaField, TextField } from "@artemis/ui/forms";
 import { InlineNotice } from "@artemis/ui/feedback";
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 import { ArtemisIcon } from "@artemis/ui/icons";
 import { OfficePreviewPage } from "./OfficePreviewPage.js";
 import { OfficeSpreadsheet } from "./OfficeSpreadsheet.js";
 import { officeAnnotationCopy } from "./office-annotation-copy.js";
-import { officeSelectionLabel } from "./office-annotations.js";
-import { officeCopy } from "./office-copy.js";
+
 import "./office-workbench.css";
-import { officeEditor } from "./office-editor-state.js";
-import { officeEditCopy } from "./office-edit-copy.js";
+
 import { WorkspaceFileIcon } from "../workspace/WorkspaceFilesPanel.js";
 import { filePresentation } from "../workspace/workspace-file-presentation.js";
-import {
-  readLocalDraft,
-  writeLocalDraft,
-} from "../workspace/workspace-autosave.js";
-import { officeReviewCopy } from "./office-review-copy.js";
-import { useWorkspaceEditHistory } from "../workspace/workspace-edit-history.js";
-import {
-  booleanUiState,
-  officeZoomState,
-  officeSheetViewState,
-  usePersistentUiState,
-} from "../app/ui-state.js";
-
-const reviewDraftSchema = z.object({
-  protocolVersion: z.literal(1),
-  open: z.boolean(),
-  note: z.string().max(8192),
-  selection: z
-    .object({
-      value: artifactSelectionSchema,
-      version: z.number().int().nonnegative(),
-      quote: z.string().max(8192).optional(),
-    })
-    .optional(),
-});
 
 export function OfficeWorkbenchPanel(
   props: Parameters<typeof OfficeWorkbenchContent>[0],
@@ -78,425 +57,201 @@ function OfficeWorkbenchContent({
   annotationFocus?: ArtifactAnnotation | undefined;
   onSnapshot?(snapshot: ArtifactSnapshot): void;
 }) {
-  const t = officeCopy(locale);
-  const review = officeReviewCopy(locale);
-  const draftKey = `artemis-office-review:${threadId}:${view.session.sessionId}`;
-  const [savedDraft] = useState(() => {
-    const parsed = reviewDraftSchema.safeParse(readLocalDraft(draftKey));
-    return parsed.success ? parsed.data : undefined;
+  const useOfficeWorkbenchStateRuntime = useOfficeWorkbenchState({
+    locale,
+    threadId,
+    view,
   });
-  const [snapshot, setSnapshot] = useState<ArtifactSnapshot>();
-  const [pdf, setPdf] = useState<{
-    document: PDFDocumentProxy;
-    version: number;
-  }>();
-  const [page, setPage] = useState(
-    savedDraft?.selection?.value.kind === "region" ||
-      savedDraft?.selection?.value.kind === "object"
-      ? savedDraft.selection.value.page
-      : 1,
-  );
-  const [zoom, setZoom] = usePersistentUiState<string>(
-    `artemis-office-zoom:${view.session.format}`,
-    officeZoomState,
-    view.session.format === "powerpoint" ? "page" : "width",
-  );
-  const [annotationOpen, setAnnotationOpen] = useState(
-    savedDraft?.open === true,
-  );
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [preferredSheetView, setPreferredSheetView] =
-    usePersistentUiState<string>(
-      "artemis-office-sheet-view",
-      officeSheetViewState,
-      "grid",
-    );
-  const [sheetViewOverride, setSheetViewOverride] = useState<string>();
-  const sheetView = sheetViewOverride ?? preferredSheetView;
-  const setSheetView = (value: string) => {
-    setSheetViewOverride(undefined);
-    setPreferredSheetView(value);
-  };
-  const [followPreference, setFollowPreference] = usePersistentUiState(
-    "artemis-office-follow",
-    booleanUiState,
-    true,
-  );
-  const [followPaused, setFollowPaused] = useState(false);
-  const follow = followPreference && !followPaused;
-  const [sheet, setSheet] = useState(
-    savedDraft?.selection?.value.kind === "cells"
-      ? savedDraft.selection.value.sheet
-      : "",
-  );
-  const [sheetPages, setSheetPages] = useState<Record<string, number>>({});
-  const mappedSheet = useRef<string | undefined>(undefined);
-  const [range, setRange] = useState("A1");
-  const [note, setNote] = useState(
-    typeof savedDraft?.note === "string" ? savedDraft.note.slice(0, 8192) : "",
-  );
-  const [selection, setSelection] = useState<
-    | {
-        value: ArtifactSelection;
-        version: number;
-        quote?: string | undefined;
-      }
-    | undefined
-  >(savedDraft?.selection);
-  useEffect(() => {
-    writeLocalDraft(draftKey, {
-      protocolVersion: 1,
-      open: annotationOpen,
-      note,
-      selection,
-    });
-  }, [draftKey, annotationOpen, note, selection]);
-  const stage = useRef<HTMLDivElement>(null);
-  const pageScroll = useRef<HTMLDivElement>(null);
-  const scrollPage = useRef<number | undefined>(undefined);
-  const annotationPanel = useRef<HTMLElement>(null);
-  const [position, setPosition] = useState<{ x: number; y: number }>();
-  const moving = useRef<
-    { x: number; y: number; left: number; top: number } | undefined
-  >(undefined);
-  useEffect(() => {
-    if (!annotationOpen || !stage.current || !annotationPanel.current) return;
-    const observer = new ResizeObserver(() => {
-      setPosition((previous) => {
-        if (!previous || !stage.current || !annotationPanel.current)
-          return previous;
-        const x = Math.max(
-          0,
-          Math.min(
-            previous.x,
-            stage.current.clientWidth - annotationPanel.current.offsetWidth,
-          ),
-        );
-        const y = Math.max(
-          0,
-          Math.min(
-            previous.y,
-            stage.current.clientHeight - annotationPanel.current.offsetHeight,
-          ),
-        );
-        return x === previous.x && y === previous.y ? previous : { x, y };
-      });
-    });
-    observer.observe(stage.current);
-    observer.observe(annotationPanel.current);
-    return () => observer.disconnect();
-  }, [annotationOpen]);
-  const [dismissedError, setDismissedError] = useState<string>();
-  const [error, setError] = useState<string>();
-  const [staleAnnotation, setStaleAnnotation] = useState(false);
-  const handledFocus = useRef<ArtifactAnnotation | undefined>(undefined);
-  const sessionId = view.session.sessionId;
-  const editCopy = officeEditCopy(locale);
-  const [, refreshEditor] = useState(0);
-  const editor = useMemo(
-    () => officeEditor(threadId, sessionId, view.session.path),
-    [threadId, sessionId, view.session.path],
-  );
-  const historyRef = useWorkspaceEditHistory<HTMLElement>(editor);
-  useEffect(
-    () =>
-      editor.subscribe(() => {
-        refreshEditor((value) => value + 1);
-        if (editor.snapshot)
-          setSnapshot((previous) =>
-            !previous ||
-            editor.snapshot!.session.sequence >= previous.session.sequence
-              ? editor.snapshot
-              : previous,
-          );
-      }),
-    [editor],
-  );
-  useEffect(() => {
-    if (snapshot) editor.update(snapshot);
-  }, [editor, snapshot]);
-  useEffect(() => {
-    let active = true;
-    void window.artemis
-      .readOfficeSnapshot(threadId, sessionId)
-      .then((next) => {
-        if (!active) return;
-        setSnapshot((previous) =>
-          !previous || next.session.sequence >= previous.session.sequence
-            ? next
-            : previous,
-        );
-        setError(undefined);
-        if (view.needsSnapshot) onSnapshot?.(next);
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(String(reason));
-      });
-    return () => {
-      active = false;
-    };
-  }, [view, sessionId, threadId, onSnapshot]);
-  const assetId = snapshot?.preview?.assetId;
-  useEffect(() => {
-    if (!assetId) return;
-    let active = true;
-    let loading: PDFDocumentLoadingTask | undefined;
-    void Promise.all([
-      import("pdfjs-dist"),
-      window.artemis.openOfficePreview(threadId, sessionId, assetId),
-    ])
-      .then(async ([pdfjs, bytes]) => {
-        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
-        const data = Uint8Array.from(atob(bytes.data), (value) =>
-          value.charCodeAt(0),
-        );
-        if (!active) return;
-        loading = pdfjs.getDocument({ data });
-        const loaded = await loading.promise;
-        if (!active) return;
-        setPdf({ document: loaded, version: bytes.version });
-        setPage((previous) => Math.min(previous, loaded.numPages));
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(String(reason));
-      });
-    return () => {
-      active = false;
-      void loading?.destroy();
-    };
-  }, [assetId, sessionId, threadId]);
-  useEffect(() => {
-    if (
-      !annotationFocus ||
-      !snapshot ||
-      handledFocus.current === annotationFocus
-    )
-      return;
-    handledFocus.current = annotationFocus;
-    setFollowPaused(true);
-    setAnnotationOpen(false);
-    const sameVersion =
-      annotationFocus.documentId === snapshot.session.documentId &&
-      annotationFocus.sessionId === sessionId &&
-      annotationFocus.sourceVersion === snapshot.session.version;
-    setStaleAnnotation(!sameVersion);
-    if (!sameVersion) {
-      setSelection(undefined);
-      return;
-    }
-    const value = annotationFocus.selection;
-    setSelection({ value, version: annotationFocus.sourceVersion });
-    if (value.kind === "region" || value.kind === "object") setPage(value.page);
-    if (value.kind === "cells") {
-      setSheet(value.sheet);
-      setRange(value.range);
-      setSheetViewOverride("grid");
-    }
-  }, [annotationFocus, snapshot, sessionId]);
-  useEffect(() => {
-    if (!follow || !view.selection || annotationOpen) return;
-    const value = view.selection;
-    setSelection({ value, version: view.session.version });
-    if (value.kind === "object" || value.kind === "region") setPage(value.page);
-    if (value.kind === "cells") {
-      setSheet(value.sheet);
-      setRange(value.range);
-    }
-  }, [follow, view.selection, view.session.version, annotationOpen]);
-  const navigationSelection = follow
-    ? view.selection
-    : selection?.version === snapshot?.session.version
-      ? selection?.value
-      : undefined;
-  useEffect(() => {
-    if (
-      annotationOpen ||
-      !pdf ||
-      navigationSelection?.kind !== "paragraph" ||
-      !snapshot ||
-      pdf.version !== snapshot.session.version
-    )
-      return;
-    const index = navigationSelection.index;
-    const target = snapshot.targets.find(
-      (target) =>
-        target.selection.kind === "paragraph" &&
-        target.selection.index === index,
-    );
-    const quote = target?.text.replace(/\s/gu, "").slice(0, 60);
-    if (!quote) return;
-    let active = true;
-    void (async () => {
-      for (let current = 1; current <= pdf.document.numPages; current++) {
-        if (!active) return;
-        const text = await (
-          await pdf.document.getPage(current)
-        ).getTextContent();
-        if (
-          text.items
-            .map((item) => ("str" in item ? item.str : ""))
-            .join("")
-            .replace(/\s/gu, "")
-            .includes(quote)
-        ) {
-          if (active) setPage(current);
-          return;
-        }
-      }
-    })().catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [pdf, snapshot, navigationSelection, annotationOpen]);
-  const currentSheet = sheet || snapshot?.sheets[0] || "";
-  useEffect(() => {
-    setSheetPages({});
-    if (!pdf || !snapshot?.sheets.length) return;
-    let active = true;
-    void (async () => {
-      const pages: Record<string, number> = {};
-      const outline = await pdf.document.getOutline();
-      for (const item of outline ?? []) {
-        if (!snapshot.sheets.includes(item.title)) continue;
-        const destination =
-          typeof item.dest === "string"
-            ? await pdf.document.getDestination(item.dest)
-            : item.dest;
-        if (!destination?.length) continue;
-        const index =
-          typeof destination[0] === "number"
-            ? destination[0]
-            : await pdf.document.getPageIndex(destination[0]);
-        if (index >= 0 && index < pdf.document.numPages)
-          pages[item.title] = index + 1;
-      }
-      if (active) setSheetPages(pages);
-    })().catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [pdf, snapshot?.sheets]);
-  useEffect(() => {
-    const targetPage = sheetPages[currentSheet];
-    if (
-      targetPage &&
-      (mappedSheet.current !== currentSheet ||
-        (follow && view.selection?.kind === "cells"))
-    ) {
-      mappedSheet.current = currentSheet;
-      setPage(targetPage);
-    }
-  }, [currentSheet, sheetPages, follow, view.selection]);
+  const {
+    t,
+    review,
+    snapshot,
+    setSnapshot,
+    pdf,
+    setPdf,
+    page,
+    setPage,
+    zoom,
+    setZoom,
+    annotationOpen,
+    setAnnotationOpen,
+    detailsOpen,
+    setDetailsOpen,
+    setSheetViewOverride,
+    sheetView,
+    setSheetView,
+    setFollowPreference,
+    setFollowPaused,
+    follow,
+    sheet,
+    setSheet,
+    sheetPages,
+    setSheetPages,
+    mappedSheet,
+    range,
+    setRange,
+    note,
+    setNote,
+    selection,
+    setSelection,
+    stage,
+    pageScroll,
+    scrollPage,
+    annotationPanel,
+    position,
+    setPosition,
+    moving,
+  } = useOfficeWorkbenchStateRuntime;
+
+  const useOfficeAnnotationPositionRuntime = useOfficeAnnotationPosition({
+    annotationOpen,
+    stage,
+    annotationPanel,
+    setPosition,
+  });
+
+  const useOfficeSessionRuntime = useOfficeSession({
+    view,
+    locale,
+    threadId,
+    setSnapshot,
+    snapshot,
+    onSnapshot,
+  });
+  const {
+    dismissedError,
+    setDismissedError,
+    error,
+    setError,
+    staleAnnotation,
+    setStaleAnnotation,
+    handledFocus,
+    sessionId,
+    editCopy,
+    editor,
+    historyRef,
+  } = useOfficeSessionRuntime;
+
+  const useOfficePdfPreviewRuntime = useOfficePdfPreview({
+    snapshot,
+    setError,
+    setPdf,
+    setPage,
+    threadId,
+    sessionId,
+  });
+
+  const useOfficeSelectionSyncRuntime = useOfficeSelectionSync({
+    annotationFocus,
+    snapshot,
+    handledFocus,
+    setFollowPaused,
+    setAnnotationOpen,
+    sessionId,
+    setStaleAnnotation,
+    setSelection,
+    setPage,
+    setSheet,
+    setRange,
+    setSheetViewOverride,
+    follow,
+    view,
+    annotationOpen,
+    selection,
+    pdf,
+  });
+
+  const useOfficeSheetPaginationRuntime = useOfficeSheetPagination({
+    sheet,
+    snapshot,
+    setSheetPages,
+    pdf,
+    sheetPages,
+    mappedSheet,
+    setPage,
+    follow,
+    view,
+  });
+  const { currentSheet } = useOfficeSheetPaginationRuntime;
+
   const targets = (snapshot?.targets ?? []).filter(
     (target) =>
       target.selection.kind !== "cells" ||
       target.selection.sheet === currentSheet,
   );
   const session = snapshot?.session ?? view.session;
-  function selectionLabel(value: ArtifactSelection): string {
-    return officeSelectionLabel(value, locale);
-  }
-  function addNote() {
-    if (!selection || !note.trim()) return;
-    const parsed = artifactAnnotationSchema.safeParse({
-      protocolVersion: 1,
-      id: crypto.randomUUID(),
-      documentId: session.documentId,
-      sessionId,
-      sourceVersion: selection.version,
-      selection: selection.value,
-      ...(selection.quote ? { quote: selection.quote } : {}),
-      text: note,
-    });
-    if (!parsed.success) {
-      setError(parsed.error.message);
-      return;
-    }
-    if (onAnnotate(parsed.data) === false) return;
-    setNote("");
-    setAnnotationOpen(false);
-    setSelection(undefined);
-  }
-  const isSheet = session.format === "excel";
-  const showGrid = isSheet && sheetView === "grid";
-  const pageCount = pdf?.document.numPages ?? 1;
-  const currentPage = Math.min(page, pageCount);
-  const continuous = !showGrid;
-  useEffect(() => {
-    if (!continuous || !pdf) return;
-    if (scrollPage.current === currentPage) {
-      scrollPage.current = undefined;
-      return;
-    }
-    pageScroll.current
-      ?.querySelector(`[data-page-number="${currentPage}"]`)
-      ?.scrollIntoView({ block: "start" });
-  }, [currentPage, continuous, pdf]);
-  const displayedError = editor.error ?? error ?? session.error;
-  useEffect(() => {
-    setDismissedError(undefined);
-  }, [displayedError]);
-  const clearSelection = () => {
-    setSelection(undefined);
-    setFollowPaused(true);
-  };
-  const slides = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const strip = slides.current;
-    if (!strip) return;
-    const revealCurrentSlide = () =>
-      strip
-        .querySelector('[aria-pressed="true"]')
-        ?.scrollIntoView({ block: "nearest", inline: "nearest" });
-    const observer = new ResizeObserver(revealCurrentSlide);
-    observer.observe(strip);
-    revealCurrentSlide();
-    return () => observer.disconnect();
-  }, [currentPage, pdf]);
-  const fileName = session.path.split(/[\\/]/u).pop() ?? session.path;
-  const selectedValue = selection ? JSON.stringify(selection.value) : "";
-  const validSelection =
-    selection && artifactSelectionSchema.safeParse(selection.value).success;
-  const quote =
-    selection?.quote ??
-    (selection?.version === session.version
-      ? targets.find(
-          (target) => JSON.stringify(target.selection) === selectedValue,
-        )?.text
-      : undefined);
-  const targetOptions = (isSheet ? [] : targets)
-    .filter(
-      (target) =>
-        target.selection.kind !== "object" ||
-        target.selection.page === currentPage,
-    )
-    .slice(0, 2_000)
-    .map((target) => ({
-      value: JSON.stringify(target.selection),
-      label:
-        selectionLabel(target.selection) +
-        (target.text ? ` · ${target.text.slice(0, 100)}` : ""),
-    }));
-  if (
-    !isSheet &&
-    selection &&
-    !targetOptions.some((target) => target.value === selectedValue)
-  ) {
-    targetOptions.push({
-      value: selectedValue,
-      label: selectionLabel(selection.value),
-    });
-  }
-  const chooseSelection = (
+  const createOfficeAnnotationActionsRuntime = createOfficeAnnotationActions({
+    locale,
+    selection,
+    note,
+    session,
+    sessionId,
+    setError,
+    onAnnotate,
+    setNote,
+    setAnnotationOpen,
+    setSelection,
+  });
+  function selectionLabel(
     value: ArtifactSelection,
-    version = session.version,
-    quote?: string,
-  ) => {
-    setFollowPaused(true);
-    setSelection({ value, version, ...(quote ? { quote } : {}) });
-    setAnnotationOpen(true);
-    if (value.kind === "cells") setRange(value.range);
-  };
+  ): ReturnType<typeof createOfficeAnnotationActionsRuntime.selectionLabel> {
+    return createOfficeAnnotationActionsRuntime.selectionLabel(value);
+  }
+  function addNote(): ReturnType<
+    typeof createOfficeAnnotationActionsRuntime.addNote
+  > {
+    return createOfficeAnnotationActionsRuntime.addNote();
+  }
+
+  const useOfficePageNavigationRuntime = useOfficePageNavigation({
+    session,
+    sheetView,
+    pdf,
+    page,
+    scrollPage,
+    pageScroll,
+    editor,
+    error,
+    setDismissedError,
+    setSelection,
+    setFollowPaused,
+  });
+  const {
+    isSheet,
+    showGrid,
+    pageCount,
+    currentPage,
+    continuous,
+    displayedError,
+    clearSelection,
+  } = useOfficePageNavigationRuntime;
+
+  const useOfficeSlideNavigationRuntime = useOfficeSlideNavigation({
+    currentPage,
+    pdf,
+  });
+  const { slides } = useOfficeSlideNavigationRuntime;
+
+  const createOfficeSelectionOptionsRuntime = createOfficeSelectionOptions({
+    session,
+    selection,
+    targets,
+    selectionLabel,
+    currentPage,
+    isSheet,
+    setFollowPaused,
+    setSelection,
+    setAnnotationOpen,
+    setRange,
+  });
+  const {
+    fileName,
+    selectedValue,
+    validSelection,
+    quote,
+    targetOptions,
+    chooseSelection,
+  } = createOfficeSelectionOptionsRuntime;
 
   return (
     <section

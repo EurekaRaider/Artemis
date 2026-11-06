@@ -1,3 +1,17 @@
+import { TimePicker } from "./AutomationTimePicker.js";
+import {
+  type Locale,
+  type IntervalUnit,
+  type WindowedIntervalUnit,
+} from "./automation-values.js";
+import { useAutomationState } from "./controllers/use-automation-state.js";
+import { useAutomationModelSelection } from "./controllers/use-automation-model-selection.js";
+import { createAutomationScheduleLabel } from "./controllers/create-automation-schedule-label.js";
+import { useAutomationDraft } from "./controllers/use-automation-draft.js";
+import { useAutomationProjectOptions } from "./controllers/use-automation-project-options.js";
+import { useAutomationSubscription } from "./controllers/use-automation-subscription.js";
+import { useAutomationList } from "./controllers/use-automation-list.js";
+import { createAutomationActions } from "./controllers/create-automation-actions.js";
 import { nextRunLabel } from "./schedule-label.js";
 import {
   formatDate,
@@ -15,30 +29,10 @@ import type { SettingsSnapshot } from "../../shared/api.js";
 import {
   selectionForModelSwitch,
   thinkingLevelLabel,
-  thinkingLevelsForModel,
 } from "../settings/model-selection.js";
-import { Temporal } from "@js-temporal/polyfill";
-import {
-  createAutomationViewState,
-  reduceAutomationEvent,
-  type Automation,
-  type AutomationSchedule,
-  type AutomationTarget,
-  type AppLocale,
-  type AutomationViewState,
-  type ModelSelection,
-  type Project,
-  type RunMode,
-} from "@artemis/protocol";
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from "react";
+
+import { type ModelSelection, type Project } from "@artemis/protocol";
+
 import { createPortal } from "react-dom";
 import { Button, IconButton, Status } from "@artemis/ui/actions";
 import { DataSurface } from "@artemis/ui/data";
@@ -59,445 +53,6 @@ import {
 } from "@artemis/ui/forms";
 import { ManagementCard, ManagementHeader } from "@artemis/ui/management";
 
-type Locale = AppLocale;
-type SchedulePreset =
-  "once" | "interval" | "windowed-interval" | "daily" | "weekdays" | "weekly";
-type IntervalUnit = Extract<AutomationSchedule, { kind: "interval" }>["unit"];
-type WindowedIntervalUnit = Extract<
-  AutomationSchedule,
-  { kind: "windowed-interval" }
->["unit"];
-
-interface AutomationDraft {
-  id?: string;
-  projectId: string;
-  name: string;
-  prompt: string;
-  mode: RunMode;
-  target: AutomationTarget;
-  preset: SchedulePreset;
-  date: string;
-  time: string;
-  timeZone: string;
-  daysOfWeek: number[];
-  intervalEvery: number;
-  intervalUnit: IntervalUnit;
-  windowStart: string;
-  windowEnd: string;
-  windowIntervalUnit: WindowedIntervalUnit;
-  enabled: boolean;
-  modelSelection?: ModelSelection | undefined;
-}
-
-const text = UI_COPY.AutomationPage_text;
-
-function normalizedOptionLabel(label: string): string {
-  return label
-    .normalize("NFKC")
-    .replace(/[\p{Default_Ignorable_Code_Point}\p{Cc}]+/gu, "")
-    .replace(/\p{White_Space}+/gu, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function projectSelectOptions(
-  projects: readonly Project[],
-  reservedLabels: readonly string[] = [],
-): Array<{ label: string; value: string }> {
-  const nameCounts = new Map<string, number>();
-  for (const project of projects) {
-    const key = normalizedOptionLabel(project.name);
-    nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
-  }
-
-  const usedLabels = new Set(reservedLabels.map(normalizedOptionLabel));
-  return projects.map((project) => {
-    const nameKey = normalizedOptionLabel(project.name);
-    let label =
-      (nameCounts.get(nameKey) ?? 0) > 1 || usedLabels.has(nameKey)
-        ? `${project.name} — ${project.path}`
-        : project.name;
-    if (usedLabels.has(normalizedOptionLabel(label))) {
-      label = `${label} — ${project.id}`;
-    }
-    usedLabels.add(normalizedOptionLabel(label));
-    return { label, value: project.id };
-  });
-}
-
-const timeHours = Array.from({ length: 24 }, (_, index) =>
-  String(index).padStart(2, "0"),
-);
-const timeMinutes = Array.from({ length: 60 }, (_, index) =>
-  String(index).padStart(2, "0"),
-);
-
-function TimeOptions(props: {
-  autoFocus?: boolean;
-  labelId: string;
-  onChange(value: string): void;
-  onCommit?(): void;
-  value: string;
-  values: string[];
-}) {
-  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const selectedIndex = Math.max(0, props.values.indexOf(props.value));
-
-  const centerOption = (index: number, focus = false) => {
-    const option = optionRefs.current[index];
-    const list = option?.parentElement;
-    if (focus) option?.focus({ preventScroll: true });
-    if (option && list) {
-      list.scrollTop =
-        option.offsetTop - list.clientHeight / 2 + option.offsetHeight / 2;
-    }
-  };
-
-  useEffect(() => {
-    centerOption(selectedIndex, props.autoFocus);
-  }, [props.autoFocus]);
-
-  const navigate = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let nextIndex: number | undefined;
-    if (event.key === "ArrowDown") {
-      nextIndex = (index + 1) % props.values.length;
-    } else if (event.key === "ArrowUp") {
-      nextIndex = (index - 1 + props.values.length) % props.values.length;
-    } else if (event.key === "Home") {
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      nextIndex = props.values.length - 1;
-    }
-    if (nextIndex === undefined) return;
-    const nextValue = props.values[nextIndex];
-    if (nextValue === undefined) return;
-    event.preventDefault();
-    props.onChange(nextValue);
-    window.requestAnimationFrame(() => centerOption(nextIndex, true));
-  };
-
-  return (
-    <div
-      aria-labelledby={props.labelId}
-      className="automation-time-list"
-      role="listbox"
-    >
-      {props.values.map((option, index) => (
-        <button
-          aria-selected={option === props.value}
-          className={`automation-time-option ${
-            option === props.value ? "selected" : ""
-          }`}
-          key={option}
-          onClick={() => {
-            props.onChange(option);
-            props.onCommit?.();
-          }}
-          onKeyDown={(event) => navigate(event, index)}
-          ref={(element) => {
-            optionRefs.current[index] = element;
-          }}
-          role="option"
-          tabIndex={option === props.value ? 0 : -1}
-          type="button"
-        >
-          {option}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function TimePicker(props: {
-  hourLabel: string;
-  label: string;
-  minuteLabel: string;
-  onChange(value: string): void;
-  value: string;
-}) {
-  const [selectedHour = "00", selectedMinute = "00"] = props.value.split(":");
-  const [open, setOpen] = useState(false);
-  const popoverId = useId();
-  const hourLabelId = useId();
-  const minuteLabelId = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: PointerEvent | FocusEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      setOpen(false);
-      window.requestAnimationFrame(() =>
-        trigger.current?.focus({ preventScroll: true }),
-      );
-    };
-    document.addEventListener("pointerdown", closeOutside);
-    document.addEventListener("focusin", closeOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOutside);
-      document.removeEventListener("focusin", closeOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  const closeAndFocus = () => {
-    setOpen(false);
-    window.requestAnimationFrame(() =>
-      trigger.current?.focus({ preventScroll: true }),
-    );
-  };
-
-  return (
-    <div className={`automation-time-picker ${open ? "open" : ""}`} ref={root}>
-      <button
-        aria-controls={open ? popoverId : undefined}
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={`${props.label}: ${props.value}`}
-        className="automation-time-trigger"
-        onClick={() => setOpen((current) => !current)}
-        ref={trigger}
-        type="button"
-      >
-        <ArtemisIcon
-          className="automation-time-clock"
-          height={16}
-          name="clock"
-          width={16}
-        />
-        <span className="automation-time-value">
-          <span>{selectedHour}</span>
-          <span aria-hidden="true" className="automation-time-colon">
-            :
-          </span>
-          <span>{selectedMinute}</span>
-        </span>
-        <ArtemisIcon
-          className="automation-time-chevron"
-          height={16}
-          name="chevron"
-          width={16}
-        />
-      </button>
-      {open && (
-        <div
-          aria-label={props.label}
-          className="automation-time-popover"
-          id={popoverId}
-          role="dialog"
-        >
-          <div className="automation-time-column">
-            <span className="automation-time-heading" id={hourLabelId}>
-              {props.hourLabel}
-            </span>
-            <TimeOptions
-              autoFocus
-              labelId={hourLabelId}
-              onChange={(hour) => props.onChange(`${hour}:${selectedMinute}`)}
-              value={selectedHour}
-              values={timeHours}
-            />
-          </div>
-          <div aria-hidden="true" className="automation-time-divider" />
-          <div className="automation-time-column">
-            <span className="automation-time-heading" id={minuteLabelId}>
-              {props.minuteLabel}
-            </span>
-            <TimeOptions
-              labelId={minuteLabelId}
-              onChange={(minute) => props.onChange(`${selectedHour}:${minute}`)}
-              onCommit={closeAndFocus}
-              value={selectedMinute}
-              values={timeMinutes}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function defaultDraft(projectId: string): AutomationDraft {
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const tomorrow = Temporal.Now.instant()
-    .toZonedDateTimeISO(timeZone)
-    .add({ days: 1 });
-  return {
-    projectId,
-    name: "",
-    prompt: "",
-    mode: "plan",
-    target: "local",
-    preset: "daily",
-    date: tomorrow.toPlainDate().toString(),
-    time: "09:00",
-    timeZone,
-    daysOfWeek: [1],
-    intervalEvery: 30,
-    intervalUnit: "minutes",
-    windowStart: "09:00",
-    windowEnd: "18:00",
-    windowIntervalUnit: "minutes",
-    enabled: true,
-  };
-}
-
-function scheduleForDraft(draft: AutomationDraft): AutomationSchedule {
-  if (draft.preset === "interval") {
-    return {
-      kind: "interval",
-      every: draft.intervalEvery,
-      unit: draft.intervalUnit,
-    };
-  }
-  if (draft.preset === "windowed-interval") {
-    return {
-      kind: "windowed-interval",
-      every: draft.intervalEvery,
-      unit: draft.windowIntervalUnit,
-      startTime: draft.windowStart,
-      endTime: draft.windowEnd,
-      daysOfWeek: draft.daysOfWeek,
-      timeZone: draft.timeZone,
-    };
-  }
-  if (draft.preset === "once") {
-    const instant = Temporal.PlainDateTime.from(`${draft.date}T${draft.time}`)
-      .toZonedDateTime(draft.timeZone, { disambiguation: "compatible" })
-      .toInstant();
-    return {
-      kind: "once",
-      at: instant.toString({ smallestUnit: "millisecond" }),
-      timeZone: draft.timeZone,
-    };
-  }
-  return {
-    kind: "weekly",
-    daysOfWeek:
-      draft.preset === "daily"
-        ? [1, 2, 3, 4, 5, 6, 7]
-        : draft.preset === "weekdays"
-          ? [1, 2, 3, 4, 5]
-          : draft.daysOfWeek,
-    localTime: draft.time,
-    timeZone: draft.timeZone,
-  };
-}
-
-function draftForAutomation(automation: Automation): AutomationDraft {
-  if (automation.schedule.kind === "windowed-interval") {
-    const tomorrow = Temporal.Now.instant()
-      .toZonedDateTimeISO(automation.schedule.timeZone)
-      .add({ days: 1 });
-    return {
-      id: automation.id,
-      projectId: automation.projectId,
-      name: automation.name,
-      prompt: automation.prompt,
-      mode: automation.mode,
-      target: automation.target,
-      preset: "windowed-interval",
-      date: tomorrow.toPlainDate().toString(),
-      time: automation.schedule.startTime,
-      timeZone: automation.schedule.timeZone,
-      daysOfWeek: automation.schedule.daysOfWeek,
-      intervalEvery: automation.schedule.every,
-      intervalUnit: "minutes",
-      windowStart: automation.schedule.startTime,
-      windowEnd: automation.schedule.endTime,
-      windowIntervalUnit: automation.schedule.unit,
-      enabled: automation.enabled,
-    };
-  }
-  if (automation.schedule.kind === "interval") {
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    const tomorrow = Temporal.Now.instant()
-      .toZonedDateTimeISO(timeZone)
-      .add({ days: 1 });
-    return {
-      id: automation.id,
-      projectId: automation.projectId,
-      name: automation.name,
-      prompt: automation.prompt,
-      mode: automation.mode,
-      target: automation.target,
-      preset: "interval",
-      date: tomorrow.toPlainDate().toString(),
-      time: "09:00",
-      timeZone,
-      daysOfWeek: [1],
-      intervalEvery: automation.schedule.every,
-      intervalUnit: automation.schedule.unit,
-      windowStart: "09:00",
-      windowEnd: "18:00",
-      windowIntervalUnit: "minutes",
-      enabled: automation.enabled,
-    };
-  }
-  if (automation.schedule.kind === "once") {
-    const local = Temporal.Instant.from(
-      automation.schedule.at,
-    ).toZonedDateTimeISO(automation.schedule.timeZone);
-    return {
-      id: automation.id,
-      projectId: automation.projectId,
-      name: automation.name,
-      prompt: automation.prompt,
-      mode: automation.mode,
-      target: automation.target,
-      preset: "once",
-      date: local.toPlainDate().toString(),
-      time: local.toPlainTime().toString({ smallestUnit: "minute" }),
-      timeZone: automation.schedule.timeZone,
-      daysOfWeek: [local.dayOfWeek],
-      intervalEvery: 30,
-      intervalUnit: "minutes",
-      windowStart: "09:00",
-      windowEnd: "18:00",
-      windowIntervalUnit: "minutes",
-      enabled: automation.enabled,
-    };
-  }
-  const days = [...automation.schedule.daysOfWeek].sort(
-    (left, right) => left - right,
-  );
-  const preset: SchedulePreset =
-    days.join(",") === "1,2,3,4,5,6,7"
-      ? "daily"
-      : days.join(",") === "1,2,3,4,5"
-        ? "weekdays"
-        : "weekly";
-  return {
-    id: automation.id,
-    projectId: automation.projectId,
-    name: automation.name,
-    prompt: automation.prompt,
-    mode: automation.mode,
-    target: automation.target,
-    preset,
-    date: Temporal.Now.instant()
-      .toZonedDateTimeISO(automation.schedule.timeZone)
-      .add({ days: 1 })
-      .toPlainDate()
-      .toString(),
-    time: automation.schedule.localTime,
-    timeZone: automation.schedule.timeZone,
-    daysOfWeek: days,
-    intervalEvery: 30,
-    intervalUnit: "minutes",
-    windowStart: "09:00",
-    windowEnd: "18:00",
-    windowIntervalUnit: "minutes",
-    enabled: automation.enabled,
-  };
-}
-
 export function AutomationPage(props: {
   locale: Locale;
   headerActionTarget?: HTMLElement | null | undefined;
@@ -513,218 +68,68 @@ export function AutomationPage(props: {
   onConfirm(message: string, tone?: "default" | "danger"): Promise<boolean>;
   onOpenThread(threadId: string): void;
 }) {
-  const t = text[props.locale];
-  const [state, setState] = useState<AutomationViewState>(
-    createAutomationViewState,
-  );
-  const [projectFilter, setProjectFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "enabled" | "paused"
-  >("all");
-  const [selectedAutomationId, setSelectedAutomationId] = useState<
-    string | undefined
-  >(props.initialAutomationId);
-  const [draft, setDraft] = useState<AutomationDraft>();
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string>();
-  const [loading, setLoading] = useState(true);
-  const [moreAutomation, setMoreAutomation] = useState<string>();
-  const moreAnchor = useRef<HTMLElement | null>(null);
-  const modelKey = (model: Pick<ModelSelection, "providerId" | "modelId">) =>
-    JSON.stringify([model.providerId, model.modelId]);
-  const models = useMemo(() => {
-    const settings = props.settings;
-    if (!settings) return [];
-    const added = new Set(settings.addedModels.map(modelKey));
-    return settings.models
-      .filter(
-        (model) =>
-          model.configured &&
-          (added.has(modelKey(model)) ||
-            settings.providers.some(
-              (provider) =>
-                provider.id === model.providerId &&
-                provider.models.some((item) => item.id === model.modelId),
-            ) ||
-            (settings.selection &&
-              modelKey(model) === modelKey(settings.selection)) ||
-            (draft?.modelSelection &&
-              modelKey(model) === modelKey(draft.modelSelection))),
-      )
-      .sort(
-        (a, b) =>
-          a.name.localeCompare(b.name, props.locale) ||
-          a.providerId.localeCompare(b.providerId),
-      );
-  }, [props.settings, props.locale, draft?.modelSelection]);
-  const selection = draft?.modelSelection ?? props.settings?.selection;
-  const selectedModel = models.find(
-    (model) => selection && modelKey(model) === modelKey(selection),
-  );
-  const selectedModelKey = selection ? modelKey(selection) : "";
-  const thinkingLevels = thinkingLevelsForModel(selectedModel);
-  const normalizedSelection = selectedModel
-    ? selectionForModelSwitch(selectedModel, selection)
-    : undefined;
-  const modelOptions = models.map((model) => ({
-    value: modelKey(model),
-    label:
-      models.filter((item) => item.name === model.name).length > 1
-        ? `${model.name} · ${model.providerId}`
-        : model.name,
-  }));
-  if (!selectedModel)
-    modelOptions.unshift({
-      value: selectedModelKey,
-      label: selection?.modelId ?? t.chooseModel,
-    });
-  let draftScheduleLabel = "";
-  if (draft) {
-    try {
-      draftScheduleLabel = scheduleLabel(
-        { schedule: scheduleForDraft(draft) },
-        props.locale,
-      );
-    } catch {
-      /* Keep the form editable while a date or time zone is incomplete. */
-    }
-  }
-  const openDraft = (automation?: Automation) => {
-    setMessage(undefined);
-    setDraft(
-      automation
-        ? {
-            ...draftForAutomation(automation),
-            modelSelection:
-              automation.modelSelection ?? props.settings?.selection,
-          }
-        : {
-            ...defaultDraft(projectFilter || props.projects[0]?.id || ""),
-            modelSelection: props.settings?.selection,
-          },
-    );
-  };
-  const handledDraftRequest = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    const request = props.initialDraftRequest;
-    if (!request || handledDraftRequest.current === request.token) return;
-    handledDraftRequest.current = request.token;
-    setMessage(undefined);
-    setDraft({
-      ...defaultDraft(request.projectId),
-      modelSelection: props.settings?.selection,
-    });
-  }, [props.initialDraftRequest, props.settings?.selection]);
-  const filterProjectOptions = useMemo(
-    () => projectSelectOptions(props.projects, [t.allProjects]),
-    [props.projects, t.allProjects],
-  );
-  const editorProjectOptions = useMemo(() => {
-    const missingProject =
-      draft !== undefined &&
-      !props.projects.some((project) => project.id === draft.projectId);
-    const options = projectSelectOptions(
-      props.projects,
-      missingProject ? [t.unavailableProject] : [],
-    );
-    return missingProject
-      ? [...options, { label: t.unavailableProject, value: draft.projectId }]
-      : options;
-  }, [draft?.projectId, props.projects, t.unavailableProject]);
+  const {
+    t,
+    state,
+    setState,
+    projectFilter,
+    setProjectFilter,
+    statusFilter,
+    setStatusFilter,
+    selectedAutomationId,
+    setSelectedAutomationId,
+    draft,
+    setDraft,
+    busy,
+    setBusy,
+    message,
+    setMessage,
+    loading,
+    setLoading,
+    moreAutomation,
+    setMoreAutomation,
+    moreAnchor,
+  } = useAutomationState({ props });
+  const {
+    modelKey,
+    models,
+    selection,
+    selectedModel,
+    selectedModelKey,
+    thinkingLevels,
+    normalizedSelection,
+    modelOptions,
+  } = useAutomationModelSelection({ props, draft, t });
+  const { draftScheduleLabel } = createAutomationScheduleLabel({
+    draft,
+    props,
+  });
+  const { openDraft } = useAutomationDraft({
+    setMessage,
+    projectFilter,
+    props,
+    setDraft,
+  });
+  const { filterProjectOptions, editorProjectOptions } =
+    useAutomationProjectOptions({ props, t, draft });
 
-  useEffect(() => {
-    let mounted = true;
-    const unsubscribe = window.artemis.onAutomationEvent((event) => {
-      if (!mounted) return;
-      setState((current) => reduceAutomationEvent(current, event));
-    });
-    void window.artemis
-      .listAutomations()
-      .then(async (automations) => {
-        const histories = await Promise.all(
-          automations.map((automation) =>
-            window.artemis.listAutomationRuns(automation.id, 10),
-          ),
-        );
-        if (!mounted) return;
-        setState((current) => ({
-          automations: {
-            ...Object.fromEntries(
-              automations.map((automation) => [automation.id, automation]),
-            ),
-            ...current.automations,
-          },
-          runs: {
-            ...current.runs,
-            ...Object.fromEntries(histories.flat().map((run) => [run.id, run])),
-          },
-          seenEventIds: current.seenEventIds,
-        }));
-      })
-      .catch((error) => mounted && setMessage(String(error)))
-      .finally(() => mounted && setLoading(false));
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
-  }, []);
+  useAutomationSubscription({ setState, setLoading, setMessage });
 
-  const automations = useMemo(
-    () =>
-      Object.values(state.automations)
-        .filter(
-          (automation) =>
-            (!projectFilter || automation.projectId === projectFilter) &&
-            (statusFilter === "all" ||
-              automation.enabled === (statusFilter === "enabled")),
-        )
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    [projectFilter, statusFilter, state.automations],
-  );
+  const { automations, selectedAutomation } = useAutomationList({
+    projectFilter,
+    statusFilter,
+    state,
+    selectedAutomationId,
+  });
 
-  const selectedAutomation =
-    automations.find((item) => item.id === selectedAutomationId) ??
-    automations[0];
-
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!draft || !normalizedSelection || busy) return;
-    setBusy(true);
-    setMessage(undefined);
-    try {
-      const saved = await window.artemis.saveAutomation({
-        ...(draft.id ? { id: draft.id } : {}),
-        projectId: draft.projectId,
-        name: draft.name,
-        prompt: draft.prompt,
-        mode: draft.mode,
-        target: draft.target,
-        modelSelection: normalizedSelection,
-        schedule: scheduleForDraft(draft),
-        enabled: draft.enabled,
-      });
-      if (saved.authorizationState === "required") {
-        await window.artemis.authorizeAutomation(saved.id);
-      }
-      setDraft(undefined);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const invoke = async (action: () => Promise<unknown>) => {
-    setBusy(true);
-    setMessage(undefined);
-    try {
-      await action();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { save, invoke } = createAutomationActions({
+    draft,
+    normalizedSelection,
+    busy,
+    setBusy,
+    setMessage,
+    setDraft,
+  });
 
   const moreRecord = moreAutomation
     ? state.automations[moreAutomation]

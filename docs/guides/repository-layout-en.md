@@ -62,3 +62,9 @@ When migrating, update imports, dynamic paths, source assertions, npm commands, 
 Explanatory documents retain their original paths: Chinese originals have `-en.md` counterparts, and English originals have `-zh-CN.md` counterparts. Link both versions and keep their content synchronized. Runtime `SKILL.md` and original third-party license texts are excluded; release notes remain bilingual within one file. `npm run verify:docs` checks pairing, language links and local Markdown targets; translation completeness still requires editorial review.
 
 Run `npm run verify:layout` for entrypoint and public-export checks, followed by affected tests, the complete suite, typechecking and building. Record the platform and evidence for packaging and native checks separately; unit tests do not replace runtime validation.
+
+Protocol `schema/` modules own messages, tools, approvals/user input, teams, usage, Goals, workspaces and commands. The `reducer/` event owner retains versioned replay, de-duplication and sequence handling; feature modules only apply payloads. Public `schema.ts` and `reducer.ts` exports stay compatible.
+
+IM settings/group controllers live in `renderer/im/{settings,groups}/`, automation in `automation/controllers/`, and Office sessions/selection synchronization in `office/workbench/`. Presentation factories inside conditional branches must not call hooks.
+
+Verifier owners live in `scripts/ui/{boundaries,conformance}/` and desktop `scripts/verify/ui/desktop-skin/`; original command entrypoints retain sequencing and reporting. Large scenarios use `.cases.ts` files explicitly imported by their original test entrypoints, avoiding duplicate Vitest discovery. Shared fixtures live in `test/fixtures/`; Gallery conformance cases are grouped by component family. Windows sandbox PowerShell orchestration and `windows-sandbox-native.cs` ship together; native permission probes live in `scripts/verify/native/windows-sandbox/`.

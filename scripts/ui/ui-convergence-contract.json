@@ -78,7 +78,7 @@
           "contains": "className={`agent-team-message ${message.kind}`}"
         },
         {
-          "path": "packages/protocol/src/schema.ts",
+          "path": "packages/protocol/src/schema/agents.ts",
           "contains": "kind: z.enum([\"finding\", \"request\", \"blocker\", \"handoff\"]),"
         }
       ]

@@ -1,4 +1,8 @@
-import { readSharedApiSources, readPreloadBridgeSources } from '../../fixtures/application/api-source.js';
+import { readAutomationPageSources } from "../../fixtures/application/automation-source.js";
+import {
+  readSharedApiSources,
+  readPreloadBridgeSources,
+} from "../../fixtures/application/api-source.js";
 import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
 import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../../fixtures/application/main-source.js";
@@ -14,10 +18,7 @@ const api = readSharedApiSources();
 const preload = readPreloadBridgeSources();
 const main = readMainProcessSources();
 const app = readRendererAppSources();
-const page = readFileSync(
-  join(root, "src/renderer/automation/AutomationPage.tsx"),
-  "utf8",
-);
+const page = readAutomationPageSources();
 const styles = readDesktopStyles("styles");
 const publicStyles = readFileSync(
   join(root, "../../packages/ui/src/styles.css"),

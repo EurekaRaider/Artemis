@@ -49,6 +49,30 @@ const owners = [
       "const measureContentSpace = useCallback",
     ],
   },
+  {
+    entry: "im/ImSettingsPanel.tsx",
+    budget: 1150,
+    imports: ["useImSettingsSubscriptions", "createImBotActions"],
+    implementations: ["window.artemis.saveImSettings("],
+  },
+  {
+    entry: "im/GroupCollaborationPanel.tsx",
+    budget: 1200,
+    imports: ["useGroupDirectory", "createGroupAuthorizationActions"],
+    implementations: ["window.artemis.manageIm("],
+  },
+  {
+    entry: "automation/AutomationPage.tsx",
+    budget: 1100,
+    imports: ["useAutomationSubscription", "createAutomationActions"],
+    implementations: ["window.artemis.saveAutomation("],
+  },
+  {
+    entry: "office/OfficeWorkbenchPanel.tsx",
+    budget: 850,
+    imports: ["useOfficeSession", "createOfficeAnnotationActions"],
+    implementations: ["window.artemis.openOfficeSession("],
+  },
 ] as const;
 
 describe("renderer feature ownership", () => {
@@ -79,6 +103,10 @@ describe("renderer feature ownership", () => {
       "plugins/controllers",
       "settings/controllers",
       "workspace/environment",
+      "im/settings",
+      "im/groups",
+      "automation/controllers",
+      "office/workbench",
     ])
       visit(directory);
   });

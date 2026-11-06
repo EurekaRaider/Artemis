@@ -27,6 +27,13 @@ const releaseFinalizerPath = fileURLToPath(
 const sandboxHelperPath = fileURLToPath(
   new URL("../../resources/windows-sandbox.ps1", import.meta.url),
 );
+const sandboxNativePath = fileURLToPath(
+  new URL("../../resources/windows-sandbox-native.cs", import.meta.url),
+);
+const readSandboxHelper = () =>
+  readFileSync(sandboxHelperPath, "utf8") +
+  "\n" +
+  readFileSync(sandboxNativePath, "utf8");
 const sandboxSetupPath = fileURLToPath(
   new URL("../../resources/windows-sandbox-setup.ps1", import.meta.url),
 );
@@ -45,6 +52,24 @@ const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
 };
 
 describe("Windows ZIP package and AppContainer ACL", () => {
+  it("loads the native source next to the packaged PowerShell entrypoint", () => {
+    const helper = readFileSync(sandboxHelperPath, "utf8");
+    expect(helper).toContain(
+      "Join-Path $PSScriptRoot 'windows-sandbox-native.cs'",
+    );
+    expect(helper).not.toContain("public static class ArtemisNativeSandbox");
+    expect(readFileSync(sandboxNativePath, "utf8")).toContain(
+      "public static class ArtemisNativeSandbox",
+    );
+    expect(
+      (packageJson.build as { extraResources: unknown[] }).extraResources,
+    ).toContainEqual({
+      from: "resources",
+      to: "resources",
+      filter: ["**/*", "!*oauth-client.json", "!connector-clients*.json"],
+    });
+  });
+
   it("uses only native x64 NSIS and ZIP targets", () => {
     expect(packageJson.build.win).toEqual({
       artifactName: "Artemis-Windows-${arch}-${version}.${ext}",
@@ -126,7 +151,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
   });
 
   it("grants only non-inheriting ancestor metadata access for classic fallback", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
     const setup = readFileSync(sandboxSetupPath, "utf8");
 
     expect(helper).toContain("$needsClassicAncestorAccess");
@@ -169,14 +194,14 @@ describe("Windows ZIP package and AppContainer ACL", () => {
   });
 
   it("does not add a redundant read ACL when the workspace is writable", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
 
     expect(helper).toContain("var writablePathSet = new HashSet<string>(");
     expect(helper).toContain("if (!writablePathSet.Contains(workspace))");
   });
 
   it("allows a scoped task to retain its declared MCP runtime directory", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
 
     expect(helper).toContain(
       "-not (Test-PathWithinRoot $workingDirectory $workspace) -and",
@@ -193,7 +218,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
   });
 
   it("falls back to classic AppContainer when the experimental API is unavailable", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
 
     expect(helper).toContain("$experimentalSandboxUnavailable");
     expect(helper).toContain(
@@ -208,7 +233,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
   });
 
   it("inherits only explicit standard handles in classic AppContainer", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
 
     expect(helper).toContain("PROC_THREAD_ATTRIBUTE_HANDLE_LIST");
     expect(helper).toContain("DuplicateStandardHandle(STD_INPUT_HANDLE)");
@@ -221,7 +246,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
   });
 
   it("keeps the private runtime reclaimable by the desktop user", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
     const compilerEnvironment = helper.slice(
       helper.indexOf("$sandboxTempEnvironment = @{}"),
       helper.indexOf("$workspaceRoot ="),
@@ -256,7 +281,7 @@ describe("Windows ZIP package and AppContainer ACL", () => {
   });
 
   it("terminates and drains all job descendants before the helper exits", () => {
-    const helper = readFileSync(sandboxHelperPath, "utf8");
+    const helper = readSandboxHelper();
 
     expect(helper.match(/TerminateAndDrainJob\(job\)/gu)).toHaveLength(2);
     expect(helper).toContain("TerminateJobObject(job, 1)");

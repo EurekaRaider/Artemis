@@ -90,3 +90,15 @@
   follow local CSS imports recursively; never reorder rules or raise a bundle
   budget simply to make a refactor pass.
 - Run `npm run verify:layout` after directory changes. Store verification output under ignored `artifacts/verification/<topic>/<run>/`; do not put generated reports at the repository root.
+
+- Protocol payload schemas and reducers belong in `packages/protocol/src/schema/`
+  and `reducer/` by feature. Preserve the public barrels and the single event
+  version, de-duplication, sequence and replay owner; do not introduce parallel
+  reducer entrypoints.
+- Renderer entry views compose feature controllers. Keep hooks unconditional,
+  preserve effect registration/cleanup order, and distinguish per-render values
+  from live callback/service references when extracting code.
+- Verification matrices, native probes and test scenarios belong in their
+  feature directories. Keep npm entrypoints, scenario counts and negative cases
+  stable. Windows sandbox C# lives beside its PowerShell host in `resources/`;
+  verify both files are shipped and rerun the native permission probes after edits.

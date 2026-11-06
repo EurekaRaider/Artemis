@@ -77,6 +77,7 @@ it.each([
   ["renderer", "apps/desktop/src/renderer/app/App.tsx", "browser"],
   ["agent-host", "packages/agent-host/src/runtime/runtime.ts", "node"],
   ["gateway", "packages/gateway/src/server.ts", "node"],
+  ["protocol", "packages/protocol/src/index.ts", "browser"],
 ] as const)(
   "keeps %s free of synchronous runtime cycles and test dependencies",
   async (_name, entry, platform) => {

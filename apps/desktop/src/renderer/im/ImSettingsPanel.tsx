@@ -1,82 +1,62 @@
-import { uiTranslator } from "../../shared/i18n/ui-text.js";
+import { useImSettingsState } from "./settings/use-im-settings-state.js";
+import { useImSettingsSubscriptions } from "./settings/use-im-settings-subscriptions.js";
+import { useImSettingsNavigation } from "./settings/use-im-settings-navigation.js";
+import { createImBotFieldRenderer } from "./settings/create-im-bot-field-renderer.js";
+import { useImChannelSelection } from "./settings/use-im-channel-selection.js";
+import { createImIdentityActions } from "./settings/create-im-identity-actions.js";
+import { useImFlowProgress } from "./settings/use-im-flow-progress.js";
+import { createImGatewayRenderer } from "./settings/create-im-gateway-renderer.js";
+import { createImBotActions } from "./settings/create-im-bot-actions.js";
+import { createImBotFormRenderer } from "./settings/create-im-bot-form-renderer.js";
+import { createImConnectionActions } from "./settings/create-im-connection-actions.js";
+import { createImChannelSetupRenderers } from "./settings/create-im-channel-setup-renderers.js";
+import { createImBotPaneRenderers } from "./settings/create-im-bot-pane-renderers.js";
+import { createImBotProfileRenderer } from "./settings/create-im-bot-profile-renderer.js";
+import { createImChannelBodyRenderer } from "./settings/create-im-channel-body-renderer.js";
+import { createImPairingDialogs } from "./settings/create-im-pairing-dialogs.js";
+import { createImVerificationRenderer } from "./settings/create-im-verification-renderer.js";
+import { createImFlowCardsRenderer } from "./settings/create-im-flow-cards-renderer.js";
+
 import { GroupCollaborationPanel } from "./GroupCollaborationPanel";
 import { imNativeGroupChoices, imNativeGroupDirectory } from "./ImNativeGroups";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect } from "react";
+
 import { ImHandoff } from "./ImHandoff";
 import { ImOutboundReview } from "./ImOutboundReview";
 import {
   imIdentityKey,
   type AppLocale,
   type ImConnectionStatus,
-  type ImIdentity,
   type ImSettings,
-  type ImStatus,
-  type Project,
 } from "@artemis/protocol";
 import { Button } from "@artemis/ui/actions";
-import { Desktop, PlugsConnected } from "@phosphor-icons/react";
+import { Desktop } from "@phosphor-icons/react";
 import {
   Dialog,
   InlineNotice,
   LoadingState,
   Tooltip,
 } from "@artemis/ui/feedback";
-import { Checkbox, Select, TextField } from "@artemis/ui/forms";
-import { SegmentedControl } from "@artemis/ui/navigation";
+import { TextField } from "@artemis/ui/forms";
+
 import { ManagementSection } from "@artemis/ui/management";
 import { ArtemisIcon } from "@artemis/ui/icons";
-import { ImGatewayInstructions, ImFirstTaskInstructions } from "./ImSetupGuide";
 
-import { ImSlackSetup, slackAppManifest } from "./ImSlackSetup";
-import { ImSlackAutoSetup } from "./ImSlackAutoSetup";
+import { imFirstPendingStep } from "./im-flow-derive";
 import {
-  imFirstPendingStep,
-  imFlowProgress,
-  imFlowSteps,
-  imReadVerify,
-  imWriteVerify,
-  type ImFlowStepId,
-  type ImVerifyState,
-} from "./im-flow-derive";
-import {
-  IM_CHANNELS,
   imChannelLabel,
   imChannelConstraint,
-  imChannelConnectionState,
   imConnectionHealth,
-  imConnectionLabel,
   type ImView,
   type ImChannel,
   type ImTranslate,
 } from "./ImNavigation";
-import { imAggregateConnectionStates } from "@artemis/protocol";
-import {
-  ImAccounts,
-  ImPairingCode,
-  type ImPairCode,
-} from "./ImAccountControls";
 
-import { ImPlatformSetup } from "./ImPlatformSetup";
+import { ImAccounts } from "./ImAccountControls";
+
 import feishuChannelIcon from "../assets/feishu-channel.png";
 import slackChannelIcon from "../assets/slack-channel.svg";
-import { ImFeishuScan } from "./ImFeishuScan";
-import { ImLegacyImport } from "./ImLegacyImport";
-import { ImConnectionRemoval } from "./ImConnectionRemoval";
 
-const PUBLIC_BOT_FIELDS = [
-  "id",
-  "name",
-  "tenantId",
-  "botId",
-  "appId",
-  "botOpenId",
-  "transport",
-  "domain",
-] as const;
-type BotMetadata = Partial<Record<(typeof PUBLIC_BOT_FIELDS)[number], string>>;
-
-type Status = ImStatus & { connections?: unknown[]; spaces?: unknown[] };
 export function ImSettingsPanel({
   locale,
   initialPermissions = false,
@@ -84,182 +64,124 @@ export function ImSettingsPanel({
   locale: AppLocale;
   initialPermissions?: boolean;
 }) {
-  const t = uiTranslator(locale);
-  const [status, setStatus] = useState<Status>();
-  const [settings, setSettings] = useState<ImSettings>();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [url, setUrl] = useState("");
-  const [name, setName] = useState("Artemis");
-  const [adminToken, setAdminToken] = useState("");
-  const [message, setMessage] = useState("");
-  const [messageError, setMessageError] = useState(false);
+  const useImSettingsStateRuntime = useImSettingsState({
+    locale,
+    initialPermissions,
+  });
+  const {
+    t,
+    status,
+    setStatus,
+    settings,
+    setSettings,
+    projects,
+    setProjects,
+    url,
+    setUrl,
+    name,
+    setName,
+    adminToken,
+    setAdminToken,
+    message,
+    setMessage,
+    messageError,
+    setMessageError,
+    busy,
+    setBusy,
+    running,
+    refreshEpoch,
+    refreshError,
+    setRefreshError,
+    pairCode,
+    setPairCode,
+    screen,
+    setScreen,
+    botDialog,
+    setBotDialog,
+    botDialogTrigger,
+    pairDialogId,
+    setPairDialogId,
+    pairDialogTrigger,
+    connectionId,
+    setConnectionId,
+    compact,
+    setCompact,
+    focusTarget,
+    setFocusTarget,
+    panelRef,
+    mounted,
+    channel,
+    setChannel,
+    channelDetail,
+    setChannelDetail,
+    groupDetail,
+    setGroupDetail,
+    showRemote,
+    setShowRemote,
+    advancedDetail,
+    setAdvancedDetail,
+    channelPane,
+    setChannelPane,
+    selectedBotId,
+    setSelectedBotId,
+    credScan,
+    setCredScan,
+    channelDialogHeight,
+    setChannelDialogHeight,
+    createScanEpoch,
+    setCreateScanEpoch,
+    createScanOpen,
+    setCreateScanOpen,
+    fields,
+    setFields,
+    diagnostics,
+    setDiagnostics,
+    savedMetadata,
+    setSavedMetadata,
+    setSavingChannel,
+    savedPending,
+    setSavedPending,
+    groupDialogTrigger,
+    flowCard,
+    setFlowCard,
+    verify,
+    setVerify,
+    verifyTouched,
+    taskSeen,
+    setTaskSeen,
+  } = useImSettingsStateRuntime;
 
-  const [busy, setBusy] = useState(false);
-  const running = useRef(false);
-  const refreshEpoch = useRef(0);
-  const [refreshError, setRefreshError] = useState("");
-  const [pairCode, setPairCode] = useState<ImPairCode>();
-  const [screen, setScreen] = useState<"flow" | "overview" | undefined>(
-    initialPermissions ? "overview" : undefined,
-  );
-  /* 凭据表单收敛进弹窗：null 关闭；{} 新建；{ connectionId } 更换该连接。 */
-  const [botDialog, setBotDialog] = useState<{ connectionId?: string } | null>(
-    null,
-  );
-  const botDialogTrigger = useRef<HTMLButtonElement>(null);
-  /* 配对码弹窗：从某条机器人行打开（记录连接 id）。 */
-  const [pairDialogId, setPairDialogId] = useState("");
-  const pairDialogTrigger = useRef<HTMLButtonElement>(null);
-  const [connectionId, setConnectionId] = useState("");
-  const [compact, setCompact] = useState(false);
-  const [focusTarget, setFocusTarget] = useState("");
-  const panelRef = useRef<HTMLDivElement>(null);
-  const mounted = useRef(true);
-  const [channel, setChannel] = useState<ImChannel>("slack");
-  /* 两栏布局：右栏渠道列表 ↔ 单渠道详情（下钻）。 */
-  const [channelDetail, setChannelDetail] = useState(false);
-  /* 右栏第三卡：群协作详情（与渠道详情互斥）。 */
-  const [groupDetail, setGroupDetail] = useState(initialPermissions);
-  const [showRemote, setShowRemote] = useState(false);
-  const [advancedDetail, setAdvancedDetail] = useState(false);
-  /* 渠道二级面板（ZCode 式主从）：右栏 = 选中机器人详情 / 新建表单 /
-     指引 / 导入 / 验证。 */
-  const [channelPane, setChannelPane] = useState<
-    "bot" | "create" | "guide" | "import" | "verify"
-  >("bot");
-  const [selectedBotId, setSelectedBotId] = useState("");
-  /* 关联凭据卡的飞书扫码开合（ZCode 式：卡头「扫码」钮展开二维码）。 */
-  const [credScan, setCredScan] = useState(false);
-  /* 渠道弹窗高度跟随「消息接入」主弹窗实际渲染高度（打开时量测注入）。 */
-  const [channelDialogHeight, setChannelDialogHeight] = useState<number>();
-  /* 飞书创建页的扫码轮次：头部「扫码」钮递增重挂组件以更换二维码。 */
-  const [createScanEpoch, setCreateScanEpoch] = useState(0);
-  /* 创建页扫码卡体开合：取消隐藏，卡头「扫码」钮重新展开。 */
-  const [createScanOpen, setCreateScanOpen] = useState(true);
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [diagnostics, setDiagnostics] = useState<unknown>();
-  const [savedMetadata, setSavedMetadata] = useState<
-    Partial<Record<ImChannel, BotMetadata>>
-  >({});
-  const [savingChannel, setSavingChannel] = useState<ImChannel | null>(null);
-  const [savedPending, setSavedPending] = useState<
-    Partial<Record<ImChannel, boolean>>
-  >({});
-  const groupDialogTrigger = useRef<HTMLButtonElement | null>(null);
-  const [flowCard, setFlowCard] = useState<ImFlowStepId | null>(null);
-  /* ②尾「顺手验证」折叠段：imReadVerify 恢复确认态；开合本次会话内记住
-     （首绑自动展开一次，用户手动开合后不再抢开）。 */
-  const [verify, setVerify] = useState<ImVerifyState>({ confirmed: false });
-  const verifyTouched = useRef(false);
-  const [taskSeen, setTaskSeen] = useState(false);
-  useEffect(() => {
-    setSavedMetadata({});
-    setSavedPending({});
-    setSavingChannel(null);
-    setDiagnostics(undefined);
-    setPairCode(undefined);
-    setFields({});
-    setAdminToken("");
-  }, [status?.settings.deviceId]);
-  useEffect(() => {
-    if (messageError)
-      document
-        .getElementById("im-feedback")
-        ?.scrollIntoView?.({ block: "nearest" });
-  }, [message, messageError]);
-  useEffect(() => {
-    let active = true;
-    void Promise.all([
-      window.artemis.getImStatus(),
-      window.artemis.getSnapshot(),
-    ])
-      .then(([current, snapshot]) => {
-        if (active) {
-          setStatus(current);
-          setSettings(current.settings);
-          setUrl(current.settings.gatewayUrl);
-          setName(current.settings.deviceName);
-          setProjects(snapshot.projects);
-          /* 手动注册入口卡不再自动顶开整屏详情，用户点击时才进入。 */
-          const connections = (
-            (current.connections ?? []) as ImConnectionStatus[]
-          ).filter((c) => c.channel !== "wecom");
-          const connected =
-            connections.find((c) => c.state === "connected") ?? connections[0];
-          if (connected?.channel) {
-            setChannel(connected.channel);
-            setConnectionId(connected.id);
-          }
-        }
-      })
-      .catch((error) => {
-        if (active) setMessage(String(error));
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-  useEffect(() => {
-    let active = true;
-    let refreshing = false;
-    const refreshStatus = async () => {
-      if (running.current || refreshing) return;
-      refreshing = true;
-      const epoch = refreshEpoch.current;
-      try {
-        let current = await window.artemis.getImStatus();
-        if (current.settings.deviceId)
-          current = (await window.artemis.manageIm({
-            action: "refresh",
-          })) as Status;
-        const groupDiagnostics =
-          groupDetail && current.localGateway && current.settings.deviceId
-            ? await window.artemis.manageIm({
-                action: "admin",
-                operation: "status",
-              })
-            : undefined;
-        if (active && !running.current && epoch === refreshEpoch.current) {
-          setStatus(current);
-          if (groupDiagnostics !== undefined) setDiagnostics(groupDiagnostics);
-          setRefreshError("");
-          // The store is authoritative again; drop save-gap transients.
-          setSavedPending({});
-        }
-      } catch (error) {
-        if (active && !running.current && epoch === refreshEpoch.current)
-          setRefreshError(String(error));
-      } finally {
-        refreshing = false;
-      }
-    };
-    const timer = window.setInterval(() => void refreshStatus(), 2000);
-    window.addEventListener("focus", refreshStatus);
-    document.addEventListener("visibilitychange", refreshStatus);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refreshStatus);
-      document.removeEventListener("visibilitychange", refreshStatus);
-    };
-  }, [screen, groupDetail, flowCard]);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  useEffect(() => {
-    const root = panelRef.current;
-    if (!root || typeof ResizeObserver === "undefined") return;
-    const dialog = root.closest(".settings-panel");
-    const observer = new ResizeObserver(() =>
-      setCompact(root.clientWidth < 720),
-    );
-    observer.observe(root);
-    if (dialog) observer.observe(dialog);
-    return () => observer.disconnect();
-  }, [!!settings]);
+  const useImSettingsSubscriptionsRuntime = useImSettingsSubscriptions({
+    setSavedMetadata,
+    setSavedPending,
+    setSavingChannel,
+    setDiagnostics,
+    setPairCode,
+    setFields,
+    setAdminToken,
+    status,
+    messageError,
+    message,
+    setMessage,
+    setStatus,
+    setSettings,
+    setUrl,
+    setName,
+    setProjects,
+    setChannel,
+    setConnectionId,
+    running,
+    refreshEpoch,
+    groupDetail,
+    setRefreshError,
+    screen,
+    flowCard,
+    mounted,
+    panelRef,
+    setCompact,
+    settings,
+  });
+
   const connections = ((status?.connections ?? []) as ImConnectionStatus[]).map(
     (connection) =>
       refreshError && connection.state !== "disabled"
@@ -280,192 +202,81 @@ export function ImSettingsPanel({
    * 共用），spaces 共用项目权限入口。undefined 的 screen 表示尚未显
    * 式导航，按完成度自动落在概览或流程。
    */
-  function selectView(next: ImView | "guide" | "flow" | "overview" | "group") {
-    setFields({});
-    setAdminToken("");
-    setBotDialog(null);
-    if (next === "group" || next === "spaces" || next === "permissions") {
-      /* 群协作=右栏第三卡详情；深链统一落到该入口。 */
-      setFlowCard(null);
-      setChannelDetail(false);
-      setGroupDetail(true);
-      setFocusTarget("im-spaces");
-      return;
-    }
-    if (next === "overview") {
-      setScreen("overview");
-      setFlowCard(null);
-      setFocusTarget("im-overview");
-      return;
-    }
-    if (next === "guide" || next === "flow" || next === "setup-guide") {
-      setScreen("flow");
-      setFocusTarget("im-guide");
-      return;
-    }
-    /* 配对并入渠道卡；验证定位到渠道详情的验证页。 */
-    const step = next === "gateway" ? "service" : "channel";
+  const useImSettingsNavigationRuntime = useImSettingsNavigation({
+    setFields,
+    setAdminToken,
+    setBotDialog,
+    setFlowCard,
+    setChannelDetail,
+    setGroupDetail,
+    setFocusTarget,
+    setScreen,
+    setChannel,
+    setChannelPane,
+    setSelectedBotId,
+    setCredScan,
+    connections,
+    setConnectionId,
+    verifyTouched,
+    channel,
+    setShowRemote,
+    running,
+    refreshEpoch,
+    setBusy,
+    setMessage,
+    setMessageError,
+    mounted,
+    setPairCode,
+    setStatus,
+    setRefreshError,
+    setSettings,
+    t,
+  });
+  function selectView(
+    next: ImView | "guide" | "flow" | "overview" | "group",
+  ): ReturnType<typeof useImSettingsNavigationRuntime.selectView> {
+    return useImSettingsNavigationRuntime.selectView(next);
+  }
+  function navigateStep(
+    id: string,
+  ): ReturnType<typeof useImSettingsNavigationRuntime.navigateStep> {
+    return useImSettingsNavigationRuntime.navigateStep(id);
+  }
+  function flowSelectChannel(
+    platform: ImChannel,
+  ): ReturnType<typeof useImSettingsNavigationRuntime.flowSelectChannel> {
+    return useImSettingsNavigationRuntime.flowSelectChannel(platform);
+  }
+  function run(
+    action: () => Promise<unknown>,
+  ): ReturnType<typeof useImSettingsNavigationRuntime.run> {
+    return useImSettingsNavigationRuntime.run(action);
+  }
+  function generatePairCode(): ReturnType<
+    typeof useImSettingsNavigationRuntime.generatePairCode
+  > {
+    return useImSettingsNavigationRuntime.generatePairCode();
+  }
+  function refresh(): ReturnType<
+    typeof useImSettingsNavigationRuntime.refresh
+  > {
+    return useImSettingsNavigationRuntime.refresh();
+  }
+  function save(
+    next: ImSettings,
+  ): ReturnType<typeof useImSettingsNavigationRuntime.save> {
+    return useImSettingsNavigationRuntime.save(next);
+  }
 
-    if (IM_CHANNELS.includes(next as ImChannel)) {
-      setChannel(next as ImChannel);
-      setChannelDetail(true);
-      setGroupDetail(false);
-      setChannelPane("bot");
-      setSelectedBotId("");
-      setCredScan(false);
-      setConnectionId(connections.find((c) => c.channel === next)?.id ?? "");
-    }
-    if (next === "test") {
-      verifyTouched.current = true;
-      /* 验证=渠道二级面板的一页，深链时一并下钻并切页。 */
-      setChannelDetail(true);
-      setGroupDetail(false);
-      setChannelPane("verify");
-    }
-    setFlowCard(step);
-    setFocusTarget(next === "test" ? "im-verify" : `im-${next}`);
-  }
-  function navigateStep(id: string) {
-    const next =
-      id === "im-prepare" || id === "im-device"
-        ? "gateway"
-        : id === "im-bot" || id === "im-pair"
-          ? channel
-          : id === "im-permissions"
-            ? "permissions"
-            : id === "im-test"
-              ? "test"
-              : channel;
-    selectView(next);
-    if (id === "im-device") {
-      /* 手动注册改为弹窗：入口卡留在下层，焦点交给弹窗自管。 */
-      setShowRemote(true);
-      return;
-    }
-    setFocusTarget(id);
-  }
-  /* ②卡内切换平台：留在引导流里，只重置该渠道的编辑态。 */
-  function flowSelectChannel(platform: ImChannel) {
-    setChannel(platform);
-    setConnectionId(connections.find((c) => c.channel === platform)?.id ?? "");
-    setFields({});
-    setAdminToken("");
-    setBotDialog(null);
-  }
-  async function run(action: () => Promise<unknown>): Promise<boolean> {
-    if (running.current) return false;
-    running.current = true;
-    refreshEpoch.current++;
-    setBusy(true);
-    setMessage("");
-    setMessageError(false);
-    try {
-      const result = await action();
-      return result !== false;
-    } catch (error) {
-      if (mounted.current) {
-        setMessage(error instanceof Error ? error.message : String(error));
-        setMessageError(true);
-      }
-      return false;
-    } finally {
-      running.current = false;
-      if (mounted.current) setBusy(false);
-    }
-  }
-  async function generatePairCode() {
-    setPairCode(undefined);
-    const started = Date.now();
-    const result = (await window.artemis.manageIm({
-      action: "pair",
-      requireConfirmation: true,
-    })) as { code: string; expiresIn: number };
-    setStatus((previous) =>
-      previous ? { ...previous, pairingRequests: [] } : previous,
-    );
-    setPairCode({
-      code: result.code,
-      expiresAt: started + Math.min(result.expiresIn ?? 300, 300) * 1000,
-    });
-  }
-  async function refresh() {
-    const current = (await window.artemis.manageIm({
-      action: "refresh",
-    })) as Status;
-    if (mounted.current) {
-      setStatus(current);
-      setRefreshError("");
-    }
-  }
-  async function save(next: ImSettings) {
-    const current = await window.artemis.saveImSettings(next);
-    setStatus((previous) => ({ ...previous, ...current }));
-    setSettings(current.settings);
-    setMessage(t("ImSettingsPanel.message1"));
-  }
-  const renderBotField = (field: string) => (
-    <TextField
-      key={`${channel}:${field}`}
-      label={
-        {
-          id:
-            channel === "slack"
-              ? t("ImSettingsPanel.message3")
-              : t("ImSettingsPanel.message2"),
-          name:
-            channel === "slack"
-              ? t("ImSettingsPanel.message5")
-              : t("ImSettingsPanel.message4"),
-          tenantId:
-            channel === "wecom"
-              ? t("ImSettingsPanel.message7")
-              : t("ImSettingsPanel.message6"),
-          botToken: "Bot User OAuth Token",
-          appToken: "App-Level Token",
-          botId: "Bot ID",
-          secret: "Bot Secret",
-          appId: "App ID",
-          botOpenId: t("ImSettingsPanel.message8"),
-          appSecret: "App Secret",
-          verificationToken: "Verification Token",
-          encryptKey: "Encrypt Key",
-        }[field]!
-      }
-      description={
-        {
-          id:
-            channel === "slack"
-              ? t("ImSettingsPanel.message10")
-              : t("ImSettingsPanel.message9"),
-          name: t("ImSettingsPanel.message11"),
-          tenantId:
-            channel === "wecom"
-              ? t("ImSettingsPanel.message13")
-              : t("ImSettingsPanel.message12"),
-          botToken: t("ImSettingsPanel.message14"),
-          appToken: t("ImSettingsPanel.message15"),
-          botId: t("ImSettingsPanel.message16"),
-          secret: t("ImSettingsPanel.message17"),
-          botOpenId: t("ImSettingsPanel.message18"),
-          verificationToken: t("ImSettingsPanel.message19"),
-          encryptKey: t("ImSettingsPanel.message20"),
-        }[field]
-      }
-      type={
-        /secret|token|key/iu.test(field) && field !== "tenantId"
-          ? "password"
-          : "text"
-      }
-      value={fields[field] ?? ""}
-      size="compact"
-      onValueChange={(value) =>
-        setFields((previous) => ({ ...previous, [field]: value }))
-      }
-      disabled={busy}
-      autoComplete="off"
-      spellCheck={false}
-    />
-  );
+  const createImBotFieldRendererRuntime = createImBotFieldRenderer({
+    channel,
+    t,
+    fields,
+    setFields,
+    busy,
+  });
+  const { renderBotField } = createImBotFieldRendererRuntime;
+
   const channelConnections = connections.filter((c) => c.channel === channel);
   const selectedConnection =
     channelConnections.find(
@@ -501,69 +312,35 @@ export function ImSettingsPanel({
     (option) => option.value === activePairingPlatform,
   )!.label;
   const local = !!status?.localGateway;
-  useEffect(() => {
-    /* 群诊断在群协作详情或授权弹窗（群选项/属主观察）打开时拉取。 */
-    if (!groupDetail || !local || !status?.settings.deviceId) return;
-    let active = true;
-    void run(async () => {
-      const result = await window.artemis.manageIm({
-        action: "admin",
-        operation: "status",
-      });
-      if (active) setDiagnostics(result);
-    });
-    return () => {
-      active = false;
-    };
-  }, [groupDetail, local, status?.settings.deviceId]);
-  useEffect(() => {
-    /* 渠道详情主从：选中项失效（删除/切换渠道）时回落到本渠道首个机器人。 */
-    if (!channelDetail) return;
-    setSelectedBotId((previous) =>
-      previous && channelConnections.some((c) => c.id === previous)
-        ? previous
-        : (channelConnections[0]?.id ?? ""),
-    );
-  }, [channelDetail, channel, channelConnections]);
-  useLayoutEffect(() => {
-    /* 主弹窗高度内容驱动（随概览/向导内容浮动）：渠道弹窗打开时量测其
-       实际高度注入，两个面板视觉齐平；无主弹窗宿主（测试/嵌入）时走
-       CSS 缺省公式。 */
-    if (!channelDetail) return;
-    const main = panelRef.current?.closest("dialog");
-    if (!main) return;
-    const height = main.getBoundingClientRect().height;
-    if (height > 0) setChannelDialogHeight(height);
-  }, [channelDetail]);
-  const resolvePairing = (requestId: string, approve: boolean) =>
-    run(async () => {
-      await window.artemis.manageIm({
-        action: "resolve-pairing",
-        requestId,
-        approve,
-      });
-      await refresh();
-      setMessage(
-        approve
-          ? t("ImSettingsPanel.message25")
-          : t("ImSettingsPanel.message24"),
-      );
-      if (approve) {
-        flowAdvanceFrom();
-        /* 首绑自动跳到②尾「顺手验证」页（用户动过后不再抢跳）。 */
-        if (!verifyTouched.current) {
-          setChannelDetail(true);
-          setChannelPane("verify");
-          setFocusTarget("im-verify");
-        }
-      }
-    });
-  const unpairIdentity = (identity: ImIdentity) =>
-    run(async () => {
-      await window.artemis.manageIm({ action: "unpair", identity });
-      await refresh();
-      setMessage(t("ImSettingsPanel.message26"));
-    });
+  const useImChannelSelectionRuntime = useImChannelSelection({
+    groupDetail,
+    local,
+    status,
+    setDiagnostics,
+    run,
+    channelDetail,
+    channelConnections,
+    setSelectedBotId,
+    channel,
+    panelRef,
+    setChannelDialogHeight,
+  });
+
+  const createImIdentityActionsRuntime = createImIdentityActions({
+    refresh,
+    t,
+    setMessage,
+    get flowAdvanceFrom() {
+      return flowAdvanceFrom;
+    },
+    setChannelDetail,
+    setChannelPane,
+    setFocusTarget,
+    verifyTouched,
+    run,
+  });
+  const { resolvePairing, unpairIdentity } = createImIdentityActionsRuntime;
+
   /* 机器人行下的从属账号：按连接过滤，无账号时 ImAccounts 渲染为空。 */
   const connectionAccounts = (connectionId: string) => (
     <ImAccounts
@@ -648,58 +425,26 @@ export function ImSettingsPanel({
     }));
   });
   /** 显式完成动作（批准配对、保存启用成功）后解除钉住，交回自动跟随显示最早缺步卡。 */
-  function flowAdvanceFrom() {
-    setFlowCard(null);
+  const useImFlowProgressRuntime = useImFlowProgress({
+    setFlowCard,
+    status,
+    flowCard,
+    screen,
+    taskSeen,
+    verify,
+    t,
+    setScreen,
+    setVerify,
+    setTaskSeen,
+    setMessage,
+  });
+  const { flowSteps, allDone, activeScreen, taskDetected, verifyLabel } =
+    useImFlowProgressRuntime;
+  function flowAdvanceFrom(): ReturnType<
+    typeof useImFlowProgressRuntime.flowAdvanceFrom
+  > {
+    return useImFlowProgressRuntime.flowAdvanceFrom();
   }
-
-  /* 引导流 derive：必须在加载守卫之前，保证 Hook 顺序稳定。 */
-  const flowSteps = imFlowSteps(status);
-  const flowDone = imFlowProgress(flowSteps);
-  const flowTotal = flowSteps.length;
-  const allDone = flowDone === flowTotal;
-  const flowOpenCard = flowCard ?? imFirstPendingStep(flowSteps) ?? "channel";
-  const activeScreen = screen ?? (allDone ? "overview" : "flow");
-  const taskDetected = taskSeen || !!status?.remoteTasks?.length;
-  /* 验证折叠标签三态：已验证 · 渠道 / 验证进行中 / 初始（可选提示）。 */
-  const verifiedChannelLabel = verify.channel
-    ? verify.channel === "lark"
-      ? "Lark"
-      : imChannelLabel(verify.channel as ImChannel, t)
-    : "";
-  const verifyLabel = verify.confirmed
-    ? t("ImSettingsPanel.message29", {
-        value1: verifiedChannelLabel ? ` · ${verifiedChannelLabel}` : "",
-      })
-    : taskDetected
-      ? t("ImSettingsPanel.message28")
-      : t("ImSettingsPanel.message27");
-  /* 完成即概览：接入和配对全部完成时粘性落在概览（群协作屏除外）；回退时停留概览并提示。 */
-  useEffect(() => {
-    if (allDone)
-      setScreen((current) => (current === "overview" ? current : "overview"));
-  }, [allDone, screen]);
-  const flowDoneKey = flowSteps.map((step) => (step.done ? "1" : "0")).join("");
-  const prevFlowDoneKey = useRef(flowDoneKey);
-  useEffect(() => {
-    setVerify(imReadVerify(status?.settings.deviceId));
-  }, [status?.settings.deviceId]);
-  useEffect(() => {
-    const unsubscribe = window.artemis.onImTaskCreated?.(() =>
-      setTaskSeen(true),
-    );
-    return () => unsubscribe?.();
-  }, []);
-  useEffect(() => {
-    if (prevFlowDoneKey.current === flowDoneKey) return;
-    const previous = prevFlowDoneKey.current;
-    prevFlowDoneKey.current = flowDoneKey;
-    if (
-      [...previous].some(
-        (flag, index) => flag === "1" && flowDoneKey[index] === "0",
-      )
-    )
-      setMessage(t("ImSettingsPanel.message30"));
-  }, [flowDoneKey, activeScreen]);
 
   if (!settings)
     return message ? (
@@ -714,41 +459,29 @@ export function ImSettingsPanel({
       ? t("ImSettingsPanel.message36")
       : "";
   const activeSettings = settings;
-  function renderGatewayBody() {
-    const settings = activeSettings;
-    const gatewayReady = status?.localGateway?.state === "running";
-    return (
-      <>
-        {/* 顶部信息区随提示内容自适应高度。 */}
-        <div className="im-service-meta">
-          {/* 就绪后不再展示禁用态按钮，只留提示。 */}
-          {!gatewayReady && (
-            <Button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  const current = (await window.artemis.manageIm({
-                    action: "setup-local",
-                  })) as Status;
-                  setStatus(current);
-                  setSettings(current.settings);
-                  setUrl(current.settings.gatewayUrl);
-                  setName(current.settings.deviceName);
-                  setShowRemote(false);
-                  setAdminToken("");
-                  setMessage(t("ImSettingsPanel.message42"));
-                  selectView(channel);
-                  setFocusTarget("im-bot");
-                })
-              }
-            >
-              {t("Review02.startService")}
-            </Button>
-          )}
-        </div>
-      </>
-    );
+  const createImGatewayRendererRuntime = createImGatewayRenderer({
+    activeSettings,
+    status,
+    t,
+    busy,
+    setStatus,
+    setSettings,
+    setUrl,
+    setName,
+    setShowRemote,
+    setAdminToken,
+    setMessage,
+    channel,
+    selectView,
+    setFocusTarget,
+    run,
+  });
+  function renderGatewayBody(): ReturnType<
+    typeof createImGatewayRendererRuntime.renderGatewayBody
+  > {
+    return createImGatewayRendererRuntime.renderGatewayBody();
   }
+
   const channelLogo = (platform: ImChannel, size: number) =>
     platform === "feishu" ? (
       <img
@@ -776,1282 +509,297 @@ export function ImSettingsPanel({
         height={size}
       />
     );
-  const openBotEditor = (
-    connection: ImConnectionStatus,
-    trigger: HTMLButtonElement,
-  ) => {
-    botDialogTrigger.current = trigger;
-    setFields(
-      Object.fromEntries(
-        PUBLIC_BOT_FIELDS.flatMap((key) =>
-          typeof connection.configuration?.[key] === "string"
-            ? [[key, connection.configuration[key]!]]
-            : [],
-        ),
-      ),
-    );
-    setBotDialog({ connectionId: connection.id });
-  };
-  const openBotPairing = (
-    connection: ImConnectionStatus,
-    trigger: HTMLButtonElement,
-  ) => {
-    pairDialogTrigger.current = trigger;
-    setPairDialogId(connection.id);
-    /* 每次点「生成配对码」都换新码（新码即作废旧码），
-       不沿用上次残留的码。 */
-    void run(generatePairCode);
-  };
-  /* 新建（右栏创建页）与更换凭据（弹窗）共用的保存逻辑；dismiss 收到
-     保存后的连接 id，决定保存成功后回到哪个界面。 */
-  const saveBotForm = (dismiss: (savedId: string) => void) => {
-    setSavingChannel(channel);
-    void run(async () => {
-      const token = adminToken;
-      setAdminToken("");
-      const savedId =
-        fields.id?.trim() ||
-        dialogMetadata?.id ||
-        `${channel}-${crypto.randomUUID()}`;
-      const savedName =
-        fields.name?.trim() ||
-        dialogMetadata?.name ||
-        (channel === "feishu"
-          ? feishuDomain === "lark"
-            ? "Lark"
-            : t("ImSettingsPanel.message90")
-          : imChannelLabel(channel, t));
-      await window.artemis.manageIm({
-        action: "admin",
-        operation: "connections",
-        ...(local ? {} : { adminToken: token }),
-        configuration: {
-          channel,
-          enabled: true,
-          ...(channel === "feishu"
-            ? {
-                transport: feishuTransport,
-                domain: feishuDomain,
-              }
-            : {}),
-          ...Object.fromEntries(
-            fieldNames
-              .filter(
-                (key) => !optionalFields.includes(key) || !!fields[key]?.trim(),
-              )
-              .map((key) => [key, fields[key]?.trim() ?? ""]),
-          ),
-          id: savedId,
-          name: savedName,
-        },
-      });
-      setConnectionId(savedId);
-      setSavedMetadata((previous) => ({
-        ...previous,
-        [channel]: {
-          ...Object.fromEntries(
-            PUBLIC_BOT_FIELDS.flatMap((key) =>
-              fields[key] ? [[key, fields[key]!.trim()]] : [],
-            ),
-          ),
-          id: savedId,
-          name: savedName,
-          ...(channel === "feishu"
-            ? {
-                transport: feishuTransport,
-                domain: feishuDomain,
-              }
-            : {}),
-        },
-      }));
-      setFields({});
-      dismiss(savedId);
-      setSavedPending((previous) => ({
-        ...previous,
-        [channel]: true,
-      }));
-      setMessage(t("ImSettingsPanel.message91"));
-      try {
-        await refresh();
-      } catch (error) {
-        setMessage(
-          t("ImSettingsPanel.message92", {
-            value1: String(error),
-          }),
-        );
-        return;
-      }
-      try {
-        await generatePairCode();
-        pairDialogTrigger.current = botDialogTrigger.current;
-        setPairDialogId(savedId);
-        setMessage(t("ImSettingsPanel.message93"));
-      } catch (error) {
-        setMessage(
-          t("ImSettingsPanel.message94", {
-            value1: String(error),
-          }),
-        );
-      }
-    }).finally(() => setSavingChannel(null));
-  };
+  const createImBotActionsRuntime = createImBotActions({
+    botDialogTrigger,
+    setFields,
+    setBotDialog,
+    pairDialogTrigger,
+    setPairDialogId,
+    generatePairCode,
+    run,
+    channel,
+    setSavingChannel,
+    adminToken,
+    setAdminToken,
+    fields,
+    dialogMetadata,
+    t,
+    feishuDomain,
+    local,
+    feishuTransport,
+    optionalFields,
+    fieldNames,
+    setConnectionId,
+    setSavedMetadata,
+    setSavedPending,
+    setMessage,
+    refresh,
+  });
+  const { openBotEditor, openBotPairing, saveBotForm } =
+    createImBotActionsRuntime;
+
   /* 表单体：渠道字段 + 高级字段 +（远端）管理凭据；cancel 决定放弃时
      回到哪个界面。 */
-  const renderBotForm = (cancel: (savedId: string) => void) => (
-    <>
-      {channel === "feishu" && (
-        <Select
-          labelVisibility="visible"
-          label={t("ImSettingsPanel.message78")}
-          description={t("ImSettingsPanel.message79")}
-          value={feishuDomain}
-          options={[
-            {
-              value: "feishu",
-              label: t("ImSettingsPanel.message80"),
-            },
-            {
-              value: "lark",
-              label: t("ImSettingsPanel.message81"),
-            },
-          ]}
-          disabled={busy}
-          onValueChange={(domain) =>
-            setFields((previous) => ({ ...previous, domain }))
-          }
-        />
-      )}
-      {requiredFields.map(renderBotField)}
-      <details className="im-advanced-fields">
-        <summary>{t("ImSettingsPanel.message82")}</summary>
-        <div className="im-field-stack">
-          {channel === "feishu" && (
-            <Select
-              labelVisibility="visible"
-              label={t("ImSettingsPanel.message83")}
-              value={feishuTransport}
-              options={[
-                {
-                  value: "websocket",
-                  label: t("ImSettingsPanel.message84"),
-                },
-                {
-                  value: "webhook",
-                  label: t("ImSettingsPanel.message85"),
-                },
-              ]}
-              disabled={busy}
-              onValueChange={(transport) =>
-                setFields((previous) => ({
-                  ...previous,
-                  transport,
-                }))
-              }
-            />
-          )}
-          {optionalFields.map(renderBotField)}
-        </div>
-      </details>
-      {!local && (
-        <TextField
-          label={t("ImSettingsPanel.message86")}
-          type="password"
-          value={adminToken}
-          onValueChange={setAdminToken}
-          autoComplete="off"
-          disabled={busy}
-          description={t("ImSettingsPanel.message87")}
-        />
-      )}
-      {channel === "feishu" && feishuTransport === "webhook" && local && (
-        <InlineNotice tone="info">
-          {t("ImSettingsPanel.message88")}
-        </InlineNotice>
-      )}
-      <div className="im-actions">
-        <Button
-          disabled={
-            busy ||
-            (!local && !adminToken) ||
-            !activeSettings.deviceId ||
-            (local && channel === "feishu" && feishuTransport === "webhook") ||
-            !requiredFields.every((key) => fields[key]?.trim())
-          }
-          onClick={() => saveBotForm(cancel)}
-        >
-          {t("ImSettingsPanel.message89")}
-        </Button>
-        <Button disabled={busy} onClick={() => cancel("")}>
-          {t("App_copy.renameCancel")}
-        </Button>
-      </div>
-    </>
-  );
-  const dismissBotDialog = (savedId?: string) => {
-    if (savedId) {
-      setSelectedBotId(savedId);
-      setChannelPane("bot");
-    }
-    setBotDialog(null);
-    setFields(
-      channel === "feishu" && !botDialog?.connectionId && !savedId
-        ? { domain: feishuDomain }
-        : {},
-    );
-    setAdminToken("");
-  };
-  const dismissBotCreate = (savedId: string) => {
-    /* 创建页保存后：回到机器人详情并选中新机器人（ZCode 同款动线）。 */
-    setChannelPane("bot");
-    setSelectedBotId(savedId);
-    setFields({});
-    setAdminToken("");
-  };
-  /* 解除授权（关联机器人卡）：解绑这条连接的全部绑定账号，连接
-     本身不受影响，可用配对码重新绑定；与「删除机器人」分层。 */
-  const unpairConnection = (connection: ImConnectionStatus) =>
-    run(async () => {
-      const bound = (status?.identities ?? []).filter(
-        (identity) => identity.connectionId === connection.id,
-      );
-      for (const identity of bound) {
-        await window.artemis.manageIm({ action: "unpair", identity });
-      }
-      await refresh();
-      setMessage(t("ImSettingsPanel.message26"));
-    });
-  /* 删除机器人：危险卡内的垃圾桶入口，确认（与远端管理凭据）走
-     ImConnectionRemoval 弹窗。 */
-  const removeConnection =
-    (connection: ImConnectionStatus) => (token: string) =>
-      run(async () => {
-        const id = connection.id;
-        await window.artemis.manageIm({
-          action: "admin",
-          operation: "remove-connection",
-          ...(local ? {} : { adminToken: token }),
-          configuration: { id },
-        });
-        setStatus((previous) =>
-          previous
-            ? {
-                ...previous,
-                connections: (
-                  previous.connections as ImConnectionStatus[]
-                ).filter((c) => c.id !== id),
-                identities: previous.identities.filter(
-                  (i) => i.connectionId !== id,
-                ),
-                pairingRequests: (previous.pairingRequests ?? []).filter(
-                  (r) => r.identity.connectionId !== id,
-                ),
-              }
-            : previous,
-        );
-        setSavedMetadata((previous) => ({
-          ...previous,
-          [channel]: undefined,
-        }));
-        setConnectionId("");
-        setFields({});
-        setAdminToken("");
-        setBotDialog(null);
-        setPairCode(undefined);
-        setFocusTarget("im-bot");
-        setMessage(t("ImSettingsPanel.message75"));
-        try {
-          await refresh();
-        } catch (error) {
-          setRefreshError(String(error));
-        }
-      });
-  /* 扫码建连后的共享接续（ZCode 动线）：刷新出连接、生成配对码并弹开
-     配对弹窗；before 在接续前执行（创建页用它切回详情选中新机器人）。 */
-  const connectScannedBot = (
-    connectionId: string | undefined,
-    before?: () => void,
-  ) => {
-    before?.();
-    void run(async () => {
-      await refresh();
-      if (!connectionId) return;
-      try {
-        await generatePairCode();
-        setPairDialogId(connectionId);
-      } catch {
-        // 配对码生成失败不打断：弹窗可从机器人详情随时重开。
-      }
-    });
-  };
+  const createImBotFormRendererRuntime = createImBotFormRenderer({
+    channel,
+    t,
+    feishuDomain,
+    busy,
+    setFields,
+    renderBotField,
+    requiredFields,
+    feishuTransport,
+    optionalFields,
+    local,
+    adminToken,
+    setAdminToken,
+    activeSettings,
+    fields,
+    saveBotForm,
+  });
+  const { renderBotForm } = createImBotFormRendererRuntime;
+
+  const createImConnectionActionsRuntime = createImConnectionActions({
+    setSelectedBotId,
+    setChannelPane,
+    setBotDialog,
+    feishuDomain,
+    channel,
+    botDialog,
+    setFields,
+    setAdminToken,
+    status,
+    refresh,
+    t,
+    setMessage,
+    run,
+    local,
+    setStatus,
+    setSavedMetadata,
+    setConnectionId,
+    setPairCode,
+    setFocusTarget,
+    setRefreshError,
+    generatePairCode,
+    setPairDialogId,
+  });
+  const {
+    dismissBotDialog,
+    dismissBotCreate,
+    unpairConnection,
+    removeConnection,
+    connectScannedBot,
+  } = createImConnectionActionsRuntime;
+
   /* 飞书扫码接入（官方应用注册流程）：空态首卡自动出码，创建页与
      关联凭据卡共用；onScanConnected 在共享接续（刷新+配对）前执行。 */
-  const renderFeishuScan = (
-    autoStart: boolean,
-    domain: "feishu" | "lark",
-    onScanConnected?: (connectionId?: string) => void,
-  ) => (
-    <ImFeishuScan
-      key={domain}
-      domain={domain}
-      t={t}
-      autoStart={autoStart}
-      busy={busy}
-      disabled={!activeSettings.deviceId}
-      onConnected={(connectionId) => {
-        connectScannedBot(connectionId, () => onScanConnected?.(connectionId));
-      }}
-    />
-  );
-  /* 平台接入指引：slack 恒为清单指引，飞书/企微走平台步骤。 */
-  const renderGuideBody = () =>
-    channel === "slack" ? (
-      <ImSlackSetup
-        t={t}
-        busy={busy}
-        copy={() =>
-          void run(async () => {
-            const { userName } = await window.artemis.getSnapshot();
-            await navigator.clipboard.writeText(
-              slackAppManifest(`${userName}_bot`),
-            );
-            setMessage(t("ImSettingsPanel.message60"));
-          })
-        }
-      />
-    ) : (
-      <ImPlatformSetup
-        channel={channel}
-        transport={feishuTransport}
-        domain={feishuDomain}
-        t={t}
-      />
-    );
-  const renderLegacyImport = () => (
-    <ImLegacyImport
-      key={activeSettings.deviceId}
-      local={local}
-      busy={busy}
-      ready={!!activeSettings.deviceId}
-      run={run}
-      t={t}
-      imported={async () => {
-        await refresh();
-        setMessage(t("ImSettingsPanel.message63"));
-      }}
-    />
-  );
-  /* 飞书 webhook 连接的回调地址：跟随机器人详情展示。 */
-  const renderWebhookCallback = (connection: ImConnectionStatus) =>
-    channel === "feishu" &&
-    connection.configuration?.transport === "webhook" &&
-    connection.callbackUrl ? (
-      <div className="im-actions">
-        <p className="im-identifier">
-          {t("ImSettingsPanel.message98")}
-          {connection.callbackUrl}
-        </p>
-        <Button
-          variant="quiet"
-          className="management-text-action"
-          disabled={!activeSettings.gatewayUrl}
-          onClick={() =>
-            void run(async () => {
-              await navigator.clipboard.writeText(connection.callbackUrl!);
-              setMessage(t("ImSettingsPanel.message100"));
-            })
-          }
-        >
-          {t("ImSettingsPanel.message99")}
-        </Button>
-      </div>
-    ) : null;
+  const createImChannelSetupRenderersRuntime = createImChannelSetupRenderers({
+    t,
+    busy,
+    activeSettings,
+    connectScannedBot,
+    connectionId,
+    channel,
+    feishuTransport,
+    feishuDomain,
+    setMessage,
+    run,
+    local,
+    refresh,
+  });
+  const {
+    renderFeishuScan,
+    renderGuideBody,
+    renderLegacyImport,
+    renderWebhookCallback,
+  } = createImChannelSetupRenderersRuntime;
+
   /* 创建页（ZCode 式）：新建占据右栏整卡。飞书=扫码优先（关联机器人
      卡头出码，不再展示凭据表单），保存后落回详情并选中新机器人；
      其余渠道走凭据表单。 */
-  const renderCreatePane = () => (
-    <div className="im-bot-pane" id="im-bot-create" tabIndex={-1}>
-      <div className="im-bot-create">
-        <div className="im-bot-create-head">
-          {channelLogo(channel, 28)}
-          <strong>{t("ImSettingsPanel.message76")}</strong>
-        </div>
-        {channel === "slack" && local ? (
-          <ImSlackAutoSetup
-            t={t}
-            busy={busy}
-            disabled={!activeSettings.deviceId}
-            connections={connections.filter(
-              (connection) => connection.channel === "slack",
-            )}
-            onConnected={(id) =>
-              connectScannedBot(id, () => {
-                setChannelPane("bot");
-                setSelectedBotId(id);
-              })
-            }
-          />
-        ) : channel === "feishu" && local ? (
-          <>
-            <SegmentedControl
-              label={t("ImSettingsPanel.message78")}
-              size="compact"
-              value={feishuDomain}
-              disabled={busy}
-              options={[
-                { value: "feishu", label: t("ImSettingsPanel.message22") },
-                { value: "lark", label: t("ImSettingsPanel.message23") },
-              ]}
-              onValueChange={(domain) => {
-                setFields((previous) => ({ ...previous, domain }));
-                setCreateScanOpen(true);
-              }}
-            />
-            <div className="im-bot-section" data-scan-open>
-              <div className="im-bot-section-copy">
-                <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
-                <p>{t("ImSettingsPanel.botScanDesc")}</p>
-              </div>
-              <div className="im-bot-section-actions">
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  disabled={busy || !activeSettings.deviceId}
-                  onClick={() => {
-                    setCreateScanEpoch((value) => value + 1);
-                    setCreateScanOpen(true);
-                  }}
-                >
-                  <ArtemisIcon
-                    aria-hidden="true"
-                    height={13}
-                    name="qr-code"
-                    width={13}
-                  />
-                  {t("ImFeishuScan.message10")}
-                </Button>
-              </div>
-              {createScanOpen && (
-                <div className="im-bot-scan">
-                  <ImFeishuScan
-                    key={feishuDomain}
-                    domain={feishuDomain}
-                    refreshSignal={createScanEpoch}
-                    t={t}
-                    autoStart
-                    bare
-                    busy={busy}
-                    disabled={!activeSettings.deviceId}
-                    onIdle={() => setCreateScanOpen(false)}
-                    onConnected={(connectionId) => {
-                      connectScannedBot(connectionId, () => {
-                        if (connectionId) {
-                          setChannelPane("bot");
-                          setSelectedBotId(connectionId);
-                        }
-                      });
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            {renderReplyModeCard()}
-          </>
-        ) : (
-          renderBotForm(dismissBotCreate)
-        )}
-      </div>
-    </div>
-  );
-  /* 已无选中机器人时的右栏：飞书直接落创建页（首个 bot 未建时右侧
-     不再是旧空态卡）；其余渠道保留空态文案卡。 */
-  const renderEmptyPane = () =>
-    channel === "feishu" || (channel === "slack" && local) ? (
-      renderCreatePane()
-    ) : (
-      <div className="im-bot-join">
-        <strong>{imChannelLabel(channel, t)}</strong>
-        <p>
-          {savedPending[channel]
-            ? t("ImSettingsPanel.message68")
-            : t("ImSettingsPanel.message67")}
-        </p>
-      </div>
-    );
-  /* 已连接的机器人按绑定态标注（导航卡/状态行/关联机器人卡共用）：
-     绿「已授权」/ 黄「待授权」；未连接仍显示连接状态本身。 */
-  const pairingView = (connection: ImConnectionStatus) => {
-    const state = imAggregateConnectionStates([connection.state]);
-    const paired = (status?.identities ?? []).some(
-      (identity) => identity.connectionId === connection.id,
-    );
-    return {
-      state,
-      paired,
-      dot: state === "connected" ? (paired ? "connected" : "warning") : state,
-      label:
-        state === "connected"
-          ? paired
-            ? t("ImSettingsPanel.botPairedLabel")
-            : t("ImSettingsPanel.botUnpairedLabel")
-          : imConnectionLabel(state, t),
-    } as const;
-  };
-  /* 回复形态说明（ZCode 同款说明卡）：飞书固定流式卡片；
-     创建页与机器人详情（删除卡上方）共用。 */
-  const renderReplyModeCard = (domain = feishuDomain) => (
-    <div className="im-bot-section">
-      <div className="im-bot-section-copy">
-        <strong>{t("ImSettingsPanel.botReplyModeTitle")}</strong>
-        <p>
-          {t("ImSettingsPanel.botReplyModeDesc", {
-            platform:
-              domain === "lark" ? "Lark" : t("ImSettingsPanel.message90"),
-          })}
-        </p>
-      </div>
-      <div className="im-bot-section-actions">
-        <Select
-          className="im-reply-mode-select"
-          labelVisibility="hidden"
-          label={t("ImSettingsPanel.botReplyModeTitle")}
-          value="streaming"
-          disabled
-          options={[
-            {
-              value: "streaming",
-              label: t("ImSettingsPanel.botReplyModeValue"),
-            },
-          ]}
-          onValueChange={() => {}}
-        />
-      </div>
-    </div>
-  );
+  const createImBotPaneRenderersRuntime = createImBotPaneRenderers({
+    channel,
+    channelLogo,
+    t,
+    dismissBotCreate,
+    renderBotForm,
+    feishuDomain,
+    busy,
+    setFields,
+    setCreateScanOpen,
+    activeSettings,
+    setCreateScanEpoch,
+    createScanOpen,
+    createScanEpoch,
+    setChannelPane,
+    setSelectedBotId,
+    connectScannedBot,
+    local,
+    connections,
+    savedPending,
+    status,
+  });
+  const {
+    renderCreatePane,
+    renderEmptyPane,
+    pairingView,
+    renderReplyModeCard,
+  } = createImBotPaneRenderersRuntime;
+
   /* 机器人详情（ZCode 式）：头=logo+名称+行尾删除入口（配对态只在
      左栏导航卡展示）；下方为关联机器人 / 配对聊天 / 回复模式 设置卡。 */
-  const renderBotProfile = (connection: ImConnectionStatus) => {
-    const domain =
-      connection.configuration?.domain === "lark" ? "lark" : "feishu";
-    const pairing = pairingView(connection);
-    const state = pairing.state;
-    return (
-      <div className="im-bot-profile">
-        <div className="im-bot-profile-head">
-          {channelLogo(channel, 28)}
-          <div className="im-bot-profile-heading">
-            <strong>{connection.name}</strong>
-          </div>
-          <ImConnectionRemoval
-            key={`${activeSettings.deviceId}:${connection.id}`}
-            name={connection.name}
-            local={local}
-            busy={busy}
-            error={messageError ? message : undefined}
-            t={t}
-            remove={removeConnection(connection)}
-          />
-        </div>
-        {connection.error && (
-          <InlineNotice tone="danger">{connection.error}</InlineNotice>
-        )}
-        {channel === "feishu" ? (
-          /* 关联机器人卡（ZCode 同款）：左侧说明，右侧动作；
-             已授权给「解除授权」（解绑账号，可重新配对），未连通保留扫码入口。 */
-          <div
-            className="im-bot-section"
-            data-scan-open={credScan || undefined}
-          >
-            <div className="im-bot-section-copy">
-              <strong>{t("ImSettingsPanel.botScanTitle")}</strong>
-              <p>{t("ImSettingsPanel.botScanDesc")}</p>
-            </div>
-            <div className="im-bot-section-actions">
-              <Button
-                variant="quiet"
-                size="compact"
-                disabled={busy}
-                label={t("ImSettingsPanel.message69", {
-                  value1: connection.name,
-                })}
-                onClick={(event) =>
-                  openBotEditor(connection, event.currentTarget)
-                }
-              >
-                {t("ImSettingsPanel.message70")}
-              </Button>
-              {state === "connected" ? (
-                pairing.paired && (
-                  <Button
-                    variant="quiet"
-                    size="compact"
-                    disabled={busy}
-                    label={t("ImSettingsPanel.botUnbindLabel", {
-                      value1: connection.name,
-                    })}
-                    onClick={() => unpairConnection(connection)}
-                  >
-                    {t("ImSettingsPanel.botUnbindAction")}
-                  </Button>
-                )
-              ) : local ? (
-                <Button
-                  variant="quiet"
-                  size="compact"
-                  disabled={busy || !activeSettings.deviceId}
-                  onClick={() => setCredScan((open) => !open)}
-                >
-                  <ArtemisIcon
-                    aria-hidden="true"
-                    height={13}
-                    name="qr-code"
-                    width={13}
-                  />
-                  {t("ImFeishuScan.message10")}
-                </Button>
-              ) : null}
-            </div>
-            {credScan && (
-              <div className="im-bot-scan">
-                {renderFeishuScan(true, domain)}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="im-bot-section">
-            <div className="im-bot-section-copy">
-              <strong>{t("ImSettingsPanel.botCredTitle")}</strong>
-              <p>{t("ImSettingsPanel.botCredDesc")}</p>
-            </div>
-            <div className="im-bot-section-actions">
-              <Button
-                variant="quiet"
-                size="compact"
-                disabled={busy}
-                label={t("ImSettingsPanel.message69", {
-                  value1: connection.name,
-                })}
-                onClick={(event) =>
-                  openBotEditor(connection, event.currentTarget)
-                }
-              >
-                {t("ImSettingsPanel.message70")}
-              </Button>
-            </div>
-          </div>
-        )}
-        <div className="im-bot-section">
-          <div className="im-bot-section-copy">
-            <strong>{t("ImSettingsPanel.botPairTitle")}</strong>
-            <p>{t("ImSettingsPanel.botPairDesc")}</p>
-          </div>
-          <div className="im-bot-section-actions">
-            <Button
-              variant="quiet"
-              size="compact"
-              disabled={busy || !activeSettings.deviceId}
-              label={t("ImSettingsPanel.message73", {
-                value1: connection.name,
-              })}
-              onClick={(event) =>
-                openBotPairing(connection, event.currentTarget)
-              }
-            >
-              {t("ImSettingsPanel.message74")}
-            </Button>
-          </div>
-        </div>
-        {/* 从属账号：属于这条连接的已绑定账号，挂在配对卡下。 */}
-        {connectionAccounts(connection.id)}
-        {renderWebhookCallback(connection)}
-        {channel === "feishu" && renderReplyModeCard(domain)}
-      </div>
-    );
-  };
-  function renderChannelBody() {
-    const settings = activeSettings;
-    const selected =
-      channelConnections.find((c) => c.id === selectedBotId) ??
-      channelConnections[0];
-    return (
-      <section
-        id="im-bot"
-        className="im-channel-body im-channel-md"
-        tabIndex={-1}
-      >
-        {/* ZCode 式主从：左栏 = 新建入口 + 机器人卡 + 设置行（指引/导入/
-            验证）；右栏随选中切换，默认落在首个机器人详情。 */}
-        <div className="im-bot-nav">
-          <button
-            type="button"
-            className="im-bot-new"
-            disabled={busy}
-            data-selected={
-              channelPane === "create" ||
-              (channel === "feishu" && !channelConnections.length) ||
-              undefined
-            }
-            aria-label={t("ImSettingsPanel.message65")}
-            onClick={(event) => {
-              /* ZCode 式：新建不弹独立弹窗，右栏整卡切换为创建表单。 */
-              botDialogTrigger.current = event.currentTarget;
-              setFields({});
-              setAdminToken("");
-              setChannelPane("create");
-            }}
-          >
-            <ArtemisIcon
-              aria-hidden="true"
-              height={20}
-              name="bot-add"
-              width={20}
-            />
-            <span>{t("ImSettingsPanel.message65")}</span>
-          </button>
-          {channelConnections.map((connection) => {
-            const pairing = pairingView(connection);
-            return (
-              <button
-                type="button"
-                key={connection.id}
-                className="im-bot-card"
-                data-selected={
-                  (channelPane === "bot" && selected?.id === connection.id) ||
-                  undefined
-                }
-                onClick={() => {
-                  setSelectedBotId(connection.id);
-                  setChannelPane("bot");
-                }}
-              >
-                {channelLogo(channel, 20)}
-                <strong className="im-bot-card-name">
-                  <ImMarqueeText text={connection.name} />
-                </strong>
-                <span className="im-bot-card-state">
-                  <span
-                    aria-hidden="true"
-                    className="im-dot"
-                    data-state={pairing.dot}
-                  />
-                  {pairing.label}
-                </span>
-              </button>
-            );
-          })}
-          <div aria-hidden="true" className="im-bot-nav-divider" />
-          <button
-            type="button"
-            className="im-bot-nav-row"
-            data-selected={channelPane === "guide" || undefined}
-            onClick={() => setChannelPane("guide")}
-          >
-            <span>{t("ImSettingsPanel.message59")}</span>
-            <span aria-hidden="true" className="im-bot-nav-caret">
-              ›
-            </span>
-          </button>
-          {channel === "feishu" && (
-            <button
-              type="button"
-              className="im-bot-nav-row"
-              data-selected={channelPane === "import" || undefined}
-              onClick={() => setChannelPane("import")}
-            >
-              <span>{t("ImLegacyImport.message1")}</span>
-              <span aria-hidden="true" className="im-bot-nav-caret">
-                ›
-              </span>
-            </button>
-          )}
-          <button
-            type="button"
-            className="im-bot-nav-row"
-            data-selected={channelPane === "verify" || undefined}
-            onClick={() => setChannelPane("verify")}
-          >
-            <span>{verifyLabel}</span>
-            <span aria-hidden="true" className="im-bot-nav-caret">
-              ›
-            </span>
-          </button>
-        </div>
-        <div className="im-bot-detail">
-          {!settings.deviceId && (
-            <InlineNotice tone="info">
-              <p>{t("ImSettingsPanel.message61")}</p>
-              <Button onClick={() => navigateStep("im-prepare")}>
-                {t("ImSettingsPanel.message62")}
-              </Button>
-            </InlineNotice>
-          )}
-          {channelPane === "guide" && (
-            <div className="im-bot-pane">{renderGuideBody()}</div>
-          )}
-          {channelPane === "import" && channel === "feishu" && (
-            <div className="im-bot-pane">{renderLegacyImport()}</div>
-          )}
-          {channelPane === "verify" && (
-            <div className="im-bot-pane" id="im-verify" tabIndex={-1}>
-              {renderVerifyBody()}
-            </div>
-          )}
-          {channelPane === "create" && renderCreatePane()}
-          {channelPane === "bot" &&
-            (selected ? renderBotProfile(selected) : renderEmptyPane())}
-        </div>
-        {renderBotDialog()}
-        {renderPairDialog()}
-      </section>
-    );
+  const createImBotProfileRendererRuntime = createImBotProfileRenderer({
+    pairingView,
+    channel,
+    channelLogo,
+    activeSettings,
+    local,
+    busy,
+    message,
+    messageError,
+    t,
+    removeConnection,
+    openBotEditor,
+    setCredScan,
+    unpairConnection,
+    credScan,
+    renderFeishuScan,
+    openBotPairing,
+    connectionAccounts,
+    renderWebhookCallback,
+    renderReplyModeCard,
+  });
+  const { renderBotProfile } = createImBotProfileRendererRuntime;
+
+  const createImChannelBodyRendererRuntime = createImChannelBodyRenderer({
+    activeSettings,
+    selectedBotId,
+    channelConnections,
+    t,
+    busy,
+    channelPane,
+    channel,
+    botDialogTrigger,
+    setFields,
+    setAdminToken,
+    setChannelPane,
+    pairingView,
+    channelLogo,
+    setSelectedBotId,
+    verifyLabel,
+    navigateStep,
+    renderGuideBody,
+    renderLegacyImport,
+    get renderVerifyBody() {
+      return renderVerifyBody;
+    },
+    renderCreatePane,
+    renderEmptyPane,
+    renderBotProfile,
+    get renderBotDialog() {
+      return renderBotDialog;
+    },
+    get renderPairDialog() {
+      return renderPairDialog;
+    },
+  });
+  function renderChannelBody(): ReturnType<
+    typeof createImChannelBodyRendererRuntime.renderChannelBody
+  > {
+    return createImChannelBodyRendererRuntime.renderChannelBody();
   }
-  function renderBotDialog() {
-    /* 更换凭据弹窗（新建已改右栏创建页）：与创建页共用同一表单体。 */
-    return (
-      <>
-        {botDialog && (
-          <Dialog
-            className="im-bot-dialog"
-            label={
-              dialogConnection
-                ? t("ImSettingsPanel.message97", {
-                    value1: dialogConnection.name,
-                  })
-                : t("ImSettingsPanel.message76")
-            }
-            returnFocusRef={botDialogTrigger}
-            onOpenChange={(open) => {
-              if (!open) dismissBotDialog();
-            }}
-            open
-          >
-            <header>
-              <h2>
-                {dialogConnection
-                  ? t("ImSettingsPanel.message77", {
-                      value1: dialogConnection.name,
-                    })
-                  : t("ImSettingsPanel.message76")}
-              </h2>
-            </header>
-            <div className="im-bot-dialog-body">
-              {renderBotForm(dismissBotDialog)}
-            </div>
-          </Dialog>
-        )}
-      </>
-    );
+
+  const createImPairingDialogsRuntime = createImPairingDialogs({
+    botDialog,
+    t,
+    dialogConnection,
+    dismissBotDialog,
+    renderBotForm,
+    botDialogTrigger,
+    pairDialogId,
+    pairCode,
+    activePairingPlatform,
+    busy,
+    activeSettings,
+    generatePairCode,
+    run,
+    refresh,
+    pairDialogTrigger,
+    setPairDialogId,
+    pendingRequests,
+    pairingPlatformLabel,
+    setMessage,
+    setDiagnostics,
+    setStatus,
+    setSettings,
+  });
+  function renderBotDialog(): ReturnType<
+    typeof createImPairingDialogsRuntime.renderBotDialog
+  > {
+    return createImPairingDialogsRuntime.renderBotDialog();
   }
-  function renderPairDialog() {
-    return (
-      <>
-        {pairDialogId && (
-          <ImPairingCode
-            t={t}
-            pair={pairCode}
-            slack={activePairingPlatform === "slack"}
-            busy={busy || !activeSettings.deviceId}
-            generate={() => void run(generatePairCode)}
-            onPoll={() => void run(refresh)}
-            returnFocusRef={pairDialogTrigger}
-            onClose={() => setPairDialogId("")}
-            requests={pendingRequests}
-            guide={
-              <div className="im-pair-guide">
-                <p>
-                  {t("ImSettingsPanel.message101", {
-                    value1: pairingPlatformLabel,
-                  })}
-                </p>
-                <ol>
-                  <li>
-                    {activePairingPlatform === "slack"
-                      ? t("ImSettingsPanel.message103")
-                      : t("ImSettingsPanel.message102", {
-                          value1: pairingPlatformLabel,
-                        })}
-                  </li>
-                  <li>
-                    {activePairingPlatform === "wecom"
-                      ? t("ImSettingsPanel.message106")
-                      : activePairingPlatform === "slack"
-                        ? t("ImSettingsPanel.message105")
-                        : t("ImSettingsPanel.message104", {
-                            value1: pairingPlatformLabel,
-                          })}
-                  </li>
-                  <li>{t("ImSettingsPanel.message107")}</li>
-                </ol>
-              </div>
-            }
-            copy={(text) =>
-              void run(async () => {
-                await navigator.clipboard.writeText(text);
-                setMessage(t("ImSettingsPanel.message108"));
-              })
-            }
-          />
-        )}
-      </>
-    );
+  function renderPairDialog(): ReturnType<
+    typeof createImPairingDialogsRuntime.renderPairDialog
+  > {
+    return createImPairingDialogsRuntime.renderPairDialog();
   }
-  async function refreshGroups() {
-    await window.artemis.manageIm({
-      action: "admin",
-      operation: "refresh-groups",
-    });
-    const [next, current] = await Promise.all([
-      window.artemis.manageIm({ action: "admin", operation: "status" }),
-      window.artemis.manageIm({ action: "refresh" }),
-    ]);
-    setDiagnostics(next);
-    setStatus(current as Status);
-    setSettings((current as Status).settings);
+  function refreshGroups(): ReturnType<
+    typeof createImPairingDialogsRuntime.refreshGroups
+  > {
+    return createImPairingDialogsRuntime.refreshGroups();
   }
 
   /**
    * ②尾「顺手验证」折叠段（可选端到端验证，不计入完成链）：开合由用户
    */
   /* 验证内容体：渠道二级面板的「验证」页。 */
-  function renderVerifyBody() {
-    const deviceId = status?.settings.deviceId;
-    return (
-      <div id="im-verify-body" className="im-verify-body">
-        <section id="im-test" tabIndex={-1}>
-          <ImFirstTaskInstructions
-            t={t}
-            slack={activePairingPlatform === "slack"}
-            copy={(text) => void navigator.clipboard.writeText(text)}
-          />
-        </section>
-        {/* D4 诚实版轨道：仅「桌面出现任务」由系统检测，完成与回复以用户确认为准。 */}
-        <ol
-          className="im-test-track"
-          aria-label={t("ImSettingsPanel.message174")}
-        >
-          <li data-state="guide">{t("ImSettingsPanel.message167")}</li>
-          <li data-state={taskDetected ? "done" : "pending"}>
-            {taskDetected
-              ? t("ImSettingsPanel.message169")
-              : t("ImSettingsPanel.message168")}
-          </li>
-          <li data-state={verify.confirmed ? "done" : "pending"}>
-            {verify.confirmed
-              ? t("ImSettingsPanel.message171")
-              : t("ImSettingsPanel.message170")}
-          </li>
-          <li data-state={verify.confirmed ? "done" : "pending"}>
-            {verify.confirmed
-              ? t("ImSettingsPanel.message173")
-              : t("ImSettingsPanel.message172")}
-          </li>
-        </ol>
-        <Checkbox
-          label={t("ImSettingsPanel.message175")}
-          checked={verify.confirmed}
-          disabled={busy || !deviceId}
-          onCheckedChange={(checked) => {
-            const next = {
-              confirmed: checked,
-              channel: checked ? activePairingPlatform : undefined,
-            };
-            imWriteVerify(deviceId, next);
-            setVerify(next);
-          }}
-        />
-        {channel !== "wecom" && (
-          <Button variant="quiet" onClick={() => selectView("spaces")}>
-            {t("ImSettingsPanel.message176")}
-          </Button>
-        )}
-      </div>
-    );
+  const createImVerificationRendererRuntime = createImVerificationRenderer({
+    status,
+    t,
+    activePairingPlatform,
+    taskDetected,
+    verify,
+    busy,
+    setVerify,
+    channel,
+    selectView,
+  });
+  function renderVerifyBody(): ReturnType<
+    typeof createImVerificationRendererRuntime.renderVerifyBody
+  > {
+    return createImVerificationRendererRuntime.renderVerifyBody();
   }
 
-  function renderStepCards() {
-    const settings = activeSettings;
-    const serviceEnabled = status?.settings.enabled ?? settings.enabled;
-    /* 渠道行 = 品牌图标 + 渠道名 + 信号灯 + 一行状态；已配置（有连接或
-       已存凭据）渠道名提亮。授权是设备级全局共用，行上不重复计数。 */
-    const channelRow = (platform: ImChannel) => {
-      const platformConnections = connections.filter(
-        (c) => c.channel === platform,
-      );
-      const state = imChannelConnectionState(platformConnections, {
-        savedCredentials: !!savedPending[platform],
-      });
-      const lit =
-        state === "connected" ||
-        state === "error" ||
-        state === "partial_error" ||
-        state === "connecting";
-      const configured =
-        platformConnections.length > 0 || !!savedPending[platform];
-      const summary = !configured
-        ? `${imConnectionLabel("unconfigured", t)} · ${t(platform === "feishu" ? "Review03.scanConnect" : "Review03.appConnect")}`
-        : state === "connected"
-          ? imConnectionLabel("connected", t)
-          : imConnectionLabel(state, t);
-      return (
-        <button
-          type="button"
-          key={platform}
-          className="im-channel-row"
-          data-connection-state={state}
-          data-configured={configured || undefined}
-          onClick={() => {
-            flowSelectChannel(platform);
-            setChannelDetail(true);
-            setGroupDetail(false);
-            setChannelPane("bot");
-            setSelectedBotId("");
-            setCredScan(false);
-          }}
-        >
-          {channelLogo(platform, 20)}
-          <span className="im-channel-row-copy">
-            <strong>{imChannelLabel(platform, t)}</strong>
-            <span className="im-channel-row-summary">
-              {lit ? (
-                <span
-                  aria-hidden="true"
-                  className="im-dot"
-                  data-state={state}
-                />
-              ) : null}
-              {summary}
-              {configured && state === "connected" && (
-                <>
-                  <ArtemisIcon
-                    aria-hidden="true"
-                    className="im-channel-row-bots"
-                    name="bot"
-                    width={13}
-                    height={13}
-                  />
-                  <span className="im-channel-row-bots-count">
-                    · {platformConnections.length}
-                  </span>
-                </>
-              )}
-            </span>
-          </span>
-          <span aria-hidden="true" className="im-capsule-btn">
-            {configured
-              ? t("ImSettingsPanel.goManage")
-              : t("ImSettingsPanel.goConfigure")}
-          </span>
-        </button>
-      );
-    };
-    return (
-      <div className="im-two-col">
-        {/* 左栏：这台电脑是谁（服务）。固定标题+内容，不再折叠。 */}
-        <div className="im-col-left">
-          <section className="im-service-block" id="im-gateway" tabIndex={-1}>
-            <div className="im-service-head">
-              <ArtemisIcon
-                aria-hidden="true"
-                name="chat"
-                width={24}
-                height={24}
-              />
-              <span className="im-local-service-copy">
-                <strong>{t("Review02.localMessageService")}</strong>
-                <small>{t("Review02.localMessageServiceHint")}</small>
-              </span>
-              {(activeScreen === "overview" ||
-                (activeScreen === "flow" && !!status?.settings.deviceId)) && (
-                <span
-                  className="im-service-capsule"
-                  data-state={serviceEnabled ? "connected" : "error"}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="im-dot"
-                    data-state={serviceEnabled ? "connected" : "error"}
-                  />
-                  {serviceEnabled
-                    ? t("ImSettingsPanel.serviceReady")
-                    : t("ImSettingsPanel.serviceDisconnected")}
-                </span>
-              )}
-              <div
-                className="im-service-state"
-                title={t("ImSettingsPanel.message196")}
-              >
-                {/* 电源图标即状态：绿+连接 / 红+断开（正向态展示，D1 首跑无开关）。 */}
-                {(activeScreen === "overview" ||
-                  (activeScreen === "flow" && !!status?.settings.deviceId)) && (
-                  <>
-                    {!settings.enabled && enableReason && (
-                      <span className="im-power-reason">{enableReason}</span>
-                    )}
-                    {/* 状态胶囊已移至标题左侧；此处仅剩连接/断开动作钮。 */}
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={
-                        status?.settings.enabled ?? settings.enabled
-                      }
-                      aria-label={t("ImSettingsPanel.message194")}
-                      title={
-                        (status?.settings.enabled ?? settings.enabled)
-                          ? t("ImSettingsPanel.message195")
-                          : t("ImSettingsPanel.message194")
-                      }
-                      disabled={busy || (!settings.enabled && !!enableReason)}
-                      className="im-power-toggle"
-                      data-state={
-                        (status?.settings.enabled ?? settings.enabled)
-                          ? "on"
-                          : "off"
-                      }
-                      onClick={() =>
-                        void run(async () => {
-                          const enabled = !(
-                            status?.settings.enabled ?? settings.enabled
-                          );
-                          const current = await window.artemis.saveImSettings({
-                            ...status!.settings,
-                            enabled,
-                          });
-                          setStatus((previous) => ({
-                            ...previous,
-                            ...current,
-                          }));
-                          setSettings((draft) =>
-                            draft
-                              ? { ...draft, enabled: current.settings.enabled }
-                              : current.settings,
-                          );
-                        })
-                      }
-                    >
-                      <span>
-                        {settings.enabled || status?.settings.enabled
-                          ? t("ImSettingsPanel.powerStop")
-                          : t("ImSettingsPanel.powerConnected")}
-                      </span>
-                    </button>
-                  </>
-                )}
-              </div>
-              {renderGatewayBody()}
-            </div>
-          </section>
-        </div>
-        {/* 右栏：门（渠道）。渠道与群聊授权卡片↔ 详情下钻。 */}
-        <div className="im-col-right">
-          <section
-            className="im-channel-list"
-            aria-label={t("ImSettingsPanel.imChannelsTitle")}
-          >
-            <div className="im-channel-list-head">
-              <ArtemisIcon
-                aria-hidden="true"
-                name="message"
-                width={24}
-                height={24}
-              />
-              <strong>{t("ImSettingsPanel.imChannelsTitle")}</strong>
-            </div>
-            {IM_CHANNELS.filter((platform) => platform !== "wecom").map(
-              channelRow,
-            )}
-          </section>
-          <section className="im-group-authorization-summary">
-            <h3>{t("ImSettingsPanel.message165")}</h3>
-            {authorizedGroups.map((group) => (
-              <button
-                key={group.id}
-                type="button"
-                className="im-channel-row im-channel-group-row"
-                onClick={(event) => {
-                  groupDialogTrigger.current = event.currentTarget;
-                  setChannelDetail(false);
-                  setGroupDetail(true);
-                }}
-              >
-                <ArtemisIcon name="agents" width={16} height={16} />
-                <span className="im-channel-row-copy">
-                  <strong>
-                    {authorizedGroups.some(
-                      (other) =>
-                        other.id !== group.id &&
-                        other.name === group.name &&
-                        other.projectId === group.projectId,
-                    )
-                      ? group.label
-                      : group.name}{" "}
-                    →{" "}
-                    {projects.find((project) => project.id === group.projectId)
-                      ?.name ?? group.projectId}
-                  </strong>
-                </span>
-                <span className="im-capsule-btn">
-                  {t("ImSettingsPanel.goManage")}
-                </span>
-              </button>
-            ))}
-            {!authorizedGroups.length && (
-              <button
-                type="button"
-                className="im-channel-row im-channel-group-row"
-                onClick={(event) => {
-                  groupDialogTrigger.current = event.currentTarget;
-                  setChannelDetail(false);
-                  setGroupDetail(true);
-                }}
-              >
-                <ArtemisIcon name="agents" width={16} height={16} />
-                <span className="im-channel-row-copy">
-                  <small>{t("ImSettingsPanel.message166")}</small>
-                </span>
-                <span className="im-capsule-btn">
-                  {t("Review02.addAuthorization")}
-                </span>
-              </button>
-            )}
-          </section>
-        </div>
-        <details className="im-advanced-entries">
-          <summary>
-            <ArtemisIcon
-              className="disclosure-chevron"
-              name="chevron"
-              width={12}
-              height={12}
-            />
-            {t("Review02.imAdvanced")}
-          </summary>
-          <section id="im-prepare" tabIndex={-1}>
-            <ImGatewayInstructions
-              t={t}
-              onOpen={() => setAdvancedDetail(true)}
-            />
-          </section>
-          <section id="im-device" tabIndex={-1}>
-            {/* 入口卡：点击进入整幅二级卡（与「高级」同模式）。 */}
-            <button
-              type="button"
-              className="im-gateway-fold"
-              onClick={() => setShowRemote(true)}
-            >
-              <span className="im-gateway-fold-head">
-                <span className="im-gateway-entry-icon">
-                  <PlugsConnected
-                    size={20}
-                    weight="duotone"
-                    aria-hidden="true"
-                  />
-                </span>
-                {t("ImSettingsPanel.message46")}
-              </span>
-            </button>
-          </section>
-        </details>
-      </div>
-    );
+  const createImFlowCardsRendererRuntime = createImFlowCardsRenderer({
+    activeSettings,
+    status,
+    connections,
+    savedPending,
+    t,
+    channelLogo,
+    flowSelectChannel,
+    setChannelDetail,
+    setGroupDetail,
+    setChannelPane,
+    setSelectedBotId,
+    setCredScan,
+    activeScreen,
+    enableReason,
+    busy,
+    setStatus,
+    setSettings,
+    run,
+    renderGatewayBody,
+    authorizedGroups,
+    projects,
+    groupDialogTrigger,
+    setAdvancedDetail,
+    setShowRemote,
+  });
+  function renderStepCards(): ReturnType<
+    typeof createImFlowCardsRendererRuntime.renderStepCards
+  > {
+    return createImFlowCardsRendererRuntime.renderStepCards();
   }
 
   return (
@@ -2341,54 +1089,3 @@ export function ImSettingsPanel({
 }
 
 /** 机器人名跑马灯：静态省略号，悬停且溢出时双拷贝匀速滚动（≈30px/s）。 */
-function ImMarqueeText({ text }: { text: string }) {
-  const outer = useRef<HTMLSpanElement>(null);
-  const copy = useRef<HTMLSpanElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  useEffect(() => {
-    const outerEl = outer.current;
-    const copyEl = copy.current;
-    if (!outerEl || !copyEl) return;
-    const check = () => setOverflow(copyEl.scrollWidth > outerEl.clientWidth);
-    check();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(check);
-    observer.observe(outerEl);
-    return () => observer.disconnect();
-  }, [text]);
-  /* 悬停起跑：位移一份拷贝宽度+间距，循环即无缝；速度固定 30px/s。 */
-  const distance = (copy.current?.scrollWidth ?? 0) + 24;
-  return (
-    <span
-      ref={outer}
-      className="im-marquee"
-      data-playing={playing || undefined}
-      onMouseEnter={() => {
-        if (overflow) setPlaying(true);
-      }}
-      onMouseLeave={() => setPlaying(false)}
-    >
-      <span
-        className="im-marquee-track"
-        style={
-          playing
-            ? ({
-                "--mq-shift": `${-distance}px`,
-                "--mq-dur": `${distance / 30}s`,
-              } as CSSProperties)
-            : undefined
-        }
-      >
-        <span ref={copy} className="im-marquee-copy">
-          {text}
-        </span>
-        {playing && (
-          <span className="im-marquee-copy" aria-hidden="true">
-            {text}
-          </span>
-        )}
-      </span>
-    </span>
-  );
-}

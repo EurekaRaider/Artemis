@@ -1,1621 +1,201 @@
-import { z } from "zod";
-import { pluginTypeBindingSchema } from "./design-plugin.js";
-import { artifactEventSchema } from "./artifact.js";
-
-// Multi-question user-input payloads evolved in place within v4 (the kind
-// payload discriminant) instead of bumping the protocol version: no build
-// that produces kind-ed payloads has shipped, so event logs containing them
-// cannot exist and downgrades face zero exposure; conversely, a bump would
-// not teach older builds to read the new payloads — it would only make new
-// builds reject existing v4 logs.
-export const PROTOCOL_VERSION = 4 as const;
-
-export const runModeSchema = z.preprocess(
-  (value) =>
-    value === "execute" ? "work" : value === "review" ? "plan" : value,
-  z.enum(["plan", "work", "codemode"]),
-);
-export type RunMode = z.infer<typeof runModeSchema>;
-
-export function isExecutionMode(mode: unknown): mode is "work" | "codemode" {
-  return mode === "work" || mode === "codemode";
-}
-
-export const approvalPolicySchema = z.enum([
-  "ask",
-  "agent",
-  "full-access",
-  "custom",
-]);
-export type ApprovalPolicy = z.infer<typeof approvalPolicySchema>;
-
-export const APP_LOCALES = [
-  "en",
-  "zh-CN",
-  "zh-TW",
-  "ja",
-  "ko",
-  "es",
-  "fr",
-  "de",
-  "pt-BR",
-  "it",
-  "ru",
-  "ar",
-  "hi",
-  "id",
-] as const;
-
-export const appLocaleSchema = z.enum(APP_LOCALES);
-export type AppLocale = z.infer<typeof appLocaleSchema>;
-
-export const appLanguageSchema = z.union([
-  z.literal("system"),
+export {
+  PROTOCOL_VERSION,
+  runModeSchema,
+  type RunMode,
+  isExecutionMode,
+  approvalPolicySchema,
+  type ApprovalPolicy,
+} from "./schema/core.js";
+export {
+  APP_LOCALES,
   appLocaleSchema,
-]);
-export type AppLanguage = z.infer<typeof appLanguageSchema>;
-
-export const appThemeSchema = z.enum(["system", "light", "dark"]);
-export type AppTheme = z.infer<typeof appThemeSchema>;
-
-export const windowsShellPreferenceSchema = z.enum([
-  "auto",
-  "powershell7",
-  "windows-powershell",
-]);
-export type WindowsShellPreference = z.infer<
-  typeof windowsShellPreferenceSchema
->;
-
-export const shellProfileModeSchema = z.enum([
-  "environment",
-  "full",
-  "disabled",
-]);
-export type ShellProfileMode = z.infer<typeof shellProfileModeSchema>;
-
-export const shellRuntimeConfigurationSchema = z.object({
-  windowsPreference: windowsShellPreferenceSchema,
-  profileMode: shellProfileModeSchema,
-});
-export type ShellRuntimeConfiguration = z.infer<
-  typeof shellRuntimeConfigurationSchema
->;
-
-export const DEFAULT_SHELL_RUNTIME_CONFIGURATION: ShellRuntimeConfiguration = {
-  windowsPreference: "auto",
-  profileMode: "environment",
-};
-
-export const contextWindowSchema = z.number().int().min(1_024).max(10_000_000);
-
-const providerThinkingLevelSchema = z.enum([
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]);
-
-export const modelAdvancedOptionsSchema = z
-  .object({
-    virtualRoutes: z
-      .array(
-        z.object({
-          providerId: z.string().min(1),
-          modelId: z.string().min(1),
-          thinkingLevel: z
-            .enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"])
-            .optional(),
-        }),
-      )
-      .min(1)
-      .max(16)
-      .optional(),
-    samplingParams: z.record(z.string(), z.json()).optional(),
-    samplingParamsByThinkingLevel: z
-      .partialRecord(
-        z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
-        z.record(z.string(), z.json()),
-      )
-      .optional(),
-    thinkingLevelMap: z
-      .partialRecord(
-        z.enum(["off", "minimal", "low", "medium", "high", "xhigh", "max"]),
-        z.string().nullable(),
-      )
-      .optional(),
-    promptCache: z
-      .object({
-        short: z.number().positive().optional(),
-        long: z.number().positive().optional(),
-      })
-      .optional(),
-    cacheWarming: z.enum(["off", "streaming", "idle"]).optional(),
-    compaction: z
-      .object({
-        enabled: z.boolean().optional(),
-        reserveTokens: z.number().int().positive().optional(),
-        keepRecentTokens: z.number().int().positive().optional(),
-      })
-      .optional(),
-    inputLimits: z
-      .object({
-        maxRequestBytes: z.number().int().positive().optional(),
-        images: z
-          .object({
-            maxPerMessage: z.number().int().positive().optional(),
-            maxPerRequest: z.number().int().positive().optional(),
-            resize: z
-              .object({
-                maxWidth: z.number().int().positive().optional(),
-                maxHeight: z.number().int().positive().optional(),
-                maxBytes: z.number().int().positive().optional(),
-                jpegQuality: z.number().min(1).max(100).optional(),
-              })
-              .optional(),
-          })
-          .optional(),
-      })
-      .optional(),
-  })
-  .strict();
-
-const providerModelSchema = modelAdvancedOptionsSchema.extend({
-  id: z
-    .string()
-    .trim()
-    .min(1)
-    .max(160)
-    .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]*$/u),
-  name: z.string().trim().min(1).max(160),
-  reasoning: z.boolean(),
-  highestThinkingLevel: providerThinkingLevelSchema.optional(),
-  input: z
-    .array(z.enum(["text", "image"]))
-    .min(1)
-    .max(2)
-    .refine((input) => input.includes("text"), {
-      message: "Provider models must accept text input",
-    }),
-  contextWindow: contextWindowSchema,
-  maxTokens: z.number().int().min(1).max(1_000_000),
-});
-export type ProviderModel = z.infer<typeof providerModelSchema>;
-
-export const providerConnectionSchema = z.object({
-  id: z
-    .string()
-    .trim()
-    .min(1)
-    .max(80)
-    .regex(/^[a-z0-9][a-z0-9._-]*$/u),
-  name: z.string().trim().min(1).max(80),
-  baseUrl: z
-    .string()
-    .trim()
-    .url()
-    .refine((value) => {
-      const url = new URL(value);
-      return (
-        (url.protocol === "http:" || url.protocol === "https:") &&
-        !url.username &&
-        !url.password
-      );
-    }, "Provider Base URL must use HTTP(S) without embedded credentials"),
-  api: z.enum(["openai-completions", "openai-responses"]).optional(),
-  models: z.array(providerModelSchema).min(1).max(32),
-});
-export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
-
-export const promptImageSchema = z.object({
-  attachmentId: z.string().uuid().optional(),
-  name: z.string().trim().min(1).max(255),
-  mimeType: z.enum(["image/png", "image/jpeg", "image/webp", "image/gif"]),
-  data: z
-    .string()
-    .min(1)
-    .max(14_000_000)
-    .regex(/^[A-Za-z0-9+/]+={0,2}$/u),
-});
-export type PromptImage = z.infer<typeof promptImageSchema>;
-export const MAX_PROMPT_IMAGES = 20;
-export const MAX_PROMPT_FILES = 10;
-export const MAX_PROMPT_IMAGE_BYTES = 10 * 1024 * 1024;
-export const MAX_PROMPT_FILE_BYTES = 100 * 1024 * 1024;
-export const MAX_PROMPT_TOTAL_BYTES = 200 * 1024 * 1024;
-export const promptImagesSchema = z
-  .array(promptImageSchema)
-  .max(MAX_PROMPT_IMAGES);
-
-export const promptFileSchema = z.object({
-  type: z.literal("file"),
-  name: z.string().trim().min(1).max(255),
-  mimeType: z
-    .string()
-    .trim()
-    .min(1)
-    .max(120)
-    .regex(/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/u),
-  content: z.string().max(200_000),
-});
-export type PromptFile = z.infer<typeof promptFileSchema>;
-export const promptAttachmentReferenceSchema = z.object({
-  type: z.literal("attachment"),
-  id: z.string().uuid(),
-  kind: z.enum(["image", "file"]),
-  name: z.string().trim().min(1).max(255),
-  mimeType: z.string().min(1).max(120),
-  size: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-  status: z.enum(["pending", "ready", "error"]),
-  parseStatus: z.enum(["processing", "complete", "error"]).optional(),
-  indexVersion: z.number().int().positive().optional(),
-  error: z.string().max(1000).optional(),
-  pages: z.number().int().nonnegative().optional(),
-  characters: z.number().int().nonnegative().optional(),
-  width: z.number().int().positive().optional(),
-  height: z.number().int().positive().optional(),
-  displayWidth: z.number().int().positive().optional(),
-  displayHeight: z.number().int().positive().optional(),
-  thumbnail: z.string().max(100000).optional(),
-});
-export type PromptAttachmentReference = z.infer<
-  typeof promptAttachmentReferenceSchema
->;
-export function isAttachmentReference(
-  value: PromptAttachment,
-): value is PromptAttachmentReference {
-  return "type" in value && value.type === "attachment";
-}
-export function attachmentIsImage(value: PromptAttachment): boolean {
-  return (
-    !("type" in value) ||
-    (value.type === "attachment" && value.kind === "image")
-  );
-}
-export function attachmentBytes(value: PromptAttachment): number {
-  if (isAttachmentReference(value)) return value.size;
-  return "type" in value
-    ? new TextEncoder().encode(value.content).length
-    : Math.floor((value.data.length * 3) / 4) -
-        (value.data.endsWith("==") ? 2 : value.data.endsWith("=") ? 1 : 0);
-}
-export const promptAttachmentSchema = z.union([
-  promptAttachmentReferenceSchema,
+  type AppLocale,
+  appLanguageSchema,
+  type AppLanguage,
+  appThemeSchema,
+  type AppTheme,
+  windowsShellPreferenceSchema,
+  type WindowsShellPreference,
+  shellProfileModeSchema,
+  type ShellProfileMode,
+  shellRuntimeConfigurationSchema,
+  type ShellRuntimeConfiguration,
+  DEFAULT_SHELL_RUNTIME_CONFIGURATION,
+} from "./schema/appearance.js";
+export {
+  contextWindowSchema,
+  modelAdvancedOptionsSchema,
+  type ProviderModel,
+  providerConnectionSchema,
+  type ProviderConnection,
+  thinkingLevelSchema,
+  type ThinkingLevel,
+  modelSelectionSchema,
+  type ModelSelection,
+} from "./schema/models.js";
+export {
   promptImageSchema,
+  type PromptImage,
+  MAX_PROMPT_IMAGES,
+  MAX_PROMPT_FILES,
+  MAX_PROMPT_IMAGE_BYTES,
+  MAX_PROMPT_FILE_BYTES,
+  MAX_PROMPT_TOTAL_BYTES,
+  promptImagesSchema,
   promptFileSchema,
-]);
-export type PromptAttachment = z.infer<typeof promptAttachmentSchema>;
-export const MAX_PROMPT_ATTACHMENTS = 30;
-export const promptAttachmentsSchema = z
-  .array(promptAttachmentSchema)
-  .superRefine((items, context) => {
-    // Local references carry metadata; inline payloads retain transport limits.
-    const attachments = items.filter((item) => !isAttachmentReference(item));
-    const imageCount = attachments.filter((attachment) =>
-      attachmentIsImage(attachment),
-    ).length;
-    if (imageCount > MAX_PROMPT_IMAGES) {
-      context.addIssue({
-        code: "custom",
-        message: `Attach no more than ${MAX_PROMPT_IMAGES} images.`,
-      });
-    }
-    if (attachments.length - imageCount > MAX_PROMPT_FILES) {
-      context.addIssue({
-        code: "custom",
-        message: `Attach no more than ${MAX_PROMPT_FILES} documents.`,
-      });
-    }
-    if (
-      attachments.reduce((total, item) => total + attachmentBytes(item), 0) >
-      MAX_PROMPT_TOTAL_BYTES
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Attachments exceed the 200 MiB total limit.",
-      });
-    }
-    for (const item of attachments) {
-      if (
-        attachmentIsImage(item) &&
-        attachmentBytes(item) > MAX_PROMPT_IMAGE_BYTES
-      ) {
-        context.addIssue({
-          code: "custom",
-          message: `Image is larger than 10 MiB: ${item.name}`,
-        });
-      }
-    }
-    const fileCharacters = attachments.reduce(
-      (total, attachment) =>
-        total +
-        ("type" in attachment && attachment.type === "file"
-          ? attachment.content.length
-          : 0),
-      0,
-    );
-    if (fileCharacters > 400_000) {
-      context.addIssue({
-        code: "custom",
-        message: "Attached file contents exceed the 400,000 character limit.",
-      });
-    }
-  });
-
-export const thinkingLevelSchema = z.enum([
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-]);
-export type ThinkingLevel = z.infer<typeof thinkingLevelSchema>;
-
-export const modelSelectionSchema = z.object({
-  providerId: z.string().min(1),
-  modelId: z.string().min(1),
-  thinkingLevel: thinkingLevelSchema,
-  ultraMode: z.boolean().optional(),
-});
-export type ModelSelection = z.infer<typeof modelSelectionSchema>;
-
-export const workspaceTargetSchema = z.enum([
-  "local",
-  "managed-worktree",
-  "permanent-worktree",
-]);
-export type WorkspaceTarget = z.infer<typeof workspaceTargetSchema>;
-
-export const reviewScopeSchema = z.enum([
-  "turn",
-  "last-turn",
-  "unstaged",
-  "staged",
-  "branch",
-]);
-export type ReviewScope = z.infer<typeof reviewScopeSchema>;
-
-export const reviewActionSchema = z.enum(["stage", "unstage", "revert"]);
-export type ReviewAction = z.infer<typeof reviewActionSchema>;
-
-export const approvalScopeSchema = z.enum(["once", "session", "project"]);
-export type ApprovalScope = z.infer<typeof approvalScopeSchema>;
-
-export const riskLevelSchema = z.enum(["low", "medium", "high", "critical"]);
-export type RiskLevel = z.infer<typeof riskLevelSchema>;
-
-export const modelRiskLevelSchema = z.enum(["low", "medium", "high"]);
-export type ModelRiskLevel = z.infer<typeof modelRiskLevelSchema>;
-
-export const modelApprovalDecisionSchema = z.object({
-  risk: modelRiskLevelSchema,
-  explicitUserRequest: z.boolean(),
-  reason: z.string().trim().min(1).max(500),
-});
-export type ModelApprovalDecision = z.infer<typeof modelApprovalDecisionSchema>;
-
-export const userMessagePayloadSchema = z.object({
-  type: z.literal("user.message"),
-  messageId: z.string().min(1),
-  text: z.string(),
-});
-
-export const turnStartedPayloadSchema = z.object({
-  type: z.literal("turn.started"),
-  mode: runModeSchema,
-  model: z.string().optional(),
-});
-
-export const turnActivityPayloadSchema = z.object({
-  type: z.literal("turn.activity"),
-  phase: z.enum([
-    "queued",
-    "requesting-model",
-    "thinking",
-    "reconnecting",
-    "recovered",
-    "interrupted",
-  ]),
-  queueDepth: z.number().int().nonnegative().optional(),
-  toolCount: z.number().int().nonnegative().optional(),
-  kind: z
-    .enum([
-      "connection",
-      "stream-stalled",
-      "rate-limit",
-      "provider",
-      "process-restart",
-    ])
-    .optional(),
-  attempt: z.number().int().positive().optional(),
-  maxAttempts: z.number().int().positive().optional(),
-  delayMs: z.number().int().nonnegative().optional(),
-  attemptId: z.string().min(1).optional(),
-});
-export type TurnActivityPayload = z.infer<typeof turnActivityPayloadSchema>;
-
-export const messageSupersededPayloadSchema = z.object({
-  type: z.literal("message.superseded"),
-  messageId: z.string().min(1),
-  attemptId: z.string().min(1),
-});
-
-export const messageDeltaPayloadSchema = z.object({
-  type: z.literal("message.part.delta"),
-  partId: z.string().min(1),
-  partType: z.enum(["text", "thinking"]),
-  delta: z.string(),
-});
-
-export const toolStartedPayloadSchema = z.object({
-  type: z.literal("tool.started"),
-  parentToolCallId: z.string().min(1).optional(),
-  toolCallId: z.string().min(1),
-  toolName: z.string().min(1),
-  input: z.unknown().optional(),
-});
-export type ToolStartedPayload = z.infer<typeof toolStartedPayloadSchema>;
-
-export const toolUpdatedPayloadSchema = z.object({
-  type: z.literal("tool.updated"),
-  toolCallId: z.string().min(1),
-  output: z.string(),
-});
-
-export const toolCompletedPayloadSchema = z.object({
-  type: z.literal("tool.completed"),
-  structuredContent: z.unknown().optional(),
-  images: z
-    .array(
-      z.object({
-        data: z.string(),
-        mimeType: z.enum([
-          "image/png",
-          "image/jpeg",
-          "image/webp",
-          "image/gif",
-        ]),
-      }),
-    )
-    .optional(),
-  toolCallId: z.string().min(1),
-  output: z.string().optional(),
-  isError: z.boolean(),
-});
-
-export const approvalRequestedPayloadSchema = z.object({
-  type: z.literal("approval.requested"),
-  approvalId: z.string().min(1),
-  nonce: z.string().min(16),
-  summary: z.string().min(1),
-  command: z.string().optional(),
-  paths: z.array(z.string()).default([]),
-  network: z.array(z.string()).default([]),
-  risk: riskLevelSchema,
-  allowedScopes: z.array(approvalScopeSchema).min(1),
-  source: z.enum(["user", "model", "policy", "automation"]).optional(),
-  modelRecommendation: z.enum(["approve", "deny"]).optional(),
-  modelReason: z.string().trim().min(1).max(500).optional(),
-  actorAgentId: z.string().min(1).optional(),
-});
-export type ApprovalRequestedPayload = z.infer<
-  typeof approvalRequestedPayloadSchema
->;
-
-export const approvalResolvedPayloadSchema = z
-  .object({
-    type: z.literal("approval.resolved"),
-    approvalId: z.string().min(1),
-    nonce: z.string().min(16),
-    approved: z.boolean(),
-    skipped: z.literal(true).optional(),
-    feedback: z.string().trim().min(1).max(2_000).optional(),
-    scope: approvalScopeSchema,
-    source: z.enum(["user", "model", "policy", "automation"]).optional(),
-  })
-  .superRefine((value, context) => {
-    if (
-      ((value.skipped || value.feedback) &&
-        (value.approved || value.scope !== "once")) ||
-      (value.skipped && value.feedback)
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Skip and feedback cannot grant approval or be combined",
-      });
-    }
-  });
-
-export const MAX_USER_INPUT_QUESTIONS = 3;
-export const USER_INPUT_MIN_OPTIONS = 2;
-export const USER_INPUT_MAX_OPTIONS = 3;
-export const USER_INPUT_QUESTION_ID_MAX_LENGTH = 200;
-
-export const userInputOptionSchema = z.object({
-  label: z.string().trim().min(1).max(80),
-  description: z.string().trim().min(1).max(240),
-  recommended: z.boolean(),
-});
-export type UserInputOption = z.infer<typeof userInputOptionSchema>;
-
-const userInputOptionsSchema = z
-  .array(userInputOptionSchema)
-  .min(USER_INPUT_MIN_OPTIONS)
-  .max(USER_INPUT_MAX_OPTIONS)
-  .superRefine((options, context) => {
-    if (options.filter((option) => option.recommended).length !== 1) {
-      context.addIssue({
-        code: "custom",
-        message: "Exactly one user-input option must be recommended",
-      });
-    }
-    const labels = new Set(options.map((option) => option.label));
-    if (labels.size !== options.length) {
-      context.addIssue({
-        code: "custom",
-        message: "User-input option labels must be unique",
-      });
-    }
-  });
-
-export const userInputSingleQuestionRequestedPayloadSchema = z
-  .object({
-    type: z.literal("user-input.requested"),
-    kind: z.literal("single-question").optional(),
-    requestId: z.string().min(1),
-    nonce: z.string().min(16),
-    header: z.string().trim().min(1).max(12),
-    question: z.string().trim().min(1).max(1_000),
-    options: userInputOptionsSchema,
-    expiresAt: z.string().datetime({ offset: true }),
-    // Declared so the superRefine below can observe the key. Strip (not
-    // strict) semantics keep legacy logs replayable: rows persisted by older
-    // builds may carry keys this schema no longer knows, and the single
-    // write-side gate (store appendEventsCore) already strips unknown keys
-    // when events are first persisted.
-    questions: z.unknown().optional(),
-  })
-  .superRefine((payload, context) => {
-    // Routing-hole guard: a payload carrying multi-question content must not
-    // be silently accepted as single-question with its questions array
-    // stripped. Presence of the key, not its value: IPC structured clone
-    // preserves an explicit `questions: undefined` key and zod keeps the
-    // declared key in the parse output, so a value check
-    // (questions !== undefined) would wave the explicit-undefined form
-    // through as single-question.
-    if ("questions" in payload) {
-      context.addIssue({
-        code: "custom",
-        message:
-          "Single-question user-input requests must not carry a questions array",
-      });
-    }
-  });
-export const userInputRequestedPayloadSchema =
-  userInputSingleQuestionRequestedPayloadSchema;
-export type UserInputRequestedPayload = Omit<
-  z.infer<typeof userInputRequestedPayloadSchema>,
-  "kind" | "questions"
->;
-
-export const userInputQuestionSchema = z.object({
-  questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
-  question: z.string().trim().min(1).max(1_000),
-  options: userInputOptionsSchema,
-  expiresAt: z.string().datetime({ offset: true }),
-});
-export type UserInputQuestion = z.infer<typeof userInputQuestionSchema>;
-
-export const userInputMultiQuestionRequestedPayloadSchema = z
-  .object({
-    type: z.literal("user-input.requested"),
-    kind: z.literal("multi-question"),
-    requestId: z.string().min(1),
-    nonce: z.string().min(16),
-    header: z.string().trim().min(1).max(12),
-    questions: z
-      .array(userInputQuestionSchema)
-      .min(1)
-      .max(MAX_USER_INPUT_QUESTIONS),
-  })
-  .superRefine((payload, context) => {
-    const questionIds = payload.questions.map(
-      (question) => question.questionId,
-    );
-    if (new Set(questionIds).size !== questionIds.length) {
-      context.addIssue({
-        code: "custom",
-        message: "User-input question IDs must be unique within a request",
-      });
-    }
-  });
-export type UserInputMultiQuestionRequestedPayload = z.infer<
-  typeof userInputMultiQuestionRequestedPayloadSchema
->;
-
-export const userInputSingleQuestionResolvedPayloadSchema = z.object({
-  type: z.literal("user-input.resolved"),
-  kind: z.literal("single-question").optional(),
-  requestId: z.string().min(1),
-  nonce: z.string().min(16),
-  skipped: z.literal(true).optional(),
-  answer: z.string().max(2_000),
-  selectedOption: z
-    .number()
-    .int()
-    .min(0)
-    .max(USER_INPUT_MAX_OPTIONS - 1)
-    .optional(),
-  source: z.enum(["user", "timeout", "cancelled"]),
-});
-export const userInputResolvedPayloadSchema =
-  userInputSingleQuestionResolvedPayloadSchema;
-export type UserInputResolvedPayload = Omit<
-  z.infer<typeof userInputResolvedPayloadSchema>,
-  "kind"
->;
-
-export const userInputMultiQuestionResolvedPayloadSchema = z
-  .object({
-    type: z.literal("user-input.resolved"),
-    kind: z.literal("multi-question"),
-    requestId: z.string().min(1),
-    nonce: z.string().min(16),
-    skipped: z.literal(true).optional(),
-    questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
-    // The chosen option *label*, deliberately named differently from the
-    // single-question resolved payload's selectedOption numeric index so the
-    // two semantics never share a field name.
-    selectedOptionLabel: z.string().trim().min(1).max(80).optional(),
-    customAnswer: z.string().trim().min(1).max(2_000).optional(),
-    source: z.enum(["user", "timeout", "cancelled"]),
-  })
-  .superRefine((payload, context) => {
-    if (
-      Number(payload.selectedOptionLabel !== undefined) +
-        Number(payload.customAnswer !== undefined) +
-        Number(payload.skipped === true) !==
-      1
-    ) {
-      context.addIssue({
-        code: "custom",
-        message:
-          "Resolve one multi-question item with one offered option label or one custom answer",
-      });
-    }
-  });
-export type UserInputMultiQuestionResolvedPayload = z.infer<
-  typeof userInputMultiQuestionResolvedPayloadSchema
->;
-
-export const fileChangedPayloadSchema = z.object({
-  type: z.literal("file.changed"),
-  path: z.string().min(1),
-  operation: z.enum(["create", "update", "delete"]),
-});
-
-export const turnChangeFileSchema = z.object({
-  path: z.string().min(1),
-  status: z.enum(["added", "modified", "deleted"]),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-  binary: z.boolean(),
-});
-export type TurnChangeFile = z.infer<typeof turnChangeFileSchema>;
-
-export const turnChangeSetUpdatedPayloadSchema = z.object({
-  type: z.literal("turn.change-set.updated"),
-  status: z.enum(["ready", "undone", "unavailable"]),
-  files: z.array(turnChangeFileSchema),
-  additions: z.number().int().nonnegative(),
-  deletions: z.number().int().nonnegative(),
-  undoAvailable: z.boolean(),
-  message: z.string().trim().min(1).max(1_000).optional(),
-});
-export type TurnChangeSetUpdatedPayload = z.infer<
-  typeof turnChangeSetUpdatedPayloadSchema
->;
-
-export const terminalOutputPayloadSchema = z.object({
-  type: z.literal("terminal.output"),
-  terminalId: z.string().min(1),
-  data: z.string(),
-});
-
-export const childAgentPayloadSchema = z.object({
-  type: z.literal("child-agent.status"),
-  agentId: z.string().min(1),
-  label: z.string().min(1),
-  teamId: z.string().min(1).optional(),
-  parentAgentId: z.string().min(1).optional(),
-  depth: z.number().int().min(1).max(5).optional(),
-  subtreeStatus: z
-    .enum(["leaf", "running", "blocked", "ready", "integrated"])
-    .optional(),
-  directChildCount: z.number().int().min(0).max(8).optional(),
-  role: z.string().trim().min(1).max(120).optional(),
-  dependsOnAgentIds: z.array(z.string().min(1)).max(8).optional(),
-  writePaths: z.array(z.string().min(1).max(1_024)).max(32).optional(),
-  required: z.boolean().optional(),
-  coordinationStatus: z
-    .enum(["waiting-dependency", "working", "blocked", "ready-for-integration"])
-    .optional(),
-  task: z
-    .string()
-    .max(32 * 1024)
-    .optional(),
-  status: z.enum([
-    "queued",
-    "running",
-    "blocked",
-    "cancelling",
-    "completed",
-    "failed",
-    "cancelled",
-  ]),
-  health: z.enum(["healthy", "suspect", "stalled"]).optional(),
-  startedAt: z.string().datetime().optional(),
-  updatedAt: z.string().datetime().optional(),
-  lastActivityAt: z.string().datetime().optional(),
-  currentTool: z.string().min(1).optional(),
-  currentToolStartedAt: z.string().datetime().optional(),
-  attempt: z.number().int().positive().optional(),
-  activity: z
-    .string()
-    .max(64 * 1024)
-    .optional(),
-  activityDelta: z
-    .string()
-    .max(8 * 1024)
-    .optional(),
-  output: z
-    .string()
-    .max(64 * 1024)
-    .optional(),
-  error: z
-    .string()
-    .max(4 * 1024)
-    .optional(),
-  /**
-   * Custom sub-agent instance identity (D#152): which definition/revision
-   * this instance runs, its resolved model, and the invocation id for
-   * explicit user references. Metadata only — never the instructions.
-   */
-  customAgent: z
-    .object({
-      definitionId: z.string().min(1),
-      definitionRevision: z.number().int().positive(),
-      name: z.string().min(1),
-      providerId: z.string().min(1),
-      modelId: z.string().min(1),
-      invocationSource: z.enum([
-        "user-explicit",
-        "model-explicit",
-        "model-automatic",
-      ]),
-      invocationId: z.string().min(1).optional(),
-    })
-    .optional(),
-});
-export type ChildAgentPayload = z.infer<typeof childAgentPayloadSchema>;
-
-/**
- * Routing audit record (D#152 PR5): one durable event per custom-agent
- * dispatch decision — acceptance, P1 correction, trigger advisory,
- * free-role fallback, and catalog overflow. invocationSource (who asked)
- * and selectionBasis (why this definition) are recorded separately so a
- * model's semantic choice is never miscounted as a deterministic user
- * invocation. Never carries instructions or task text.
- */
-export const customAgentRoutePayloadSchema = z.object({
-  type: z.literal("custom-agent.route"),
-  schemaVersion: z.literal(1),
-  decision: z.enum([
-    "accepted",
-    "reference-required",
-    "advisory",
-    "free-role",
-    "catalog-disabled",
-  ]),
-  invocationSource: z.enum([
-    "user-explicit",
-    "model-explicit",
-    "model-automatic",
-    "none",
-  ]),
-  selectionBasis: z.enum([
-    "explicit-id",
-    "role-exact",
-    "trigger-words",
-    "none",
-  ]),
-  parentAgentId: z.string().min(1),
-  projectId: z.string().min(1).nullable(),
-  /** Stable hash of the turn catalog's sorted definitionId@revision pairs. */
-  catalogId: z.string().min(1),
-  catalogSize: z.number().int().nonnegative(),
-  candidates: z
-    .array(
-      z.object({
-        definitionId: z.string().min(1),
-        revision: z.number().int().positive(),
-        name: z.string().min(1),
-      }),
-    )
-    .max(32),
-  selectedDefinitionId: z.string().min(1).optional(),
-  selectedRevision: z.number().int().positive().optional(),
-  instanceId: z.string().min(1).optional(),
-  /** A CustomAgentErrorCode when the decision rejected the request. */
-  errorCode: z.string().min(1).optional(),
-  model: z
-    .object({
-      providerId: z.string().min(1),
-      modelId: z.string().min(1),
-    })
-    .optional(),
-  capabilities: z.array(z.string().min(1)).max(64).optional(),
-});
-export type CustomAgentRoutePayload = z.infer<
-  typeof customAgentRoutePayloadSchema
->;
-
-export const agentTeamStatusPayloadSchema = z.object({
-  type: z.literal("agent-team.status"),
-  teamId: z.string().min(1),
-  mission: z.string().trim().min(1).max(2_000),
-  status: z.enum([
-    "forming",
-    "running",
-    "blocked",
-    "integrating",
-    "completed",
-    "aborted",
-  ]),
-  memberAgentIds: z.array(z.string().min(1)).max(64),
-  requiredAgentIds: z.array(z.string().min(1)).max(64),
-  maxMembers: z.number().int().min(2).max(64),
-  maxDepth: z.number().int().min(1).max(5).optional(),
-  spawnBudgetRemaining: z.number().int().min(0).max(128).optional(),
-  updatedAt: z.string().datetime(),
-  error: z
-    .string()
-    .trim()
-    .min(1)
-    .max(4 * 1024)
-    .optional(),
-});
-export type AgentTeamStatusPayload = z.infer<
-  typeof agentTeamStatusPayloadSchema
->;
-
-export const agentTeamMessagePayloadSchema = z.object({
-  type: z.literal("agent-team.message"),
-  teamId: z.string().min(1),
-  messageId: z.string().min(1),
-  sequence: z.number().int().positive(),
-  fromAgentId: z.string().min(1),
-  recipient: z.string().min(1),
-  kind: z.enum(["finding", "request", "blocker", "handoff"]),
-  content: z
-    .string()
-    .trim()
-    .min(1)
-    .max(8 * 1024),
-  createdAt: z.string().datetime(),
-});
-export type AgentTeamMessagePayload = z.infer<
-  typeof agentTeamMessagePayloadSchema
->;
-
-export const mcpToolUsedPayloadSchema = z.object({
-  type: z.literal("mcp.tool.used"),
-  toolCallId: z.string().min(1).max(200),
-  serverId: z.string().min(1).max(200),
-  serverName: z.string().min(1).max(200),
-  toolName: z.string().min(1).max(200),
-  agentId: z.string().min(1).max(200),
-});
-export type McpToolUsedPayload = z.infer<typeof mcpToolUsedPayloadSchema>;
-
-const taskSourceHttpUrlSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(4096)
-  .url()
-  .refine((value) => {
-    const url = new URL(value);
-    return (
-      (url.protocol === "http:" || url.protocol === "https:") &&
-      !url.username &&
-      !url.password
-    );
-  }, "Task source URL must use HTTP(S) without embedded credentials");
-
-const taskAttachmentSourceAddedPayloadSchema = z.object({
-  type: z.literal("task.source.added"),
-  sourceId: z.string().min(1).max(200),
-  name: z.string().trim().min(1).max(255),
-  mimeType: z.string().trim().min(1).max(120),
-  kind: z.enum(["file", "image"]),
-  attachment: promptAttachmentReferenceSchema.optional(),
-});
-
-const taskWebSearchSourceAddedPayloadSchema = z.object({
-  type: z.literal("task.source.added"),
-  sourceId: z.string().min(1).max(200),
-  kind: z.literal("web-search"),
-  query: z.string().trim().min(1).max(500),
-  engine: z.string().trim().min(1).max(120),
-  resultCount: z.number().int().min(0).max(10),
-  searchUrl: taskSourceHttpUrlSchema,
-  links: z
-    .array(
-      z.object({
-        title: z.string().trim().min(1).max(500),
-        url: taskSourceHttpUrlSchema,
-      }),
-    )
-    .max(10),
-});
-
-export const taskSourceAddedPayloadSchema = z.discriminatedUnion("kind", [
-  taskAttachmentSourceAddedPayloadSchema,
-  taskWebSearchSourceAddedPayloadSchema,
-]);
-export type TaskSourceAddedPayload = z.infer<
-  typeof taskSourceAddedPayloadSchema
->;
-
-export const contextUsagePayloadSchema = z.object({
-  type: z.literal("context.usage"),
-  tokens: z.number().int().nonnegative().nullable(),
-  contextWindow: contextWindowSchema,
-  compacting: z.boolean(),
-  compactionResult: z
-    .object({
-      status: z.enum(["completed", "failed", "cancelled"]),
-      error: z.string().optional(),
-    })
-    .optional(),
-  estimated: z.boolean().optional(),
-  source: z
-    .enum(["provider", "local-estimate", "compaction-estimate"])
-    .optional(),
-  providerInputTokens: z.number().int().nonnegative().optional(),
-  breakdown: z
-    .object({
-      systemPromptTokens: z.number().int().nonnegative(),
-      systemToolTokens: z.number().int().nonnegative(),
-      mcpToolTokens: z.number().int().nonnegative(),
-      customAgentTokens: z.number().int().nonnegative(),
-      memoryFileTokens: z.number().int().nonnegative(),
-      skillTokens: z.number().int().nonnegative(),
-      messageTokens: z.number().int().nonnegative(),
-      freeSpaceTokens: z.number().int().nonnegative(),
-      autocompactBufferTokens: z.number().int().nonnegative(),
-    })
-    .optional(),
-  footprint: z
-    .object({
-      textBytes: z.number().int().nonnegative(),
-      imageBytes: z.number().int().nonnegative(),
-      imageCount: z.number().int().nonnegative(),
-      toolSchemaBytes: z.number().int().nonnegative(),
-      largestToolResultBytes: z.number().int().nonnegative(),
-    })
-    .optional(),
-});
-export type ContextUsagePayload = z.infer<typeof contextUsagePayloadSchema>;
-
-export const assistantUsagePayloadSchema = z.object({
-  type: z.literal("assistant.usage"),
-  providerId: z.string().min(1).optional(),
-  modelId: z.string().min(1).optional(),
-  inputTokens: z.number().int().nonnegative(),
-  outputTokens: z.number().int().nonnegative(),
-  cacheReadTokens: z.number().int().nonnegative(),
-  cacheWriteTokens: z.number().int().nonnegative(),
-  totalTokens: z.number().int().nonnegative(),
-  cacheReadReported: z.boolean().optional(),
-  cacheWriteReported: z.boolean().optional(),
-  cachePolicy: z.enum(["disabled", "short", "long", "explicit-30m"]).optional(),
-  cachePolicyReason: z
-    .enum([
-      "explicitly-disabled",
-      "official-gpt-5.6",
-      "official-gpt-5.5",
-      "official-legacy-first-turn",
-      "official-legacy-persistent",
-      "child-agent",
-      "non-official-endpoint",
-      "unsupported-model",
-    ])
-    .optional(),
-  cacheKeyFingerprint: z.string().length(16).optional(),
-  systemPromptFingerprint: z.string().length(16).optional(),
-  toolSchemaFingerprint: z.string().length(16).optional(),
-  stablePrefixTokens: z.number().int().nonnegative().optional(),
-  cacheKeyRequestsPerMinute: z.number().int().nonnegative().optional(),
-  cacheKeyRateWarning: z.boolean().optional(),
-});
-export type AssistantUsagePayload = z.infer<typeof assistantUsagePayloadSchema>;
-
-export const threadGoalStatusSchema = z.enum([
-  "active",
-  "paused",
-  "blocked",
-  "usageLimited",
-  "budgetLimited",
-  "complete",
-]);
-export type ThreadGoalStatus = z.infer<typeof threadGoalStatusSchema>;
-
-export const threadGoalSchema = z.object({
-  threadId: z.string().min(1),
-  goalId: z.string().min(1),
-  objective: z.string().trim().min(1).max(4_000),
-  status: threadGoalStatusSchema,
-  tokenBudget: z.number().int().positive().optional(),
-  tokensUsed: z.number().int().nonnegative(),
-  timeUsedSeconds: z.number().nonnegative(),
-  revision: z.number().int().positive(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
-});
-export type ThreadGoal = z.infer<typeof threadGoalSchema>;
-
-export const threadGoalUpdatedPayloadSchema = z.object({
-  type: z.literal("thread.goal.updated"),
-  goal: threadGoalSchema,
-});
-
-export const threadGoalClearedPayloadSchema = z.object({
-  type: z.literal("thread.goal.cleared"),
-  goalId: z.string().min(1),
-  revision: z.number().int().positive(),
-});
-
-export const queueUpdatedPayloadSchema = z.object({
-  type: z.literal("queue.updated"),
-  steering: z.array(z.string()),
-  followUp: z.array(z.string()),
-});
-export type QueueUpdatedPayload = z.infer<typeof queueUpdatedPayloadSchema>;
-
-export const queueRecoveredPayloadSchema = z.object({
-  type: z.literal("queue.recovered"),
-  messages: z.array(z.string().min(1)).min(1),
-  items: z
-    .array(
-      z.object({
-        text: z.string().min(1),
-        attachments: promptAttachmentsSchema.optional(),
-      }),
-    )
-    .min(1)
-    .optional(),
-});
-export type QueueRecoveredPayload = z.infer<typeof queueRecoveredPayloadSchema>;
-
-export const turnCompletedPayloadSchema = z.object({
-  composerPrediction: z
-    .string()
-    .min(1)
-    .refine((value) => Array.from(value).length <= 120)
-    .optional(),
-  type: z.literal("turn.completed"),
-  reason: z.enum(["completed", "cancelled"]),
-  finalPartId: z.string().min(1).optional(),
-  durationMs: z.number().int().nonnegative().optional(),
-  backgroundProcessesRunning: z.boolean().optional(),
-});
-
-export const turnFailedPayloadSchema = z.object({
-  type: z.literal("turn.failed"),
-  message: z.string().min(1),
-  code: z.string().optional(),
-  durationMs: z.number().int().nonnegative().optional(),
-  backgroundProcessesRunning: z.boolean().optional(),
-});
-
-export const taskNotificationStateSchema = z.object({
-  revision: z.number().int().nonnegative(),
-  seq: z.number().int().min(-1),
-  unread: z.boolean(),
-  kind: z
-    .enum([
-      "assigned",
-      "completed",
-      "failed",
-      "input-required",
-      "approval-required",
-    ])
-    .optional(),
-});
-export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
-
-export const proposedPlanSchema = z.object({
-  planId: z.string().min(1),
-  revision: z.number().int().positive(),
-  sourceTurnId: z.string().min(1),
-  title: z.string().trim().min(1).max(200),
-  markdown: z.string().trim().min(1).max(100_000),
-  actionable: z.boolean(),
-});
-export type ProposedPlan = z.infer<typeof proposedPlanSchema>;
-export const planAcceptanceSchema = z.object({
-  planId: z.string().min(1),
-  revision: z.number().int().positive(),
-  mode: z.enum(["work", "codemode"]),
-});
-export type PlanAcceptance = z.infer<typeof planAcceptanceSchema>;
-
-export const agentPayloadSchema = z.discriminatedUnion("type", [
-  proposedPlanSchema.extend({ type: z.literal("plan.proposed") }),
-  planAcceptanceSchema.extend({
-    type: z.literal("plan.accepted"),
-    executionTurnId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("plan.superseded"),
-    planId: z.string().min(1),
-    revision: z.number().int().positive(),
-  }),
-  z
-    .object({ type: z.literal("artifact.event"), event: artifactEventSchema })
-    .strict(),
-  z
-    .object({
-      type: z.literal("im.group.activity"),
-      taskId: z.string().min(1),
-      phase: z.enum([
-        "assigned",
-        "completed",
-        "failed",
-        "input-required",
-        "approval-required",
-      ]),
-    })
-    .strict(),
-  z.object({
-    type: z.literal("thread.notification.updated"),
-    state: taskNotificationStateSchema,
-    threadStatus: z
-      .enum(["idle", "running", "waiting-approval", "failed"])
-      .optional(),
-  }),
+  type PromptFile,
+  promptAttachmentReferenceSchema,
+  type PromptAttachmentReference,
+  isAttachmentReference,
+  attachmentIsImage,
+  attachmentBytes,
+  promptAttachmentSchema,
+  type PromptAttachment,
+  MAX_PROMPT_ATTACHMENTS,
+  promptAttachmentsSchema,
+} from "./schema/attachments.js";
+export {
+  workspaceTargetSchema,
+  type WorkspaceTarget,
+  projectSchema,
+  type Project,
+  threadSchema,
+  type Thread,
+  taskWorktreeSchema,
+  type TaskWorktree,
+  type AppSnapshot,
+} from "./schema/workspace.js";
+export {
+  reviewScopeSchema,
+  type ReviewScope,
+  reviewActionSchema,
+  type ReviewAction,
+  reviewQuerySchema,
+  type ReviewQuery,
+  reviewMutationInputSchema,
+  type ReviewMutationInput,
+} from "./schema/review.js";
+export {
+  approvalScopeSchema,
+  type ApprovalScope,
+  riskLevelSchema,
+  type RiskLevel,
+  modelRiskLevelSchema,
+  type ModelRiskLevel,
+  modelApprovalDecisionSchema,
+  type ModelApprovalDecision,
+  approvalRequestedPayloadSchema,
+  type ApprovalRequestedPayload,
+  approvalResolvedPayloadSchema,
+  approvalResolutionSchema,
+  type ApprovalResolution,
+} from "./schema/approvals.js";
+export {
   userMessagePayloadSchema,
   turnStartedPayloadSchema,
   turnActivityPayloadSchema,
+  type TurnActivityPayload,
   messageSupersededPayloadSchema,
   messageDeltaPayloadSchema,
-  toolStartedPayloadSchema,
-  toolUpdatedPayloadSchema,
-  toolCompletedPayloadSchema,
-  approvalRequestedPayloadSchema,
-  approvalResolvedPayloadSchema,
-  z.discriminatedUnion("kind", [
-    userInputMultiQuestionRequestedPayloadSchema,
-    userInputSingleQuestionRequestedPayloadSchema,
-  ]),
-  z.discriminatedUnion("kind", [
-    userInputMultiQuestionResolvedPayloadSchema,
-    userInputSingleQuestionResolvedPayloadSchema,
-  ]),
-  fileChangedPayloadSchema,
-  turnChangeSetUpdatedPayloadSchema,
-  terminalOutputPayloadSchema,
-  childAgentPayloadSchema,
-  customAgentRoutePayloadSchema,
-  agentTeamStatusPayloadSchema,
-  agentTeamMessagePayloadSchema,
-  mcpToolUsedPayloadSchema,
-  taskSourceAddedPayloadSchema,
-  contextUsagePayloadSchema,
-  assistantUsagePayloadSchema,
-  threadGoalUpdatedPayloadSchema,
-  threadGoalClearedPayloadSchema,
-  queueUpdatedPayloadSchema,
-  queueRecoveredPayloadSchema,
   turnCompletedPayloadSchema,
   turnFailedPayloadSchema,
-]);
-export type AgentPayload = z.infer<typeof agentPayloadSchema>;
-
-export const agentEventSchema = z.object({
-  protocolVersion: z.literal(PROTOCOL_VERSION),
-  eventId: z.string().min(1),
-  threadId: z.string().min(1),
-  turnId: z.string().optional(),
-  seq: z.number().int().nonnegative(),
-  timestamp: z.string().datetime({ offset: true }),
-  payload: agentPayloadSchema,
-});
-export type AgentEvent = z.infer<typeof agentEventSchema>;
-
-export const projectSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  path: z.string().min(1),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
-});
-export type Project = z.infer<typeof projectSchema>;
-
-export const threadSchema = z.object({
-  notification: taskNotificationStateSchema.optional(),
-  id: z.string().min(1),
-  projectId: z.string().min(1).optional(),
-  title: z.string().min(1),
-  goal: threadGoalSchema.optional(),
-  mode: runModeSchema,
-  target: workspaceTargetSchema,
-  status: z.enum(["idle", "running", "waiting-approval", "failed"]),
-  sessionFile: z.string().optional(),
-  modelSelection: modelSelectionSchema.optional(),
-  contextWindow: z.number().int().positive().optional(),
-  pinned: z.boolean(),
-  archived: z.boolean(),
-  /** S1 design plugins: type snapshot frozen at thread creation (§6.1). */
-  typeBinding: pluginTypeBindingSchema.optional(),
-  /** @deprecated Accepted for old clients; Design uses ordinary mode/tool policy. */
-  executionProfile: z.string().optional(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
-});
-export type Thread = z.infer<typeof threadSchema>;
-
-export const taskWorktreeSchema = z.object({
-  id: z.string().min(1),
-  threadId: z.string().min(1),
-  projectId: z.string().min(1),
-  path: z.string().min(1),
-  target: z.enum(["managed-worktree", "permanent-worktree"]),
-  head: z.string().min(1),
-  branch: z.string().min(1).optional(),
-  status: z.enum(["active", "removed", "missing"]),
-  recoveryPath: z.string().min(1).optional(),
-  createdAt: z.string().datetime({ offset: true }),
-  updatedAt: z.string().datetime({ offset: true }),
-});
-export type TaskWorktree = z.infer<typeof taskWorktreeSchema>;
-
-export interface AppSnapshot {
-  projects: Project[];
-  threads: Thread[];
-  worktrees: TaskWorktree[];
-  events: Record<string, AgentEvent[]>;
-  locale: AppLocale;
-  platform: "win32" | "darwin" | "other";
-  sandbox: {
-    available: boolean;
-    implementation: string;
-  };
-}
-
-export const threadCommandSchema = z.discriminatedUnion("type", [
-  planAcceptanceSchema.extend({
-    type: z.literal("plan.accept"),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("plan.revise"),
-    threadId: z.string().min(1),
-    text: z.string().trim().min(1).max(100_000),
-    attachments: z.array(promptAttachmentSchema).optional(),
-  }),
-  z.object({
-    type: z.literal("thread.create"),
-    projectId: z.string().min(1).optional(),
-    mode: runModeSchema,
-    target: workspaceTargetSchema,
-  }),
-  z.object({
-    type: z.literal("thread.model.set"),
-    threadId: z.string().min(1),
-    selection: modelSelectionSchema,
-    contextWindow: z.number().int().positive(),
-  }),
-  z.object({
-    type: z.literal("thread.archive"),
-    threadId: z.string().min(1),
-    archived: z.boolean(),
-  }),
-  z.object({
-    type: z.literal("thread.delete"),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("thread.rename"),
-    threadId: z.string().min(1),
-    title: z.string().trim().min(1).max(160),
-  }),
-  z
-    .object({
-      type: z.literal("thread.goal.set"),
-      threadId: z.string().min(1),
-      objective: z.string().trim().min(1).max(100_000).optional(),
-      status: threadGoalStatusSchema.optional(),
-      tokenBudget: z.number().int().positive().nullable().optional(),
-      expectedGoalId: z.string().min(1).optional(),
-      expectedRevision: z.number().int().positive().optional(),
-    })
-    .refine(
-      (command) =>
-        command.objective !== undefined ||
-        command.status !== undefined ||
-        command.tokenBudget !== undefined,
-      { message: "A Goal mutation must set at least one field." },
-    ),
-  z.object({
-    type: z.literal("thread.goal.pause"),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("thread.goal.resume"),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("thread.goal.clear"),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("thread.fork"),
-    threadId: z.string().min(1),
-    entryId: z.string().min(1).optional(),
-  }),
-  z.object({
-    type: z.literal("thread.compact"),
-    threadId: z.string().min(1),
-    instructions: z.string().trim().min(1).max(4_000).optional(),
-  }),
-  z.object({ type: z.literal("turn.cancel"), threadId: z.string().min(1) }),
-  z.object({
-    type: z.enum(["turn.queue.clear", "turn.queue.steer"]),
-    threadId: z.string().min(1),
-  }),
-  z.object({
-    type: z.literal("turn.queue.steer-item"),
-    threadId: z.string().min(1),
-    followUpIndex: z.number().int().nonnegative(),
-    expectedFollowUp: z.array(z.string().min(1)).min(1),
-  }),
-  z.object({
-    type: z.literal("turn.queue.replace"),
-    threadId: z.string().min(1),
-    expectedFollowUp: z.array(z.string().min(1)).min(1),
-    followUp: z.array(
-      z.object({
-        sourceIndex: z.number().int().nonnegative(),
-        text: z.string().trim().min(1),
-      }),
-    ),
-  }),
-  z.object({
-    type: z.literal("turn.steer"),
-    threadId: z.string().min(1),
-    text: z.string().trim().min(1),
-    attachments: promptAttachmentsSchema.optional(),
-  }),
-  z.object({
-    type: z.literal("turn.follow-up"),
-    threadId: z.string().min(1),
-    text: z.string().trim().min(1),
-    attachments: promptAttachmentsSchema.optional(),
-  }),
-]);
-export type ThreadCommand = z.infer<typeof threadCommandSchema>;
-
-export const reviewQuerySchema = z
-  .object({
-    threadId: z.string().min(1),
-    scope: reviewScopeSchema,
-    turnId: z.string().min(1).optional(),
-    baseRef: z.string().trim().min(1).max(200).optional(),
-  })
-  .superRefine((value, context) => {
-    if (value.scope === "turn" && !value.turnId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["turnId"],
-        message: "Turn review requires a turnId.",
-      });
-    }
-  });
-export type ReviewQuery = z.infer<typeof reviewQuerySchema>;
-
-export const reviewMutationInputSchema = z
-  .object({
-    threadId: z.string().min(1),
-    scope: reviewScopeSchema,
-    turnId: z.string().min(1).optional(),
-    baseRef: z.string().trim().min(1).max(200).optional(),
-    action: reviewActionSchema,
-    target: z.discriminatedUnion("kind", [
-      z.object({
-        kind: z.literal("file"),
-        id: z.string().regex(/^[a-f0-9]{64}$/),
-      }),
-      z.object({
-        kind: z.literal("hunk"),
-        id: z.string().regex(/^[a-f0-9]{64}$/),
-      }),
-    ]),
-  })
-  .superRefine((value, context) => {
-    if (value.scope === "turn" && !value.turnId) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["turnId"],
-        message: "Turn review requires a turnId.",
-      });
-    }
-  });
-export type ReviewMutationInput = z.infer<typeof reviewMutationInputSchema>;
-
-export const worktreeCommandSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("worktree.branchize"),
-    threadId: z.string().min(1),
-    branchName: z.string().trim().min(1).max(200),
-  }),
-  z.object({
-    type: z.literal("worktree.cleanup"),
-    threadId: z.string().min(1),
-    force: z.boolean(),
-  }),
-  z.object({
-    type: z.literal("worktree.handoff"),
-    threadId: z.string().min(1),
-    destination: z.enum(["local", "managed-worktree"]),
-  }),
-]);
-export type WorktreeCommand = z.infer<typeof worktreeCommandSchema>;
-
-export interface TurnStartCommand {
-  threadId: string;
-  text: string;
-  mode: RunMode;
-  attachments?: PromptAttachment[];
-}
-
-export const approvalResolutionSchema = z
-  .object({
-    approvalId: z.string().min(1),
-    nonce: z.string().min(16),
-    approved: z.boolean(),
-    skipped: z.literal(true).optional(),
-    feedback: z.string().trim().min(1).max(2_000).optional(),
-    scope: approvalScopeSchema,
-    source: z.enum(["user", "model", "policy", "automation"]).optional(),
-  })
-  .superRefine((value, context) => {
-    if (
-      ((value.skipped || value.feedback) &&
-        (value.approved || value.scope !== "once")) ||
-      (value.skipped && value.feedback)
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Skip and feedback cannot grant approval or be combined",
-      });
-    }
-  });
-export type ApprovalResolution = z.infer<typeof approvalResolutionSchema>;
-
-// Legacy IPC command face (decision D#76 PR10C, decision J case 1): the
-// single-question resolution stays kind-less by default exactly as before,
-// so existing renderer callers keep working without any change; an explicit
-// kind:"single-question" is also accepted for symmetry with the resolved
-// payload (review batch B3, suggestion 3).
-export const userInputSingleQuestionResolutionSchema = z
-  .object({
-    requestId: z.string().min(1),
-    nonce: z.string().min(16),
-    skipped: z.literal(true).optional(),
-    selectedOption: z
-      .number()
-      .int()
-      .min(0)
-      .max(USER_INPUT_MAX_OPTIONS - 1)
-      .optional(),
-    customAnswer: z.string().trim().min(1).max(2_000).optional(),
-    // Optional explicit discriminant, symmetric with the resolved payload's
-    // kind:"single-question" (userInputSingleQuestionResolvedPayloadSchema):
-    // omitted (legacy) or the exact literal both parse; any other kind value
-    // fails this branch's literal check with zod's own invalid-literal error
-    // and the union falls through to the multi branch, so a misrouted
-    // kind:"multi-question" resolution is judged by multi branch semantics
-    // instead of being rejected here with a misleading message.
-    kind: z.literal("single-question").optional(),
-    // Declared so the superRefine below can observe key presence. Strip (not
-    // strict) semantics keep the legacy form tolerant of stray keys this
-    // schema no longer knows; multi-question fields must route through the
-    // union's multi branch instead of being silently swallowed here.
-    questionId: z.unknown().optional(),
-    selectedOptionLabel: z.unknown().optional(),
-  })
-  .superRefine((resolution, context) => {
-    if (
-      Number(resolution.selectedOption !== undefined) +
-        Number(resolution.customAnswer !== undefined) +
-        Number(resolution.skipped === true) !==
-      1
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Choose one offered option or provide one custom answer",
-      });
-    }
-    // Routing-hole guard (same shape as the requested payload's questions
-    // guard): a resolution carrying multi-question content keys must not be
-    // silently accepted as single-question with those keys stripped.
-    // Presence of the key, not its value: IPC structured clone preserves an
-    // explicit `undefined` key and zod keeps the declared key in the parse
-    // output, so a value check would wave the explicit-undefined form
-    // through as legacy. The kind key is deliberately absent here — the
-    // literal above owns kind validation.
-    if ("questionId" in resolution || "selectedOptionLabel" in resolution) {
-      context.addIssue({
-        code: "custom",
-        message:
-          "Single-question user-input resolutions must not carry multi-question fields (questionId, selectedOptionLabel)",
-      });
-    }
-  });
-export type UserInputSingleQuestionResolution = z.infer<
-  typeof userInputSingleQuestionResolutionSchema
->;
-
-// Multi-question IPC command variant (D#76 PR10C, decision J case 1): one
-// resolution answers one question of a pending multi-question card. Field
-// semantics mirror userInputMultiQuestionResolvedPayloadSchema minus the
-// `source` field — the IPC command face never carries provenance; main
-// injects source: "user" on the handler path.
-export const userInputMultiQuestionResolutionSchema = z
-  .object({
-    requestId: z.string().min(1),
-    nonce: z.string().min(16),
-    skipped: z.literal(true).optional(),
-    kind: z.literal("multi-question"),
-    questionId: z.string().min(1).max(USER_INPUT_QUESTION_ID_MAX_LENGTH),
-    // The chosen option *label*, deliberately named differently from the
-    // single-question form's selectedOption numeric index so the two
-    // semantics never share a field name.
-    selectedOptionLabel: z.string().trim().min(1).max(80).optional(),
-    customAnswer: z.string().trim().min(1).max(2_000).optional(),
-    // Declared undefined-only so the single-question numeric index never
-    // rides a multi form, and so the union's inferred type keeps
-    // `selectedOption` readable for unchanged consumers
-    // (PendingUserInputRegistry.consume).
-    selectedOption: z.undefined().optional(),
-  })
-  .superRefine((resolution, context) => {
-    if (
-      Number(resolution.selectedOptionLabel !== undefined) +
-        Number(resolution.customAnswer !== undefined) +
-        Number(resolution.skipped === true) !==
-      1
-    ) {
-      context.addIssue({
-        code: "custom",
-        message:
-          "Resolve one multi-question item with one offered option label or one custom answer",
-      });
-    }
-  });
-export type UserInputMultiQuestionResolution = z.infer<
-  typeof userInputMultiQuestionResolutionSchema
->;
-
-export const userInputResolutionSchema = z.union([
+} from "./schema/messages.js";
+export {
+  toolStartedPayloadSchema,
+  type ToolStartedPayload,
+  toolUpdatedPayloadSchema,
+  toolCompletedPayloadSchema,
+} from "./schema/tools.js";
+export {
+  MAX_USER_INPUT_QUESTIONS,
+  USER_INPUT_MIN_OPTIONS,
+  USER_INPUT_MAX_OPTIONS,
+  USER_INPUT_QUESTION_ID_MAX_LENGTH,
+  userInputOptionSchema,
+  type UserInputOption,
+  userInputSingleQuestionRequestedPayloadSchema,
+  userInputRequestedPayloadSchema,
+  type UserInputRequestedPayload,
+  userInputQuestionSchema,
+  type UserInputQuestion,
+  userInputMultiQuestionRequestedPayloadSchema,
+  type UserInputMultiQuestionRequestedPayload,
+  userInputSingleQuestionResolvedPayloadSchema,
+  userInputResolvedPayloadSchema,
+  type UserInputResolvedPayload,
+  userInputMultiQuestionResolvedPayloadSchema,
+  type UserInputMultiQuestionResolvedPayload,
   userInputSingleQuestionResolutionSchema,
+  type UserInputSingleQuestionResolution,
   userInputMultiQuestionResolutionSchema,
-]);
-export type UserInputResolution = z.infer<typeof userInputResolutionSchema>;
+  type UserInputMultiQuestionResolution,
+  userInputResolutionSchema,
+  type UserInputResolution,
+} from "./schema/user-input.js";
+export {
+  fileChangedPayloadSchema,
+  turnChangeFileSchema,
+  type TurnChangeFile,
+  turnChangeSetUpdatedPayloadSchema,
+  type TurnChangeSetUpdatedPayload,
+  terminalOutputPayloadSchema,
+} from "./schema/files.js";
+export {
+  childAgentPayloadSchema,
+  type ChildAgentPayload,
+  customAgentRoutePayloadSchema,
+  type CustomAgentRoutePayload,
+  agentTeamStatusPayloadSchema,
+  type AgentTeamStatusPayload,
+  agentTeamMessagePayloadSchema,
+  type AgentTeamMessagePayload,
+} from "./schema/agents.js";
+export {
+  mcpToolUsedPayloadSchema,
+  type McpToolUsedPayload,
+  taskSourceAddedPayloadSchema,
+  type TaskSourceAddedPayload,
+} from "./schema/sources.js";
+export {
+  contextUsagePayloadSchema,
+  type ContextUsagePayload,
+  assistantUsagePayloadSchema,
+  type AssistantUsagePayload,
+} from "./schema/usage.js";
+export {
+  threadGoalStatusSchema,
+  type ThreadGoalStatus,
+  threadGoalSchema,
+  type ThreadGoal,
+  threadGoalUpdatedPayloadSchema,
+  threadGoalClearedPayloadSchema,
+} from "./schema/goals.js";
+export {
+  queueUpdatedPayloadSchema,
+  type QueueUpdatedPayload,
+  queueRecoveredPayloadSchema,
+  type QueueRecoveredPayload,
+} from "./schema/queue.js";
+export {
+  taskNotificationStateSchema,
+  type TaskNotificationState,
+} from "./schema/notifications.js";
+export {
+  proposedPlanSchema,
+  type ProposedPlan,
+  planAcceptanceSchema,
+  type PlanAcceptance,
+} from "./schema/plans.js";
+export {
+  agentPayloadSchema,
+  type AgentPayload,
+  agentEventSchema,
+  type AgentEvent,
+} from "./schema/events.js";
+export {
+  threadCommandSchema,
+  type ThreadCommand,
+  worktreeCommandSchema,
+  type WorktreeCommand,
+  type TurnStartCommand,
+} from "./schema/commands.js";

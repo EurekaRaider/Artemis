@@ -62,3 +62,9 @@ Agent host 的 `runtime.ts` 保留公共门面和状态组装；模型与准入�
 说明文档保留原路径，中文原文配 `-en.md`，英文原文配 `-zh-CN.md`，两版互相链接并保持内容同步。运行时 `SKILL.md` 和第三方许可证原文不纳入翻译；发布说明保留文件内双语。`npm run verify:docs` 检查配对、语言链接和本地 Markdown 链接，翻译完整性仍需人工审阅。
 
 执行 `npm run verify:layout` 检查入口目录与公开导出，再执行受影响测试、完整测试、类型检查和构建。打包与原生验证分别记录平台和证据，不以单元测试代替运行时验证。
+
+协议的 `schema/` 按消息、工具、审批/用户输入、团队、用量、Goal、工作区与命令分类；`reducer/` 保留统一事件回放入口，分域模块仅应用 payload。公共 `schema.ts`、`reducer.ts` 导出保持兼容。
+
+IM 设置和群授权控制器位于 `renderer/im/{settings,groups}/`，自动任务位于 `automation/controllers/`，Office 会话与选择同步位于 `office/workbench/`。条件分支中的展示工厂不调用 hook。
+
+验证器按职责放在 `scripts/ui/{boundaries,conformance}/` 和桌面的 `scripts/verify/ui/desktop-skin/`；原命令入口仍负责顺序和报告。大型场景使用 `.cases.ts` 文件由原测试入口显式导入，避免 Vitest 重复发现；共享夹具位于 `test/fixtures/`，Gallery 的 conformance 场景按组件族分类。Windows sandbox 的 PowerShell 编排与 `windows-sandbox-native.cs` 同目录打包，原生权限探针位于 `scripts/verify/native/windows-sandbox/`。
