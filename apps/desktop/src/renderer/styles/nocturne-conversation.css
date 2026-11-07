@@ -315,12 +315,12 @@
 @container composer (max-width: 430px) {
   .app-shell {
     .model-button {
-      grid-template-columns: auto auto;
+      grid-template-columns: auto minmax(24px, 1fr) auto;
       padding-inline: 4px;
       gap: 2px;
     }
     .composer-run-modes > [aria-checked="false"]:disabled,
-    .model-button .model-information,
+    .model-information small,
     .context-usage-percent {
       display: none;
     }
