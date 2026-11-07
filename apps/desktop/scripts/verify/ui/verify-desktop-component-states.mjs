@@ -13,9 +13,7 @@ const output = resolve(
 const runtime = join(output, "supplemental-runtime");
 await mkdir(runtime, { recursive: true });
 await build({
-  entryPoints: [
-    join(desktop, "scripts/fixtures/desktop-component-states.tsx"),
-  ],
+  entryPoints: [join(desktop, "scripts/fixtures/desktop-component-states.tsx")],
   bundle: true,
   format: "esm",
   platform: "browser",
