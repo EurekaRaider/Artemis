@@ -9,9 +9,6 @@ const scriptDirectory = dirname(scriptPath);
 const appDirectory = resolve(scriptDirectory, "../../..");
 const workerPath = join(scriptDirectory, "verify-goal-parity.mjs");
 const shardCount = 3;
-// Leave headroom inside the aggregate verifier's unchanged 600-second budget
-// for the sequential native-focus probe and manifest assembly.
-const shardTimeoutMs = 520_000;
 const focusProbeTimeoutMs = 60_000;
 
 function assert(condition, message) {
@@ -206,7 +203,7 @@ function executeWorker(outputDirectory, environment, identity, timeout) {
   });
 }
 
-function executeShard(shardIndex, outputDirectory) {
+function executeShard(shardIndex, outputDirectory, timeout) {
   return executeWorker(
     outputDirectory,
     {
@@ -215,11 +212,11 @@ function executeShard(shardIndex, outputDirectory) {
       ARTEMIS_GOAL_PARITY_EXCLUSIVE_FOCUS_PROBE: "0",
     },
     { phase: "shard", shardIndex },
-    shardTimeoutMs,
+    timeout,
   );
 }
 
-function executeFocusProbe(outputDirectory) {
+function executeFocusProbe(outputDirectory, remainingMs) {
   return executeWorker(
     join(outputDirectory, "focus-probe"),
     {
@@ -228,11 +225,24 @@ function executeFocusProbe(outputDirectory) {
       ARTEMIS_GOAL_PARITY_EXCLUSIVE_FOCUS_PROBE: "1",
     },
     { phase: "focus-probe" },
-    focusProbeTimeoutMs,
+    Math.min(focusProbeTimeoutMs, remainingMs),
   );
 }
 
 async function main() {
+  const started = performance.now();
+  const budget = JSON.parse(
+    await readFile(
+      resolve(appDirectory, "../../scripts/ui/ui-performance-budget.json"),
+      "utf8",
+    ),
+  ).thresholds.workloadWallClockMs["goal-parity"];
+  // The workers and the exclusive probe share the same wall-clock deadline.
+  const remainingMs = () => {
+    const remaining = Math.floor(started + budget - performance.now());
+    assert(remaining > 0, "Goal parity exceeded its wall-clock budget.");
+    return remaining;
+  };
   const outputDirectory = resolve(
     process.argv[2] ?? join(tmpdir(), "artemis-goal-parity"),
   );
@@ -240,8 +250,8 @@ async function main() {
   const { shardOutcomes, focusProbeOutcome } =
     await runShardsThenExclusiveFocusProbe(
       shardCount,
-      (shardIndex) => executeShard(shardIndex, outputDirectory),
-      () => executeFocusProbe(outputDirectory),
+      (shardIndex) => executeShard(shardIndex, outputDirectory, remainingMs()),
+      () => executeFocusProbe(outputDirectory, remainingMs()),
     );
   for (const outcome of [...shardOutcomes, focusProbeOutcome]) {
     if (outcome.stdout) process.stdout.write(outcome.stdout);
@@ -287,6 +297,7 @@ async function main() {
   const manifest = mergeGoalParityShardManifests(manifests, focusProbeManifest);
   const manifestPath = join(outputDirectory, "manifest.json");
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  remainingMs();
   console.log(manifestPath);
 }
 
