@@ -115,15 +115,6 @@ export function WelcomeResume({
               {uiText(locale, "WelcomeResume.files", {
                 count: changes.changeCount,
               })}
-              {changes.currentBranch && (
-                <>
-                  {" "}
-                  ·{" "}
-                  <bdi className="welcome-resume-branch">
-                    {changes.currentBranch}
-                  </bdi>
-                </>
-              )}
             </span>
           </button>
         )}

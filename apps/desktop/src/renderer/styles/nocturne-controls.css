@@ -535,9 +535,6 @@ details[open] > summary .disclosure-chevron {
   font-weight: 400;
   color: var(--muted-2);
 }
-.welcome-resume-branch {
-  font-family: var(--mono-font);
-}
 .welcome-resume .diff-add {
   color: var(--success);
 }

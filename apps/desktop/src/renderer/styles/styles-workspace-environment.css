@@ -1377,8 +1377,7 @@ button.environment-row:disabled {
 }
 
 .conversation-project-name {
-  border-bottom: 1px dotted var(--muted-2);
-  padding-bottom: 1px;
+  color: var(--text);
 }
 
 .primary-button,
