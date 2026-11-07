@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Legacy source contracts follow the current component owners. Runtime tests
@@ -41,8 +41,7 @@ export function readRendererAppSources(): string {
     "timeline",
     "context-compaction-status",
   ];
-  const rank = (path: string) =>
-    order.findIndex((name) => path.endsWith(`/${name}`));
+  const rank = (path: string) => order.indexOf(basename(path));
   return [
     source,
     ...[...owners]

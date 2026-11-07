@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Legacy source assertions follow the actual feature owners. Behavioral bridge
@@ -18,7 +18,7 @@ function readOwners(entry: string, ownerDirectory: string): string {
       .map((match) => resolve(dirname(file), match[1]! + ".ts"))
       .filter(
         (path) =>
-          path.startsWith(owners + "/") ||
+          path.startsWith(owners + sep) ||
           path === resolve(root, "shared/ipc-channels.ts"),
       );
     return [source, ...dependencies.map(visit)].join("\n");
