@@ -376,12 +376,8 @@ export function prepareViewScript(
                   return;
                 }
                 if (view.startsWith('goal-')) {
-                  document.querySelector('.thread-select')?.click();
-                  await wait(700);
-                  document
-                    .querySelector('.confirmation-actions .secondary-button')
-                    ?.click();
-                  await wait(300);
+                  await openSmokeHistoryThread('artemis-smoke-goal-thread', '.goal-bar-main');
+                  document.querySelector('.confirmation-actions .secondary-button')?.click();
                   if (view.startsWith('goal-editor')) {
                     const waitForGoalElement = async (selector) => {
                       const deadline = Date.now() + 8000;

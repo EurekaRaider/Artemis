@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { dialog } from "electron";
 import { createApplicationWindow } from "../../../src/main/application/main-window.js";
@@ -92,7 +93,7 @@ describe("main window lifecycle and boundaries", () => {
       },
     });
     expect(window.loadFile).toHaveBeenCalledWith(
-      expect.stringContaining("dist-renderer/index.html"),
+      expect.stringContaining(join("dist-renderer", "index.html")),
     );
   });
   it("flushes edits once before closing and blocks repeated close requests during the flush", async () => {

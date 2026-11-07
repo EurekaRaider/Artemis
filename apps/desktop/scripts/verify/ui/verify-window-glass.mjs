@@ -137,9 +137,15 @@ try {
     await window.artemis.setLanguage("zh-CN");
     await window.artemis.setTheme("light");
   });
+  // The initial (compact) window can leave navigation collapsed after resize.
+  if (
+    (await page.locator(".app-shell").getAttribute("data-sidebar-open")) !==
+    "true"
+  ) {
+    await page.locator(".rail-brand").click();
+  }
   await page
-    .getByText("Windows 玻璃与面板验证", { exact: true })
-    .first()
+    .locator('[data-tree-row-id="thread:glass-thread"] .thread-select')
     .click();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1000);

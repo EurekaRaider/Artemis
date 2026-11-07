@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { app, protocol } from "electron";
+import { ensureWindowsPackageAccess } from "../../../src/main/updates/windows-package-access.js";
 import { bootstrapDesktop } from "../../../src/main/application/bootstrap-application.js";
 
 vi.mock("electron", async () => {
@@ -8,6 +9,8 @@ vi.mock("electron", async () => {
   return {
     app: Object.assign(new EventEmitter(), {
       isPackaged: false,
+      getVersion: () => "1.0.0",
+      getPath: () => "test-user-data",
       requestSingleInstanceLock: vi.fn(() => true),
       quit: vi.fn(),
       exit: vi.fn(),
@@ -19,6 +22,9 @@ vi.mock("electron", async () => {
     dialog: { showErrorBox: vi.fn() },
   };
 });
+vi.mock("../../../src/main/updates/windows-package-access.js", () => ({
+  ensureWindowsPackageAccess: vi.fn(async () => undefined),
+}));
 vi.mock("../../../src/main/platform/stdio-guard.js", () => ({
   guardStdio: vi.fn(),
 }));
@@ -66,12 +72,21 @@ describe("desktop bootstrap", () => {
     Object.assign(app, { isPackaged: true });
     vi.stubEnv("ARTEMIS_SMOKE_SCREENSHOT", "/untrusted.png");
     vi.stubEnv("ARTEMIS_DEV_SERVER_URL", "http://untrusted");
+    const selectorsAtLoad = vi.fn();
     const load = vi.fn(async () => {
-      expect(process.env.ARTEMIS_SMOKE_SCREENSHOT).toBeUndefined();
-      expect(process.env.ARTEMIS_DEV_SERVER_URL).toBeUndefined();
+      selectorsAtLoad(
+        process.env.ARTEMIS_SMOKE_SCREENSHOT,
+        process.env.ARTEMIS_DEV_SERVER_URL,
+      );
       return { startDesktopApplication: vi.fn(), openThreadLink: vi.fn() };
     });
     bootstrapDesktop(load);
     await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());
+    expect(selectorsAtLoad).toHaveBeenCalledExactlyOnceWith(
+      undefined,
+      undefined,
+    );
+    if (process.platform === "win32")
+      expect(ensureWindowsPackageAccess).toHaveBeenCalledOnce();
   });
 });
