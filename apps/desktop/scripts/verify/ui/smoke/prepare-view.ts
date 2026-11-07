@@ -1842,11 +1842,15 @@ export function prepareViewScript(
                       conversationText: document.querySelector('.workspace-content')?.textContent?.slice(0, 2000) ?? null,
                     }));
                   };
-                  const thread = await waitForEnvironment('thread selector', () =>
-                    document.querySelector('.thread-select'),
-                  );
-                  thread.click();
-                  await wait(600);
+                  if (view === 'environment-unstarted' || view === 'environment-new-conversation') {
+                    const thread = await waitForEnvironment('thread selector', () =>
+                      document.querySelector('[data-tree-row-id="thread:artemis-smoke-environment-thread"] .thread-select'),
+                    );
+                    thread.click();
+                    await wait(600);
+                  } else {
+                    await openSmokeHistoryThread('artemis-smoke-environment-thread', '.user-message .message-action');
+                  }
                   if (view === 'environment-new-conversation') {
                     const create = document.querySelector('[data-tree-row-id="project:artemis-smoke-environment-project"] .project-new-thread');
                     if (!create) throw new Error('Project new conversation button missing.');
@@ -1856,8 +1860,7 @@ export function prepareViewScript(
                     return;
                   }
                   if (view === 'environment-unstarted') return;
-                  await waitForEnvironment('loaded conversation', () =>
-                    document.querySelector('.user-message .message-action') &&
+                  await waitForEnvironment('environment trigger', () =>
                     document.querySelector('.environment-trigger'),
                   );
                   if (view.startsWith('environment-non-git')) return;

@@ -121,13 +121,21 @@ function holdTool(session: AgentSession): Promise<void> {
 }
 
 it("reports full members on first wait, health changes and timeout, without counting nudges as progress", async () => {
-  const { host, thread, spawn, call } = await setup();
+  const { host, thread, spawn, call, events } = await setup();
   childBehavior.prompt = holdTool;
   const id = await spawn();
-  await vi.waitFor(() =>
-    expect(thread.childAgents.get(id)?.session).toBeDefined(),
+  // Observe the coalesced tool-start event before timing an idle worker.
+  await vi.waitFor(
+    () =>
+      expect(events).toContainEqual(
+        expect.objectContaining({
+          type: "child-agent.status",
+          agentId: id,
+          activityDelta: expect.stringContaining("[read started]"),
+        }),
+      ),
+    { timeout: 5_000 },
   );
-  await new Promise((resolve) => setTimeout(resolve, 0));
   vi.useFakeTimers();
   const initial = await host.waitForAgentTeam("recovery", "parent", 180);
   expect(initial).toMatchObject({
