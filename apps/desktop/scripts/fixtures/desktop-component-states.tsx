@@ -28,7 +28,7 @@ import { UI_COPY } from "../../src/shared/i18n/ui-copy.js";
 import { uiText } from "../../src/shared/i18n/ui-text.js";
 import "@artemis/ui/styles.css";
 import "../../src/renderer/styles/styles.css";
-import "../../src/renderer/styles/prototype-migration.css";
+import "../../src/renderer/styles/desktop-composition.css";
 import "../../src/renderer/styles/nocturne.css";
 import "@artemis/theme-artemis/theme.css";
 

@@ -17,7 +17,7 @@ const preload = readPreloadBridgeSources();
 const app = readRendererAppSources();
 const styles = readDesktopStyles("styles");
 
-describe("reported issues 66 and 67", () => {
+describe("local path access and thread ordering", () => {
   it("brokers explicit local paths only through an active Work or Codemode turn", () => {
     expect(main).toContain('case "local.file.read"');
     expect(main).toContain('case "local.file.write"');

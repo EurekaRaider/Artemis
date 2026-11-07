@@ -140,10 +140,27 @@
     min-inline-size: 0;
   }
   .composer-leading {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
   }
   .composer-trailing {
+    flex: 1 0 min-content;
     margin-inline-start: auto;
+  }
+  .approval-policy-trigger {
+    max-inline-size: 100%;
+    > svg {
+      flex: none;
+    }
+    > span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+  .model-picker-control {
+    min-inline-size: min-content;
+  }
+  .model-picker-control > [data-artemis-component="tooltip-anchor"] {
+    display: flex;
   }
 }
 .composer-run-modes {
@@ -212,6 +229,9 @@
     button:disabled {
       opacity: 0.5;
     }
+    [aria-checked="false"]:disabled [data-part="label"] {
+      display: none;
+    }
   }
 }
 .app-shell {
@@ -266,13 +286,11 @@
       padding-inline: 5px;
       gap: 3px;
     }
-    .composer-trailing .model-button {
-      max-inline-size: 145px;
-    }
   }
 }
-@container composer (max-width: 460px) {
-  .composer-run-modes [data-part="label"] {
+@container composer (max-width: 610px) {
+  .composer-run-modes [data-part="label"],
+  .composer-running-status > span:not(.artemis-running-arc) {
     position: absolute;
     inline-size: 1px;
     block-size: 1px;
@@ -285,14 +303,44 @@
     .composer-trailing {
       gap: 3px;
     }
+    .composer-run-modes > [data-part="option"] {
+      padding-inline: 5px;
+    }
+    .composer-running-status {
+      padding-inline: 4px;
+      gap: 3px;
+    }
+  }
+}
+@container composer (max-width: 430px) {
+  .app-shell {
+    .model-button {
+      grid-template-columns: auto auto;
+      padding-inline: 4px;
+      gap: 2px;
+    }
+    .composer-run-modes > [aria-checked="false"]:disabled,
+    .model-button .model-information,
+    .context-usage-percent {
+      display: none;
+    }
+    .run-actions {
+      gap: 2px;
+    }
+  }
+}
+@container composer (max-width: 320px) {
+  .app-shell {
     .composer-toolbar {
-      flex-wrap: wrap;
+      padding-inline: 4px;
     }
-    .composer-trailing {
-      min-inline-size: min(100%, 200px);
-    }
-    .composer-trailing .model-button {
-      max-inline-size: 105px;
+    .composer-running-status {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
     }
   }
 }

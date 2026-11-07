@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { join } from "node:path";
 
 // Only the production Electron renderer is opened. The prototype is never loaded.
-export async function verifyLatestUiInteractions({
+export async function verifyDesktopShellInteractions({
   root,
   temp,
   output,

@@ -9,7 +9,7 @@
 //   ② writing outside the task-private directory fails
 //   ③ connecting to a 127.0.0.1 listener is denied
 //   ④ reads/writes inside the task-private directory keep working
-//   ⑤ the real packaged plugin runtime (resources/s0-plugins) still works
+//   ⑤ the real packaged plugin runtime (resources/panel-test-plugins) still works
 //   ⑥ a missing sandbox-exec wrapper REFUSES startup — no unsandboxed
 //      fallback, and no child process is created
 //
@@ -46,7 +46,7 @@ const desktopRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const packagedNotesEntry = join(
   desktopRoot,
   "resources",
-  "s0-plugins",
+  "panel-test-plugins",
   "test-notes",
   "runtime",
   "index.mjs",

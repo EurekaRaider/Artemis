@@ -86,7 +86,7 @@ expectedCssRules.set(
 );
 const MIG3A_EXPECTED_CSS_RULES = JSON.parse(
   await readFile(
-    join(root, "scripts/ui/mig3a-workspace-css-contract.json"),
+    join(root, "scripts/ui/workspace-css-contract.json"),
     "utf8",
   ),
 );
@@ -98,7 +98,7 @@ for (const [key, declarations] of MIG3A_EXPECTED_CSS_RULES) {
 }
 const MIG3B_EXPECTED_CSS_RULES = JSON.parse(
   await readFile(
-    join(root, "scripts/ui/mig3b-workflow-css-contract.json"),
+    join(root, "scripts/ui/workflow-css-contract.json"),
     "utf8",
   ),
 );
@@ -110,7 +110,7 @@ for (const [key, declarations] of MIG3B_EXPECTED_CSS_RULES) {
 }
 const MIG4_EXPECTED_CSS_RULES = JSON.parse(
   await readFile(
-    join(root, "scripts/ui/mig4-professional-css-contract.json"),
+    join(root, "scripts/ui/professional-surfaces-css-contract.json"),
     "utf8",
   ),
 );
@@ -122,7 +122,7 @@ for (const [key, declarations] of MIG4_EXPECTED_CSS_RULES) {
 }
 const MIG5A_EXPECTED_CSS_RULES = JSON.parse(
   await readFile(
-    join(root, "scripts/ui/mig5a-management-css-contract.json"),
+    join(root, "scripts/ui/management-css-contract.json"),
     "utf8",
   ),
 );
@@ -133,7 +133,7 @@ for (const [key, declarations] of MIG5A_EXPECTED_CSS_RULES) {
   expectedCssRules.set(key, declarations);
 }
 const MIG5B_EXPECTED_CSS_RULES = JSON.parse(
-  await readFile(join(root, "scripts/ui/mig5b-data-css-contract.json"), "utf8"),
+  await readFile(join(root, "scripts/ui/data-css-contract.json"), "utf8"),
 );
 for (const [key, declarations] of MIG5B_EXPECTED_CSS_RULES) {
   if (expectedCssRules.has(key)) {
@@ -144,7 +144,7 @@ for (const [key, declarations] of MIG5B_EXPECTED_CSS_RULES) {
 
 const LATEST_UI_EXPECTED_CSS_RULES = JSON.parse(
   await readFile(
-    join(root, "scripts/ui/latest-ui-structural-css-contract.json"),
+    join(root, "scripts/ui/desktop-shell-css-contract.json"),
     "utf8",
   ),
 );

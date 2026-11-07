@@ -30,7 +30,7 @@ const output =
   process.env.ARTEMIS_S0_PANEL_EVIDENCE ?? verificationOutput("s0-panel");
 await mkdir(output, { recursive: true });
 const stage = await mkdtemp(join(tmpdir(), "artemis-s0-panel-"));
-const pluginsRoot = join(desktop, "resources", "s0-plugins");
+const pluginsRoot = join(desktop, "resources", "panel-test-plugins");
 
 const entry = join(stage, "entry.mjs");
 await writeFile(

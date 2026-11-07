@@ -11,7 +11,7 @@ const source = (relativePath: string) =>
 
 const appSource = readRendererAppSources();
 const stylesSource = readDesktopStyles("styles");
-const compositionSource = readDesktopStyles("prototype-migration");
+const compositionSource = readDesktopStyles("desktop-composition");
 
 function sourceBetween(value: string, start: string, end: string): string {
   const startIndex = value.indexOf(start);

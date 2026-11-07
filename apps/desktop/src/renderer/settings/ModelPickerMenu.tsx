@@ -53,9 +53,11 @@ export function ModelPickerMenu({
         ) || 0;
       const minLeft = Math.max(
         8,
+        anchor.left + 8,
         (boundary?.left ?? 0) + (rtl ? reservedInset : 0) + 8,
       );
       const maxRight = Math.min(
+        anchor.right - 8,
         window.innerWidth - 8,
         (boundary?.right ?? window.innerWidth) - (rtl ? 0 : reservedInset) - 8,
       );
@@ -171,7 +173,17 @@ export function ModelPickerMenu({
         )}
       </div>
       {activeModel?.reasoning && selection && (
-        <div className="model-picker-thinking">
+        <div
+          className="model-picker-thinking"
+          onFocus={(event) => {
+            const options = {
+              block: "nearest",
+              inline: "nearest",
+              container: "nearest",
+            } as const;
+            event.target.scrollIntoView?.(options);
+          }}
+        >
           <div>
             <span>{uiText(locale, "Review06.thinking")}</span>
             <small>

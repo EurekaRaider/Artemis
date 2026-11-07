@@ -39,7 +39,7 @@ function cssDeclarations(selector: string): string {
   return match?.groups?.body ?? "";
 }
 
-describe("reported issue regressions #70-#72", () => {
+describe("conversation history, plan and usage", () => {
   it("keeps loading a conversation after switching away and restores its scroll state", () => {
     const historyLoad = sourceBetween(
       appSource,

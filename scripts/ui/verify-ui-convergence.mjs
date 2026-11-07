@@ -795,7 +795,7 @@ export async function verifyUiConvergence(root = defaultRoot) {
   const css = readStylesheet(cssPath);
   const migrationCssPath = join(
     root,
-    "apps/desktop/src/renderer/styles/prototype-migration.css",
+    "apps/desktop/src/renderer/styles/desktop-composition.css",
   );
   // Older fixture repositories predate the integrated navigation stylesheet.
   try {

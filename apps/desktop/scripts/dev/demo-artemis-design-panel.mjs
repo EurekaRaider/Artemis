@@ -27,7 +27,7 @@ app.on("window-all-closed", () => app.quit());
 
 await app.whenReady();
 
-// Same foreground dance as demo-s0-panel.mjs: a background-shell Electron
+// Same foreground dance as demo-plugin-panel-host.mjs: a background-shell Electron
 // needs explicit Dock presence + activation or the window ignores input.
 if (process.platform === "darwin" && app.dock) app.dock.show();
 app.focus({ steal: true });

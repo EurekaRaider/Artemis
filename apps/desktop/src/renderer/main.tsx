@@ -9,7 +9,7 @@ import "./app/i18n.js";
 import "@artemis/theme-artemis/fonts.css";
 import "@artemis/ui/styles.css";
 import "./styles/styles.css";
-import "./styles/prototype-migration.css";
+import "./styles/desktop-composition.css";
 import "./styles/windows-glass.css";
 import "@artemis/theme-artemis/theme.css";
 import "./appearance/appearance.css";

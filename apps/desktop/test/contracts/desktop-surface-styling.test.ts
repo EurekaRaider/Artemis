@@ -4,18 +4,18 @@ import postcss from "postcss";
 import { describe, expect, it } from "vitest";
 import { findCssDeclarations } from "./css-test-utils.js";
 
-const style = (name: "nocturne.css" | "prototype-migration.css") =>
+const style = (name: "nocturne.css" | "desktop-composition.css") =>
   readDesktopStyles(
-    name.replace(/\.css$/, "") as "nocturne" | "prototype-migration",
+    name.replace(/\.css$/, "") as "nocturne" | "desktop-composition",
   );
 const nocturne = style("nocturne.css");
 const locales = ["zh-CN", "zh-TW"] as const;
 
-describe("Nocturne fourth review regressions", () => {
+describe("desktop surface styling", () => {
   it("keeps the composer and selected sidebar controls flat in glass material", () => {
     const protectedControl =
       /\.(?:composer(?:-run-modes)?|sidebar-new-task|nav-row|project-thread-row)(?![\w-])/u;
-    for (const file of ["nocturne.css", "prototype-migration.css"]) {
+    for (const file of ["nocturne.css", "desktop-composition.css"]) {
       postcss.parse(style(file)).walkDecls((declaration) => {
         const selectors: string[] = [];
         for (let parent = declaration.parent; parent; parent = parent.parent) {

@@ -1,17 +1,18 @@
 import { createServer } from "node:http";
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { scan } from "./nocturne-review06-scan.mjs";
-import { probeControlStates } from "./nocturne-review06-state-probes.mjs";
+import { scan } from "./scan-rendered-ui.mjs";
+import { probeControlStates } from "./probe-control-states.mjs";
 import { createRequire } from "node:module";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  review06Fixtures,
-  review06Variants,
-} from "../../../test/fixtures/nocturne-review06.mjs";
+  desktopUiScenarios,
+  desktopUiVariants,
+} from "../../../test/fixtures/desktop-ui-scenarios.mjs";
 
 const desktop = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const root = resolve(desktop, "../..");
@@ -22,8 +23,10 @@ const sourceIdentity = async () => {
     { cwd: root, encoding: "utf8" },
   )
     .split("\0")
-    .filter((file) =>
-      /\.(tsx?|css|json|mjs|svg|png|ico|icns|woff2?)$/.test(file),
+    .filter(
+      (file) =>
+        /\.(tsx?|css|json|mjs|svg|png|ico|icns|woff2?)$/.test(file) &&
+        existsSync(join(root, file)),
     )
     .sort();
   const hash = createHash("sha256");
@@ -61,8 +64,8 @@ const controlFamilies = new Set();
 // surfaces unrelated to the numbered fixes. Unmapped design comparisons remain
 // visible in the board ledger; absence of a failed assertion is not visual signoff.
 
-for (const variant of review06Variants)
-  for (const fixture of review06Fixtures) {
+for (const variant of desktopUiVariants)
+  for (const fixture of desktopUiScenarios) {
     const id = `${fixture.state}-${variant.theme}-${variant.locale}`;
     if (filter && !new RegExp(filter).test(id)) continue;
     const record = {
@@ -287,6 +290,63 @@ for (const variant of review06Variants)
           usage.text.includes(String(fixture.context)) &&
             usage.level === (fixture.context > 80 ? "high" : "normal"),
         );
+        const input = page.locator(".composer textarea");
+        const originalDraft = await input.inputValue();
+        for (const draft of ["", "Follow-up"]) {
+          await input.fill(draft);
+          const failures = await page
+            .locator(".composer-toolbar")
+            .evaluate((toolbar) => {
+              const wrap = toolbar.closest(".composer-wrap");
+              const previous = wrap.style.cssText;
+              const failures = [];
+              try {
+                wrap.style.boxSizing = "content-box";
+                for (const width of [736, 681, 550, 431, 321, 240]) {
+                  wrap.style.inlineSize = `${width}px`;
+                  const row = toolbar.getBoundingClientRect();
+                  const boxes = [
+                    ...toolbar.querySelectorAll(
+                      "button, .composer-running-status, .context-usage-indicator",
+                    ),
+                  ]
+                    .map((el) => el.getBoundingClientRect())
+                    .filter((box) => box.width > 1)
+                    .sort((a, b) => a.left - b.left);
+                  const center = row.top + row.height / 2;
+                  const chevron = toolbar
+                    .querySelector(".model-button > svg")
+                    .getBoundingClientRect();
+                  const model = toolbar
+                    .querySelector(".model-button")
+                    .getBoundingClientRect();
+                  if (
+                    chevron.left < model.left ||
+                    chevron.right > model.right ||
+                    Math.abs(chevron.top + chevron.height / 2 - center) > 1 ||
+                    boxes.some(
+                      (box, i) =>
+                        Math.abs(box.top + box.height / 2 - center) > 1 ||
+                        box.left < row.left ||
+                        box.right > row.right ||
+                        (i > 0 && box.left < boxes[i - 1].right - 1),
+                    )
+                  )
+                    failures.push(width);
+                }
+              } finally {
+                wrap.style.cssText = previous;
+              }
+              return failures;
+            });
+          check(
+            `single-row composer with ${draft ? "follow-up and stop" : "stop"}`,
+            failures,
+            [],
+            failures.length === 0,
+          );
+        }
+        await input.fill(originalDraft);
       }
       if (fixture.state === "multiple-questions") {
         await click(
@@ -1458,10 +1518,7 @@ if (!filter) {
     const child = spawn(
       process.execPath,
       [
-        join(
-          desktop,
-          "scripts/verify/ui/verify-nocturne-review06-supplemental.mjs",
-        ),
+        join(desktop, "scripts/verify/ui/verify-desktop-component-states.mjs"),
         output,
       ],
       { cwd: root, stdio: "inherit", env: process.env },
@@ -1491,7 +1548,7 @@ const summary = {
   started,
   completed,
   stableSource: started.source.fingerprint === completed.source.fingerprint,
-  expectedMainFixtures: review06Fixtures.length * review06Variants.length,
+  expectedMainFixtures: desktopUiScenarios.length * desktopUiVariants.length,
   filter: filter ?? null,
   cachedFixtures: records.length,
   currentMatrixFixtures: currentRecords.length,
@@ -1527,7 +1584,7 @@ summary.failed.push(
       .map((check) => ({ id: record.id, ...check })),
   ),
 );
-summary.prColors = review06Variants.map((variant) => ({
+summary.prColors = desktopUiVariants.map((variant) => ({
   ...variant,
   colors: currentRecords
     .filter(

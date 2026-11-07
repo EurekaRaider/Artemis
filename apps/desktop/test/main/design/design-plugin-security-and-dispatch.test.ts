@@ -14,7 +14,7 @@
 //     redo 仅在撤销末版本且无新版本时有效。
 //
 // The runtime tests run the real published artemis-design package (same
-// harness as design-plugin-s2-runtime.test.ts), so the edited
+// harness as design-plugin-runtime-isolation.test.ts), so the edited
 // runtime/index.mjs is what executes here.
 
 import {

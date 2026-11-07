@@ -5,7 +5,7 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "../../../../..");
 const out = path.join(
   root,
-  "artifacts/verification/approval-polish",
+  "artifacts/verification/decision-card-layout",
   new Date().toISOString().replaceAll(":", "-"),
 );
 app.setPath("userData", path.join(out, "preview-profile"));
@@ -15,26 +15,19 @@ function inspect() {
     const r = e.getBoundingClientRect();
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   };
-  const dots = [
+  const statuses = [
     ...document.querySelectorAll(
-      '.approval-card [data-part="status"],.user-input-status',
+      ".decision-waiting, .decision-result > summary strong",
     ),
-  ].map((e) => ({
-    text: e.textContent,
-    content: getComputedStyle(e, "::before").content,
-    color: getComputedStyle(e, "::before").backgroundColor,
-    width: getComputedStyle(e, "::before").width,
-  }));
+  ].map((e) => e.textContent.trim());
   const alignment = [...document.querySelectorAll(".user-input-option")]
     .filter((e) => e.getBoundingClientRect().height)
     .map((e) => {
       const r = e.getBoundingClientRect(),
-        i = e.querySelector(".user-input-option-index").getBoundingClientRect();
+        i = e.querySelector(".decision-option-number").getBoundingClientRect();
       return Math.abs(r.top + r.height / 2 - i.top - i.height / 2);
     });
-  const buttons = [
-    ...document.querySelectorAll(".approval-action,.user-input-submit"),
-  ]
+  const buttons = [...document.querySelectorAll(".decision-submit")]
     .filter((e) => e.getBoundingClientRect().height)
     .map((e) => ({
       label: e.textContent,
@@ -42,13 +35,11 @@ function inspect() {
       font: getComputedStyle(e).fontSize,
     }));
   const cards = [
-    ...document.querySelectorAll(".approval-card,.user-input-card"),
+    ...document.querySelectorAll(".decision-card,.decision-result"),
   ].map(rect);
-  const disclosure = document.querySelector(
-    '#collapsed [data-part="disclosure"]',
-  );
+  const disclosure = document.querySelector("#collapsed .decision-result");
   return {
-    dots,
+    statuses,
     alignment,
     buttons,
     cards,
@@ -62,19 +53,27 @@ app
   .then(async () => {
     await fs.mkdir(out, { recursive: true });
     buildSync({
-      entryPoints: [path.join(__dirname, "fixtures/approval-polish.tsx")],
+      entryPoints: [
+        path.join(__dirname, "../../fixtures/decision-card-layout.tsx"),
+      ],
       bundle: true,
       format: "esm",
       platform: "browser",
       jsx: "automatic",
       outdir: path.join(out, "bundle"),
       splitting: true,
-      loader: { ".png": "file" },
+      loader: {
+        ".png": "file",
+        ".svg": "file",
+        ".woff2": "file",
+        ".woff": "file",
+        ".ttf": "file",
+      },
       logLevel: "warning",
     });
     await fs.writeFile(
       path.join(out, "index.html"),
-      '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./bundle/approval-polish.css"><style>html,body{height:auto;overflow:auto}body{margin:0;background:var(--bg)}.polish-preview{width:640px;margin:24px auto;display:grid;gap:18px}.polish-preview section{container-type:inline-size}.polish-preview h2{font-size:13px;font-weight:500;color:var(--muted);margin:0 0 8px}.polish-preview .timeline{padding:0;max-width:none}.polish-preview .user-input-card{margin:0}</style></head><body><div id="root"></div><script type="module" src="./bundle/approval-polish.js"></script></body></html>',
+      '<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="./bundle/decision-card-layout.css"><style>html,body{height:auto;overflow:auto}body{margin:0;background:var(--bg)}.decision-card-preview{width:640px;margin:24px auto;display:grid;gap:18px}.decision-card-preview section{container-type:inline-size}.decision-card-preview h2{font-size:13px;font-weight:500;color:var(--muted);margin:0 0 8px}.decision-card-preview .timeline{padding:0;max-width:none}.decision-card-preview .user-input-card{margin:0}</style></head><body><div id="root"></div><script type="module" src="./bundle/decision-card-layout.js"></script></body></html>',
     );
     const errors = [];
     const win = new BrowserWindow({
@@ -94,19 +93,17 @@ app
         "(" + inspect.toString() + ")()",
       );
       if (
-        evidence.dots.length !== 4 ||
-        evidence.dots.some((d) => d.content !== '""' || d.width !== "7px")
+        evidence.statuses.length !== 4 ||
+        evidence.statuses.some((text) => !text)
       )
-        throw Error("Missing state dots: " + JSON.stringify(evidence.dots));
+        throw Error(
+          "Missing decision status: " + JSON.stringify(evidence.statuses),
+        );
       if (evidence.alignment.some((n) => n > 1))
         throw Error(
           "Off-center option indicators: " + JSON.stringify(evidence.alignment),
         );
-      if (
-        evidence.buttons.some(
-          (b) => Math.abs(b.height - 28) > 1 || b.font !== "12px",
-        )
-      )
+      if (evidence.buttons.some((b) => b.height < 30 || b.font !== "12px"))
         throw Error(
           "Button sizing mismatch: " + JSON.stringify(evidence.buttons),
         );
@@ -128,7 +125,7 @@ app
         (await win.webContents.capturePage()).toPNG(),
       );
       await win.webContents.executeJavaScript(
-        "document.querySelector('.polish-preview').style.width='300px';window.scrollTo(0,0)",
+        "document.querySelector('.decision-card-preview').style.width='300px';window.scrollTo(0,0)",
       );
       const narrow = await win.webContents.executeJavaScript(
         "(" + inspect.toString() + ")()",
@@ -147,9 +144,9 @@ app
       });
       await new Promise((r) => setTimeout(r, 500));
       const restricted = await win.webContents.executeJavaScript(
-        "({ labels: [...document.querySelectorAll('#expanded .approval-action')].map(e => e.textContent), hint: !!document.querySelector('#expanded .approval-scope-hint') })",
+        "({ labels: [...document.querySelectorAll('#expanded .decision-option-copy strong')].map(e => e.textContent), hint: !!document.querySelector('#expanded .decision-option-copy small') })",
       );
-      if (restricted.labels.join(",") !== "拒绝,仅批准本次" || restricted.hint)
+      if (restricted.labels.join(",") !== "仅批准本次,拒绝" || restricted.hint)
         throw Error("Unsupported always-allow must be hidden");
       await fs.writeFile(
         path.join(out, theme + "-restricted.png"),

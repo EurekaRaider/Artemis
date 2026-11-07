@@ -1,5 +1,5 @@
 import { verificationOutput } from "../../../../../scripts/artifacts/output-path.mjs";
-import { verifyLatestUiInteractions } from "./verify-latest-ui-interactions.mjs";
+import { verifyDesktopShellInteractions } from "./verify-desktop-shell-interactions.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -149,7 +149,7 @@ try {
     });
     console.log(`${id}: passed`);
   }
-  report.interactions = await verifyLatestUiInteractions({
+  report.interactions = await verifyDesktopShellInteractions({
     root,
     temp,
     output,

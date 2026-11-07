@@ -3,9 +3,9 @@ import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { scan } from "./nocturne-review06-scan.mjs";
-import { probeControlStates } from "./nocturne-review06-state-probes.mjs";
-import { review06Variants } from "../../../test/fixtures/nocturne-review06.mjs";
+import { scan } from "./scan-rendered-ui.mjs";
+import { probeControlStates } from "./probe-control-states.mjs";
+import { desktopUiVariants } from "../../../test/fixtures/desktop-ui-scenarios.mjs";
 const desktop = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const output = resolve(
   process.argv[2] ?? "artifacts/verification/ui-redesign/review-06/local",
@@ -14,7 +14,7 @@ const runtime = join(output, "supplemental-runtime");
 await mkdir(runtime, { recursive: true });
 await build({
   entryPoints: [
-    join(desktop, "scripts/fixtures/nocturne-review06-supplemental.tsx"),
+    join(desktop, "scripts/fixtures/desktop-component-states.tsx"),
   ],
   bundle: true,
   format: "esm",
@@ -32,7 +32,7 @@ await build({
 });
 await writeFile(
   join(runtime, "index.html"),
-  '<!doctype html><html><head><meta charset="utf-8"><title>Artemis UI fixture</title><link rel="stylesheet" href="./nocturne-review06-supplemental.css"></head><body style="margin:0"><div id="root"></div><script type="module" src="./nocturne-review06-supplemental.js"></script></body></html>',
+  '<!doctype html><html><head><meta charset="utf-8"><title>Artemis UI fixture</title><link rel="stylesheet" href="./desktop-component-states.css"></head><body style="margin:0"><div id="root"></div><script type="module" src="./desktop-component-states.js"></script></body></html>',
 );
 await writeFile(
   join(runtime, "main.cjs"),
@@ -51,7 +51,7 @@ const records = [];
 const controlFamilies = new Set();
 try {
   const page = await app.firstWindow();
-  for (const variant of review06Variants)
+  for (const variant of desktopUiVariants)
     for (const state of [
       "csv",
       "notifications",
@@ -255,7 +255,7 @@ try {
     }
   // Actual bundled design-plugin surface, with the same synthetic host port
   // used by verify-design-panel-rendered.mjs. No plugin runtime is executed.
-  for (const variant of review06Variants) {
+  for (const variant of desktopUiVariants) {
     const id = `design-panel-${variant.theme}-${variant.locale}`;
     const record = {
       id,

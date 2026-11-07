@@ -94,7 +94,7 @@ import { TerminalPanel } from ${modulePath("apps/desktop/src/renderer/terminal/T
 import { ArtemisIcon } from '@artemis/ui/icons';
 import ${modulePath("packages/ui/dist/styles.css")};
 import ${modulePath("apps/desktop/src/renderer/styles/styles.css")};
-import ${modulePath("apps/desktop/src/renderer/styles/prototype-migration.css")};
+import ${modulePath("apps/desktop/src/renderer/styles/desktop-composition.css")};
 import ${modulePath("packages/theme-artemis/dist/theme.css")};
 import ${modulePath("apps/desktop/src/renderer/appearance/appearance.css")};
 import ${modulePath("node_modules/@xterm/xterm/css/xterm.css")};

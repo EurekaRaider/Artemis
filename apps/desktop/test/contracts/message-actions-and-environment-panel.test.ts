@@ -27,7 +27,7 @@ function publicUiCssDeclarations(selector: string): string {
   return declarations ?? "";
 }
 
-describe("reported issue regressions #94-#97", () => {
+describe("message actions and the environment panel", () => {
   it("offers copy actions for user and assistant messages and edit for interrupted turns", () => {
     const timeline = appSource.slice(
       appSource.indexOf("function Timeline("),

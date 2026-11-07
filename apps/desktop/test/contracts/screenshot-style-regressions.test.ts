@@ -89,7 +89,7 @@ describe("screenshot visual contracts", () => {
   });
 
   it("disables collapsed-sidebar hover transitions under reduced motion", () => {
-    const sheet = postcss.parse(readDesktopStyles("prototype-migration"));
+    const sheet = postcss.parse(readDesktopStyles("desktop-composition"));
     const reduced = new Set<string>();
     sheet.walkAtRules("media", (media) => {
       if (media.params !== "(prefers-reduced-motion: reduce)") return;
@@ -512,7 +512,7 @@ describe("screenshot visual contracts", () => {
 });
 
 describe("control text readability", () => {
-  const prototype = postcss.parse(readDesktopStyles("prototype-migration"));
+  const prototype = postcss.parse(readDesktopStyles("desktop-composition"));
   const cases = [
     ["input::placeholder", "color.surface.base"],
     ["textarea::placeholder", "color.surface.composer"],

@@ -16,7 +16,7 @@ const entry = join(
   "apps",
   "desktop",
   "resources",
-  "s0-plugins",
+  "panel-test-plugins",
   "test-notes",
   "runtime",
   "index.mjs",

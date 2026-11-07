@@ -22,7 +22,7 @@ import {
 } from "../../fixtures/application/layout-contract.js";
 describe("renderer layout contract", () => {
   it("extends the macOS sidebar to the native lights and keeps controls outside drag regions", () => {
-    const composition = readDesktopStyles("prototype-migration");
+    const composition = readDesktopStyles("desktop-composition");
     expect(appSource).toContain("data-platform={snapshot.platform}");
     expect(mainProcessSource).toMatch(
       /titleBarStyle:\s*process\.platform === "darwin"\s*\? "hiddenInset"\s*:\s*process\.platform === "win32"\s*\? "hidden"\s*: "default"/u,

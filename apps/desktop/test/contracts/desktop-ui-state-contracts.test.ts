@@ -10,7 +10,7 @@ const source = (path: string) =>
   readFileSync(new URL(`../../src/${path}`, import.meta.url), "utf8");
 const styles = readDesktopStyles("styles");
 const nocturne = readDesktopStyles("nocturne");
-describe("Nocturne sixth review contracts", () => {
+describe("desktop UI state contracts", () => {
   it("never reintroduces diff row foreground colors for add/delete or inherited line numbers", () => {
     for (const selector of [".review-line.addition", ".review-line.deletion"]) {
       expect(findCssDeclarations(styles, selector)).not.toMatch(
@@ -38,7 +38,7 @@ describe("Nocturne sixth review contracts", () => {
     for (const file of [
       styles,
       nocturne,
-      readDesktopStyles("prototype-migration"),
+      readDesktopStyles("desktop-composition"),
     ])
       postcss.parse(file).walkRules((rule) => {
         if (rule.selector.includes(".goal-bar-objective"))

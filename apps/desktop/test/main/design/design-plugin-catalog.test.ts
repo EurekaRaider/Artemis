@@ -142,7 +142,7 @@ describe("DesignPluginCatalog (S0 generic host proof)", () => {
       "apps",
       "desktop",
       "resources",
-      "s0-plugins",
+      "panel-test-plugins",
     );
     const loaded = await catalog.load(resourcesDir);
     expect(loaded.map((p) => p.manifest.id).sort()).toEqual([

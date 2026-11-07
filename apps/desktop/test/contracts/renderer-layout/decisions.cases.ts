@@ -77,8 +77,16 @@ describe("renderer layout contract", () => {
     expect(cssRule(".approval-policy-control")).toMatch(
       /\bposition:\s*static/u,
     );
-    expect(cssRule(".approval-policy-menu")).toMatch(
-      /\bbox-sizing:\s*border-box[\s\S]*\binset-inline-start:\s*var\(--approval-anchor, 12px\)[\s\S]*\boverflow-y:\s*auto[\s\S]*\bposition:\s*absolute[\s\S]*\bwidth:\s*min\(300px,\s*calc\(100%\s*-\s*24px\)\)/u,
+    const menu = cssRule(".approval-policy-menu");
+    expect(menu).toContain("box-sizing: border-box");
+    expect(menu).toContain("position: absolute");
+    expect(menu).toContain("overflow-y: auto");
+    expect(menu).toContain(
+      "--approval-menu-width: min(300px, calc(100% - 24px))",
     );
+    expect(menu).toMatch(
+      /inset-inline-start:\s*clamp\(\s*12px,\s*var\(--approval-anchor, 12px\),\s*calc\(100% - var\(--approval-menu-width\) - 12px\)/u,
+    );
+    expect(menu).toContain("width: var(--approval-menu-width)");
   });
 });

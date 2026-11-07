@@ -1,7 +1,7 @@
 // S0 panel demo: open a real window showing both test plugin panels side by
 // side so a human can interact with them. Closes when the window is closed.
 //
-//   cd apps/desktop && npx electron scripts/dev/demo-s0-panel.mjs
+//   cd apps/desktop && npx electron scripts/dev/demo-plugin-panel-host.mjs
 //
 // This is a standalone demo entry (not the Artemis app): no license gate, no
 // single-instance lock conflict with the packaged Artemis.
@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, WebContentsView, session } from "electron";
 
 const desktop = fileURLToPath(new URL("../../", import.meta.url));
-const pluginsRoot = join(desktop, "resources", "s0-plugins");
+const pluginsRoot = join(desktop, "resources", "panel-test-plugins");
 
 app.on("window-all-closed", () => app.quit());
 

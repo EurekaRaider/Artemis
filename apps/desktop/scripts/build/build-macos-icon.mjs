@@ -77,7 +77,7 @@ try {
   );
   for (const [group, filename] of [
     ["background", "ArtemisBackground.png"],
-    ["foreground", "ArtemisForeground-v2.png"],
+    ["foreground", "ArtemisForeground.png"],
   ]) {
     const layer = source.replace(
       /<g id="(background|foreground)"[\s\S]*?<\/g>/gu,

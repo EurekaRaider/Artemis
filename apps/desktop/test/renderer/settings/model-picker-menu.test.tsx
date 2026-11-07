@@ -26,6 +26,7 @@ describe("integrated model picker", () => {
     (direction) => {
       let boundaryLeft = 256;
       let boundaryRight = 952;
+      let composerWidth = 648;
       let reservedInset = 0;
       let updateLayout = () => {};
       const observe = vi.fn();
@@ -52,7 +53,7 @@ describe("integrated model picker", () => {
             900,
           );
         if (this.classList.contains("composer"))
-          return new DOMRect(280, 600, 648, 100);
+          return new DOMRect(280, 600, composerWidth, 100);
         if (this.classList.contains("model-picker-menu"))
           return new DOMRect(
             0,
@@ -88,9 +89,11 @@ describe("integrated model picker", () => {
       );
       const menu = screen.getByRole("dialog");
       const composer = container.querySelector<HTMLElement>(".composer")!;
-      const expectInsideConversation = () => {
+      const expectInsideBoundaries = () => {
         const left = 280 + Number.parseFloat(menu.style.left);
         const width = menu.getBoundingClientRect().width;
+        expect(left).toBeGreaterThanOrEqual(288);
+        expect(left + width).toBeLessThanOrEqual(280 + composerWidth - 8);
         expect(left).toBeGreaterThanOrEqual(
           boundaryLeft + (direction === "rtl" ? reservedInset : 0) + 8,
         );
@@ -98,7 +101,7 @@ describe("integrated model picker", () => {
           boundaryRight - (direction === "rtl" ? 0 : reservedInset) - 8,
         );
       };
-      expectInsideConversation();
+      expectInsideBoundaries();
       expect(observe).toHaveBeenCalledWith(
         container.querySelector(".conversation"),
       );
@@ -108,22 +111,25 @@ describe("integrated model picker", () => {
         `${reservedInset}px`,
       );
       updateLayout();
-      expectInsideConversation();
+      expectInsideBoundaries();
       boundaryRight = 900;
       updateLayout();
-      expect(menu.style.maxWidth).toBe("301px");
-      expectInsideConversation();
+      expectInsideBoundaries();
       reservedInset = 0;
       composer.style.removeProperty(
         "--environment-panel-content-safe-inline-size",
       );
       updateLayout();
-      expectInsideConversation();
+      composerWidth = 240;
+      updateLayout();
+      expect(menu.style.maxWidth).toBe("224px");
+      expectInsideBoundaries();
+      composerWidth = 648;
       boundaryLeft = 400;
       boundaryRight = 680;
       updateLayout();
       expect(menu.style.maxWidth).toBe("264px");
-      expectInsideConversation();
+      expectInsideBoundaries();
       disconnect.mockClear();
       unmount();
       expect(disconnect).toHaveBeenCalled();

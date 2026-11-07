@@ -1,12 +1,13 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { createThreadViewState } from "@artemis/protocol";
-import { Timeline, UserInputCard } from "../../src/renderer/app/App";
+import type { ApprovalState } from "@artemis/protocol";
+import { ApprovalDecisionCard } from "../../src/renderer/conversation/ApprovalDecisionCard";
+import { UserInputCard } from "../../src/renderer/conversation/UserInputCard";
 import { MultiQuestionUserInputCard } from "../../src/renderer/conversation/MultiQuestionUserInputCard";
 import { i18n } from "../../src/renderer/app/i18n";
 import "@artemis/ui/styles.css";
 import "../../src/renderer/styles/styles.css";
-import "../../src/renderer/styles/prototype-migration.css";
+import "../../src/renderer/styles/desktop-composition.css";
 import "@artemis/theme-artemis/theme.css";
 
 void i18n.changeLanguage("zh-CN");
@@ -23,9 +24,7 @@ Object.assign(window, { previewEvents: events });
 const record = (...args: unknown[]) => {
   events.push(args);
 };
-const state = createThreadViewState("preview");
-state.order = ["approval:preview"];
-state.approvals.preview = {
+const approval: ApprovalState = {
   type: "approval.requested",
   approvalId: "preview",
   nonce: "preview-nonce-0001",
@@ -41,27 +40,6 @@ state.approvals.preview = {
   modelReason: "sudo 涉及特权提权，且此命令尚未获得明确授权。",
   status: "pending",
   requestedAt: new Date().toISOString(),
-};
-const denied = {
-  ...state,
-  approvals: {
-    preview: { ...state.approvals.preview, status: "denied" as const },
-  },
-};
-const props = {
-  installedPlugins: [],
-  installedSkills: [],
-  locale: "zh-CN" as const,
-  onExternalLink: record,
-  onFileLink: record,
-  onFileLinkContextMenu: record,
-  onOpenChildAgent: record,
-  onOpenTurnReview: record,
-  onCopyText: async () => {},
-  onEditUserMessage: undefined,
-  onResolve: record,
-  onResolveUserInput: async (r: unknown) => record(r),
-  onUndoTurnChanges: record,
 };
 const options = [
   {
@@ -110,14 +88,22 @@ const multi = {
   },
 };
 createRoot(document.getElementById("root")!).render(
-  <main className="polish-preview">
+  <main className="decision-card-preview">
     <section id="expanded">
       <h2>审批 · 展开</h2>
-      <Timeline {...props} state={state} />
+      <ApprovalDecisionCard
+        approval={approval}
+        locale="zh-CN"
+        onResolve={record}
+      />
     </section>
     <section id="collapsed">
       <h2>审批 · 收起</h2>
-      <Timeline {...props} state={denied} />
+      <ApprovalDecisionCard
+        approval={{ ...approval, status: "denied" }}
+        locale="zh-CN"
+        onResolve={record}
+      />
     </section>
     <section id="choice">
       <h2>选择菜单</h2>

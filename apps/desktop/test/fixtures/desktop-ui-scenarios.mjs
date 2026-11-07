@@ -1,5 +1,5 @@
 // Local UI states only. The driver uses an isolated profile and never sends a turn.
-export const review06Fixtures = [
+export const desktopUiScenarios = [
   { view: "conversation-timeline-empty-three", state: "welcome-resume" },
   { view: "conversation-timeline-empty", state: "slash" },
   { view: "conversation-timeline-empty", state: "agents" },
@@ -68,7 +68,7 @@ export const review06Fixtures = [
   })),
 ];
 
-export const review06Variants = [
+export const desktopUiVariants = [
   { theme: "dark", locale: "zh-CN" },
   { theme: "light", locale: "zh-CN" },
   { theme: "dark", locale: "ar" },

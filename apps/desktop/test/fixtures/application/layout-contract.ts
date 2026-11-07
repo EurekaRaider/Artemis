@@ -56,7 +56,7 @@ export const archivePageSource = readFileSync(
 );
 export const stylesSource = readDesktopStyles("styles");
 export const nocturneStylesSource = readDesktopStyles("nocturne");
-export const compositionStylesSource = readDesktopStyles("prototype-migration");
+export const compositionStylesSource = readDesktopStyles("desktop-composition");
 export const publicUiStylesSource = readFileSync(
   fileURLToPath(
     new URL("../../../../../packages/ui/src/styles.css", import.meta.url),
