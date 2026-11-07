@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 1280 720"
+        role="img"
+        aria-labelledby="artemis-system-architecture-title artemis-system-architecture-desc" id="artemis-system-architecture-root"
+      >
+        <title id="artemis-system-architecture-title">
+          Artemis desktop runtime architecture
+        </title>
+        <desc id="artemis-system-architecture-desc">
+          The sandboxed renderer talks to Electron Main through a typed preload
+          bridge; Main brokers Pi sessions, stores replayable events and accepts
+          authorized tasks from an optional IM gateway.
+        </desc>
+        <defs>
+      <style>#artemis-system-architecture-root text { font-family:
+                -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+              fill: #1d1d1f; }
+      #artemis-system-architecture-root .heading { font-size: 46px;
+              font-weight: 650;
+              letter-spacing: -1.4px; }
+      #artemis-system-architecture-root .lead { font-size: 21px;
+              fill: #454952; }
+      #artemis-system-architecture-root .name { font-size: 28px;
+              font-weight: 620;
+              letter-spacing: -0.6px; }
+      #artemis-system-architecture-root .copy { font-size: 18px;
+              fill: #454952; }
+      #artemis-system-architecture-root .tag { font:
+                600 15px Menlo,
+                Consolas,
+                monospace;
+              letter-spacing: 0.6px;
+              fill: #555b66; }
+      #artemis-system-architecture-root .focal { fill: #954320; }
+      #artemis-system-architecture-root .wire { fill: none;
+              stroke: #606671;
+              stroke-width: 2; }</style>
+          <style>
+            text {
+              font-family:
+                -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+              fill: #1d1d1f;
+            }
+            .heading {
+              font-size: 46px;
+              font-weight: 650;
+              letter-spacing: -1.4px;
+            }
+            .lead {
+              font-size: 21px;
+              fill: #454952;
+            }
+            .name {
+              font-size: 28px;
+              font-weight: 620;
+              letter-spacing: -0.6px;
+            }
+            .copy {
+              font-size: 18px;
+              fill: #454952;
+            }
+            .tag {
+              font:
+                600 15px Menlo,
+                Consolas,
+                monospace;
+              letter-spacing: 0.6px;
+              fill: #555b66;
+            }
+            .focal {
+              fill: #954320;
+            }
+            .wire {
+              fill: none;
+              stroke: #606671;
+              stroke-width: 2;
+            }
+          </style>
+          <marker
+            id="artemis-system-architecture-arrow"
+            viewBox="0 0 8 8"
+            refX="8"
+            refY="4"
+            markerWidth="5"
+            markerHeight="5"
+            orient="auto-start-reverse"
+          >
+            <path d="M0 0 L8 4 L0 8 Z" fill="#606671" />
+          </marker>
+        </defs>
+        <rect x="0" y="0" width="1280" height="720" fill="#f5f5f7" />
+        <text x="40" y="45" class="tag">ARTEMIS / ENGINEERING</text>
+        <text x="40" y="102" class="heading">How a desktop task runs</text>
+        <text x="40" y="140" class="lead">
+          Three process boundaries separate the interface, host policy and the
+          Pi agent loop.
+        </text>
+        <rect x="40" y="172" width="1200" height="1" fill="#c6c8cc" />
+        <text x="40" y="210" class="tag">01 / EXECUTION PATH</text>
+        <path
+          d="M 400 312 H 460"
+          class="wire"
+          marker-end="url(#artemis-system-architecture-arrow)"
+          marker-start="url(#artemis-system-architecture-arrow)"
+        />
+        <path
+          d="M 820 312 H 880"
+          class="wire"
+          marker-end="url(#artemis-system-architecture-arrow)"
+          marker-start="url(#artemis-system-architecture-arrow)"
+        />
+        <path
+          d="M 400 522 H 524 Q 532 522 532 514 V 388"
+          class="wire"
+          marker-end="url(#artemis-system-architecture-arrow)"
+          marker-start="url(#artemis-system-architecture-arrow)"
+          stroke-dasharray="6 5"
+        />
+        <path d="M 692 388 V 464" class="wire" marker-end="url(#artemis-system-architecture-arrow)" />
+        <path d="M 1060 388 V 464" class="wire" marker-end="url(#artemis-system-architecture-arrow)" />
+        <rect
+          x="40"
+          y="236"
+          width="360"
+          height="152"
+          rx="6"
+          fill="#ffffff"
+          stroke="#b9bdc3"
+        />
+        <text x="60" y="266" class="tag">01 / SANDBOXED RENDERER</text>
+        <text x="60" y="302" class="name">React workspace</text>
+        <text x="60" y="336" class="copy">Views and feature controllers</text>
+        <text x="60" y="359" class="copy">
+          Typed window.artemis preload API
+        </text>
+        <rect
+          x="460"
+          y="236"
+          width="360"
+          height="152"
+          rx="6"
+          fill="#fffcf7"
+          stroke="#a85231"
+        />
+        <text x="480" y="266" class="tag focal">02 / ELECTRON MAIN</text>
+        <text x="480" y="302" class="name">Desktop host</text>
+        <text x="480" y="336" class="copy">IPC, conversations and Goals</text>
+        <text x="480" y="359" class="copy">
+          Broker checks approvals and trust
+        </text>
+        <rect
+          x="880"
+          y="236"
+          width="360"
+          height="152"
+          rx="6"
+          fill="#ffffff"
+          stroke="#b9bdc3"
+        />
+        <text x="900" y="266" class="tag">03 / UTILITY PROCESS</text>
+        <text x="900" y="302" class="name">Pi Agent Host</text>
+        <text x="900" y="336" class="copy">
+          One Pi loop; calls model providers
+        </text>
+        <text x="900" y="359" class="copy">
+          PiAdapter normalizes raw events
+        </text>
+        <rect
+          x="40"
+          y="464"
+          width="360"
+          height="140"
+          rx="6"
+          fill="#ffffff"
+          stroke="#b9bdc3"
+        />
+        <text x="60" y="494" class="tag">OPTIONAL / PAIRED DEVICE</text>
+        <text x="60" y="530" class="name">IM gateway</text>
+        <text x="60" y="564" class="copy">Routes authorized channel tasks</text>
+        <rect
+          x="564"
+          y="464"
+          width="256"
+          height="140"
+          rx="6"
+          fill="#ffffff"
+          stroke="#b9bdc3"
+        />
+        <text x="584" y="494" class="tag">DESKTOP STORAGE</text>
+        <text x="584" y="530" class="name">SQLite</text>
+        <text x="584" y="564" class="copy">UI events and projections</text>
+        <rect
+          x="880"
+          y="464"
+          width="360"
+          height="140"
+          rx="6"
+          fill="#ffffff"
+          stroke="#b9bdc3"
+        />
+        <text x="900" y="494" class="tag">SESSION STORAGE</text>
+        <text x="900" y="530" class="name">Pi JSONL</text>
+        <text x="900" y="564" class="copy">Persistent Pi task history</text>
+        <rect x="40" y="640" width="1200" height="1" fill="#c6c8cc" />
+        <text x="40" y="684" class="tag">EVENT REPLAY</text>
+        <text x="224" y="684" class="lead">
+          Main sequences and saves UI events; the renderer applies them
+          idempotently.
+        </text>
+      </svg>

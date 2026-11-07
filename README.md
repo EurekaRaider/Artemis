@@ -22,7 +22,7 @@
 
 ---
 
-[Quick start](#quick-start) · [Preview](#product-preview) · [Features](#core-capabilities) · [Permissions](#execution-permissions-and-trust-boundary) · [Development](#development-and-packaging)
+[Quick start](#quick-start) · [Preview](#product-preview) · [Features](#core-capabilities) · [Permissions](#execution-permissions-and-trust-boundary) · [Architecture](#architecture) · [Repository layout](#repository-layout) · [Development](#development-and-packaging)
 
 <p><sub>Artemis desktop · persistent project conversation · dark theme</sub></p>
 
@@ -54,7 +54,7 @@ services receive the data needed for their requests; credentials use
 operating-system encryption. The interface supports 14 languages, including
 Arabic RTL, with light and dark themes.
 
-Current version: **v2.0.3** · [Release notes](docs/records/release-notes.md).
+Current version: **v2.0.4** · [Release notes](docs/records/release-notes.md).
 
 Artemis 2.0 introduces the Nocturne interface across conversations, the workspace
 dock, settings, resources and automations. Structured work records clarify task
@@ -388,17 +388,84 @@ unavailable. MCP Registry discovery does not imply trust in a server.
 
 ## Architecture
 
-| Layer                      | Responsibility                                                                                                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Renderer**               | React workspace and shared UI packages; consumes only the typed Artemis protocol.                                                           |
-| **Electron Main**          | Desktop lifecycle, policy, Git, native PTY, MCP, automations and encrypted settings.                                                        |
-| **Pi Agent Host**          | The single agent loop, model sessions and child-Agent scheduling.                                                                           |
-| **Protocol & persistence** | `PiAdapter` normalizes raw events; versioned, idempotent UI events and SQLite projections support replay. Pi JSONL retains session history. |
-| **Optional IM gateway**    | Connects paired devices and IM conversations with independently enforced permissions.                                                       |
+The desktop separates the sandboxed interface, privileged host services and
+agent execution. Pi remains the only agent loop; the optional IM gateway routes
+remote conversations through the desktop's authorization and execution policy.
+
+![Artemis runtime: the React workspace communicates through a typed preload bridge with Electron Main, which brokers Pi sessions and persists replayable events.](docs/assets/artemis-system-architecture.svg)
+
+- **Renderer and preload:** views compose feature controllers and consume typed
+  contracts from `shared/api/` and `@artemis/protocol`. The renderer has no Node
+  or Electron main-process access; preload exposes only the declared API.
+- **Main process:** `application/` and `ipc/` compose services;
+  `conversation/` owns task execution and Goals, while `broker/` owns approvals
+  and tool dispatch. Git, Terminal, Browser, plugins, MCP, Office, IM and
+  automations stay with their feature owners.
+- **Agent Host and protocol:** Pi runs in a utility process. `PiAdapter`
+  normalizes raw events before Main assigns authoritative IDs and sequences,
+  persists them and publishes them to the UI. Versioned envelopes and
+  idempotent reducers support replay; Pi JSONL stores persistent task history.
+- **Execution boundary:** Plan writes are denied before execution. Work and
+  Codemode Shell use desktop-user permissions; local MCP and trusted executable
+  extensions use their respective sandbox and trust policies. See
+  [execution permissions](#execution-permissions-and-trust-boundary).
 
 Artemis uses independent branding and protocols with the MIT-licensed Pi SDK.
 Its bundled document plugins are maintained as Artemis resources.
 See [architecture notes](docs/architecture.md) and [engineering guidance](AGENTS.md).
+
+## Repository layout
+
+The repository is an npm workspace. Desktop code is grouped first by process
+boundary, then by feature; shared packages retain their public contracts.
+
+```text
+Artemis/
+├── apps/
+│   ├── desktop/
+│   │   ├── src/
+│   │   │   ├── main/          # Lifecycle, IPC, conversation, broker and host services
+│   │   │   ├── renderer/      # React views, feature controllers and ordered styles
+│   │   │   ├── preload/       # Typed bridges and isolated viewer preloads
+│   │   │   ├── agent/         # Electron utility-process entry for the Agent Host
+│   │   │   ├── extension/     # Executable extension worker
+│   │   │   └── shared/        # Cross-process API types, channels and localization
+│   │   ├── test/              # Tests by owner, contracts and shared fixtures
+│   │   ├── scripts/           # Desktop build, packaging, release and verification
+│   │   ├── native/            # Platform-native helpers
+│   │   ├── resources/         # Shipped runtime resources and sandbox hosts
+│   │   └── build/             # Tracked icons and installer configuration
+│   └── ui-gallery/            # UI component examples, themes and conformance
+├── packages/
+│   ├── agent-host/            # Pi runtime, sessions, context, models, tools and policy
+│   ├── protocol/              # Payload schemas, PiAdapter and replay-safe reducers
+│   ├── platform/              # Workspace paths, shell execution and native sandboxing
+│   ├── gateway/               # IM channels, routing, authorization and HTTP runtime
+│   ├── plugin-contract/       # Plugin metadata and JSON Schema
+│   ├── plugin-sdk/            # Plugin runtime protocol helpers
+│   ├── theme-contract/        # Theme and skin contracts
+│   ├── ui/                    # Shared UI components and behavior contracts
+│   └── theme-artemis/         # Default Artemis theme
+├── scripts/                   # Cross-workspace CI, release, tooling and benchmarks
+├── docs/                      # Architecture, guides, release notes and visual assets
+├── examples/                  # Runnable integration and plugin examples
+├── vendor/                    # Vendored dependencies and compatibility packages
+├── third-party/               # Third-party license texts
+├── .github/workflows/         # CI, native validation and release pipelines
+└── artifacts/                 # Ignored caches and verification evidence
+```
+
+Tests mirror their source owners under `test/main/`, `test/renderer/`,
+`test/preload/` and `test/shared/`. Cross-process scenarios live in
+`test/integration/`, structural checks in `test/contracts/`, and reusable data
+in `test/fixtures/`. Production entrypoints do not import test fixtures or
+verification drivers.
+
+Desktop verification drivers live in `apps/desktop/scripts/verify/`, grouped
+into `ui/`, `native/` and `features/`. Generated evidence belongs under
+`artifacts/verification/<topic>/<run>/`; build outputs are not source directories.
+See the [directory and ownership guide](docs/guides/repository-layout-en.md)
+([简体中文](docs/guides/repository-layout.md)) for module placement rules.
 
 ## Development and packaging
 
