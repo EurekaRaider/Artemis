@@ -11,7 +11,7 @@
 <p align="center">
   <a href="#platform-support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-windows-dark.svg" /><img src="docs/assets/readme-meta-windows-light.svg" width="140" alt="Windows x64" /></picture></a>
   &nbsp;
-  <a href="#platform-support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-macos-dark.svg" /><img src="docs/assets/readme-meta-macos-light.svg" width="206" alt="macOS Apple Silicon" /></picture></a>
+  <a href="#platform-support"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-macos-dark.svg" /><img src="docs/assets/readme-meta-macos-light.svg" width="238" alt="macOS Apple Silicon and Intel" /></picture></a>
   &nbsp;
   <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-meta-license-dark.svg" /><img src="docs/assets/readme-meta-license-light.svg" width="134" alt="MIT License" /></picture></a>
 </p>
@@ -184,7 +184,7 @@ quick research, documents, spreadsheets and presentations.
 
 ## Quick start
 
-**Download** the latest build for Windows x64 or macOS Apple Silicon from
+**Download** the latest build for Windows x64 or macOS (Apple Silicon and Intel) from
 [Releases](https://github.com/EurekaRaider/Artemis/releases/latest). Artemis is
 free, MIT-licensed and needs no activation. See the
 [installation guide](docs/install-en.md) for details.
@@ -211,7 +211,7 @@ Then:
 | -------------------- | ---------------------------------------------- |
 | Windows x64          | Per-user installer with in-app updates, or ZIP |
 | macOS Apple Silicon  | Signed and notarized DMG or ZIP                |
-| macOS Intel          | DMG or ZIP                                     |
+| macOS Intel          | Signed and notarized DMG or ZIP                |
 | Windows ARM64, Linux | Not supported                                  |
 
 <details>
@@ -255,7 +255,10 @@ rather than fall back to plain text. See
 
 ## Architecture
 
-![The React workspace talks through a typed preload bridge to Electron Main, which brokers Pi sessions and persists replayable events.](docs/assets/artemis-system-architecture.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-architecture-dark.svg" />
+  <img src="docs/assets/readme-architecture-light.svg" width="960" alt="Architecture: the sandboxed React renderer talks to Electron Main through a typed preload bridge; Main exchanges commands and events with the Pi Agent Host, receives authorized tasks from the optional IM Gateway, and dispatches brokered tools to the execution surfaces." />
+</picture>
 
 - **Renderer** — React views with no Node or Electron access; they consume only
   typed contracts from `shared/api/` and `@artemis/protocol`.
@@ -269,6 +272,73 @@ rather than fall back to plain text. See
 Read the [architecture notes](docs/architecture.md) and
 [engineering guidance](AGENTS.md) for the full picture.
 
+## Repository layout
+
+Artemis is an npm workspace: one desktop app, a set of shared packages, and the
+docs, examples and tooling around them. Desktop code is grouped first by process,
+then by feature.
+
+```text
+Artemis/
+├── apps/
+│   ├── desktop/                  Electron desktop app
+│   │   ├── src/
+│   │   │   ├── main/             host process: conversation, broker, plugins, MCP, IM …
+│   │   │   ├── renderer/         React views, feature controllers and styles
+│   │   │   ├── preload/          typed bridges that expose window.artemis
+│   │   │   ├── agent/            Agent Host utility-process entry
+│   │   │   ├── extension/        executable extension worker
+│   │   │   └── shared/           cross-process API types, IPC channels and i18n
+│   │   ├── test/                 tests that mirror src, plus contracts and fixtures
+│   │   ├── scripts/              build, packaging, release and verification
+│   │   ├── native/               platform-native helpers
+│   │   ├── resources/            shipped runtime resources and sandbox hosts
+│   │   └── build/                icons and installer configuration
+│   └── ui-gallery/               component demos, themes and conformance
+├── packages/                     shared libraries, listed below
+├── docs/                         architecture, guides, records and visual assets
+├── examples/                     plugins, visual skins and hooks
+├── scripts/                      cross-workspace CI, release and tooling
+├── vendor/                       vendored dependencies
+├── third-party/                  third-party license texts
+└── artifacts/                    git-ignored caches and verification output
+```
+
+### Shared packages
+
+Each package is named `@artemis/<name>`.
+
+| Package                                         | Owns                                                |
+| ----------------------------------------------- | --------------------------------------------------- |
+| [`agent-host`](packages/agent-host)             | Pi runtime, sessions, models, tools and policy      |
+| [`protocol`](packages/protocol)                 | Event schemas, `PiAdapter` and replay-safe reducers |
+| [`platform`](packages/platform)                 | Workspace paths, shell execution and sandboxing     |
+| [`gateway`](packages/gateway)                   | IM channels, routing and authorization              |
+| [`ui`](packages/ui)                             | Shared components and behavior contracts            |
+| [`theme-contract`](packages/theme-contract)     | Theme and skin contracts                            |
+| [`theme-artemis`](packages/theme-artemis)       | The default theme                                   |
+| [`plugin-contract`](packages/plugin-contract)   | Plugin metadata and JSON Schema                     |
+| [`plugin-sdk`](packages/plugin-sdk)             | Plugin runtime helpers                              |
+
+### Where new code goes
+
+Short paths are relative to `apps/desktop/`.
+
+| Adding                          | Put it in                                                   |
+| ------------------------------- | ----------------------------------------------------------- |
+| Task execution or Goals         | `apps/desktop/src/main/conversation/`                       |
+| Approvals or tool dispatch      | `apps/desktop/src/main/broker/`                             |
+| A cross-process API             | `src/shared/api/`, bridged in `src/preload/bridges/`        |
+| Protocol payloads and reducers  | `packages/protocol/src/schema/` and `reducer/`              |
+| Tests                           | `test/main/`, `test/renderer/` or `test/integration/`       |
+| Fixtures and test helpers       | `test/fixtures/<feature>/`                                  |
+| Desktop verification drivers    | `apps/desktop/scripts/verify/{ui,native,features}/`         |
+
+Production entrypoints never import test fixtures or verification drivers, and
+verification output goes to `artifacts/verification/<topic>/<run>/`. See the
+[repository layout guide](docs/guides/repository-layout-en.md) for the full
+ownership rules, and run `npm run verify:layout` after moving directories.
+
 ## Development
 
 ```bash
@@ -281,42 +351,13 @@ npm run format:check
 | Target      | Command                     | Output                     |
 | ----------- | --------------------------- | -------------------------- |
 | Windows x64 | `npm run package:win`       | Per-user NSIS EXE and ZIP  |
-| macOS arm64 | `npm run package:mac:arm64` | Signed, notarized DMG, ZIP |
+| macOS arm64 | `npm run package:mac:arm64` | DMG and ZIP                |
 | macOS x64   | `npm run package:mac:x64`   | DMG and ZIP                |
 
 Build plugins with `npm run plugin -- init <dir> resource`, then `validate`,
 `dev` and `pack`. Start with the [plugin guide](docs/guides/plugin-development-en.md),
 [marketplaces](docs/guides/plugin-marketplaces-en.md),
 [connectors](docs/guides/connectors.md) and [examples](examples/plugins/).
-
-<details>
-<summary><strong>Repository layout</strong></summary>
-<br />
-
-```text
-Artemis/
-├── apps/
-│   ├── desktop/           # Electron app: main, renderer, preload, agent, tests
-│   └── ui-gallery/        # Component examples, themes and conformance
-├── packages/
-│   ├── agent-host/        # Pi runtime, sessions, models, tools and policy
-│   ├── protocol/          # Payload schemas, PiAdapter and replay-safe reducers
-│   ├── platform/          # Workspace paths, shell execution and sandboxing
-│   ├── gateway/           # IM channels, routing and authorization
-│   ├── plugin-contract/   # Plugin metadata and JSON Schema
-│   ├── plugin-sdk/        # Plugin runtime helpers
-│   ├── theme-contract/    # Theme and skin contracts
-│   ├── theme-artemis/     # Default theme
-│   └── ui/                # Shared UI components
-├── docs/                  # Architecture, guides, records and visual assets
-├── examples/              # Plugin, skin and hook examples
-└── scripts/               # CI, release and tooling
-```
-
-See the [repository layout guide](docs/guides/repository-layout-en.md) for
-ownership and placement rules.
-
-</details>
 
 <details>
 <summary><strong>Building and shipping releases</strong></summary>
