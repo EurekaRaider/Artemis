@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
   chmod,
   copyFile,
@@ -11,7 +11,6 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import {
   assertSlackBinary,
@@ -21,7 +20,6 @@ import {
   slackCliLockPath,
 } from "./slack-cli-release.mjs";
 
-const exec = promisify(execFile);
 export const slackCliStagingRoot = fileURLToPath(
   new URL("../../artifacts/slack-cli/", import.meta.url),
 );
@@ -114,13 +112,16 @@ export async function verifyPackagedSlackCli(
       throw new Error(
         "Slack CLI: native verification requires the target OS and architecture.",
       );
-    const versionCommand = exec(executable, ["--version"], {
+    // This bounded build-time probe needs spawn options that async execFile
+    // does not forward (detached). Never inherit Electron's unusable console.
+    const stdout = execFileSync(executable, ["--version"], {
       timeout: process.platform === "win32" ? 60000 : 15000,
       maxBuffer: 16384,
       windowsHide: process.platform !== "win32",
+      detached: process.platform === "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+      encoding: "utf8",
     });
-    versionCommand.child.stdin.end();
-    const { stdout } = await versionCommand;
     const name = target.startsWith("win32") ? "slack.exe" : "slack";
     if (stdout.trim() !== `Using ${name} v${lock.version}`)
       throw new Error(

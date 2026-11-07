@@ -86,10 +86,11 @@ export async function runSlackCli(
       {
         cwd: join(command.directory, "project"),
         env: slackCliEnvironment(command),
-        // The official Windows CLI stalls when CREATE_NO_WINDOW is set.
+        // Give the Windows CLI its own console: Electron's GUI process may
+        // have no usable console to inherit. Keep POSIX process-group cleanup.
         windowsHide: process.platform !== "win32",
         stdio: ["ignore", "pipe", "pipe"],
-        detached: process.platform !== "win32",
+        detached: true,
       },
     );
     let output = "",
