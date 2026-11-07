@@ -60,7 +60,7 @@ export function createMcpConnectionFactory(
   return async (config, authentication, scope, options) => {
     let client = new Client({
       name: "Artemis",
-      version: "2.0.4",
+      version: "2.0.5",
     });
     let stdioTransport: StdioClientTransport | undefined;
     let waitForWindowsSandboxTeardown = false;
@@ -323,7 +323,7 @@ export function createMcpConnectionFactory(
         }
         client = new Client({
           name: "Artemis",
-          version: "2.0.4",
+          version: "2.0.5",
         });
         command = {
           ...command,
@@ -381,7 +381,7 @@ export function createMcpConnectionFactory(
         }
         client = new Client({
           name: "Artemis",
-          version: "2.0.4",
+          version: "2.0.5",
         });
         transport = createTransport();
         await client.connect(transport as Parameters<Client["connect"]>[0]);
