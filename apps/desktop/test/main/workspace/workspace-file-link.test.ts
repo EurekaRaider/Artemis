@@ -1,4 +1,7 @@
-import { readPreloadBridgeSources, readSharedApiSources } from '../../fixtures/application/api-source.js';
+import {
+  readPreloadBridgeSources,
+  readSharedApiSources,
+} from "../../fixtures/application/api-source.js";
 import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../../fixtures/application/main-source.js";
 import { readFileSync } from "node:fs";

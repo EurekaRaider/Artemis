@@ -1,4 +1,7 @@
-import { readSharedApiSources, readPreloadBridgeSources } from '../../fixtures/application/api-source.js';
+import {
+  readSharedApiSources,
+  readPreloadBridgeSources,
+} from "../../fixtures/application/api-source.js";
 import { readDesktopStyles } from "../../fixtures/application/styles-source.js";
 import { readRendererAppSources } from "../../fixtures/application/renderer-source.js";
 import { readMainProcessSources } from "../../fixtures/application/main-source.js";
