@@ -52,7 +52,7 @@ interface UseReviewControllerContext {
   readonly setToast: (content: ToastContent | undefined) => void;
   readonly startReviewTransition: import("react").TransitionStartFunction;
   readonly setReviewBaseRef: import("react").Dispatch<SetStateAction<string>>;
-  readonly openReviewPanel: () => void;
+  readonly openReviewPanel: () => Promise<string | undefined> | undefined;
   readonly t: ReturnType<typeof appCopy>;
   readonly requestConfirmation: (
     message: string,
@@ -119,16 +119,23 @@ export function useReviewController(context: UseReviewControllerContext) {
     setReviewBusy,
     commentBody,
   } = context;
-  useEffect(() => {
-    if (reviewScopeThreadId.current === activeThreadId) return;
-    reviewScopeThreadId.current = activeThreadId;
+  const resetThreadReview = (
+    threadId: string | undefined,
+    scope: ReviewScope,
+  ) => {
+    reviewScopeThreadId.current = threadId;
     reviewRequestId.current += 1;
-    setReviewScope("branch");
+    setReviewScope(scope);
     setReviewTurnId(undefined);
     setReviewDiff(undefined);
     setSelectedReviewFilePath(undefined);
     setCommentLineId(undefined);
     setCommentBody("");
+  };
+  useEffect(() => {
+    if (reviewScopeThreadId.current !== activeThreadId) {
+      resetThreadReview(activeThreadId, "branch");
+    }
   }, [activeThreadId]);
 
   // Completed turn diffs are immutable; live output must not reload them.
@@ -256,10 +263,29 @@ export function useReviewController(context: UseReviewControllerContext) {
     setCommentBody("");
   };
 
-  const openReviewScopePanel = (scope: ReviewScope, baseRef?: string) => {
+  const openReviewScopePanel = async (scope: ReviewScope, baseRef?: string) => {
     if (scope === "branch" && baseRef) setReviewBaseRef(baseRef);
+    if (!activeThreadId) {
+      const threadId = await openReviewPanel();
+      if (threadId && scope !== "branch") {
+        // The welcome card opens a workspace draft. Keep its requested scope
+        // across that thread's normal reset to branch comparison.
+        invalidateReviewDiffCache(threadId);
+        resetThreadReview(threadId, scope);
+      }
+      return;
+    }
+    invalidateReviewDiffCache(activeThreadId);
     selectReviewScope(scope);
-    openReviewPanel();
+    if (
+      scope === reviewScope &&
+      workspaceDockOpen &&
+      activeWorkspaceTab?.kind === "review" &&
+      (scope !== "branch" || !baseRef || baseRef === reviewBaseRef)
+    ) {
+      void refreshDiff(true);
+    }
+    void openReviewPanel();
   };
 
   const openReviewTurnPanel = useCallback(
@@ -335,7 +361,7 @@ export function useReviewController(context: UseReviewControllerContext) {
           setReviewCounts({
             threadId: activeThreadId,
             staged: info.stagedCount,
-            unstaged: info.unstagedCount,
+            unstaged: info.unstagedCount + info.untrackedCount,
           });
       })
       .catch(() => {

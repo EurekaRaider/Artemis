@@ -1153,7 +1153,7 @@ export function App() {
 
   const openReviewPanel = useCallback(() => {
     if (!activeProjectId) return;
-    openWorkspaceTab("review");
+    return openWorkspaceTab("review");
   }, [activeProjectId, openWorkspaceTab]);
   const openTerminalPanel = useCallback(
     () => openWorkspaceTab("terminal"),
@@ -4271,7 +4271,7 @@ export function App() {
                         setActiveThreadId(thread.id);
                         setMode(thread.mode);
                       }}
-                      onOpenReview={openReviewPanel}
+                      onOpenReview={openReviewScopePanel}
                       onOpenAutomation={(id) => {
                         setWelcomeAutomationId(id);
                         setActiveView("automations");

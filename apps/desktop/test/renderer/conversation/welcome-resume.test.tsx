@@ -107,11 +107,26 @@ describe("WelcomeResume", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Review uncommitted changes/ }),
     );
-    expect(p.onOpenReview).toHaveBeenCalledOnce();
+    expect(p.onOpenReview).toHaveBeenCalledWith("unstaged");
     expect(screen.getByText("+27")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Daily review/ }));
     expect(p.onOpenAutomation).toHaveBeenCalledWith("next");
   });
+  it.each([
+    { stagedCount: 2, unstagedCount: 0, untrackedCount: 0, scope: "staged" },
+    { stagedCount: 1, unstagedCount: 1, untrackedCount: 0, scope: "unstaged" },
+    { stagedCount: 1, unstagedCount: 0, untrackedCount: 1, scope: "unstaged" },
+  ])(
+    "opens the $scope diff for the advertised changes",
+    ({ scope, ...counts }) => {
+      const p = props();
+      render(<WelcomeResume {...p} gitInfo={{ ...git, ...counts }} />);
+      fireEvent.click(
+        screen.getByRole("button", { name: /Review uncommitted changes/ }),
+      );
+      expect(p.onOpenReview).toHaveBeenCalledWith(scope);
+    },
+  );
   it("falls back to the most recently paused automation", () => {
     const p = props();
     render(

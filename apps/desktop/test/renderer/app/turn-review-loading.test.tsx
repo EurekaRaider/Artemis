@@ -341,3 +341,111 @@ it("keeps historical review stable during live output while preserving refresh a
   expect(addReviewComment).toHaveBeenCalledOnce();
   expect(composer.value).toBe("");
 }, 15_000);
+
+it("keeps the welcome card's scope when opening Review creates a workspace draft", async () => {
+  vi.stubGlobal("requestIdleCallback", () => 0);
+  vi.stubGlobal("cancelIdleCallback", () => {});
+  const now = "2026-11-07T00:00:00Z";
+  const project = {
+    id: "project",
+    name: "Field-Notes",
+    path: "/notes",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const thread = {
+    id: "draft",
+    projectId: project.id,
+    title: "",
+    mode: "work",
+    target: "local",
+    status: "idle",
+    archived: false,
+    pinned: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+  const createThread = vi.fn(async () => thread);
+  let changedPath = "field-note.md";
+  const getReviewDiff = vi.fn(async ({ scope }: { scope: string }) => ({
+    scope,
+    available: true,
+    text: "",
+    files:
+      scope === "unstaged"
+        ? [
+            {
+              id: "file",
+              path: changedPath,
+              status: "added",
+              additions: 1,
+              deletions: 0,
+              binary: false,
+              untracked: true,
+              hunks: [],
+            },
+          ]
+        : [],
+  }));
+  const pending = new Promise(() => {});
+  const handlers: Record<string, unknown> = {
+    getSnapshot: async () => ({
+      projects: [project],
+      threads: createThread.mock.calls.length ? [thread] : [],
+      worktrees: [],
+      events: {},
+      locale: "en",
+      platform: "darwin",
+      userName: "QA",
+      sandbox: { available: true },
+    }),
+    createThread,
+    getReviewDiff,
+    getProjectGitInfo: async () => ({
+      managed: true,
+      detached: false,
+      currentBranch: "main",
+      branches: [],
+      changeCount: 1,
+      additions: 1,
+      deletions: 0,
+      stagedCount: 0,
+      unstagedCount: 0,
+      untrackedCount: 1,
+    }),
+    listReviewComments: async () => [],
+    listInstalledSkills: async () => [],
+    listArtemisPlugins: async () => [],
+  };
+  stubWindowArtemis(
+    new Proxy(handlers, {
+      get(target, key) {
+        if (String(key) in target) return target[String(key)];
+        if (String(key).startsWith("on")) return () => () => {};
+        return () => pending;
+      },
+    }),
+  );
+  render(<App />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: /Review uncommitted changes/ }),
+  );
+  expect(
+    await screen.findByRole("button", { name: /field-note.md/ }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: /Unstaged/i, pressed: true }),
+  ).toBeVisible();
+  expect(getReviewDiff).toHaveBeenLastCalledWith({
+    threadId: "draft",
+    scope: "unstaged",
+  });
+  changedPath = "updated-note.md";
+  fireEvent.click(
+    screen.getByRole("button", { name: /Review uncommitted changes/ }),
+  );
+  expect(
+    await screen.findByRole("button", { name: /updated-note.md/ }),
+  ).toBeVisible();
+  expect(createThread).toHaveBeenCalledOnce();
+});

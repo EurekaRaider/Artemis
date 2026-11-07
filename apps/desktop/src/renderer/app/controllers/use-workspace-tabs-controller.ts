@@ -350,16 +350,12 @@ export function useWorkspaceTabsController(
   );
 
   const openWorkspaceTab = useCallback(
-    (kind: WorkspaceTabKind, options: WorkspaceTabOpenOptions = {}) => {
+    async (kind: WorkspaceTabKind, options: WorkspaceTabOpenOptions = {}) => {
       setWorkspaceDockOpen(true);
       setWorkspaceTabMenuOpen(false);
-      if (activeThreadId) {
-        openWorkspaceTabForThread(activeThreadId, kind, options);
-        return;
-      }
-      void ensureWorkspaceThread().then((threadId) => {
-        if (threadId) openWorkspaceTabForThread(threadId, kind, options);
-      });
+      const threadId = activeThreadId ?? (await ensureWorkspaceThread());
+      if (threadId) openWorkspaceTabForThread(threadId, kind, options);
+      return threadId;
     },
     [activeThreadId, ensureWorkspaceThread, openWorkspaceTabForThread],
   );

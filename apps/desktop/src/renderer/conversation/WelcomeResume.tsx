@@ -30,7 +30,7 @@ export function WelcomeResume({
   automations: readonly Automation[];
   gitInfo?: ProjectGitInfo | undefined;
   onOpenThread(thread: Thread): void;
-  onOpenReview(): void;
+  onOpenReview(scope: "unstaged" | "staged"): void;
   onOpenAutomation(id: string): void;
 }) {
   const recent = threads
@@ -97,7 +97,13 @@ export function WelcomeResume({
         {changes && (
           <button
             className="welcome-resume-card"
-            onClick={onOpenReview}
+            onClick={() =>
+              onOpenReview(
+                changes.unstagedCount || changes.untrackedCount
+                  ? "unstaged"
+                  : "staged",
+              )
+            }
             type="button"
           >
             <span className="welcome-resume-title">
