@@ -1,13 +1,11 @@
-# Artemis v2.0.5
+# Artemis v2.0.6
 
 ## 中文
 
-- 在窄窗口中，输入栏会收起运行模式文字、缩短审批策略标签，为模型选择和运行按钮留出空间。审批菜单会随输入栏宽度调整位置。
-- 模型菜单保持在输入栏边界内。使用键盘切换推理强度时，获得焦点的选项会滚动到可见区域。
-- README 更新了桌面应用架构图，并提供适配浅色和深色主题的版本。
+- 点击欢迎页的变更卡片时，如果有未暂存的修改或未跟踪的文件，审查面板会打开未暂存视图。如果只有已暂存的修改，则打开已暂存视图。首次从欢迎页进入时也会保留这个选择。
+- 未暂存变更计数现在包含未跟踪的文件。再次点击卡片打开同一审查视图时，面板会刷新差异。
 
 ## English
 
-- In narrow windows, the composer collapses run-mode labels and truncates the approval policy label to leave room for the model picker and run controls. The approval menu adjusts its position to fit the composer.
-- The model menu stays within the composer bounds. When you navigate reasoning levels with the keyboard, the focused option scrolls into view.
-- The README includes an updated desktop architecture diagram in light and dark variants.
+- Clicking the changes card on the welcome screen opens the unstaged view when there are unstaged changes or untracked files. If all changes are staged, it opens the staged view. The selection is preserved when opening a workspace from the welcome screen for the first time.
+- The unstaged count now includes untracked files. Clicking the card again refreshes the diff when the same review view is already open.
