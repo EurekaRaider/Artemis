@@ -99,6 +99,18 @@
   }
 }
 
+/* Stack the files when the 160px sidebar would leave less than 320px for the diff. */
+@container (width < 480px) {
+  .app-shell .review-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: fit-content(35%) minmax(0, 1fr);
+  }
+  .app-shell .review-file-sidebar {
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--border-soft);
+  }
+}
+
 .review-footer {
   & {
     display: flex;

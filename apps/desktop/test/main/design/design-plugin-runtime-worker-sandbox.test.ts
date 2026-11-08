@@ -395,7 +395,8 @@ describeDarwin("design-plugin runtime sandbox (real Seatbelt spawn)", () => {
     expect(await readFile(join(scratch, "inside.txt"), "utf8")).toContain(
       "sandbox-out-of-bounds-write",
     );
-    await rm(scratch, { recursive: true });
+    // Windows can briefly retain a directory handle after the wrapper exits.
+    await rm(scratch, { recursive: true, maxRetries: 4, retryDelay: 100 });
   }, 120_000);
 
   it("⑤ keeps the real packaged plugin runtime working under the sandbox", async () => {

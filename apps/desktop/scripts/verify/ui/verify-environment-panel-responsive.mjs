@@ -514,43 +514,56 @@ try {
     "Environment PR checks do not expose the empty state.",
   );
 
+  const rtlReviewOptions = { direction: "rtl", scale: 2, theme: "dark" };
   const review = await runCase(
     "review-rtl",
     1_420,
     "turn-changes-form-controls",
-    { direction: "rtl", scale: 2, theme: "dark" },
+    rtlReviewOptions,
   );
-  assert(
-    review.documentDirection === "rtl" &&
-      review.workflowComponents.includes("review-surface") &&
-      review.workflowComponents.includes("review-diff"),
-    "RTL Review case is not using the public Review and Diff surfaces.",
+  const narrowReview = await runCase(
+    "review-rtl-narrow",
+    1_004,
+    "turn-changes-form-controls",
+    rtlReviewOptions,
   );
+  for (const snapshot of [review, narrowReview]) {
+    assert(
+      snapshot.documentDirection === "rtl" &&
+        snapshot.workflowComponents.includes("review-surface") &&
+        snapshot.workflowComponents.includes("review-diff"),
+      "RTL Review case is not using the public Review and Diff surfaces.",
+    );
+    assert(
+      snapshot.workspaceDock?.width >= 320 &&
+        snapshot.reviewGeometry?.root.width >= 320 &&
+        snapshot.reviewGeometry.toolbar?.width >= 320 &&
+        snapshot.reviewGeometry.reader?.width >= 320 &&
+        snapshot.reviewGeometry.files?.width >= 160 &&
+        snapshot.reviewGeometry.diffState === "selected" &&
+        snapshot.reviewGeometry.lineCount > 0,
+      `RTL Review geometry is incomplete or too narrow to use: ${JSON.stringify(snapshot.reviewGeometry)}`,
+    );
+    assert(
+      snapshot.reviewGeometry.lineMarkers.includes("+") &&
+        snapshot.reviewGeometry.lineMarkers.includes("−"),
+      "RTL Review diff lines are missing visible addition or deletion markers.",
+    );
+    const reviewReader = snapshot.reviewGeometry.reader;
+    const reviewFiles = snapshot.reviewGeometry.files;
+    assert(
+      reviewReader.right <= reviewFiles.left + 1 ||
+        reviewFiles.right <= reviewReader.left + 1 ||
+        reviewReader.bottom <= reviewFiles.top + 1 ||
+        reviewFiles.bottom <= reviewReader.top + 1,
+      "RTL Review diff reader overlaps the changed-file sidebar.",
+    );
+  }
   assert(
-    review.workspaceDock?.width >= 320 &&
-      review.reviewGeometry?.root.width >= 320 &&
-      review.reviewGeometry.toolbar?.width >= 320 &&
-      review.reviewGeometry.reader?.width >= 320 &&
-      // The current split Review uses a 160px minimum file sidebar, with
-      // remaining width reserved for the diff reader.
-      review.reviewGeometry.files?.width >= 160 &&
-      review.reviewGeometry.diffState === "selected" &&
-      review.reviewGeometry.lineCount > 0,
-    "RTL Review geometry is incomplete or too narrow to use.",
-  );
-  assert(
-    review.reviewGeometry.lineMarkers.includes("+") &&
-      review.reviewGeometry.lineMarkers.includes("−"),
-    "RTL Review diff lines are missing visible addition or deletion markers.",
-  );
-  const reviewReader = review.reviewGeometry.reader;
-  const reviewFiles = review.reviewGeometry.files;
-  assert(
-    reviewReader.right <= reviewFiles.left + 1 ||
-      reviewFiles.right <= reviewReader.left + 1 ||
-      reviewReader.bottom <= reviewFiles.top + 1 ||
-      reviewFiles.bottom <= reviewReader.top + 1,
-    "RTL Review diff reader overlaps the changed-file sidebar.",
+    narrowReview.reviewGeometry.root.width < 480 &&
+      narrowReview.reviewGeometry.files.bottom <=
+        narrowReview.reviewGeometry.reader.top + 1,
+    "Narrow Review must stack the files above the diff reader.",
   );
 
   const goal = await runCase("goal-dirty", 1_420, "goal-editor-dirty");
@@ -627,6 +640,7 @@ try {
           workspaceDock: review.workspaceDock,
           ...review.reviewGeometry,
         },
+        reviewNarrow: narrowReview.reviewGeometry,
         goal: goal.goalEditorGeometry,
         narrow: {
           windowInnerWidth: narrow.windowInnerWidth,
