@@ -4,6 +4,7 @@ import {
 } from "../agent-team-policy.js";
 
 import {
+  defineBrokerTool,
   modelApprovalParameter,
   modelApproval,
 } from "../broker-tool-parameters.js";
@@ -11,8 +12,6 @@ import {
 import { type OpenThreadRequest } from "../runtime-types.js";
 
 import { randomUUID } from "node:crypto";
-
-import { defineTool } from "@earendil-works/pi-coding-agent";
 
 import { Type } from "@sinclair/typebox";
 
@@ -35,7 +34,7 @@ export function createOfficeDocumentToolFactory(
       writePaths?: string[];
     },
   ) =>
-    defineTool({
+    defineBrokerTool({
       name: "office_document",
       label: "Office document",
       description:

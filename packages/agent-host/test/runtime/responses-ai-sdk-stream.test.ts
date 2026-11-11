@@ -181,12 +181,12 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
     sdk.streamText.mockReturnValue({
       fullStream: fullStream([
         { type: "tool-input-start", id: "schema", toolName: "write" },
-        { type: "tool-input-delta", id: "schema", delta: '{"path":42}' },
+        { type: "tool-input-delta", id: "schema", delta: '{"path":{}}' },
         {
           type: "tool-call",
           toolCallId: "schema",
           toolName: "write",
-          input: { path: 42 },
+          input: { path: {} },
           invalid: true,
           error: new Error("Invalid schema"),
         },

@@ -1,4 +1,5 @@
 import {
+  defineBrokerTool,
   modelApprovalParameter,
   sandboxEscalationParameter,
   modelApproval,
@@ -8,7 +9,6 @@ import type { OpenThreadRequest } from "../runtime-types.js";
 
 import { randomUUID } from "node:crypto";
 
-import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import type { TSchema } from "@sinclair/typebox";
 
@@ -22,7 +22,7 @@ export function createSessionExtensionTools(
 ) {
   const extensionTools = (services.configuration.extensionTools ?? []).map(
     (tool) =>
-      defineTool({
+      defineBrokerTool({
         name: tool.piName,
         label: `${tool.extensionName}: ${tool.label}`,
         ...(tool.outputSchema

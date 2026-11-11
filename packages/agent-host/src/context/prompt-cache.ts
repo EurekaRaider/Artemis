@@ -354,6 +354,8 @@ function optionsForResolution(
   const existingOnPayload = options?.onPayload;
   const result: SimpleStreamOptions = {
     ...options,
+    // Preserve full requests until Artemis enables server-side continuation.
+    disableContinuation: true,
     metadata: {
       ...options?.metadata,
       [ARTEMIS_PROMPT_CACHE_METADATA]: resolution,

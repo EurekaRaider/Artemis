@@ -1,4 +1,6 @@
 import { Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
+import { defineTool } from "@earendil-works/pi-coding-agent";
 import {
   type ModelApprovalDecision,
   type PromptAttachment,
@@ -41,6 +43,31 @@ export const sandboxEscalationParameter = Type.Optional(
     { additionalProperties: false },
   ),
 );
+
+// Pi 1.5 coerces tool arguments. Approval and escalation fields must retain
+// their original types before that conversion can reach the host broker.
+export const defineBrokerTool: typeof defineTool = (tool) =>
+  defineTool({
+    ...tool,
+    prepareArguments(args) {
+      const { properties } = tool.parameters as {
+        properties?: Record<string, unknown>;
+      };
+      if (properties?.model_approval) {
+        const input = args as Record<string, unknown> | null;
+        if (!Value.Check(modelApprovalParameter, input?.model_approval))
+          throw new Error("Invalid model approval fields.");
+        if (
+          input?.sandbox_escalation !== undefined &&
+          !Value.Check(sandboxEscalationParameter, input.sandbox_escalation)
+        )
+          throw new Error("Invalid sandbox escalation fields.");
+      }
+      return tool.prepareArguments
+        ? tool.prepareArguments(args)
+        : (args as ReturnType<NonNullable<typeof tool.prepareArguments>>);
+    },
+  });
 
 export function modelApproval(decision: {
   risk: ModelApprovalDecision["risk"];

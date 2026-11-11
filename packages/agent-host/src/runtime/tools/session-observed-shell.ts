@@ -1,4 +1,5 @@
 import {
+  defineBrokerTool,
   modelApprovalParameter,
   modelApproval,
   observedBashToolResult,
@@ -8,7 +9,6 @@ import type { OpenThreadRequest } from "../runtime-types.js";
 
 import { randomUUID } from "node:crypto";
 
-import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 import { type RunMode } from "@artemis/protocol";
@@ -28,7 +28,7 @@ export function createObservedShellTools(
       mode: RunMode;
     },
   ) => {
-    const bashTool = defineTool({
+    const bashTool = defineBrokerTool({
       name: "shell",
       label: "Run shell command",
       description: `Run a ${services.shellRuntime.toolDescription()} command with the current desktop user's permissions after classifying its risk and whether the user explicitly requested the exact action. Use this shell's native syntax; on Windows this is PowerShell, not Bash. Choose deadline_seconds based on the task type. The deadline is only an observation window: when it expires, the process keeps running and this tool returns an execution_id so you can decide whether to call shell_wait or shell_cancel.`,
@@ -80,7 +80,7 @@ export function createObservedShellTools(
         );
       },
     });
-    const bashWaitTool = defineTool({
+    const bashWaitTool = defineBrokerTool({
       name: "shell_wait",
       label: "Wait for shell command",
       description:
@@ -105,7 +105,7 @@ export function createObservedShellTools(
         );
       },
     });
-    const bashCancelTool = defineTool({
+    const bashCancelTool = defineBrokerTool({
       name: "shell_cancel",
       label: "Stop shell command",
       description:

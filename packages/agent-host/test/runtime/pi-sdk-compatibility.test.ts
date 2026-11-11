@@ -18,6 +18,11 @@ import {
 } from "@earendil-works/pi-ai";
 import { Type } from "@sinclair/typebox";
 import { createHooksBridge } from "../../src/tools/hooks-bridge.js";
+import {
+  defineBrokerTool,
+  modelApprovalParameter,
+  sandboxEscalationParameter,
+} from "../../src/runtime/broker-tool-parameters.js";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -101,6 +106,155 @@ async function fixture(extension: ExtensionFactory) {
     });
   return { session, stream, model };
 }
+
+it.each(
+  [
+    { label: "valid", overrides: {}, accepted: true },
+    {
+      label: "coerced authorization",
+      overrides: {
+        model_approval: {
+          risk: "high",
+          explicit_user_request: "true",
+          reason: "Requested",
+        },
+      },
+      accepted: false,
+    },
+    {
+      label: "null approval reason",
+      overrides: {
+        model_approval: {
+          risk: "high",
+          explicit_user_request: true,
+          reason: null,
+        },
+      },
+      accepted: false,
+    },
+    {
+      label: "null escalation reason",
+      overrides: { sandbox_escalation: { justification: null } },
+      accepted: false,
+    },
+    {
+      label: "missing approval",
+      overrides: { model_approval: undefined },
+      accepted: false,
+    },
+    {
+      label: "invalid risk",
+      overrides: {
+        model_approval: {
+          risk: "safe",
+          explicit_user_request: true,
+          reason: "Requested",
+        },
+      },
+      accepted: false,
+    },
+    {
+      label: "missing authorization",
+      overrides: { model_approval: { risk: "high", reason: "Requested" } },
+      accepted: false,
+    },
+    {
+      label: "invalid authorization",
+      overrides: {
+        model_approval: {
+          risk: "high",
+          explicit_user_request: {},
+          reason: "Requested",
+        },
+      },
+      accepted: false,
+    },
+    {
+      label: "empty escalation",
+      overrides: { sandbox_escalation: { justification: "" } },
+      accepted: false,
+    },
+    {
+      label: "extra escalation grant",
+      overrides: {
+        sandbox_escalation: { justification: "Denied", fullAccess: true },
+      },
+      accepted: false,
+    },
+  ].flatMap((test) => [false, true].map((codemode) => ({ ...test, codemode }))),
+)(
+  "validates approval fields before executing a tool: $label (Codemode=$codemode)",
+  async ({ overrides, accepted, codemode }) => {
+    const execute = vi.fn(async () => ({
+      content: [{ type: "text" as const, text: "executed" }],
+    }));
+    const f = await fixture((pi) => {
+      if (codemode) createCodemodeExtension({ mode: "only" })(pi);
+      pi.registerTool(
+        defineBrokerTool({
+          name: "guarded",
+          label: "Guarded",
+          description: "Approval validation regression",
+          parameters: Type.Object(
+            {
+              arguments: Type.Object({ count: Type.Integer({ minimum: 1 }) }),
+              model_approval: modelApprovalParameter,
+              sandbox_escalation: sandboxEscalationParameter,
+            },
+            { additionalProperties: false },
+          ),
+          execute,
+        }),
+      );
+    });
+    f.session.setActiveToolsByName(
+      codemode ? ["codemode", "guarded"] : ["guarded"],
+    );
+    let requests = 0;
+    f.stream.mockImplementation((model) => {
+      const output = createAssistantMessageEventStream();
+      const message = reply(model);
+      if (requests++ === 0) {
+        message.stopReason = "toolUse";
+        const parameters = {
+          arguments: { count: "2" },
+          model_approval: {
+            risk: "high",
+            explicit_user_request: true,
+            reason: "Requested",
+          },
+          ...overrides,
+        };
+        message.content = [
+          {
+            type: "toolCall",
+            id: "guarded-call",
+            name: codemode ? "codemode" : "guarded",
+            arguments: codemode
+              ? { code: `await tools.guarded(${JSON.stringify(parameters)});` }
+              : parameters,
+          },
+        ];
+      }
+      queueMicrotask(() =>
+        output.push({
+          type: "done",
+          reason: message.stopReason as "stop" | "toolUse",
+          message,
+        }),
+      );
+      return output;
+    });
+    await f.session.prompt("Validate the tool request");
+    expect(requests).toBe(2);
+    expect(execute).toHaveBeenCalledTimes(accepted ? 1 : 0);
+    const result = f.session.messages.find(
+      (message) => message.role === "toolResult",
+    );
+    expect(result).toMatchObject({ isError: !accepted });
+  },
+);
+
 it.each([false, true])(
   "queues custom messages during startup and honours startup cancellation=%s",
   async (cancel) => {

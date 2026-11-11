@@ -69,7 +69,7 @@ export async function patchPiDependencies(root) {
     }),
   );
   if (
-    sdk.version !== "1.4.0" ||
+    sdk.version !== "1.5.2" ||
     installed.name !== "brace-expansion" ||
     installed.version !== "5.0.12"
   ) {
@@ -82,7 +82,7 @@ export async function patchPiDependencies(root) {
     let source = files.get(path) ?? (await readFile(join(pi, path), "utf8"));
     if (!source.includes(after)) {
       if (source.split(before).length !== 2)
-        throw new Error(`Unexpected Pi 1.4.0 Codemode source: ${path}`);
+        throw new Error(`Unexpected Pi 1.5.2 Codemode source: ${path}`);
       source = source.replace(before, after);
     }
     files.set(path, source);
@@ -99,7 +99,7 @@ export async function patchPiDependencies(root) {
     !worker.startsWith(workerImport) ||
     worker.split(workerImport).length !== 2
   )
-    throw new Error("Unexpected Pi 1.4.0 Codemode worker bundle");
+    throw new Error("Unexpected Pi 1.5.2 Codemode worker bundle");
   const commonjsWorker = worker.replace(
     workerImport,
     'const{parentPort,workerData}=require("node:worker_threads");',
@@ -125,6 +125,6 @@ if (
 ) {
   await patchPiDependencies(fileURLToPath(new URL("../../", import.meta.url)));
   console.log(
-    "Pi 1.4.0 dependency resolution verified: brace-expansion 5.0.12; Codemode host admission applied.",
+    "Pi 1.5.2 dependency resolution verified: brace-expansion 5.0.12; Codemode host admission applied.",
   );
 }

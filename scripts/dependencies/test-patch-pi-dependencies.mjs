@@ -21,12 +21,12 @@ try {
     [fileURLToPath(new URL("./patch-pi-dependencies.mjs", import.meta.url))],
     { cwd: root, encoding: "utf8" },
   );
-  assert.match(cli, /Pi 1\.4\.0 dependency resolution verified/);
+  assert.match(cli, /Pi 1\.5\.2 dependency resolution verified/);
   await mkdir(shared, { recursive: true });
   await mkdir(pi, { recursive: true });
   await writeFile(
     join(pi, "package.json"),
-    JSON.stringify({ version: "1.4.0" }),
+    JSON.stringify({ version: "1.5.2" }),
   );
   await writeFile(join(shared, "package.json"), manifest("5.0.12"));
   const sources = new Map();
@@ -49,7 +49,7 @@ try {
   await writeFile(worker, "unexpected worker bundle");
   await assert.rejects(
     patchPiDependencies(root),
-    /Unexpected Pi 1.4.0 Codemode worker bundle/,
+    /Unexpected Pi 1.5.2 Codemode worker bundle/,
   );
   await writeFile(worker, workerSource);
   await patchPiDependencies(root);
@@ -64,7 +64,7 @@ try {
   await writeFile(execute, "unexpected published source");
   await assert.rejects(
     patchPiDependencies(root),
-    /Unexpected Pi 1.4.0 Codemode source/,
+    /Unexpected Pi 1.5.2 Codemode source/,
   );
   await writeFile(execute, patched);
   // Reject an unsafe nested resolution without mutating it.

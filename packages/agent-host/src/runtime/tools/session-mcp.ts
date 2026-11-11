@@ -1,4 +1,5 @@
 import {
+  defineBrokerTool,
   modelApprovalParameter,
   sandboxEscalationParameter,
   modelApproval,
@@ -9,7 +10,6 @@ import { projectMcpTools } from "../../policy/project-mcp-overrides.js";
 
 import { randomUUID } from "node:crypto";
 
-import { defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import type { TSchema } from "@sinclair/typebox";
 import { type McpToolCallResult } from "@artemis/protocol";
@@ -29,7 +29,7 @@ export function createSessionMcpTools(
   );
   const createMcpTools = (actorAgentId?: string) =>
     configuredMcpTools.map((tool) =>
-      defineTool({
+      defineBrokerTool({
         name: tool.piName,
         label: `${tool.serverName}: ${tool.toolName}`,
         // Pi forwards structuredContent to Codemode only for declared outputs.
@@ -158,7 +158,7 @@ export function createSessionMcpTools(
       }),
     );
   let mcpTools = createMcpTools();
-  const searchMcpToolsTool = defineTool({
+  const searchMcpToolsTool = defineBrokerTool({
     name: "search_mcp_tools",
     label: "Search MCP tools",
     description:

@@ -1,4 +1,5 @@
 import {
+  defineBrokerTool,
   modelApprovalParameter,
   modelApproval,
 } from "../broker-tool-parameters.js";
@@ -9,8 +10,6 @@ import { isExecutionMode } from "@artemis/protocol";
 
 import { randomUUID } from "node:crypto";
 
-import { defineTool } from "@earendil-works/pi-coding-agent";
-
 import { Type } from "@sinclair/typebox";
 
 import type { BrokerToolContext } from "./broker-tool-context.js";
@@ -18,7 +17,7 @@ export function createLocalFileTools(
   request: OpenThreadRequest,
   context: Pick<BrokerToolContext, "threads" | "broker">,
 ) {
-  const localFileReadTool = defineTool({
+  const localFileReadTool = defineBrokerTool({
     name: "local_file_read",
     label: "Read local file",
     description:
@@ -63,7 +62,7 @@ export function createLocalFileTools(
     },
   });
 
-  const localFileWriteTool = defineTool({
+  const localFileWriteTool = defineBrokerTool({
     name: "local_file_write",
     label: "Write local file",
     description:

@@ -111,11 +111,21 @@ export function createWorkspaceReadTool(
             throw new Error("Image changed while reading; retry the read.");
           const input = bytes.subarray(0, length);
           imageHeaderDimensions(input);
-          const image = await resizeImage(
-            input,
-            mimeType,
-            ctx?.model?.inputLimits?.images?.resize,
-          );
+          const resize = ctx?.model?.inputLimits?.images?.resize;
+          const image = await resizeImage(input, mimeType, {
+            ...(resize?.maxWidth === undefined
+              ? {}
+              : { maxWidth: resize.maxWidth }),
+            ...(resize?.maxHeight === undefined
+              ? {}
+              : { maxHeight: resize.maxHeight }),
+            ...(resize?.maxBytes === undefined
+              ? {}
+              : { maxBytes: resize.maxBytes }),
+            ...(resize?.jpegQuality === undefined
+              ? {}
+              : { jpegQuality: resize.jpegQuality }),
+          });
           signal?.throwIfAborted();
           if (!image)
             throw new Error(

@@ -34,6 +34,7 @@ export const PROVIDER_BRAND_ICONS: Readonly<Record<string, string>> = {
   "qwen-token-plan": "qwen",
   "qwen-token-plan-cn": "qwen",
   "qwen-token-plan-individual": "qwen",
+  "qwen-token-plan-individual-cn": "qwen",
   radius: "radius",
   together: "together",
   typesafe: "typesafe",

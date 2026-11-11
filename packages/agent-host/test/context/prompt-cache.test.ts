@@ -250,6 +250,30 @@ describe("PromptCacheController", () => {
 });
 
 describe("prompt cache runtime wrapper", () => {
+  it.each([undefined, "none", "short", "long"] as const)(
+    "keeps full conversation requests with cache retention %s",
+    (cacheRetention) => {
+      const original = vi.fn();
+      const runtime = { streamSimple: original } as unknown as ModelRuntime;
+      const anthropic = {
+        ...model("claude-sonnet-4-5", "https://api.anthropic.com"),
+        api: "anthropic-messages",
+        provider: "anthropic",
+      } as Model<Api>;
+      withPromptCacheController(
+        runtime,
+        new PromptCacheController(),
+      ).streamSimple(anthropic, context(), {
+        sessionId: "session-1",
+        cacheRetention,
+      });
+      expect(original.mock.calls[0]![2]).toMatchObject({
+        disableContinuation: true,
+        cacheRetention: cacheRetention === "none" ? "none" : "short",
+      });
+    },
+  );
+
   it("injects GPT-5.6 explicit options after preserving an existing payload callback", async () => {
     const stream = {} as ReturnType<ModelRuntime["streamSimple"]>;
     const original = vi.fn(() => stream);
