@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "Zugangsdaten nach dem Speichern konfigurieren. Lokale Dienste benötigen möglicherweise keinen API-Schlüssel.",
   "ProviderForm.save": "Dienst speichern",
   "ProviderForm.ready": "Pflichtfelder ausgefüllt",
-  "ProviderForm.required": "Bitte Pflichtfelder ausfüllen"
+  "ProviderForm.required": "Bitte Pflichtfelder ausfüllen",
+  "Usage.providerCost": "Vom Anbieter gemeldete Kosten",
+  "Usage.estimatedCost": "Geschätzte Kosten",
+  "Usage.unrecordedCost": "Kosten für {{count}} Antworten nicht erfasst",
+  "Usage.responseModels": "Tatsächliches Modell: {{models}}",
+  "Usage.unreportedModels": "Tatsächliches Modell für {{count}} Antworten nicht gemeldet",
+  "Usage.costs": "Kosten (USD)"
 }

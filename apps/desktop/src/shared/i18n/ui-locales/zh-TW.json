@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "可在儲存服務後設定金鑰；本機服務可留空。",
   "ProviderForm.save": "儲存服務",
   "ProviderForm.ready": "必填欄位已完成",
-  "ProviderForm.required": "請填寫必填欄位"
+  "ProviderForm.required": "請填寫必填欄位",
+  "Usage.providerCost": "供應商回傳費用",
+  "Usage.estimatedCost": "估算費用",
+  "Usage.unrecordedCost": "{{count}} 則回覆未記錄費用",
+  "Usage.responseModels": "實際模型：{{models}}",
+  "Usage.unreportedModels": "{{count}} 則回覆未回報實際模型",
+  "Usage.costs": "費用（美元）"
 }

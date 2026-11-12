@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "Atur kredensial setelah menyimpan. Layanan lokal mungkin tidak memerlukan kunci API.",
   "ProviderForm.save": "Simpan layanan",
   "ProviderForm.ready": "Kolom wajib sudah lengkap",
-  "ProviderForm.required": "Lengkapi kolom wajib"
+  "ProviderForm.required": "Lengkapi kolom wajib",
+  "Usage.providerCost": "Biaya yang dilaporkan penyedia",
+  "Usage.estimatedCost": "Perkiraan biaya",
+  "Usage.unrecordedCost": "Biaya tidak tercatat untuk {{count}} respons",
+  "Usage.responseModels": "Model aktual: {{models}}",
+  "Usage.unreportedModels": "Model aktual tidak dilaporkan untuk {{count}} respons",
+  "Usage.costs": "Biaya (USD)"
 }

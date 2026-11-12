@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "Configurez les identifiants après l’enregistrement. Les services locaux peuvent fonctionner sans clé API.",
   "ProviderForm.save": "Enregistrer",
   "ProviderForm.ready": "Champs obligatoires remplis",
-  "ProviderForm.required": "Remplissez les champs obligatoires"
+  "ProviderForm.required": "Remplissez les champs obligatoires",
+  "Usage.providerCost": "Coût communiqué par le fournisseur",
+  "Usage.estimatedCost": "Coût estimé",
+  "Usage.unrecordedCost": "Coût non enregistré pour {{count}} réponses",
+  "Usage.responseModels": "Modèle réel : {{models}}",
+  "Usage.unreportedModels": "Modèle réel non communiqué pour {{count}} réponses",
+  "Usage.costs": "Coûts (USD)"
 }

@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "Configure credentials after saving. Local services may not need an API key.",
   "ProviderForm.save": "Save provider",
   "ProviderForm.ready": "Required fields completed",
-  "ProviderForm.required": "Complete the required fields"
+  "ProviderForm.required": "Complete the required fields",
+  "Usage.providerCost": "Provider-reported cost",
+  "Usage.estimatedCost": "Estimated cost",
+  "Usage.unrecordedCost": "Cost not recorded for {{count}} responses",
+  "Usage.responseModels": "Actual model: {{models}}",
+  "Usage.unreportedModels": "Actual model not reported for {{count}} responses",
+  "Usage.costs": "Costs (USD)"
 }

@@ -1,3 +1,8 @@
+import {
+  buildUsageCosts,
+  usageCostLabels,
+  responseModelLabel,
+} from "./usage-costs.js";
 import { uiText } from "../../shared/i18n/ui-text.js";
 import { useEffect, useMemo, useState } from "react";
 import type { AgentEvent } from "@artemis/protocol";
@@ -184,6 +189,8 @@ export function TokenUsagePage({
     }),
     [visibleEvents],
   );
+
+  const costLabels = usageCostLabels(buildUsageCosts(visibleEvents), locale);
 
   const exactNumber = new Intl.NumberFormat(locale);
   const detailDateFormatter = new Intl.DateTimeFormat(locale, {
@@ -485,6 +492,15 @@ export function TokenUsagePage({
                     </span>
                   </bdi>
                 </div>
+                <p className="token-usage-model-metadata">
+                  {responseModelLabel(
+                    model.responseModelIds,
+                    model.unreportedModelEvents,
+                    locale,
+                  )}
+                  <br />
+                  {usageCostLabels(model.costs, locale).join(" · ")}
+                </p>
                 <div className="token-usage-model-bar" aria-hidden="true">
                   <span
                     style={{
@@ -499,6 +515,14 @@ export function TokenUsagePage({
       }
 
       <section className="token-usage-details" aria-label={t.insights}>
+        <div className="token-usage-detail-block">
+          <h2>{uiText(locale, "Usage.costs")}</h2>
+          {costLabels.length ? (
+            costLabels.map((label) => <p key={label}>{label}</p>)
+          ) : (
+            <p>—</p>
+          )}
+        </div>
         <details className="token-usage-observations">
           <summary>
             {uiText(locale, "Review04.moreStats")}

@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "Настройте учётные данные после сохранения. Локальным сервисам ключ API может не требоваться.",
   "ProviderForm.save": "Сохранить сервис",
   "ProviderForm.ready": "Обязательные поля заполнены",
-  "ProviderForm.required": "Заполните обязательные поля"
+  "ProviderForm.required": "Заполните обязательные поля",
+  "Usage.providerCost": "Стоимость от провайдера",
+  "Usage.estimatedCost": "Расчётная стоимость",
+  "Usage.unrecordedCost": "Стоимость не записана для {{count}} ответов",
+  "Usage.responseModels": "Фактическая модель: {{models}}",
+  "Usage.unreportedModels": "Фактическая модель не указана для {{count}} ответов",
+  "Usage.costs": "Стоимость (USD)"
 }

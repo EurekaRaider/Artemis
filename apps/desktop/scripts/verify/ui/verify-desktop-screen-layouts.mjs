@@ -354,6 +354,47 @@ for (const testCase of cases.filter(
       await page.locator(".approval-policy-menu").waitFor();
     }
     if (view === "secondary-pages-token-usage") {
+      if (env.ARTEMIS_SMOKE_USAGE_METADATA === "1") {
+        const metadata = page.locator(".token-usage-model-metadata");
+        await metadata.waitFor();
+        const modelText = await metadata.innerText();
+        const costs = await page
+          .locator(".token-usage-details > .token-usage-detail-block")
+          .first()
+          .innerText();
+        assert.match(modelText, /claude-sonnet-4-5/);
+        for (const amount of [0.01234, 0.00456]) {
+          const formatted = new Intl.NumberFormat(locale, {
+            style: "currency",
+            currency: "USD",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6,
+          }).format(amount);
+          assert.ok(modelText.includes(formatted));
+          assert.ok(costs.includes(formatted));
+        }
+        checks.usageMetadata = { modelText, costs };
+        await shot(id + "-metadata");
+        await app.evaluate(({ BrowserWindow }) => {
+          BrowserWindow.getAllWindows()[0].setSize(900, 900);
+        });
+        await page.waitForTimeout(200);
+        checks.metadataOverflow = await metadata.evaluate((el) => ({
+          width: el.clientWidth,
+          scrollWidth: el.scrollWidth,
+        }));
+        assert.ok(
+          checks.metadataOverflow.scrollWidth <=
+            checks.metadataOverflow.width + 1,
+          "usage metadata wraps in a narrow window",
+        );
+        await metadata.scrollIntoViewIfNeeded();
+        await shot(id + "-metadata-narrow");
+        await app.evaluate(({ BrowserWindow }) => {
+          BrowserWindow.getAllWindows()[0].setSize(1440, 900);
+        });
+        await page.waitForTimeout(200);
+      }
       checks.compositionContrast = await page
         .locator(".token-usage-composition-marker")
         .evaluateAll((markers) => {

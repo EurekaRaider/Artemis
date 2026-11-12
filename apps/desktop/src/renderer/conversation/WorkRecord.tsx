@@ -1,3 +1,8 @@
+import {
+  buildUsageCosts,
+  usageCostLabels,
+  responseModelLabel,
+} from "./usage-costs.js";
 import { useEffect, useState, type ReactNode } from "react";
 import type {
   AppLocale,
@@ -217,7 +222,14 @@ export function turnUsageLabel(
   turnId: string,
   locale: AppLocale,
 ): string {
-  const usages = events.flatMap((event) =>
+  const turnEvents = [
+    ...new Map(
+      events
+        .filter((event) => event.turnId === turnId)
+        .map((event) => [event.eventId, event]),
+    ).values(),
+  ];
+  const usages = turnEvents.flatMap((event) =>
     event.turnId === turnId && event.payload.type === "assistant.usage"
       ? [event.payload]
       : [],
@@ -231,7 +243,23 @@ export function turnUsageLabel(
     0,
   );
   return [
-    usages.at(-1)?.modelId,
+    [
+      ...new Set(
+        usages.flatMap((usage) => (usage.modelId ? [usage.modelId] : [])),
+      ),
+    ].join(", "),
+    responseModelLabel(
+      [
+        ...new Set(
+          usages.flatMap((usage) =>
+            usage.responseModelId ? [usage.responseModelId] : [],
+          ),
+        ),
+      ],
+      usages.filter((usage) => !usage.responseModelId).length,
+      locale,
+    ),
+    ...usageCostLabels(buildUsageCosts(turnEvents), locale),
     `${new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 }).format(total)} tokens`,
     input > 0 && usages.some((usage) => usage.cacheReadReported)
       ? uiText(locale, "Review01.cacheHit", {

@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "اضبط بيانات الاعتماد بعد الحفظ. قد لا تحتاج الخدمات المحلية إلى مفتاح API.",
   "ProviderForm.save": "حفظ الخدمة",
   "ProviderForm.ready": "اكتملت الحقول المطلوبة",
-  "ProviderForm.required": "أكمل الحقول المطلوبة"
+  "ProviderForm.required": "أكمل الحقول المطلوبة",
+  "Usage.providerCost": "التكلفة المبلّغ عنها من المزوّد",
+  "Usage.estimatedCost": "التكلفة التقديرية",
+  "Usage.unrecordedCost": "لم تُسجّل تكلفة {{count}} من الردود",
+  "Usage.responseModels": "النموذج الفعلي: {{models}}",
+  "Usage.unreportedModels": "لم يُبلّغ عن النموذج الفعلي لعدد {{count}} من الردود",
+  "Usage.costs": "التكاليف (دولار أمريكي)"
 }

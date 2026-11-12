@@ -334,3 +334,47 @@ describe("locale-independent token magnitudes", () => {
     },
   );
 });
+
+it("keeps concrete models distinct from the requested model across mixed responses", () => {
+  const reported = usageEvent("usage-101", "2026-11-11T00:00:00Z", 100);
+  reported.payload = {
+    ...reported.payload,
+    providerId: "radius",
+    modelId: "auto",
+    responseModelId: "concrete-a",
+    costUsd: 0.1,
+    costSource: "provider",
+  } as typeof reported.payload;
+  const estimated = usageEvent("usage-102", "2026-11-11T00:00:01Z", 200);
+  estimated.payload = {
+    ...estimated.payload,
+    providerId: "radius",
+    modelId: "auto",
+    responseModelId: "concrete-b",
+    costUsd: 0.2,
+    costSource: "estimated",
+  } as typeof estimated.payload;
+  const legacy = usageEvent("usage-103", "2026-11-11T00:00:02Z", 50);
+  legacy.payload = {
+    ...legacy.payload,
+    providerId: "radius",
+    modelId: "auto",
+  } as typeof legacy.payload;
+  expect(
+    buildTokenUsageByModel([reported, estimated, legacy, reported]),
+  ).toMatchObject([
+    {
+      modelId: "auto",
+      responseModelIds: ["concrete-a", "concrete-b"],
+      unreportedModelEvents: 1,
+      totalTokens: 350,
+      costs: {
+        providerUsd: 0.1,
+        estimatedUsd: 0.2,
+        providerResponses: 1,
+        estimatedResponses: 1,
+        unrecordedResponses: 1,
+      },
+    },
+  ]);
+});

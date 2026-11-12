@@ -911,6 +911,12 @@
       color: var(--muted-2);
     }
   }
+  .token-usage-model-metadata {
+    margin: 4px 0 8px;
+    color: var(--muted-2);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
   .token-usage-model-bar {
     block-size: 6px;
     border-radius: 3px;

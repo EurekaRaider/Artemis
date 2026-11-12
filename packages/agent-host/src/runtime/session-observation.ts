@@ -94,8 +94,8 @@ export function createSessionObservation(
       ...payload,
       ...(selection
         ? {
-            providerId: selection.providerId,
-            modelId: selection.modelId,
+            providerId: payload.providerId ?? selection.providerId,
+            modelId: payload.modelId ?? selection.modelId,
           }
         : {}),
       ...(cache

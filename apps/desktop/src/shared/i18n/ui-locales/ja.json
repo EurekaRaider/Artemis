@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "認証情報は保存後に設定できます。ローカルサービスではキーが不要な場合があります。",
   "ProviderForm.save": "サービスを保存",
   "ProviderForm.ready": "必須項目の入力完了",
-  "ProviderForm.required": "必須項目を入力してください"
+  "ProviderForm.required": "必須項目を入力してください",
+  "Usage.providerCost": "プロバイダー報告額",
+  "Usage.estimatedCost": "推定費用",
+  "Usage.unrecordedCost": "{{count}} 件の応答で費用が未記録",
+  "Usage.responseModels": "実際のモデル：{{models}}",
+  "Usage.unreportedModels": "{{count}} 件の応答で実際のモデルが未報告",
+  "Usage.costs": "費用（米ドル）"
 }

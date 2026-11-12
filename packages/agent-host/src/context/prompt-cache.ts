@@ -350,12 +350,27 @@ export class PromptCacheController {
 function optionsForResolution(
   options: SimpleStreamOptions | undefined,
   resolution: PromptCacheResolution,
+  model: Model<Api>,
 ): SimpleStreamOptions {
+  let anthropicSession = false;
+  if (model.api === "anthropic-messages" && model.provider === "anthropic") {
+    try {
+      const endpoint = new URL(model.baseUrl);
+      anthropicSession =
+        Boolean(options?.sessionId) &&
+        endpoint.protocol === "https:" &&
+        endpoint.hostname === "api.anthropic.com";
+    } catch {
+      // Invalid and compatible endpoints retain full requests.
+    }
+  }
   const existingOnPayload = options?.onPayload;
   const result: SimpleStreamOptions = {
     ...options,
-    // Preserve full requests until Artemis enables server-side continuation.
-    disableContinuation: true,
+    disableContinuation:
+      !anthropicSession ||
+      options?.disableContinuation === true ||
+      resolution.policy === "disabled",
     metadata: {
       ...options?.metadata,
       [ARTEMIS_PROMPT_CACHE_METADATA]: resolution,
@@ -365,7 +380,11 @@ function optionsForResolution(
     result.cacheRetention = "none";
     return result;
   }
-  result.sessionId = resolution.cacheKey!;
+  // Pi disposes continuation state by the real session ID. Replacing it with a
+  // prompt-cache fingerprint would leave state behind after close or deletion.
+  result.sessionId = anthropicSession
+    ? options!.sessionId!
+    : resolution.cacheKey!;
   result.cacheRetention =
     resolution.policy === "long"
       ? "long"
@@ -397,7 +416,7 @@ export function withPromptCacheController(
           return target.streamSimple(
             model,
             context,
-            optionsForResolution(options, resolution),
+            optionsForResolution(options, resolution, model),
           );
         };
       }

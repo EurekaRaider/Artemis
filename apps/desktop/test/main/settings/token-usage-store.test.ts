@@ -153,3 +153,30 @@ describe("AppStore token usage events", () => {
     ]);
   });
 });
+
+it("retains cost provenance and the response model after storage and reopen", async () => {
+  const store = await createStore([{ id: "thread-cost", archived: false }]);
+  store.appendEvent("cost", "thread-cost", "turn-cost", {
+    type: "assistant.usage",
+    providerId: "radius",
+    modelId: "auto",
+    responseModelId: "concrete-model",
+    costUsd: 0.001,
+    costSource: "provider",
+    inputTokens: 10,
+    outputTokens: 5,
+    totalTokens: 15,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+  });
+  const directory = temporaryDirectories.at(-1)!;
+  closeStore(store);
+  const reopened = new AppStore(join(directory, "state.sqlite"));
+  openStores.push(reopened);
+  expect(reopened.getTokenUsageEvents()[0]!.payload).toMatchObject({
+    modelId: "auto",
+    responseModelId: "concrete-model",
+    costUsd: 0.001,
+    costSource: "provider",
+  });
+});

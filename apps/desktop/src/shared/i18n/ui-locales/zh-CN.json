@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "密钥可在保存服务后配置；本地服务可留空。",
   "ProviderForm.save": "保存服务",
   "ProviderForm.ready": "必填项已完成",
-  "ProviderForm.required": "请填写必填项"
+  "ProviderForm.required": "请填写必填项",
+  "Usage.providerCost": "供应商返回费用",
+  "Usage.estimatedCost": "估算费用",
+  "Usage.unrecordedCost": "{{count}} 条回复未记录费用",
+  "Usage.responseModels": "实际模型：{{models}}",
+  "Usage.unreportedModels": "{{count}} 条回复未报告实际模型",
+  "Usage.costs": "费用（美元）"
 }

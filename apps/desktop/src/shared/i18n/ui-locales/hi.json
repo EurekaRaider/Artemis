@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "सहेजने के बाद क्रेडेंशियल सेट करें। स्थानीय सेवाओं को API कुंजी की आवश्यकता नहीं भी हो सकती है।",
   "ProviderForm.save": "सेवा सहेजें",
   "ProviderForm.ready": "आवश्यक फ़ील्ड पूरे हैं",
-  "ProviderForm.required": "आवश्यक फ़ील्ड भरें"
+  "ProviderForm.required": "आवश्यक फ़ील्ड भरें",
+  "Usage.providerCost": "प्रदाता द्वारा बताई गई लागत",
+  "Usage.estimatedCost": "अनुमानित लागत",
+  "Usage.unrecordedCost": "{{count}} उत्तरों की लागत दर्ज नहीं है",
+  "Usage.responseModels": "वास्तविक मॉडल: {{models}}",
+  "Usage.unreportedModels": "{{count}} उत्तरों का वास्तविक मॉडल नहीं बताया गया",
+  "Usage.costs": "लागत (USD)"
 }

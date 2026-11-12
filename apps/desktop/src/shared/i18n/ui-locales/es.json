@@ -2252,5 +2252,11 @@
   "ProviderForm.keyHint": "Configura las credenciales después de guardar. Los servicios locales pueden no necesitar clave API.",
   "ProviderForm.save": "Guardar servicio",
   "ProviderForm.ready": "Campos obligatorios completos",
-  "ProviderForm.required": "Completa los campos obligatorios"
+  "ProviderForm.required": "Completa los campos obligatorios",
+  "Usage.providerCost": "Coste informado por el proveedor",
+  "Usage.estimatedCost": "Coste estimado",
+  "Usage.unrecordedCost": "Coste no registrado en {{count}} respuestas",
+  "Usage.responseModels": "Modelo real: {{models}}",
+  "Usage.unreportedModels": "Modelo real no informado en {{count}} respuestas",
+  "Usage.costs": "Costes (USD)"
 }

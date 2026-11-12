@@ -279,3 +279,21 @@ describe("visible model catalog", () => {
     ]);
   });
 });
+
+it.each([
+  ["anthropic", "claude-fable-5-2", 1_000_000],
+  ["openai", "gpt-6.1-terra", 272_000],
+  ["openai-codex", "gpt-6.1-terra", 500_000],
+  ["azure", "gpt-6.1-terra", 1_050_000],
+  ["google", "gemini-4-argon", 1_048_576],
+] as const)(
+  "exposes the Pi 1.5 catalog model %s/%s with its capabilities",
+  async (providerId, modelId, contextWindow) => {
+    const catalog = filterVisibleModels(await loadBundledModelCatalog());
+    expect(
+      catalog.find(
+        (model) => model.providerId === providerId && model.modelId === modelId,
+      ),
+    ).toMatchObject({ contextWindow, reasoning: true, configured: false });
+  },
+);

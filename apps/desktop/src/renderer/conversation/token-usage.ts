@@ -1,3 +1,4 @@
+import { buildUsageCosts, type UsageCosts } from "./usage-costs.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
 import type { AgentEvent, AppLocale } from "@artemis/protocol";
 
@@ -26,6 +27,9 @@ export interface TokenUsageModelSummary {
   key: string;
   providerId?: string;
   modelId?: string;
+  responseModelIds: string[];
+  unreportedModelEvents: number;
+  costs: UsageCosts;
   usageEvents: number;
   inputTokens: number;
   outputTokens: number;
@@ -92,6 +96,9 @@ export function buildTokenUsageByModel(
         ? { providerId: event.payload.providerId }
         : {}),
       ...(event.payload.modelId ? { modelId: event.payload.modelId } : {}),
+      responseModelIds: [],
+      unreportedModelEvents: 0,
+      costs: buildUsageCosts([]),
       usageEvents: 0,
       inputTokens: 0,
       outputTokens: 0,
@@ -115,7 +122,27 @@ export function buildTokenUsageByModel(
       const cacheHitRate = buildCacheUsageMetrics(
         eventsByModel.get(model.key) ?? [],
       ).hitRate;
-      return cacheHitRate === undefined ? model : { ...model, cacheHitRate };
+      const modelEvents = eventsByModel.get(model.key) ?? [];
+      return {
+        ...model,
+        ...(cacheHitRate === undefined ? {} : { cacheHitRate }),
+        costs: buildUsageCosts(modelEvents),
+        responseModelIds: [
+          ...new Set(
+            modelEvents.flatMap((event) =>
+              event.payload.type === "assistant.usage" &&
+              event.payload.responseModelId
+                ? [event.payload.responseModelId]
+                : [],
+            ),
+          ),
+        ],
+        unreportedModelEvents: modelEvents.filter(
+          (event) =>
+            event.payload.type === "assistant.usage" &&
+            !event.payload.responseModelId,
+        ).length,
+      };
     })
     .sort(
       (left, right) =>

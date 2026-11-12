@@ -45,6 +45,8 @@ describe("assistant token usage protocol", () => {
       cacheReadTokens: 100,
       cacheWriteTokens: 50,
       totalTokens: 1_150,
+      costUsd: 0,
+      costSource: "estimated",
     });
 
     expect(
@@ -246,4 +248,70 @@ describe("assistant token usage protocol", () => {
       },
     });
   });
+});
+
+describe("usage cost and response model provenance", () => {
+  it.each([true, false, undefined])(
+    "preserves provider cost provenance=%s and concrete routing metadata",
+    (reported) => {
+      const adapter = new PiAdapter("turn-cost");
+      const payload = adapter
+        .adapt({
+          type: "message_end",
+          message: {
+            id: "cost",
+            role: "assistant",
+            provider: "radius",
+            model: "auto",
+            responseModel: "claude-fable-5-2",
+            content: [{ type: "text", text: "done" }],
+            usage: {
+              input: 10,
+              output: 5,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 15,
+              cost: { total: 0.0123, totalFromProvider: reported },
+            },
+          },
+        })
+        .find((item) => item.type === "assistant.usage");
+      expect(payload).toMatchObject({
+        providerId: "radius",
+        modelId: "auto",
+        responseModelId: "claude-fable-5-2",
+        costUsd: 0.0123,
+        costSource: reported ? "provider" : "estimated",
+      });
+      expect(
+        agentPayloadSchema.parse(JSON.parse(JSON.stringify(payload))),
+      ).toEqual(payload);
+    },
+  );
+  it.each([-1, NaN, Infinity, "0.1", undefined])(
+    "omits invalid or absent costs: %s",
+    (total) => {
+      const adapter = new PiAdapter("turn");
+      const payload = adapter
+        .adapt({
+          type: "message_end",
+          message: {
+            role: "assistant",
+            content: [],
+            usage: {
+              input: 1,
+              output: 1,
+              cacheRead: 0,
+              cacheWrite: 0,
+              totalTokens: 2,
+              cost: { total },
+            },
+          },
+        })
+        .find((item) => item.type === "assistant.usage");
+      expect(payload).not.toHaveProperty("costUsd");
+      expect(payload).not.toHaveProperty("costSource");
+      expect(payload).not.toHaveProperty("responseModelId");
+    },
+  );
 });

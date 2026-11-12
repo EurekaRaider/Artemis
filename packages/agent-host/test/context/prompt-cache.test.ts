@@ -251,7 +251,7 @@ describe("PromptCacheController", () => {
 
 describe("prompt cache runtime wrapper", () => {
   it.each([undefined, "none", "short", "long"] as const)(
-    "keeps full conversation requests with cache retention %s",
+    "enables Anthropic threads only when cache retention permits them: %s",
     (cacheRetention) => {
       const original = vi.fn();
       const runtime = { streamSimple: original } as unknown as ModelRuntime;
@@ -268,7 +268,8 @@ describe("prompt cache runtime wrapper", () => {
         cacheRetention,
       });
       expect(original.mock.calls[0]![2]).toMatchObject({
-        disableContinuation: true,
+        disableContinuation: cacheRetention === "none",
+        sessionId: "session-1",
         cacheRetention: cacheRetention === "none" ? "none" : "short",
       });
     },
@@ -358,3 +359,31 @@ describe("prompt cache runtime wrapper", () => {
     });
   });
 });
+
+it.each([
+  ["https://proxy.example/v1", "anthropic", "s", undefined],
+  ["https://api.anthropic.com.evil.example", "anthropic", "s", undefined],
+  ["http://api.anthropic.com", "anthropic", "s", undefined],
+  ["https://api.anthropic.com", "custom", "s", undefined],
+  ["https://api.anthropic.com", "anthropic", undefined, undefined],
+  ["https://api.anthropic.com", "anthropic", "s", true],
+] as const)(
+  "keeps full requests for unsupported or explicitly disabled threads: %s %s %s %s",
+  (baseUrl, provider, sessionId, disableContinuation) => {
+    const original = vi.fn();
+    const runtime = { streamSimple: original } as unknown as ModelRuntime;
+    withPromptCacheController(
+      runtime,
+      new PromptCacheController(),
+    ).streamSimple(
+      {
+        ...model("claude-sonnet-4-5", baseUrl),
+        api: "anthropic-messages",
+        provider,
+      } as Model<Api>,
+      context(),
+      { sessionId, disableContinuation },
+    );
+    expect(original.mock.calls[0]![2].disableContinuation).toBe(true);
+  },
+);

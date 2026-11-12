@@ -189,16 +189,9 @@ export function createModelRuntime(services: Dependencies) {
       providers.map((provider) => provider.id),
     );
     const availableSelection = persistedSelection;
-    const selection =
-      availableSelection &&
-      (models.length === 0 ||
-        models.some(
-          (model) =>
-            model.providerId === availableSelection.providerId &&
-            model.modelId === availableSelection.modelId,
-        ))
-        ? availableSelection
-        : undefined;
+    // Catalog refreshes must not silently replace a user's choice. A removed
+    // model remains selected; resolveModelSelection still rejects unavailable IDs.
+    const selection = availableSelection;
     const selectedModel = selection
       ? models.find(
           (model) =>

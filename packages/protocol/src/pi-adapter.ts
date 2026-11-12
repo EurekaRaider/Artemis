@@ -11,6 +11,9 @@ interface PiMessage {
   content?: unknown;
   stopReason?: string;
   errorMessage?: string;
+  provider?: string;
+  model?: string;
+  responseModel?: string;
   usage?: {
     input?: unknown;
     output?: unknown;
@@ -19,6 +22,14 @@ interface PiMessage {
     totalTokens?: unknown;
     cacheReadReported?: unknown;
     cacheWriteReported?: unknown;
+    cost?: {
+      input?: unknown;
+      output?: unknown;
+      cacheRead?: unknown;
+      cacheWrite?: unknown;
+      total?: unknown;
+      totalFromProvider?: unknown;
+    };
   };
 }
 
@@ -286,6 +297,27 @@ function assistantUsage(
   }
   return {
     type: "assistant.usage",
+    ...(typeof message.provider === "string" && message.provider.trim()
+      ? { providerId: message.provider }
+      : {}),
+    ...(typeof message.model === "string" && message.model.trim()
+      ? { modelId: message.model }
+      : {}),
+    ...(typeof message.responseModel === "string" &&
+    message.responseModel.trim()
+      ? { responseModelId: message.responseModel }
+      : {}),
+    ...(typeof message.usage.cost?.total === "number" &&
+    Number.isFinite(message.usage.cost.total) &&
+    message.usage.cost.total >= 0
+      ? {
+          costUsd: message.usage.cost.total,
+          costSource:
+            message.usage.cost.totalFromProvider === true
+              ? ("provider" as const)
+              : ("estimated" as const),
+        }
+      : {}),
     inputTokens: message.usage.input as number,
     outputTokens: message.usage.output as number,
     cacheReadTokens: message.usage.cacheRead as number,

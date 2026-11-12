@@ -10,8 +10,11 @@
     oklch(0.6 0.11 185),
     oklch(0.72 0.11 185)
   );
-  --nocturne-chart-cache: light-dark(oklch(0.8 0.06 255), oklch(0.82 0.06 255));
-  --nocturne-chart-write: light-dark(#a3a6ae, #6e727c);
+  --nocturne-chart-cache: light-dark(
+    oklch(0.64 0.06 255),
+    oklch(0.82 0.06 255)
+  );
+  --nocturne-chart-write: light-dark(#858994, #6e727c);
   --nocturne-chart-model: light-dark(oklch(0.5 0.14 255), oklch(0.7 0.11 255));
   --nocturne-s3: light-dark(#e6e6ea, #2b2e35);
   --nocturne-switch-on: light-dark(

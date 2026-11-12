@@ -67,6 +67,16 @@ export function emitSmokeCardHeatmapUsageEvents(target: BrowserWindow): void {
         type: "assistant.usage",
         providerId: "artemis-smoke",
         modelId: "card-heatmap-probe",
+        ...(process.env.ARTEMIS_SMOKE_USAGE_METADATA === "1" && day.daysAgo <= 1
+          ? {
+              responseModelId: "claude-sonnet-4-5",
+              costUsd: day.daysAgo === 0 ? 0.01234 : 0.00456,
+              costSource:
+                day.daysAgo === 0
+                  ? ("provider" as const)
+                  : ("estimated" as const),
+            }
+          : {}),
         inputTokens,
         outputTokens: day.totalTokens - inputTokens,
         cacheReadTokens:
