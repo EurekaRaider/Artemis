@@ -133,6 +133,10 @@
   },
   {
     "kind": "handle",
+    "key": "settingsProfileNameSet"
+  },
+  {
+    "kind": "handle",
     "key": "settingsProjectOrderSet"
   },
   {

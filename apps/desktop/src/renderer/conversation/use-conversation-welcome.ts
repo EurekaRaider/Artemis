@@ -8,6 +8,7 @@ import {
 } from "../workspace/workspace-autosave.js";
 import {
   CONVERSATION_GREETINGS,
+  RECENT_GREETING_LIMIT,
   chooseConversationGreeting,
   conversationWelcome,
   type ConversationGreeting,
@@ -16,7 +17,10 @@ import {
 const historyKey = "artemis-conversation-welcome-v1";
 const historySchema = z.object({
   protocolVersion: z.literal(1),
-  recent: z.array(z.enum(CONVERSATION_GREETINGS)).min(1).max(3),
+  recent: z
+    .array(z.enum(CONVERSATION_GREETINGS))
+    .min(1)
+    .max(RECENT_GREETING_LIMIT),
 });
 
 function nextGreeting(
@@ -28,8 +32,7 @@ function nextGreeting(
   return {
     timestamp,
     greeting,
-    returning,
-    recent: [greeting, ...recent].slice(0, 3),
+    recent: [greeting, ...recent].slice(0, RECENT_GREETING_LIMIT),
   };
 }
 
@@ -50,8 +53,8 @@ export function useConversationWelcome(locale: AppLocale, name: string) {
     });
   }, [selection]);
   const renew = useCallback(() => {
-    const previous = current.current;
-    const next = nextGreeting(previous.returning, previous.recent);
+    // Only the first greeting after launch may welcome someone back.
+    const next = nextGreeting(false, current.current.recent);
     current.current = next;
     setSelection(next);
   }, []);

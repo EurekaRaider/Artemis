@@ -28,6 +28,8 @@ export const settingsBridge: SettingsApi = {
   removeModel: (model) => ipcRenderer.invoke(IPC.settingsModelDelete, model),
   setProfileAvatar: (avatar) =>
     ipcRenderer.invoke(IPC.settingsProfileAvatarSet, avatar),
+  setProfileName: (name) =>
+    ipcRenderer.invoke(IPC.settingsProfileNameSet, name),
   setProjectOrder: (order) =>
     ipcRenderer.invoke(IPC.settingsProjectOrderSet, order),
   setProjectThreadOrder: (projectId, order) =>

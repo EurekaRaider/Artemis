@@ -1436,6 +1436,8 @@ export const UI_COPY = {
       "SettingsPanel_labels.profileAvatarRemove",
     ),
     profileAvatarHint: uiText(locale, "SettingsPanel_labels.profileAvatarHint"),
+    profileName: uiText(locale, "SettingsPanel_labels.profileName"),
+    profileNameHint: uiText(locale, "SettingsPanel_labels.profileNameHint"),
     customProviders: uiText(locale, "SettingsPanel_labels.customProviders"),
     provider: uiText(locale, "SettingsPanel_labels.provider"),
     providerName: uiText(locale, "SettingsPanel_labels.providerName"),

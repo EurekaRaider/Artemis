@@ -46,16 +46,29 @@ describe("current user profile integration", () => {
     );
     expect(apiSource).not.toContain("currentUsername:");
     expect(preloadSource).not.toContain("getCurrentUsername:");
-    expect(mainSource).toMatch(
+    const profileNameSource = source(
+      "../../../src/main/settings/profile-name.ts",
+    );
+    expect(profileNameSource).toMatch(
       /import\s+\{[^}]*\buserInfo\b[^}]*\}\s+from\s+"node:os";/u,
     );
     expect(snapshotHandlerStart).toBeGreaterThan(-1);
     expect(snapshotHandlerEnd).toBeGreaterThan(snapshotHandlerStart);
+    // A saved name wins; otherwise the verification host's name, then the OS.
     expect(snapshotHandler).toContain(
-      "userName: applicationHost.userName ?? userInfo().username",
+      "userName: profileName ?? defaultUserName()",
+    );
+    expect(profileNameSource).toContain(
+      "return applicationHost.userName ?? userInfo().username;",
     );
     expect(source("../../fixtures/smoke/host.ts")).toContain(
       '...(smokeMode ? { userName: "Artemis" } : {})',
+    );
+  });
+
+  it("applies a saved name to the open window without a restart", () => {
+    expect(appSource).toContain(
+      "userName: value.profileName ?? value.defaultUserName,",
     );
   });
 

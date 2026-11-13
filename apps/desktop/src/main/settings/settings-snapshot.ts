@@ -7,6 +7,7 @@ import {
   type SettingsSnapshot,
 } from "../../shared/api.js";
 import type { ApplicationServices } from "../application/application-services.js";
+import { defaultUserName } from "./profile-name.js";
 type Dependencies = Pick<
   ApplicationServices,
   | "settingsStore"
@@ -52,6 +53,7 @@ export function createSettingsSnapshot(services: Dependencies) {
       globalAgents,
       agentConcurrency,
       profileAvatar,
+      profileName,
       projectOrder,
       projectThreadOrder,
       collapsedProjectIds,
@@ -70,6 +72,7 @@ export function createSettingsSnapshot(services: Dependencies) {
       services.globalInstructionsStore.snapshot(),
       agentConcurrencyStatus(false),
       services.settingsStore.profileAvatar(),
+      services.settingsStore.profileName(),
       services.settingsStore.projectOrder(),
       services.settingsStore.projectThreadOrder(),
       services.settingsStore.collapsedProjectIds(),
@@ -125,6 +128,8 @@ export function createSettingsSnapshot(services: Dependencies) {
         }),
       ),
       ...(profileAvatar === undefined ? {} : { profileAvatar }),
+      ...(profileName === undefined ? {} : { profileName }),
+      defaultUserName: defaultUserName(),
       projectOrder,
       projectThreadOrder,
       collapsedProjectIds,

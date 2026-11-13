@@ -4,6 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppLocale } from "@artemis/protocol";
 import "../../fixtures/renderer-test-utils.js";
+import { chooseConversationGreeting } from "../../../src/renderer/conversation/conversation-welcome.js";
 import { useConversationWelcome } from "../../../src/renderer/conversation/use-conversation-welcome.js";
 
 const key = "artemis-conversation-welcome-v1";
@@ -38,34 +39,49 @@ describe("conversation greeting lifecycle", () => {
     expect(result.current.welcome.title).toBe("La nuit est bien avancée, Alex");
   });
 
-  it("renews on explicit new conversations and saves only three recent IDs", () => {
+  it("renews on explicit new conversations and saves only ten recent IDs", () => {
     const { result } = renderHook(() =>
       useConversationWelcome("zh-CN", "William"),
     );
     const recent: string[] = [];
-    for (let index = 0; index < 10; index++) {
+    for (let index = 0; index < 15; index++) {
       const title = result.current.welcome.title;
-      expect(recent.slice(-3)).not.toContain(title);
+      expect(recent.slice(-10)).not.toContain(title);
       recent.push(title);
       act(() => result.current.renew());
     }
     const stored = JSON.parse(localStorage.getItem(key)!);
     expect(stored.protocolVersion).toBe(1);
-    expect(stored.recent).toHaveLength(3);
+    expect(stored.recent).toHaveLength(10);
     expect(localStorage.getItem(key)).not.toContain("William");
     expect(Object.keys(stored)).toEqual(["protocolVersion", "recent"]);
   });
 
-  it("recognizes a real previous visit and excludes the last greeting after remount", () => {
+  it("welcomes back only on the first greeting of a later launch", () => {
     vi.mocked(Math.random).mockReturnValue(0.999);
+    const returningTitles = ["欢迎回来，William", "又见面了，William"];
     const first = renderHook(() => useConversationWelcome("zh-CN", "William"));
-    expect(first.result.current.welcome.title).not.toBe("欢迎回来，William");
+    expect(returningTitles).not.toContain(first.result.current.welcome.title);
     first.unmount();
+
     const second = renderHook(() => useConversationWelcome("zh-CN", "William"));
-    expect(second.result.current.welcome.title).toBe("欢迎回来，William");
+    expect(second.result.current.welcome.title).toBe("又见面了，William");
+    // A draw that would pick "welcome back" if renewal still counted as returning.
+    const recent = JSON.parse(localStorage.getItem(key)!).recent;
+    const welcomeBackDraw = Array.from({ length: 200 }, (_, i) => i / 200).find(
+      (draw) =>
+        chooseConversationGreeting(Date.now(), true, recent, () => draw) ===
+        "welcomeBack",
+    );
+    expect(welcomeBackDraw).toBeDefined();
+    vi.mocked(Math.random).mockReturnValue(welcomeBackDraw!);
+    act(() => second.result.current.renew());
+    expect(returningTitles).not.toContain(second.result.current.welcome.title);
     second.unmount();
+
+    vi.mocked(Math.random).mockReturnValue(0.999);
     const third = renderHook(() => useConversationWelcome("zh-CN", "William"));
-    expect(third.result.current.welcome.title).not.toBe("欢迎回来，William");
+    expect(third.result.current.welcome.title).not.toBe("又见面了，William");
   });
 
   it("does not consume history on Strict Mode effect replay", () => {
@@ -91,14 +107,32 @@ describe("conversation greeting lifecycle", () => {
     '{"protocolVersion":2,"recent":["hello"]}',
     '{"protocolVersion":1,"recent":["unknown"]}',
     '{"protocolVersion":1,"recent":[]}',
-    '{"protocolVersion":1,"recent":["hello","morning","newIdeas","friday"]}',
+    '{"protocolVersion":1,"recent":["newIdeas"]}',
+    JSON.stringify({
+      protocolVersion: 1,
+      recent: [
+        "hello",
+        "morning",
+        "hi",
+        "imHere",
+        "allSet",
+        "letsBegin",
+        "carryOn",
+        "aimTrue",
+        "bowReady",
+        "aimAndGo",
+        "friday",
+      ],
+    }),
   ])("treats invalid history as a first visit: %s", (raw) => {
     localStorage.setItem(key, raw);
     vi.mocked(Math.random).mockReturnValue(0.999);
     const { result } = renderHook(() =>
       useConversationWelcome("zh-CN", "William"),
     );
-    expect(result.current.welcome.title).not.toBe("欢迎回来，William");
+    expect(["欢迎回来，William", "又见面了，William"]).not.toContain(
+      result.current.welcome.title,
+    );
   });
 
   it("stays usable when local storage is unavailable", () => {

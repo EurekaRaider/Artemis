@@ -1,8 +1,7 @@
-import { applicationHost } from "../application/application-host.js";
 import type { ThreadHistoryCursor } from "../../shared/thread-history.js";
 import { randomUUID } from "node:crypto";
-import { userInfo } from "node:os";
 import { getPlatformContract } from "@artemis/platform";
+import { defaultUserName } from "../settings/profile-name.js";
 import { IPC } from "../../shared/api.js";
 import type { ApplicationServices } from "../application/application-services.js";
 type Dependencies = Pick<
@@ -115,11 +114,14 @@ export function registerConversationHistoryIpc(services: Dependencies): void {
         includeEvents: false,
       },
     );
-    return {
-      ...snapshot,
-      userName: applicationHost.userName ?? userInfo().username,
-      windowMaterial: services.windowMaterial,
-    };
+    // A broken settings file must not block the first render.
+    return Promise.resolve(services.settingsStore?.profileName())
+      .catch(() => undefined)
+      .then((profileName) => ({
+        ...snapshot,
+        userName: profileName ?? defaultUserName(),
+        windowMaterial: services.windowMaterial,
+      }));
   });
   ipcMain.handle(
     IPC.threadHistory,

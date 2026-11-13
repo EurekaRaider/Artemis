@@ -6,6 +6,7 @@ import {
   parseSkinSelection,
   type SkinSelection,
 } from "../../shared/appearance.js";
+import { parseProfileName } from "../../shared/profile-name.js";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
@@ -70,6 +71,7 @@ interface PersistedSettings {
   disabledSkillFiles?: string[];
   agentConcurrency?: AgentConcurrencyPreference;
   profileAvatar?: string;
+  profileName?: string;
   projectOrder?: string[];
   projectThreadOrder?: Record<string, string[]>;
   collapsedProjectIds?: string[];
@@ -422,6 +424,23 @@ export class EncryptedSettingsStore {
     }
     await this.save(settings);
     return settings.profileAvatar;
+  }
+
+  async profileName(): Promise<string | undefined> {
+    return (await this.load()).profileName;
+  }
+
+  /** Blank input clears the saved name so the system user name applies. */
+  async setProfileName(name: string | undefined): Promise<string | undefined> {
+    const parsed = parseProfileName(name);
+    const settings = await this.load();
+    if (parsed === undefined) {
+      delete settings.profileName;
+    } else {
+      settings.profileName = parsed;
+    }
+    await this.save(settings);
+    return settings.profileName;
   }
 
   async projectOrder(): Promise<string[]> {
@@ -895,6 +914,16 @@ export class EncryptedSettingsStore {
             try {
               validateProfileAvatar(parsed.profileAvatar);
               return false;
+            } catch {
+              return true;
+            }
+          })()) ||
+        (parsed.profileName !== undefined &&
+          (() => {
+            try {
+              return (
+                parseProfileName(parsed.profileName) !== parsed.profileName
+              );
             } catch {
               return true;
             }

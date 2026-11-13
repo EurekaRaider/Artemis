@@ -219,6 +219,49 @@ describe("EncryptedSettingsStore", () => {
     await expect(reopened.profileAvatar()).resolves.toBeUndefined();
   });
 
+  it("persists a trimmed one-line profile name and clears it when blank", async () => {
+    const { filePath, store } = await createStore();
+
+    await expect(store.profileName()).resolves.toBeUndefined();
+    await expect(store.setProfileName("  小明  ")).resolves.toBe("小明");
+
+    const reopened = new EncryptedSettingsStore(
+      filePath,
+      new FakeSafeStorage(),
+    );
+    await expect(reopened.profileName()).resolves.toBe("小明");
+    await expect(reopened.setProfileName("a\nb")).rejects.toThrow("one line");
+    await expect(reopened.setProfileName("x".repeat(41))).rejects.toThrow(
+      "40 characters",
+    );
+    await expect(reopened.profileName()).resolves.toBe("小明");
+    await expect(reopened.setProfileName("   ")).resolves.toBeUndefined();
+    await expect(reopened.profileName()).resolves.toBeUndefined();
+    expect(JSON.parse(await readFile(filePath, "utf8"))).not.toHaveProperty(
+      "profileName",
+    );
+    await expect(reopened.setProfileName("Ada")).resolves.toBe("Ada");
+    await expect(reopened.setProfileName(undefined)).resolves.toBeUndefined();
+  });
+
+  it.each([" padded", "", "two\tparts", 42])(
+    "rejects a settings file whose profile name is %j",
+    async (profileName) => {
+      const { filePath } = await createStore();
+      await writeFile(
+        filePath,
+        JSON.stringify({ version: 1, credentials: {}, profileName }),
+        "utf8",
+      );
+      await expect(
+        new EncryptedSettingsStore(
+          filePath,
+          new FakeSafeStorage(),
+        ).profileName(),
+      ).rejects.toThrow("invalid");
+    },
+  );
+
   it("persists a validated project sidebar width", async () => {
     const { filePath, store } = await createStore();
     await expect(store.projectSidebarWidth()).resolves.toBeUndefined();

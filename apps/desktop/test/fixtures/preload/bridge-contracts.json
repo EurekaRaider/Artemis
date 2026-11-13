@@ -1333,6 +1333,13 @@
       "args": ["argument-0"]
     },
     {
+      "name": "setProfileName",
+      "kind": "invoke",
+      "channel": "artemis:settings-profile-name-set",
+      "arity": 1,
+      "args": ["argument-0"]
+    },
+    {
       "name": "setProjectOrder",
       "kind": "invoke",
       "channel": "artemis:settings-project-order-set",

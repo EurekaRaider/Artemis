@@ -90,6 +90,14 @@ export function useGeneralSettingsActions(
     });
   }
 
+  async function setProfileName(name: string | undefined) {
+    await context.run(async () => {
+      const updated = await window.artemis.setProfileName(name);
+      setSettings(updated);
+      onSettingsChange(updated);
+    });
+  }
+
   async function setShellRuntimeConfiguration(
     change:
       | { windowsPreference: WindowsShellPreference }
@@ -145,6 +153,7 @@ export function useGeneralSettingsActions(
     setMaterial,
     setTheme,
     setProfileAvatar,
+    setProfileName,
     setShellRuntimeConfiguration,
     setAgentConcurrencyMode,
     applyAgentConcurrencyLimit,

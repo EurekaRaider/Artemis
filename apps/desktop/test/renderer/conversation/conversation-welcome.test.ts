@@ -3,46 +3,129 @@ import { describe, expect, it } from "vitest";
 
 import {
   CONVERSATION_GREETINGS,
+  RECENT_GREETING_LIMIT,
   chooseConversationGreeting,
   conversationWelcome,
   type ConversationGreeting,
 } from "../../../src/renderer/conversation/conversation-welcome.js";
 import { UI_RESOURCES } from "../../../src/shared/i18n/ui-text.js";
 
+/** Saturday 3 October 2026, local time. */
 const localTime = (hour: number, minute = 0) =>
   new Date(2026, 9, 3, hour, minute).getTime();
 
-describe("conversation welcome", () => {
-  const possibleGreetings = (timestamp: number, returning = false) =>
-    new Set(
-      Array.from({ length: 100 }, (_, index) =>
-        chooseConversationGreeting(timestamp, returning, [], () => index / 100),
+/** Every greeting that can be drawn; each one's share exceeds 1/samples. */
+const possibleGreetings = (
+  timestamp: number,
+  returning = false,
+  recent: readonly ConversationGreeting[] = [],
+  samples = 200,
+) =>
+  new Set(
+    Array.from({ length: samples }, (_, index) =>
+      chooseConversationGreeting(
+        timestamp,
+        returning,
+        recent,
+        () => index / samples,
       ),
-    );
+    ),
+  );
+
+const PERIOD_GREETINGS = {
+  morning: [
+    "morning",
+    "freshStart",
+    "morningShort",
+    "goodMorningAlt",
+    "dayJustBegun",
+  ],
+  afternoon: [
+    "afternoon",
+    "afternoonShort",
+    "afternoonOnward",
+    "steadyProgress",
+    "afternoonSession",
+  ],
+  evening: ["evening", "eveningShort", "longDay", "wrapUp", "quietEvening"],
+  lateNight: [
+    "lateNight",
+    "quietHours",
+    "stillUp",
+    "nightOwl",
+    "burningMidnightOil",
+    "moonWatch",
+  ],
+} as const satisfies Record<string, ConversationGreeting[]>;
+
+const ALWAYS_AVAILABLE: ConversationGreeting[] = [
+  "hello",
+  "goodToSeeYou",
+  "readyWhenYouAre",
+  "hi",
+  "youreHere",
+  "imHere",
+  "allSet",
+  "letsBegin",
+  "takeYourTime",
+  "startSmall",
+  "sayTheWord",
+  "yourCall",
+  "carryOn",
+  "goodTiming",
+  "blankPage",
+  "buildTogether",
+  "aimTrue",
+  "bowReady",
+  "aimAndGo",
+  "arrowByArrow",
+];
+
+describe("conversation welcome", () => {
+  it("offers sixty greetings, twenty of them at any moment", () => {
+    expect(CONVERSATION_GREETINGS).toHaveLength(60);
+    for (const greeting of [
+      "newIdeas",
+      "whereToStart",
+      "nextStep",
+      "eveningIdeas",
+    ])
+      expect(CONVERSATION_GREETINGS).not.toContain(greeting);
+    for (let hour = 0; hour < 24; hour++)
+      for (const greeting of ALWAYS_AVAILABLE)
+        expect(possibleGreetings(localTime(hour))).toContain(greeting);
+  });
 
   it.each([
-    [8, "morning", "freshStart"],
-    [15, "afternoon", "readyWhenYouAre"],
-    [20, "evening", "readyWhenYouAre"],
-    [2, "lateNight", "quietHours"],
-  ] as const)(
-    "offers general and matching time greetings at %i:00",
-    (hour, period, variant) => {
-      const possible = possibleGreetings(localTime(hour));
-      expect(possible).toContain(period);
-      expect(possible).toContain(variant);
-      for (const question of [
-        "newIdeas",
-        "whereToStart",
-        "nextStep",
-        "eveningIdeas",
-      ])
-        expect(possible).not.toContain(question);
-      expect(possible).toContain("goodToSeeYou");
-      for (const other of ["morning", "afternoon", "evening", "lateNight"])
-        if (other !== period) expect(possible).not.toContain(other);
-    },
-  );
+    [2, "lateNight"],
+    [6, "morning"],
+    [11, "morning"],
+    [12, "afternoon"],
+    [17, "afternoon"],
+    [18, "evening"],
+    [22, "evening"],
+    [23, "lateNight"],
+  ] as const)("offers only %i:00 greetings of the %s", (hour, period) => {
+    const possible = possibleGreetings(localTime(hour));
+    for (const [other, greetings] of Object.entries(PERIOD_GREETINGS))
+      for (const greeting of greetings)
+        expect(possible.has(greeting)).toBe(other === period);
+    expect(possible.has("moonlight")).toBe(
+      period === "evening" || period === "lateNight",
+    );
+  });
+
+  it.each([
+    ["earlyRiser", 5, 8],
+    ["noon", 11, 14],
+    ["middayAlready", 11, 14],
+    ["teaTime", 15, 17],
+  ] as const)("offers %s from %i:00 until %i:00", (greeting, from, to) => {
+    for (let hour = 0; hour < 24; hour++)
+      expect(possibleGreetings(localTime(hour)).has(greeting)).toBe(
+        hour >= from && hour < to,
+      );
+  });
 
   it.each([0, 1, 2, 3, 4, 5, 6])(
     "limits weekday greetings to the local day %i",
@@ -51,27 +134,95 @@ describe("conversation welcome", () => {
         new Date(2026, 9, 4 + day, 10).getTime(),
       );
       expect(possible.has("newWeek")).toBe(day === 1);
+      expect(possible.has("monday")).toBe(day === 1);
+      expect(possible.has("midweek")).toBe(day === 3);
+      expect(possible.has("almostFriday")).toBe(day === 4);
       expect(possible.has("friday")).toBe(day === 5);
+      expect(possible.has("fridayAtLast")).toBe(day === 5);
+      expect(possible.has("saturday")).toBe(day === 6);
+      expect(possible.has("sunday")).toBe(day === 0);
       expect(possible.has("weekend")).toBe(day === 0 || day === 6);
+      expect(possible.has("weekendYours")).toBe(day === 0 || day === 6);
     },
   );
 
-  it("only offers welcome back to a returning visitor", () => {
-    expect(possibleGreetings(localTime(10))).not.toContain("welcomeBack");
-    expect(possibleGreetings(localTime(10), true)).toContain("welcomeBack");
+  it.each([
+    [new Date(2027, 0, 1, 10), true, true],
+    [new Date(2026, 10, 1, 10), false, true],
+    [new Date(2026, 10, 2, 10), false, false],
+    [new Date(2026, 11, 31, 23, 59), false, false],
+  ])("marks the new year and month on %s", (date, newYear, newMonth) => {
+    const possible = possibleGreetings(date.getTime());
+    expect(possible.has("newYear")).toBe(newYear);
+    expect(possible.has("newMonth")).toBe(newMonth);
   });
 
-  it("avoids all three recently displayed greetings", () => {
-    const recent: ConversationGreeting[] = ["morning", "hello", "goodToSeeYou"];
-    for (let index = 0; index < 100; index++)
-      expect(recent).not.toContain(
-        chooseConversationGreeting(
-          localTime(10),
+  it("only welcomes back a returning visitor", () => {
+    for (const greeting of ["welcomeBack", "seeYouAgain"] as const) {
+      expect(possibleGreetings(localTime(10))).not.toContain(greeting);
+      expect(possibleGreetings(localTime(10), true)).toContain(greeting);
+    }
+  });
+
+  it("can show every greeting at some moment", () => {
+    const seen = new Set<ConversationGreeting>();
+    for (let day = 0; day < 7; day++)
+      for (let hour = 0; hour < 24; hour++)
+        for (const greeting of possibleGreetings(
+          new Date(2026, 9, 4 + day, hour).getTime(),
           true,
-          recent,
-          () => index / 100,
-        ),
+        ))
+          seen.add(greeting);
+    for (const greeting of possibleGreetings(
+      new Date(2027, 0, 1, 10).getTime(),
+    ))
+      seen.add(greeting);
+    expect([...seen].sort()).toEqual([...CONVERSATION_GREETINGS].sort());
+  });
+
+  it("weights greetings that fit the moment twice as much as general ones", () => {
+    const counts = new Map<ConversationGreeting, number>();
+    for (let index = 0; index < 10_000; index++) {
+      const greeting = chooseConversationGreeting(
+        localTime(10),
+        false,
+        [],
+        () => index / 10_000,
       );
+      counts.set(greeting, (counts.get(greeting) ?? 0) + 1);
+    }
+    const ratio = counts.get("morning")! / counts.get("hello")!;
+    expect(ratio).toBeGreaterThan(1.9);
+    expect(ratio).toBeLessThan(2.1);
+  });
+
+  it("avoids the ten most recently displayed greetings", () => {
+    expect(RECENT_GREETING_LIMIT).toBe(10);
+    const recent: ConversationGreeting[] = [
+      "morning",
+      "hello",
+      "goodToSeeYou",
+      "readyWhenYouAre",
+      "freshStart",
+      "hi",
+      "youreHere",
+      "imHere",
+      "allSet",
+      "letsBegin",
+      "takeYourTime",
+    ];
+    const possible = possibleGreetings(localTime(10), true, recent);
+    for (const greeting of recent.slice(0, RECENT_GREETING_LIMIT))
+      expect(possible).not.toContain(greeting);
+    expect(possible).toContain("takeYourTime");
+  });
+
+  it("never runs out of greetings at any hour", () => {
+    for (let hour = 0; hour < 24; hour++) {
+      const recent = ALWAYS_AVAILABLE.slice(0, RECENT_GREETING_LIMIT);
+      for (const greeting of possibleGreetings(localTime(hour), false, recent))
+        expect(recent).not.toContain(greeting);
+    }
   });
 
   it("uses a natural unnamed greeting when the display name is empty", () => {

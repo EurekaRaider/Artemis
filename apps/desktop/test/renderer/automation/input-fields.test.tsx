@@ -165,6 +165,7 @@ function settingsSnapshot(
       parallelism: 1,
       totalMemoryGiB: 16,
     },
+    defaultUserName: "Artemis",
     ...overrides,
   } as unknown as SettingsSnapshot;
 }
@@ -472,6 +473,32 @@ describe("avatar file field contract (SettingsPanel general tab, §5 file-合同
     expect(
       screen.queryByRole("button", { name: "Remove" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("profile name field (SettingsPanel general tab)", () => {
+  it("shows the system user name and saves a new name through the settings API", async () => {
+    const onSettingsChange = vi.fn();
+    const saved = settingsSnapshot({ profileName: "Ada" });
+    const setProfileName = vi.fn(() => Promise.resolve(saved));
+    stubSettingsApi(settingsSnapshot(), { setProfileName });
+    render(
+      <SettingsPanel
+        initialSettings={settingsSnapshot()}
+        initialTab="general"
+        locale="en"
+        onClose={() => {}}
+        onSettingsChange={onSettingsChange}
+      />,
+    );
+    await act(async () => {});
+    const input = screen.getByLabelText("What to call you") as HTMLInputElement;
+    expect(input.value).toBe("Artemis");
+    await userEvent.clear(input);
+    await userEvent.type(input, "Ada{Enter}");
+    expect(setProfileName).toHaveBeenCalledExactlyOnceWith("Ada");
+    await waitFor(() => expect(onSettingsChange).toHaveBeenCalledWith(saved));
+    expect(input.value).toBe("Ada");
   });
 });
 

@@ -30,6 +30,7 @@ import { uiText } from "../../shared/i18n/ui-text.js";
 import { UI_COPY } from "../../shared/i18n/ui-copy.js";
 import { CustomAgentsSettingsSection } from "../settings/CustomAgentsSettingsSection.js";
 import { AddedModelEditor } from "../settings/AddedModelEditor.js";
+import { ProfileNameField } from "../settings/ProfileNameField.js";
 import {
   lazy,
   Suspense,
@@ -353,6 +354,11 @@ export function SettingsPanel({
     file: File | undefined,
   ): ReturnType<typeof useGeneralSettingsActionsRuntime.setProfileAvatar> {
     return useGeneralSettingsActionsRuntime.setProfileAvatar(file);
+  }
+  function setProfileName(
+    name: string | undefined,
+  ): ReturnType<typeof useGeneralSettingsActionsRuntime.setProfileName> {
+    return useGeneralSettingsActionsRuntime.setProfileName(name);
   }
   function setShellRuntimeConfiguration(
     change:
@@ -1545,6 +1551,20 @@ export function SettingsPanel({
                       </div>
                     </div>
                   </ManagementSection>
+
+                  <SettingsRow
+                    className="settings-preference-row"
+                    label={t.profileName}
+                    description={t.profileNameHint}
+                  >
+                    <ProfileNameField
+                      defaultName={settings.defaultUserName}
+                      disabled={busy}
+                      label={t.profileName}
+                      onCommit={(name) => void setProfileName(name)}
+                      savedName={settings.profileName}
+                    />
+                  </SettingsRow>
 
                   <SettingsRow
                     className="settings-preference-row"

@@ -72,6 +72,16 @@ export function registerPreferencesIpc(services: Dependencies): void {
     },
   );
   ipcMain.handle(
+    IPC.settingsProfileNameSet,
+    async (_event, name: string | undefined): Promise<SettingsSnapshot> => {
+      if (!services.settingsStore) {
+        throw new Error("Agent settings are not ready.");
+      }
+      await services.settingsStore.setProfileName(name);
+      return getSettingsSnapshot();
+    },
+  );
+  ipcMain.handle(
     IPC.settingsProjectOrderSet,
     async (_event, order: string[]): Promise<string[]> => {
       if (!services.settingsStore) {

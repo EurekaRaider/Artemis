@@ -4575,6 +4575,7 @@ export function App() {
                   ? {
                       ...current,
                       locale: value.resolvedLocale,
+                      userName: value.profileName ?? value.defaultUserName,
                     }
                   : current,
               );

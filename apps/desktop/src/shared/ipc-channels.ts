@@ -182,6 +182,7 @@ export const IPC = {
   settingsModelDelete: "artemis:settings-model-delete",
   settingsModelSet: "artemis:settings-model-set",
   settingsProfileAvatarSet: "artemis:settings-profile-avatar-set",
+  settingsProfileNameSet: "artemis:settings-profile-name-set",
   settingsProjectOrderSet: "artemis:settings-project-order-set",
   settingsProjectThreadOrderSet: "artemis:settings-project-thread-order-set",
   settingsExpandedProjectIdsSet: "artemis:settings-expanded-project-ids-set",

@@ -49,6 +49,8 @@ export interface SettingsApi {
     model: Pick<AddedModelConfiguration, "providerId" | "modelId">,
   ): Promise<SettingsSnapshot>;
   setProfileAvatar(avatar?: string): Promise<SettingsSnapshot>;
+  /** Blank or omitted clears the saved name. */
+  setProfileName(name?: string): Promise<SettingsSnapshot>;
   setProjectOrder(order: string[]): Promise<string[]>;
   setProjectThreadOrder(projectId: string, order: string[]): Promise<string[]>;
   setCollapsedProjectIds(projectIds: string[]): Promise<string[]>;
@@ -118,6 +120,10 @@ export interface SettingsSnapshot {
   /** Custom sub-agent definitions (metadata only, no instructions). */
   customAgents: CustomAgentSummary[];
   profileAvatar?: string;
+  /** Saved name; absent when the default name applies. */
+  profileName?: string;
+  /** System user name, used when no name is saved. */
+  defaultUserName: string;
   projectOrder?: string[];
   projectThreadOrder?: Record<string, string[]>;
   collapsedProjectIds?: string[];
