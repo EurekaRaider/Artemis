@@ -736,7 +736,11 @@ try {
         .locator(".design-pack-card")
         .getByRole("button", { name: "Install", exact: true });
       assert.equal(await install.locator("svg").count(), 0);
-      await page.locator(".design-pack-card svg").first().waitFor();
+      await page.locator(".design-pack-card img").waitFor();
+      await page.waitForFunction(() => {
+        const icon = document.querySelector(".design-pack-card img");
+        return icon?.complete && icon.naturalWidth > 0;
+      });
       assert.equal(await page.locator(".office-pack-card").count(), 1);
     }
     await capture(name);

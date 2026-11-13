@@ -4,7 +4,7 @@
 
 ## Current screenshots
 
-On November 2, 2026, the README's **20 interface screenshots** were recaptured from a local production build of Artemis **2.0.0** on macOS arm64, replacing the 1.7.0 interface assets.
+On November 13, 2026, the README's **20 interface screenshots** were recaptured from a local production build of Artemis **2.0.7** on macOS arm64, reflecting the current welcome page, moon-arrow icon, warm-ink dark palette and usage views.
 
 All captures show the real Electron Renderer at **1440 × 850 CSS pixels and 100% zoom**, covering the complete application viewport without cropping or compositing. Themes, language, settings, workspace tools, resources and group conversations use the product's existing controls and host navigation.
 

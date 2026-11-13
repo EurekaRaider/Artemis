@@ -1,21 +1,21 @@
 {
   "version": 1,
-  "capturedAt": "2026-11-02T08:05:28.606Z",
-  "appVersion": "2.0.0",
-  "sourceHead": "08ed8c965f458ce569190652c55edcc24d7b425d",
+  "capturedAt": "2026-11-13T08:14:18.224Z",
+  "appVersion": "2.0.7",
+  "sourceHead": "ab23b41adb1218a94f422fa4aacdba0d7aef324d",
   "sourceState": "Local working tree, including in-progress changes present at capture time.",
   "buildArtifacts": [
     {
       "file": "apps/desktop/dist-electron/main.js",
-      "sha256": "183b2b9f7ea6eef6a5700ef9fa556a43eeadc0e79a9b3d6432fa4da8b638d32a"
+      "sha256": "6e77aa8cd81e102fffc2ff13a402734627e7e39d901da74e150916fe027cde74"
     },
     {
       "file": "apps/desktop/dist-electron/preload.cjs",
-      "sha256": "d8223e47cb832ceef89c546054d9e955acbfaeb50a78c89ec37169e487333119"
+      "sha256": "9bb80cea59a23f80849a58375d1312862b7ff94b8693df8d778227e662a05f4f"
     },
     {
       "file": "apps/desktop/dist-renderer/index.html",
-      "sha256": "7b02a51838c2dfbe34791670f83b4dda1ff7f50cd7a6baf7feab048a4e9fbfd6"
+      "sha256": "491a5d04f9961f02403be19f71d59b6ae6720ed6a61a8e0916d2ecddb2563d90"
     }
   ],
   "automation": "Playwright Electron; Browser plugin not available.",
@@ -42,15 +42,15 @@
       "file": "environment-panel-light.png",
       "width": 1440,
       "height": 850,
-      "bytes": 185543,
-      "sha256": "f1ec3717e14dd29c9c3ba04faf6ece186c11547a3b0bd5629835ec71908df956"
+      "bytes": 185168,
+      "sha256": "e6ff97b106ba13eb19ed9b856c0f5eea1d44aebd2727ddee8095002fc61cd1d7"
     },
     {
       "file": "environment-panel-dark.png",
       "width": 1440,
       "height": 850,
-      "bytes": 178520,
-      "sha256": "217d8800f3b01da019fa92858ab0167c1cb4f5e43c8966ba40cbe7072118a0ca"
+      "bytes": 177041,
+      "sha256": "ba4312f9978aaff8bfb12dc4c56409d0f6364f4f1d7e1f736e953bf92157f3fe"
     }
   ]
 }

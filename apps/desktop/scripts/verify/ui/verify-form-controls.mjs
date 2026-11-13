@@ -293,7 +293,7 @@ try {
       assert(
         `${prefix}-menu-styles-resolve`,
         menu?.backgroundColor ===
-          (theme === "dark" ? "rgb(29, 30, 35)" : "rgb(255, 255, 255)") &&
+          (theme === "dark" ? "rgb(44, 44, 41)" : "rgb(255, 255, 255)") &&
           menu?.borderStyle === "none" &&
           menu?.borderWidth === "0px",
         menu ?? null,
