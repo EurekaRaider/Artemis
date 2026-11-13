@@ -100,6 +100,45 @@ it("bounds repeatable operation retries and backs off without exposing command e
   expect(operation).toHaveBeenCalledTimes(2);
 });
 
+it("reports submission diagnostics without exposing credentials or retrying the upload", async () => {
+  const root = await mkdtemp(join(tmpdir(), "artemis-notary-submit-"));
+  const environment = {
+    APPLE_ID: "fixture@example.test",
+    APPLE_APP_SPECIFIC_PASSWORD: "fixture-secret-password",
+    APPLE_TEAM_ID: "FIXTURETEAM",
+  };
+  const execute = vi.fn(async (command: string, args: string[]) => {
+    if (command.endsWith("codesign"))
+      return {
+        stderr: "Authority=Developer ID Application: Fixture\nCDHash=fixture\n",
+      };
+    if (command.endsWith("PlistBuddy")) return { stdout: "2.0.7" };
+    if (args[1] === "submit")
+      throw Object.assign(new Error("Command failed: private command line"), {
+        stderr: `HTTP status code: 401. Invalid credentials: ${Object.values(environment).join(" ")}`,
+      });
+    return { stdout: "" };
+  });
+  try {
+    const error = await notarizeExistingMacApp(
+      join(root, "mac-arm64", "Artemis.app"),
+      "2.0.7",
+      environment,
+      execute,
+    ).catch((error: Error) => error);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain("HTTP status code: 401");
+    expect(error.message).not.toContain("private command line");
+    for (const credential of Object.values(environment))
+      expect(error.message).not.toContain(credential);
+    expect(
+      execute.mock.calls.filter(([, args]) => args[1] === "submit"),
+    ).toHaveLength(1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 it("does not retry or resubmit an explicit Apple rejection", async () => {
   const root = await mkdtemp(join(tmpdir(), "artemis-notary-rejected-"));
   await mkdir(join(root, "mac-arm64"));

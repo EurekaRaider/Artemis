@@ -164,10 +164,16 @@ export async function notarizeExistingMacApp(
           "--output-format",
           "json",
         ]);
-      } catch {
+      } catch (error) {
         // execFile errors contain command arguments, potentially including passwords.
+        // Keep only tool output and redact every authorization value before logging.
+        let diagnostic = [error.stdout, error.stderr].filter(Boolean).join("\n");
+        for (const value of authorization.filter((_, index) => index % 2 === 1)) {
+          diagnostic = diagnostic.replaceAll(value, "[redacted]");
+        }
         throw new Error(
-          "Apple notarization submission failed. Check credentials and network connectivity.",
+          "Apple notarization submission failed. Check credentials and network connectivity." +
+            (diagnostic.trim() ? `\n${diagnostic.trim().slice(0, 2000)}` : ""),
         );
       }
       id = JSON.parse(submission.stdout).id;
