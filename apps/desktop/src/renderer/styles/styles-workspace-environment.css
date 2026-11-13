@@ -660,7 +660,7 @@ button.environment-activity-row:focus-visible {
     color: var(--muted);
     cursor: pointer;
     display: inline-flex;
-    font-size: 11.5px;
+    font-size: var(--meta);
     gap: 5px;
     min-height: 20px;
     padding: 0 7px;
@@ -716,7 +716,7 @@ button.environment-activity-row:focus-visible {
   align-items: center;
   gap: 6px;
   color: var(--artemis-color-status-warning-text);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.35;
   margin: 0;
   padding: 0 8px 7px;

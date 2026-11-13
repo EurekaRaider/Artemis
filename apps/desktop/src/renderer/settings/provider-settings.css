@@ -74,7 +74,7 @@
   & p {
     margin: 0;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: var(--meta);
   }
 }
 .provider-credentials {
@@ -220,7 +220,7 @@
 .provider-form-advanced-help {
   margin: 0;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.4;
 }
 .provider-form-disclosure {
@@ -267,7 +267,7 @@
 .provider-form-key-note,
 .provider-form-status {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
 }
 .provider-form-format {
@@ -520,7 +520,7 @@ span.provider-brand-icon {
   font-size: 13px;
 }
 .provider-credential-status {
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .settings-panel {
   &[data-tab="providers"] .provider-import [data-part="icon"],
@@ -619,7 +619,7 @@ span.provider-brand-icon {
 }
 .provider-search-empty {
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 
 span.provider-brand-icon-ant-ling {

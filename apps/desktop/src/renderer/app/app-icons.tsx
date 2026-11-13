@@ -8,10 +8,10 @@ import { ArtemisLogo } from "@artemis/ui/icons";
 import { filePresentation } from "../workspace/workspace-file-presentation.js";
 import { type WorkspaceTabKind } from "../workspace/workspace-tabs.js";
 
-export function ArtemisMark() {
+export function ArtemisMark({ size = 24 }: { size?: number }) {
   return (
     <div className="artemis-mark" aria-label="Artemis">
-      <ArtemisLogo size={24} />
+      <ArtemisLogo size={size} />
     </div>
   );
 }

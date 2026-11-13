@@ -127,10 +127,10 @@ describe("conversation welcome", () => {
   );
 
   it.each([
-    [8, "今早想在 {{workspace}} 项目里一起做些什么？", "今早想一起做些什么？"],
-    [15, "今天想在 {{workspace}} 项目里一起做些什么？", "今天想一起做些什么？"],
-    [20, "今晚想在 {{workspace}} 项目里一起做些什么？", "今晚想一起做些什么？"],
-    [2, "今晚想在 {{workspace}} 项目里一起做些什么？", "今晚想一起做些什么？"],
+    [8, "今早想在 {{workspace}} 里一起做些什么？", "今早想一起做些什么？"],
+    [15, "今天想在 {{workspace}} 里一起做些什么？", "今天想一起做些什么？"],
+    [20, "今晚想在 {{workspace}} 里一起做些什么？", "今晚想一起做些什么？"],
+    [2, "今晚想在 {{workspace}} 里一起做些什么？", "今晚想一起做些什么？"],
   ] as const)(
     "keeps project context separate from the temporary welcome at %i:00",
     (hour, projectPrompt, temporaryPrompt) => {
@@ -138,6 +138,23 @@ describe("conversation welcome", () => {
       expect(copy.projectPrompt).toBe(projectPrompt);
       expect(copy.temporaryPrompt).toBe(temporaryPrompt);
       expect(copy.temporaryPrompt).not.toContain("{{workspace}}");
+    },
+  );
+
+  it.each([
+    ["zh-CN", "项目"],
+    ["zh-TW", "專案"],
+    ["ko", "프로젝트"],
+    ["hi", "प्रोजेक्ट"],
+    ["ar", "مشروع"],
+  ] as const)(
+    "names the workspace without a generic project noun in %s",
+    (locale, noun) => {
+      for (const hour of [8, 15, 20]) {
+        const copy = conversationWelcome(locale, localTime(hour), "William");
+        expect(copy.projectPrompt).toContain("{{workspace}}");
+        expect(copy.projectPrompt).not.toContain(noun);
+      }
     },
   );
 

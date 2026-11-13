@@ -86,6 +86,6 @@ describe("Windows main-window material", () => {
     expect(
       applyWindowsWindowMaterial(window, { ...preferences, dark: true }),
     ).toBe("web");
-    expect(window.setBackgroundColor).toHaveBeenCalledWith("#141519");
+    expect(window.setBackgroundColor).toHaveBeenCalledWith("#20201e");
   });
 });

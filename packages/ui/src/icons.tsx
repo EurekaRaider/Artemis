@@ -887,24 +887,37 @@ export function RunningArc({
   );
 }
 export function ArtemisLogo({ size = 48 }: { size?: number }) {
+  // 24px and below use the heavier crescent and larger arrowhead.
+  const small = size <= 24;
   return (
     <svg
       aria-hidden="true"
       width={size}
       height={size}
       viewBox="0 0 48 48"
-      fill="none"
+      fill="currentColor"
       stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path
-        d="M35 9.17A16 16 0 1 0 35 38.83A15.2 15.2 0 0 1 35 9.17Z"
-        fill="currentColor"
-        stroke="none"
-      />
-      {size > 32 && <path d="M35 9.17V38.83" opacity="0.6" />}
+      <g transform="rotate(-45 24 24)">
+        {small ? (
+          <>
+            <path
+              d="M33.07 12.05A15 15 0 1 0 33.07 35.95A12.2 12.2 0 1 1 33.07 12.05Z"
+              strokeWidth="1"
+            />
+            <path d="M42.5 24L25.4 15.6L29.6 24L25.4 32.4Z" strokeWidth="1.6" />
+          </>
+        ) : (
+          <>
+            <path
+              d="M31.84 11.21A15 15 0 1 0 31.84 36.79A13 13 0 1 1 31.84 11.21Z"
+              strokeWidth=".8"
+            />
+            <path d="M41.4 24L24.4 16.4L28.7 24L24.4 31.6Z" strokeWidth="1.4" />
+          </>
+        )}
+      </g>
     </svg>
   );
 }

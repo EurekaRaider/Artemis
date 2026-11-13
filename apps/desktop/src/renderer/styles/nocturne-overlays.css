@@ -93,7 +93,7 @@
   }
   .computer-control-timer {
     flex: 0 0 auto;
-    font-size: 11.5px;
+    font-size: var(--meta);
     font-variant-numeric: tabular-nums;
     color: #a9adb6;
     order: 2;
@@ -264,7 +264,7 @@
     }
   }
   .update-byte-count {
-    font: 11.5px/1.25 var(--font);
+    font: var(--meta)/1.25 var(--font);
     color: var(--muted-2);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -276,7 +276,7 @@
     padding: 8px 10px;
     background: var(--panel-3);
     border-radius: 8px;
-    font-size: 11.5px;
+    font-size: var(--meta);
     line-height: 1.5;
   }
   .update-task-notice-copy > span:last-child {
@@ -353,7 +353,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
     display: flex;
     align-items: center;
     gap: 4px;
-    font: 11.5px/1.5 var(--font);
+    font: var(--meta)/1.5 var(--font);
     color: var(--muted-2);
   }
   a svg {
@@ -392,7 +392,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
     align-items: baseline;
     gap: 8px;
     flex-wrap: wrap;
-    font-size: 11.5px;
+    font-size: var(--meta);
     color: var(--muted);
     margin-block-end: 6px;
     text-transform: capitalize;
@@ -427,7 +427,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   }
 
   .assistant-message .group-message-avatar {
-    background: #121418;
+    background: linear-gradient(#22242d, #0d0e12);
     color: var(--artemis-color-brand);
   }
   :is(
@@ -447,7 +447,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
   }
   :is(.office-footer, .terminal-status) {
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: var(--meta);
   }
 }
 .im-group-members {
@@ -464,7 +464,7 @@ body:has(.environment-popover) .app-shell .update-notice-slot {
 }
 .im-member-executor {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
 }
 .im-delegation-wait {

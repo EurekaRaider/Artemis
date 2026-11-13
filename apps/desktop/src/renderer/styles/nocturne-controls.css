@@ -57,7 +57,7 @@
   line-height: 1.35;
 }
 .app-shell .approval-policy-menu button small {
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 .app-shell .approval-policy-menu button svg {
@@ -245,7 +245,7 @@ details[open] > summary .disclosure-chevron {
 }
 .goal-bar-status {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
 }
 .app-shell .goal-bar-progress {
@@ -255,7 +255,7 @@ details[open] > summary .disclosure-chevron {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 .goal-bar-budget progress {
@@ -335,7 +335,7 @@ details[open] > summary .disclosure-chevron {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 .settings-panel .provider-navigation-item [data-part="label"] {
@@ -416,7 +416,7 @@ details[open] > summary .disclosure-chevron {
 .settings-panel .provider-key-storage {
   order: 2;
   flex: none;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 .settings-panel .provider-key-field .provider-form-actions {
@@ -459,7 +459,7 @@ details[open] > summary .disclosure-chevron {
   padding: 3px 8px;
   color: var(--success);
   background: var(--artemis-color-status-success-subtle);
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 500;
 }
 .settings-panel .hooks-toolbar {
@@ -477,30 +477,33 @@ details[open] > summary .disclosure-chevron {
   margin-inline-end: 10px;
 }
 
+/* Centred under the composer: 36px below the context row (28px column gap). */
 .welcome-resume {
-  width: min(740px, 100%);
-  margin: 12px auto 0;
+  width: min(720px, 100%);
+  margin: 8px auto 0;
   container-type: inline-size;
 }
 .welcome-resume h2 {
   margin: 0 0 10px;
   padding-inline: 4px;
   color: var(--muted-2);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
 }
 .welcome-resume-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }
 .app-shell .welcome-resume-card {
   display: flex;
+  flex: 0 1 232px;
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
+  gap: 5px;
   min-width: 0;
-  padding: 14px;
+  padding: 12px 14px 13px;
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   background: transparent;
@@ -531,8 +534,10 @@ details[open] > summary .disclosure-chevron {
   white-space: nowrap;
 }
 .welcome-resume-meta {
-  font-size: 11.5px;
+  padding-inline-start: 24px;
+  font-size: 12px;
   font-weight: 400;
+  font-variant-numeric: tabular-nums;
   color: var(--muted-2);
 }
 .welcome-resume .diff-add {
@@ -543,7 +548,10 @@ details[open] > summary .disclosure-chevron {
 }
 @container (max-width: 559px) {
   .welcome-resume-grid {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+  .app-shell .welcome-resume-card {
+    flex: none;
   }
 }
 .environment-workspace-path {
@@ -588,7 +596,7 @@ details[open] > summary .disclosure-chevron {
 .im-delegation-countdown {
   margin-inline-start: auto;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-variant-numeric: tabular-nums;
 }
 .im-service-head {
@@ -604,11 +612,11 @@ details[open] > summary .disclosure-chevron {
 }
 .im-local-service-copy small {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .im-group-authorization-summary h3 {
   margin: 18px 0 10px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   color: var(--muted-2);
 }
@@ -633,7 +641,7 @@ details[open] > summary .disclosure-chevron {
   align-items: center;
   list-style: none;
   cursor: pointer;
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .app-shell .resource-management-toolbar {
   margin: 0;
@@ -650,7 +658,7 @@ details[open] > summary .disclosure-chevron {
   gap: 16px;
 }
 .resource-section-heading h2 {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   color: var(--muted-2);
   white-space: nowrap;
@@ -658,7 +666,7 @@ details[open] > summary .disclosure-chevron {
 .app-shell .resource-risk-meta {
   margin: 0;
   padding: 0;
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .app-shell .plugin-market-group h2 {
   border: 0;
@@ -676,7 +684,7 @@ details[open] > summary .disclosure-chevron {
 .app-shell .plugin-market-card-vn {
   display: block;
   margin: 4px 0 0;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
   font-weight: 400;
 }
@@ -712,7 +720,7 @@ details[open] > summary .disclosure-chevron {
   .resource-management-section
   > [data-part="header"]
   [data-part="title"] {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   color: var(--muted-2);
 }
@@ -748,7 +756,7 @@ details[open] > summary .disclosure-chevron {
   display: block;
   margin: 0;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .app-shell .token-usage-model-action,
 .token-usage-model-bars button {
@@ -762,7 +770,7 @@ details[open] > summary .disclosure-chevron {
   padding: 8px 12px;
   border-top: 1px solid var(--border-soft);
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
 }
 .branch-context-menu strong {
@@ -798,7 +806,7 @@ details[open] > summary .disclosure-chevron {
   flex-wrap: wrap;
   gap: 6px 12px;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 
 .provider-add-model-trigger,

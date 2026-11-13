@@ -53,7 +53,7 @@ export function applyWindowsWindowMaterial(
     material === "acrylic"
       ? "#00000000"
       : preferences.dark
-        ? "#141519"
+        ? "#20201e"
         : "#ffffff",
   );
   return material;

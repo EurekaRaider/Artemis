@@ -1,10 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22242D"/><stop offset="1" stop-color="#0D0E12"/></linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".4" r=".55"><stop offset="0" stop-color="#E8B65A" stop-opacity=".11"/><stop offset="1" stop-color="#E8B65A" stop-opacity="0"/></radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".15"/><stop offset=".5" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#fff" stop-opacity=".03"/></linearGradient>
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="24" y1="8" x2="24" y2="40" gradientTransform="rotate(45 24 24)"><stop offset="0" stop-color="#F6D48A"/><stop offset="1" stop-color="#DCA040"/></linearGradient>
+  </defs>
   <g id="background">
-    <rect width="48" height="48" rx="10.8" fill="#121418"/>
-    <rect data-outline-detail="true" x="0.4" y="0.4" width="47.2" height="47.2" rx="10.4" fill="none" stroke="white" stroke-opacity="0.1" stroke-width="0.8"/>
+    <rect width="48" height="48" rx="10.8" fill="url(#bg)"/>
+    <rect data-large-detail="true" width="48" height="48" rx="10.8" fill="url(#glow)"/>
+    <rect data-outline-detail="true" x=".3" y=".3" width="47.4" height="47.4" rx="10.5" fill="none" stroke="url(#rim)" stroke-width=".3"/>
+    <rect data-small-detail="true" x=".5" y=".5" width="47" height="47" rx="10.3" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="1"/>
   </g>
-  <g id="foreground" transform="translate(24 24) scale(0.62) translate(-24 -24)">
-    <path d="M35 9.17A16 16 0 1 0 35 38.83A15.2 15.2 0 0 1 35 9.17Z" fill="#E8B65A"/>
-    <path data-large-detail="true" d="M35 9.17V38.83" fill="none" stroke="#E8B65A" stroke-width="1.1" opacity="0.7"/>
+  <g id="foreground" stroke-linejoin="round">
+    <path data-large-detail="true" transform="translate(24.3 23.7) scale(0.8) translate(-24 -24) rotate(-45 24 24)" fill="url(#gold)" stroke="url(#gold)" stroke-width=".8" d="M31.84 11.21A15 15 0 1 0 31.84 36.79A13 13 0 1 1 31.84 11.21Z"/>
+    <path data-large-detail="true" transform="translate(24.3 23.7) scale(0.8) translate(-24 -24) rotate(-45 24 24)" fill="url(#gold)" stroke="url(#gold)" stroke-width="1.4" d="M41.4 24L24.4 16.4L28.7 24L24.4 31.6Z"/>
+    <path data-small-detail="true" transform="translate(24.3 23.7) scale(0.86) translate(-24 -24) rotate(-45 24 24)" fill="#EDBE66" stroke="#EDBE66" stroke-width="1" d="M33.07 12.05A15 15 0 1 0 33.07 35.95A12.2 12.2 0 1 1 33.07 12.05Z"/>
+    <path data-small-detail="true" transform="translate(24.3 23.7) scale(0.86) translate(-24 -24) rotate(-45 24 24)" fill="#EDBE66" stroke="#EDBE66" stroke-width="1.6" d="M42.5 24L25.4 15.6L29.6 24L25.4 32.4Z"/>
   </g>
 </svg>

@@ -48,7 +48,7 @@ describe("screenshot visual contracts", () => {
         '.settings-panel :is( .provider-credentials h3, .provider-base-url [data-part="label"], .settings-section > [data-part="header"] [data-part="title"], .plugin-market-group h2 )',
       ),
     ).toMatchObject({
-      "font-size": "11.5px",
+      "font-size": "var(--meta)",
       "font-weight": "600",
       color: "var(--muted-2)",
     });
@@ -300,7 +300,8 @@ describe("screenshot visual contracts", () => {
     const app = readRendererAppSources();
     expect(app).toContain('className="sidebar-brand"');
     expect(app).toContain('className="rail-brand"');
-    expect(app).toContain("<ArtemisLogo size={24} />");
+    expect(app).toContain("ArtemisMark({ size = 24 }");
+    expect(app).toContain("<ArtemisLogo size={size} />");
     expect(app).not.toContain(
       'import artemisIcon from "../../../build/icon.png"',
     );

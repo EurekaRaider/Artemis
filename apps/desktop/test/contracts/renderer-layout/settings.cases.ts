@@ -90,7 +90,7 @@ describe("renderer layout contract", () => {
         nocturneStylesSource,
         ".app-shell .sidebar .app-version",
       ),
-    ).toContain("font-size: 11.5px");
+    ).toContain("font-size: var(--meta)");
     expect(nocturneStylesSource).toContain("color: var(--muted-2)");
     expect(cssRule(".app-version")).toMatch(/\bbackground:\s*transparent/u);
     expect(nocturneStylesSource).toContain("padding: 8px 10px");

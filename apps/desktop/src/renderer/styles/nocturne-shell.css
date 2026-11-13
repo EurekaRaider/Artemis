@@ -60,9 +60,22 @@
 }
 :root[data-artemis-skin="com.artemis.default"] {
   --artemis-color-surface-base: var(--panel);
+  /* 暖墨: warm dark selection, and a sidebar tint heavy enough to hold
+     near #1a1a18 over any wallpaper. Light values are unchanged. */
+  --nocturne-s3: light-dark(#e6e6ea, #3b3b37);
+  --nocturne-chart-1: light-dark(#ececef, #30302d);
+  --nocturne-glass-sidebar: light-dark(
+    rgb(244 245 248 / 0.58),
+    rgb(26 26 24 / 0.92)
+  );
   .app-shell {
-    --bg: light-dark(#fff, #141519);
+    --bg: light-dark(#fff, #20201e);
   }
+}
+/* The Chinese UI floors the default skin's helper text at 12px. */
+:root[data-artemis-skin="com.artemis.default"]:lang(zh) {
+  --artemis-typography-label-size: 12px;
+  --artemis-typography-metadata-size: 12px;
 }
 .app-shell {
   .workspace,
@@ -97,7 +110,7 @@
   .status-pill {
     min-block-size: 22px;
     gap: 6px;
-    font-size: 11.5px;
+    font-size: var(--meta);
     font-weight: 500;
   }
   .status-pill time {
@@ -177,7 +190,7 @@
     .sidebar-nav-count {
       margin-inline-start: auto;
       color: var(--muted-2);
-      font-size: 11.5px;
+      font-size: var(--meta);
       font-variant-numeric: tabular-nums;
     }
     .sidebar-new-task {
@@ -218,7 +231,7 @@
     }
     .project-thread-row .thread-time {
       color: var(--muted-2);
-      font-size: 11.5px;
+      font-size: var(--meta);
     }
     .sidebar-footer {
       display: grid;
@@ -232,7 +245,7 @@
     }
     .app-version {
       color: var(--muted-2);
-      font-size: 11.5px;
+      font-size: var(--meta);
     }
   }
 }

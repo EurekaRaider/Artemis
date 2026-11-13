@@ -640,7 +640,7 @@
   padding: 3px 10px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted);
 }
 .im-service-state {
@@ -936,7 +936,7 @@
   flex: none;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted);
 }
 /* 名字跑马灯：静态省略号，悬停溢出时匀速滚动（≈30px/s）。 */
@@ -1174,7 +1174,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 .im-channel-row-summary .im-dot {
@@ -1189,7 +1189,7 @@
   padding: 2px 9px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 16px;
   font-weight: 510;
   color: var(--text);
@@ -1212,7 +1212,7 @@
 }
 .im-fine {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.6;
   color: var(--muted);
 }
@@ -1439,7 +1439,7 @@
 .settings-avatar-hint,
 .settings-row-description {
   margin: 1px 0 0;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
   color: var(--muted-2);
   max-width: 52ch;

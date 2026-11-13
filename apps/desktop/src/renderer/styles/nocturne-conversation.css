@@ -13,30 +13,89 @@
     flex: 1;
     min-block-size: 0;
     flex-direction: column;
-    justify-content: safe center;
+    justify-content: flex-start;
     gap: 28px;
-    padding: 0 24px 40px;
+    padding: 0 24px 24px;
     overflow-y: auto;
+    /* Pins the mark near 22% of the main area so resume cards never move the
+       composer; the spacer only yields when the window runs out of room. */
+    &::before {
+      content: "";
+      flex: 0 1 calc(22% - 28px);
+    }
   }
   .conversation[data-state="empty"] {
-    .composer {
-      min-height: 100px;
+    .workspace-header {
+      border-block-end-color: transparent;
+    }
+    .workspace-heading > strong {
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .composer-input {
+      min-height: 62px;
+    }
+    .composer-toolbar {
+      padding-block-end: 10px;
     }
     :is(.context-usage-indicator, .header-share) {
       display: none;
     }
     .composer-context-surface {
-      padding: 9px 8px 0;
+      padding: 12px 0 0;
+    }
+    .composer-context-row {
+      justify-content: center;
     }
     .composer-context-row,
     .composer-context {
-      min-height: 18px;
+      min-height: 24px;
+    }
+    .composer-context {
+      align-items: center;
+      gap: 7px;
+    }
+    /* A quiet dot between project, branch and checkout. */
+    .composer-context > * + * {
+      position: relative;
+    }
+    .composer-context > * + *::before {
+      content: "";
+      position: absolute;
+      inset-block-start: calc(50% - 1.5px);
+      inset-inline-start: -5px;
+      inline-size: 3px;
+      block-size: 3px;
+      border-radius: 50%;
+      background: var(--muted-2);
+      opacity: 0.45;
+      pointer-events: none;
     }
     :is(.composer-context-trigger, .environment-workspace-trigger) {
-      min-height: 18px;
-      height: 18px;
-      padding: 0;
-      gap: 5px;
+      min-height: 24px;
+      height: 24px;
+      padding: 0 8px;
+      gap: 6px;
+      border-radius: 6px;
+      color: var(--muted-2);
+      font-size: 12px;
+    }
+    :is(.composer-context-trigger, .environment-workspace-trigger)
+      > :is(strong, span) {
+      color: inherit;
+      font-weight: 400;
+    }
+    :is(.composer-context-trigger, .environment-workspace-trigger)
+      > svg:first-child {
+      inline-size: 12px;
+      block-size: 12px;
+    }
+    :is(.composer-context-trigger, .environment-workspace-trigger)
+      > svg:last-child {
+      inline-size: 10px;
+      block-size: 10px;
+      margin-inline-start: -1px;
+      opacity: 0.55;
     }
     .branch-context-trigger > span {
       font-size: 11.5px;
@@ -50,7 +109,7 @@
     & > .composer-wrap {
       flex: 0 0 auto;
       inline-size: 100%;
-      max-inline-size: 740px;
+      max-inline-size: 720px;
       margin: 0 auto;
       padding: 0;
       inset-inline-end: auto;
@@ -61,39 +120,52 @@
     }
   }
   .conversation-empty-state {
-    align-items: flex-start;
-    gap: 10px;
+    align-items: center;
+    gap: 0;
     inline-size: 100%;
     min-block-size: 0;
     block-size: auto;
     margin: 0;
     padding: 0 4px;
     inset-inline-end: auto;
-    text-align: start;
+    text-align: center;
     & > [data-part="icon"],
     .artemis-mark,
     .artemis-mark svg {
-      inline-size: 30px;
-      block-size: 30px;
+      inline-size: 40px;
+      block-size: 40px;
+    }
+    & > [data-part="icon"] {
+      margin-block-end: 16px;
     }
     & > [data-part="title"],
     & > [data-part="detail"] {
       margin: 0;
     }
+    & > [data-part="detail"] {
+      margin-block-start: 6px;
+    }
     h1 {
       margin: 0;
       font-family: var(--artemis-typography-body-family);
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 600;
-      line-height: 34px;
+      line-height: 36px;
       letter-spacing: -0.025em;
+    }
+    &:lang(zh) h1 {
+      font-weight: 500;
+      letter-spacing: 0;
     }
   }
   .conversation-greeting-detail {
     margin: 0;
     color: var(--muted);
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 14.5px;
+    line-height: 22px;
+    .conversation-project-name {
+      font-weight: 500;
+    }
   }
 }
 .composer-wrap {
@@ -107,7 +179,7 @@
   .composer {
     display: flex;
     flex-direction: column;
-    border-radius: 16px;
+    border-radius: 18px;
     padding: 0;
   }
   .composer-context-surface {
@@ -172,7 +244,7 @@
     gap: 2px;
     padding: 2px;
     border-radius: 9px;
-    background: transparent;
+    background: var(--hover);
     & > [data-part="option"] {
       position: relative;
       z-index: 1;
@@ -181,7 +253,7 @@
       gap: 6px;
       flex: 0 0 auto;
       min-block-size: 26px;
-      padding: 0 10px;
+      padding: 0 12px;
       border: 0;
       border-radius: 7px;
       color: var(--muted);
@@ -190,7 +262,11 @@
       font-size: 12.5px;
       font-weight: 500;
     }
+    /* Text-only segments; icons return wherever a label collapses. */
     [data-part="icon"] {
+      display: none;
+    }
+    [aria-checked="false"]:disabled [data-part="icon"] {
       display: flex;
     }
     [aria-checked="true"] {
@@ -273,6 +349,9 @@
   }
 }
 @container composer (max-width: 680px) {
+  .composer-run-modes [data-part="icon"] {
+    display: flex;
+  }
   .composer-run-modes [aria-checked="false"] [data-part="label"],
   .approval-policy-trigger > span {
     position: absolute;
@@ -412,7 +491,7 @@
 }
 .work-record > summary small {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-variant-numeric: tabular-nums;
 }
 .app-shell {
@@ -506,7 +585,7 @@
   white-space: nowrap;
   text-align: end;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-variant-numeric: tabular-nums;
 }
 .tool-step-status {
@@ -687,7 +766,7 @@
     & > small {
       margin-inline-end: auto;
       color: var(--muted-2);
-      font-size: 11.5px;
+      font-size: var(--meta);
     }
     & > button:last-child {
       color: var(--text);
@@ -789,7 +868,7 @@
   }
   & > [data-part="indicator"] {
     grid-column: 5;
-    font-size: 11.5px;
+    font-size: var(--meta);
     color: var(--muted-2);
     font-variant-numeric: tabular-nums;
   }

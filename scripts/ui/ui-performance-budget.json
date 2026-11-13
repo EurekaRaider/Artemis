@@ -24,7 +24,7 @@
   },
   "thresholds": {
     "bundles": {
-      "desktopCssBytes": 604000,
+      "desktopCssBytes": 607000,
       "desktopJsBytes": 10000000,
       "desktopLargestJsBytes": 1975000,
       "galleryCssBytes": 182000,
@@ -70,6 +70,16 @@
     }
   ],
   "bundleBudgetRevisions": [
+    {
+      "date": "2026-11-13",
+      "baseHead": "a7db5a48c1c9a0e0306c4985224dcc03139f7355",
+      "baseDesktopCssBytes": 603515,
+      "measuredDesktopCssBytes": 606064,
+      "desktopCssIncreaseBytes": 2549,
+      "previousDesktopCssMaximumBytes": 604000,
+      "desktopCssMaximumBytes": 607000,
+      "reason": "The approved centred welcome page, composer restyle, warm-ink dark palette (including its chart, terminal, scrim, release-tile and group-avatar follow-ups) and 12px Chinese helper-text floor add 2549 bytes to the desktop production CSS. Measured by building the same candidate twice, substituting only the changed CSS sources from a7db5a48 for the baseline and restoring them for the candidate. Bound the resulting 606064 bytes at 607000 bytes. JavaScript, shared UI, gallery, startup and workload ceilings remain unchanged."
+    },
     {
       "date": "2026-11-02",
       "baseHead": "bc29807c5bcf0e1efb23ae32bdcc081e491953f9",

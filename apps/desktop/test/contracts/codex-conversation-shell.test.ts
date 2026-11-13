@@ -185,7 +185,7 @@ describe("Codex conversation shell contract", () => {
     expect(createThread).toContain("setActiveThreadId(thread.id)");
     expect(conversation).toContain("conversationEmpty ? (");
     expect(appSource).toContain("!hasConversationContent");
-    expect(conversation).toContain("<ArtemisMark />");
+    expect(conversation).toContain("<ArtemisMark size={40} />");
     expect(uiText("en", "App_copy.emptyConversationPrompt")).toBe(
       "What should we build in {{workspace}}?",
     );
@@ -321,8 +321,27 @@ describe("Codex conversation shell contract", () => {
     expect(relativeLuminance(sidebar)).toBeLessThan(
       relativeLuminance(workspace),
     );
-    expect(sidebar).toBe("#0e0f12");
-    expect(workspace).toBe("#1a1b20");
+    expect(sidebar).toBe("#1a1a18");
+    expect(workspace).toBe("#292927");
+    const defaultSkin = findCssDeclarations(
+      nocturneStylesSource,
+      ':root[data-artemis-skin="com.artemis.default"]',
+    );
+    expect(defaultSkin).toContain(
+      "--nocturne-chart-1: light-dark(#ececef, #30302d);",
+    );
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        ".settings-panel .settings-release-mark",
+      ),
+    ).toContain("background: linear-gradient(#22242d, #0d0e12);");
+    expect(
+      findCssDeclarations(
+        nocturneStylesSource,
+        ".app-shell .assistant-message .group-message-avatar",
+      ),
+    ).toContain("background: linear-gradient(#22242d, #0d0e12);");
     expect(stylesSource).toContain(
       "--ui-font: var(--artemis-typography-body-family);",
     );
@@ -377,7 +396,7 @@ describe("Codex conversation shell contract", () => {
     expect(workspaceLabel).toMatch(/\boverflow:\s*hidden/u);
     expect(workspaceLabel).toMatch(/\btext-overflow:\s*ellipsis/u);
     expect(appSource).toContain(
-      '<strong dir="auto">{activeWorkspaceLabel}</strong>',
+      "{conversationEmpty ? t.newTask : activeWorkspaceLabel}",
     );
   });
 

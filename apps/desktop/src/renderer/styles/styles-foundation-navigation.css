@@ -74,6 +74,11 @@
   --font: var(--ui-font);
   --surface: var(--artemis-color-surface-base);
   --surface-raised: var(--artemis-color-surface-raised);
+  /* Helper and metadata text; the Chinese UI floors it at 12px. */
+  --meta: 11.5px;
+}
+:root:lang(zh) {
+  --meta: 12px;
 }
 
 :root[data-theme="dark"] {
@@ -353,7 +358,7 @@ body {
   padding: 6px 6px 6px 10px;
   text-align: start;
   gap: 9px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
   font-weight: 600;
   color: var(--muted-2);

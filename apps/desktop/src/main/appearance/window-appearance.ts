@@ -100,7 +100,7 @@ export function createWindowAppearance(services: Dependencies) {
         next === "vibrancy"
           ? "#00000000"
           : preferences.dark
-            ? "#141519"
+            ? "#20201e"
             : "#ffffff",
       );
     }

@@ -938,7 +938,7 @@
   border-bottom: 0;
   color: var(--muted-2);
   flex: 0 0 auto;
-  font: 600 11.5px/1.5 var(--font);
+  font: 600 var(--meta)/1.5 var(--font);
   letter-spacing: 0.02em;
   margin: 0 0 12px;
   padding: 0;
@@ -1047,7 +1047,7 @@
 
 .agent-team-member small {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 
 .agent-team-message-list {

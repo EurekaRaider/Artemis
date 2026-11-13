@@ -55,7 +55,17 @@ const temporaryRoot = await mkdtemp(join(tmpdir(), "artemis-macos-icon-"));
 try {
   const require = createRequire(import.meta.url);
   const { createCanvas, loadImage } = require("@napi-rs/canvas");
-  const source = await readFile(sourcePath, "utf8");
+  const withoutDetail = (svg, kind) =>
+    svg.replace(
+      new RegExp(
+        `<(?:rect|path) data-${kind}-detail="true"[^>]*\\/>\\s*`,
+        "gu",
+      ),
+      "",
+    );
+  const sourceWithSmallDetails = await readFile(sourcePath, "utf8");
+  // Large sizes and the Icon Composer layers use the full-detail tile.
+  const source = withoutDetail(sourceWithSmallDetails, "small");
   const render = async (svg, size) => {
     const image = await loadImage(
       Buffer.from(
@@ -97,13 +107,10 @@ try {
   );
   const pngBySize = new Map();
   for (const size of new Set(representations.map((item) => item.size))) {
-    let svg = source;
-    if (size < 128)
-      svg = svg.replace(/<rect data-outline-detail="true"[^>]*\/>/u, "");
-    if (size <= 32)
-      svg = svg
-        .replace(/<path data-large-detail="true"[^>]*\/>/u, "")
-        .replace("scale(0.62)", size === 16 ? "scale(0.7)" : "scale(0.66)");
+    // 32px and below swap in the bold mark and a flat, single-stroke rim.
+    let svg =
+      size <= 32 ? withoutDetail(sourceWithSmallDetails, "large") : source;
+    if (size < 128) svg = withoutDetail(svg, "outline");
     pngBySize.set(size, await render(svg, size));
   }
 

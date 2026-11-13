@@ -53,7 +53,7 @@
 }
 .decision-reason > small {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.6;
 }
 .decision-reason p {
@@ -155,7 +155,7 @@
 .resource-skill-source {
   margin-inline-start: auto;
   white-space: nowrap;
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .resource-skill-row .resource-remove-button {
   opacity: 0;
@@ -214,7 +214,7 @@
 }
 .token-model-heading small {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .app-shell .token-usage-chart-scroll {
   margin: 0;
@@ -232,7 +232,7 @@
     .settings-section > [data-part="header"] [data-part="title"],
     .plugin-market-group h2
   ) {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   line-height: 1.5;
   color: var(--muted-2);
@@ -267,7 +267,7 @@
   text-align: start;
 }
 .provider-import {
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 :is(
@@ -345,7 +345,7 @@
   flex: none;
 }
 .automation-schedule-heading {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   color: var(--muted-2);
   margin-top: 16px;
@@ -426,7 +426,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
   .work-record-agent-status {
     font: inherit;
@@ -513,7 +513,7 @@
   height: 14px;
 }
 .app-shell .plugin-market-group h2 {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   color: var(--muted-2);
 }
@@ -524,7 +524,7 @@
 .environment-panel-header > small {
   margin-inline-start: auto;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -545,7 +545,7 @@
 }
 .token-composition-heading > bdi {
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .token-usage-model-bars button {
   font-size: 13px;
@@ -589,7 +589,7 @@
   background: linear-gradient(var(--border-soft), var(--border-soft)) center
     top / calc(100% - 8px) 1px no-repeat;
   padding: 10px 10px 6px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
   color: var(--muted-2);
   flex: none;
@@ -630,7 +630,7 @@
   gap: 8px;
   margin: 0;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 .review-comment-heading strong {
   color: var(--text);
@@ -751,7 +751,7 @@
   margin-block-start: 24px;
 }
 .app-shell .resource-installed-overview [data-part="title"] {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 600;
   color: var(--muted-2);
 }
@@ -763,7 +763,7 @@
   background: var(--nocturne-s3);
 }
 .archive-time-group > span:last-child {
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 400;
   color: var(--muted-2);
 }
@@ -978,7 +978,7 @@
   [data-part="segment"] {
   min-height: 22px;
   height: 22px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
 }
 .environment-push-info > span > svg {
@@ -1068,7 +1068,7 @@
   position: absolute;
   inset-inline-end: 16px;
   bottom: 48px;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
   pointer-events: none;
 }
@@ -1089,7 +1089,7 @@
   border-radius: 999px;
   background: var(--nocturne-gold-halo);
   color: var(--artemis-color-status-warning-text);
-  font-size: 11.5px;
+  font-size: var(--meta);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -1198,7 +1198,7 @@
   border-radius: 999px;
   color: var(--muted);
   background: var(--panel-3);
-  font: 500 11.5px/1.5 var(--ui-font);
+  font: 500 var(--meta)/1.5 var(--ui-font);
 }
 .model-hover-grid {
   display: grid;

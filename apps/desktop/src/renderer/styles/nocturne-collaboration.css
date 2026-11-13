@@ -32,7 +32,7 @@
     }
     small {
       color: var(--muted-2);
-      font-size: 11.5px;
+      font-size: var(--meta);
       line-height: 1.5;
       font-variant-numeric: tabular-nums;
     }
@@ -56,7 +56,7 @@
       border-radius: 6px;
       background: transparent;
       box-shadow: none;
-      font-size: 11.5px;
+      font-size: var(--meta);
       font-weight: 400;
     }
     & > .environment-workspace-trigger span {
@@ -264,7 +264,7 @@
     white-space: nowrap;
   }
   small {
-    font-size: 11.5px;
+    font-size: var(--meta);
     line-height: 1.5;
     color: var(--muted-2);
   }
@@ -316,7 +316,7 @@
     max-inline-size: 55%;
     text-align: end;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: var(--meta);
     overflow-wrap: anywhere;
   }
 }
@@ -371,7 +371,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--muted-2);
-    font: 11.5px/1.35 var(--font);
+    font: var(--meta)/1.35 var(--font);
   }
   .environment-workspace-copy small[title] {
     font-family: var(--mono-font);
@@ -393,7 +393,7 @@
     line-height: 1.6;
   }
   .goal-editor-meta {
-    font-size: 11.5px;
+    font-size: var(--meta);
     line-height: 1.5;
   }
   .goal-editor-footer {
@@ -419,7 +419,7 @@
     gap: 8px;
   }
   .agent-team-header strong {
-    font: 11.5px/1.5 var(--font);
+    font: var(--meta)/1.5 var(--font);
     color: var(--muted-2);
   }
   .agent-team-grid {
@@ -593,7 +593,7 @@
     border-block-start: 1px solid var(--border-soft);
     background: var(--bg);
     color: var(--muted-2);
-    font: 11.5px/1.5 var(--font);
+    font: var(--meta)/1.5 var(--font);
   }
 }
 
@@ -810,7 +810,7 @@
   p {
     margin: 0;
     color: var(--muted-2);
-    font: 11.5px/1.45 var(--font);
+    font: var(--meta)/1.45 var(--font);
     overflow-wrap: anywhere;
   }
   details {
@@ -821,7 +821,7 @@
   }
   summary {
     color: var(--muted-2);
-    font: 11.5px/1.5 var(--font);
+    font: var(--meta)/1.5 var(--font);
   }
 }
 .workspace-tab-add-wrap {
@@ -895,7 +895,7 @@
     border: 0;
     border-radius: 7px;
     box-shadow: none;
-    font-size: 11.5px;
+    font-size: var(--meta);
     font-weight: 500;
     padding: 0 8px;
     color: var(--muted);
@@ -923,7 +923,7 @@
 .composer-queue {
   margin-inline-start: auto;
   position: relative;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
   > summary {
     display: flex;
@@ -1055,7 +1055,7 @@
   min-inline-size: 0;
   overflow-wrap: anywhere;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   margin-inline-start: 6px;
 }
 .app-shell {
@@ -1071,7 +1071,7 @@
   }
   .environment-section > [data-part="section-header"] h2 {
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: var(--meta);
     font-weight: 600;
     line-height: 1.5;
   }
@@ -1081,7 +1081,7 @@
 }
 .app-shell {
   .environment-text-action {
-    font-size: 11.5px;
+    font-size: var(--meta);
     line-height: 1.5;
     color: var(--muted-2);
   }
@@ -1092,7 +1092,7 @@
     align-items: center;
     flex-shrink: 0;
     block-size: 20px;
-    font-size: 11.5px;
+    font-size: var(--meta);
     white-space: nowrap;
     padding: 2px 7px;
     border-radius: 999px;
@@ -1124,7 +1124,7 @@
   }
   small {
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: var(--meta);
   }
 }
 .app-shell {
@@ -1205,7 +1205,7 @@
   padding: 0 14px;
   min-height: 36px;
   color: var(--muted-2);
-  font-size: 11.5px;
+  font-size: var(--meta);
   line-height: 1.5;
   border-top: 1px solid var(--border-soft);
 }
@@ -1214,7 +1214,7 @@
   align-items: center;
   gap: 8px;
   flex: 1;
-  font: 11.5px/1.5 var(--font);
+  font: var(--meta)/1.5 var(--font);
   color: var(--muted-2);
 }
 .terminal-header-actions {
@@ -1225,7 +1225,7 @@
   }
   button {
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: var(--meta);
   }
 }
 .app-shell {
@@ -1280,7 +1280,7 @@
     padding: 0 8px;
     cursor: pointer;
     color: var(--muted);
-    font-size: 11.5px;
+    font-size: var(--meta);
     border-radius: 6px;
     background: transparent;
     white-space: nowrap;
@@ -1359,7 +1359,7 @@
     justify-content: flex-end;
     gap: 4px;
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: var(--meta);
     line-height: 1.5;
   }
   i {
@@ -1416,7 +1416,7 @@
   }
   .archive-subtitle {
     color: var(--muted-2);
-    font-size: 11.5px;
+    font-size: var(--meta);
     margin: 0;
   }
   .archive-empty svg {
@@ -1505,7 +1505,7 @@
 }
 .review-footer-summary {
   margin-inline-end: auto;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 .app-shell {

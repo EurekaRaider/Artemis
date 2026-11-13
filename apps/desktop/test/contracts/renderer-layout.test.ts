@@ -6,3 +6,4 @@ import "./renderer-layout/decisions.cases.js";
 import "./renderer-layout/settings.cases.js";
 import "./renderer-layout/resources.cases.js";
 import "./renderer-layout/workspace.cases.js";
+import "./renderer-layout/welcome-layout.cases.js";

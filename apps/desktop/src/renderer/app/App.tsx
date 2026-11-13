@@ -2711,8 +2711,10 @@ export function App() {
                       <LeftSidebarIcon />
                     </button>
                     <div className="workspace-heading">
-                      <strong dir="auto">{activeWorkspaceLabel}</strong>
-                      {activeThread && (
+                      <strong dir="auto">
+                        {conversationEmpty ? t.newTask : activeWorkspaceLabel}
+                      </strong>
+                      {activeThread && !conversationEmpty && (
                         <>
                           <span className="header-separator">/</span>
                           <span className="workspace-thread-title">
@@ -2817,7 +2819,7 @@ export function App() {
                     ) : conversationEmpty ? (
                       <ConversationEmptyState
                         className="conversation-empty-state"
-                        icon={<ArtemisMark />}
+                        icon={<ArtemisMark size={40} />}
                         label={`${emptyConversationGreeting.title}. ${emptyConversationLabel}`}
                         title={<h1>{emptyConversationGreeting.title}</h1>}
                         detail={

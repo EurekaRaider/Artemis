@@ -7,6 +7,7 @@ import {
   ARTEMIS_ICON_SOURCE,
   ArtemisIcon,
   ArtemisIconProvider,
+  ArtemisLogo,
 } from "../src/icons.js";
 
 describe("ArtemisIcon", () => {
@@ -113,5 +114,29 @@ describe("ArtemisIcon", () => {
     expect(icon?.querySelector("path")?.getAttribute("d")).toBe(
       "M12 5v14 M5 12h14",
     );
+  });
+});
+
+describe("ArtemisLogo", () => {
+  it("draws the crescent-and-arrowhead mark, switching to the bold variant at 24px and below", () => {
+    const { container, rerender } = render(<ArtemisLogo size={40} />);
+    const paths = () =>
+      [...container.querySelectorAll("path")].map((path) =>
+        path.getAttribute("d"),
+      );
+    expect(container.querySelector("svg")?.getAttribute("width")).toBe("40");
+    expect(container.querySelector("g")?.getAttribute("transform")).toBe(
+      "rotate(-45 24 24)",
+    );
+    expect(paths()).toEqual([
+      "M31.84 11.21A15 15 0 1 0 31.84 36.79A13 13 0 1 1 31.84 11.21Z",
+      "M41.4 24L24.4 16.4L28.7 24L24.4 31.6Z",
+    ]);
+    rerender(<ArtemisLogo size={24} />);
+    expect(paths()).toEqual([
+      "M33.07 12.05A15 15 0 1 0 33.07 35.95A12.2 12.2 0 1 1 33.07 12.05Z",
+      "M42.5 24L25.4 15.6L29.6 24L25.4 32.4Z",
+    ]);
+    expect(container.innerHTML).not.toContain("M35 9.17");
   });
 });

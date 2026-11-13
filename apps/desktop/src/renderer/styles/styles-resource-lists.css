@@ -415,13 +415,13 @@
 
 .workspace-panel-status {
   margin-inline-start: auto;
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
 }
 
 .workspace-panel-section-title {
   display: block;
-  font: 600 11.5px/1.5 var(--font);
+  font: 600 var(--meta)/1.5 var(--font);
   letter-spacing: 0.02em;
   color: var(--muted-2);
   margin: 0 0 12px;
@@ -460,7 +460,7 @@
 }
 
 .sources-agent-row p {
-  font-size: 11.5px;
+  font-size: var(--meta);
   color: var(--muted-2);
   margin: 2px 0 0;
 }
@@ -578,7 +578,7 @@
 .sources-panel-mcp-details {
   border-top: 1px solid var(--border-soft);
   padding: 10px 16px;
-  font-size: 11.5px;
+  font-size: var(--meta);
 }
 
 .goal-editor-footer .primary-button {

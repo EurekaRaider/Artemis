@@ -343,7 +343,7 @@
     0 6px 20px rgb(0 0 0 / 0.05);
 }
 [data-theme="dark"] .composer {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.22);
 }
 [data-theme="dark"] .composer-context-trigger {
   background: transparent;
@@ -847,6 +847,12 @@ body:has(.app-shell[data-platform="darwin"]),
   z-index: 81;
   background: var(--artemis-color-surface-header);
   pointer-events: none;
+}
+/* The welcome header has no divider, so the traffic-light patch drops it too. */
+.app-shell[data-platform="darwin"]:has(
+    .conversation[data-state="empty"]
+  )::before {
+  border-block-end-color: transparent;
 }
 .workspace-header
   :is(.environment-trigger, .left-sidebar-toggle, .right-sidebar-toggle) {
