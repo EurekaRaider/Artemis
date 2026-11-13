@@ -10,7 +10,7 @@ import {
 } from "@artemis/theme-contract";
 
 export const ARTEMIS_SKIN_ID = "com.artemis.default" as const;
-export const ARTEMIS_THEME_VERSION = "2.0.6" as const;
+export const ARTEMIS_THEME_VERSION = "2.0.7" as const;
 
 const color = (value: `#${string}`) => ({ kind: "color", value }) as const;
 const length = (value: number) =>

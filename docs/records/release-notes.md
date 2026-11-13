@@ -1,11 +1,15 @@
-# Artemis v2.0.6
+# Artemis v2.0.7
 
 ## 中文
 
-- 点击欢迎页的变更卡片时，如果有未暂存的修改或未跟踪的文件，审查面板会打开未暂存视图。如果只有已暂存的修改，则打开已暂存视图。首次从欢迎页进入时也会保留这个选择。
-- 未暂存变更计数现在包含未跟踪的文件。再次点击卡片打开同一审查视图时，面板会刷新差异。
+- 欢迎页采用居中布局，更新月亮箭头图标与深色暖墨配色，并改善输入框和中文辅助文字的可读性。
+- 升级 Pi 至 1.5.2，启用 Anthropic 增量会话续接，并在模型目录刷新时保留已保存的模型选择。
+- 用量与工作记录显示实际响应模型，区分服务商返回的费用与估算费用，并改善浅色主题缓存图例的对比度。
+- 修复工作区侧栏开合时终端反复缩放导致的提示符残留，并改善窄窗口下的代码审查布局。
 
 ## English
 
-- Clicking the changes card on the welcome screen opens the unstaged view when there are unstaged changes or untracked files. If all changes are staged, it opens the staged view. The selection is preserved when opening a workspace from the welcome screen for the first time.
-- The unstaged count now includes untracked files. Clicking the card again refreshes the diff when the same review view is already open.
+- Introduce a centered welcome layout, the moon-arrow icon, and a warm-ink dark palette, with improved composer and Chinese helper-text readability.
+- Upgrade Pi to 1.5.2, enable Anthropic incremental session continuation, and preserve saved model selections when the model catalog refreshes.
+- Show actual response models in usage and work records, distinguish provider-reported costs from estimates, and improve cache-legend contrast in the light theme.
+- Fix terminal prompt fragments caused by repeated resizing while the workspace dock opens or closes, and improve the code review layout in narrow windows.
