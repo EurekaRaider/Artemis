@@ -194,15 +194,36 @@ export function TerminalPanel({
       }
     });
 
+    // The dock animates its width on open and close, and a closed dock leaves
+    // FitAddon at its 2-column floor. Fitting each frame truncates the cursor
+    // line (xterm does not reflow it) and each size the PTY hears makes the
+    // shell redraw its prompt, so both wait for the settled size of an open
+    // host. The closing dock reaches zero width well before it turns hidden.
+    let shellSize = "";
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    const collapsed = () =>
+      element.clientWidth === 0 ||
+      window.getComputedStyle(element).visibility === "hidden";
+    const sendSize = () => {
+      const size = `${terminal.cols}x${terminal.rows}`;
+      if (!terminalId || collapsed() || size === shellSize) return;
+      shellSize = size;
+      void window.artemis.resizeTerminal(
+        terminalId,
+        terminal.cols,
+        terminal.rows,
+      );
+    };
     const resize = () => {
+      clearTimeout(settleTimer);
+      settleTimer = undefined;
+      if (collapsed()) return;
       fitAddon.fit();
-      if (terminalId) {
-        void window.artemis.resizeTerminal(
-          terminalId,
-          terminal.cols,
-          terminal.rows,
-        );
-      }
+      sendSize();
+    };
+    const resizeWhenSettled = () => {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(resize, 120);
     };
     const refreshAppearance = () => {
       const viewport = terminal.buffer.active.viewportY;
@@ -290,10 +311,11 @@ export function TerminalPanel({
       terminal.refresh(0, terminal.rows - 1);
     };
     window.addEventListener("artemis:appearance-applied", refreshAppearance);
-    const observer = new ResizeObserver(resize);
+    const observer = new ResizeObserver(resizeWhenSettled);
     observer.observe(element);
     resize();
 
+    shellSize = `${terminal.cols}x${terminal.rows}`;
     void window.artemis
       .openTerminal({
         threadId,
@@ -305,6 +327,8 @@ export function TerminalPanel({
           return window.artemis.closeTerminal(descriptor.terminalId);
         }
         terminalId = descriptor.terminalId;
+        // Catch up if the host settled at another size while the PTY started.
+        if (settleTimer === undefined) sendSize();
         setDesktopUserAccess(
           descriptor.sandboxImplementation === "desktop-user",
         );
@@ -323,6 +347,7 @@ export function TerminalPanel({
 
     return () => {
       disposed = true;
+      clearTimeout(settleTimer);
       observer.disconnect();
       window.removeEventListener(
         "artemis:appearance-applied",

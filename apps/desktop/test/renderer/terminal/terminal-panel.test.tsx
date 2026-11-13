@@ -16,6 +16,10 @@ const terminals = vi.hoisted(
       refresh: ReturnType<typeof vi.fn>;
     }>,
 );
+// The size the next FitAddon.fit() measures; undefined keeps the terminal as is.
+const fit = vi.hoisted(() => ({
+  size: undefined as { cols: number; rows: number } | undefined,
+}));
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
     cols = 80;
@@ -33,7 +37,13 @@ vi.mock("@xterm/xterm", () => ({
     constructor(public options: Record<string, any>) {
       terminals.push(this);
     }
-    loadAddon() {}
+    loadAddon(addon: { activate?(terminal: unknown): void }) {
+      addon.activate?.(this);
+    }
+    resize(cols: number, rows: number) {
+      this.cols = cols;
+      this.rows = rows;
+    }
     open() {}
     focus() {}
     onData() {
@@ -43,11 +53,19 @@ vi.mock("@xterm/xterm", () => ({
 }));
 vi.mock("@xterm/addon-fit", () => ({
   FitAddon: class {
-    fit() {}
+    terminal?: { resize(cols: number, rows: number): void };
+    activate(terminal: { resize(cols: number, rows: number): void }) {
+      this.terminal = terminal;
+    }
+    fit() {
+      if (fit.size) this.terminal?.resize(fit.size.cols, fit.size.rows);
+    }
   },
 }));
 afterEach(() => {
   terminals.length = 0;
+  fit.size = undefined;
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   document.documentElement.removeAttribute("style");
 });
@@ -204,4 +222,96 @@ it("updates exit messages in the current language without restarting the termina
   expect(terminal.writeln).toHaveBeenCalledTimes(1);
   view.unmount();
   expect(close).toHaveBeenCalledExactlyOnceWith("terminal");
+});
+
+it("tells the shell only the settled size while the dock animates open or closed", async () => {
+  vi.useFakeTimers();
+  let observed: () => void = () => {};
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        observed = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("matchMedia", () => ({
+    matches: true,
+    addEventListener() {},
+    removeEventListener() {},
+  }));
+  const resizeTerminal = vi.fn(async () => {});
+  stubWindowArtemis({
+    openTerminal: vi.fn(async () => ({
+      terminalId: "terminal",
+      shell: "zsh",
+      sandboxImplementation: "desktop-user",
+    })),
+    closeTerminal: vi.fn(async () => {}),
+    resizeTerminal,
+    onTerminalData: vi.fn(() => () => {}),
+    onTerminalExit: vi.fn(() => () => {}),
+  });
+  const view = render(
+    <TerminalPanel
+      threadId="task"
+      theme="dark"
+      locale="en"
+      title="Terminal"
+      emptyMessage="No terminal"
+    />,
+  );
+  await act(async () => {});
+  const host = view.container.querySelector<HTMLElement>(".terminal-host")!;
+  const terminal = terminals[0]!;
+  let width = 560;
+  Object.defineProperty(host, "clientWidth", { get: () => width });
+  const animate = (frames: Array<[cols: number, px: number]>) => {
+    for (const [cols, px] of frames) {
+      fit.size = { cols, rows: 24 };
+      width = px;
+      act(() => observed());
+      act(() => vi.advanceTimersByTime(16));
+    }
+  };
+
+  // Closing eases the host to zero width (FitAddon's 2-column floor) well
+  // before the dock turns hidden.
+  animate([
+    [60, 420],
+    [30, 210],
+    [8, 56],
+    [2, 0],
+  ]);
+  act(() => vi.advanceTimersByTime(300));
+  host.style.visibility = "hidden";
+  act(() => vi.advanceTimersByTime(500));
+  expect(resizeTerminal).not.toHaveBeenCalled();
+  // xterm never shrinks either: it does not reflow the cursor line.
+  expect(terminal).toMatchObject({ cols: 80, rows: 24 });
+
+  // Reopening returns to the size the shell already has.
+  host.style.visibility = "";
+  animate([
+    [8, 56],
+    [30, 210],
+    [60, 420],
+    [80, 560],
+  ]);
+  act(() => vi.advanceTimersByTime(500));
+  expect(resizeTerminal).not.toHaveBeenCalled();
+
+  // A real size change reaches the shell once, after it settles.
+  animate([
+    [76, 532],
+    [70, 490],
+    [64, 448],
+  ]);
+  expect(terminal.cols).toBe(80);
+  expect(resizeTerminal).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(500));
+  expect(resizeTerminal).toHaveBeenCalledExactlyOnceWith("terminal", 64, 24);
+  view.unmount();
 });
