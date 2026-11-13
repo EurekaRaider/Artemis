@@ -329,11 +329,12 @@ export function installSmokeWindow(window: BrowserWindow) {
           }
           if (
             !Number.isFinite(requestedSettleDelay) &&
-            requestedSmokeView?.startsWith("environment")
+            (!requestedSmokeView ||
+              requestedSmokeView.startsWith("environment"))
           ) {
-            // Environment drivers already wait for their actual UI state.
-            // Capture completed transitions and painted frames instead of
-            // adding the same 1.5-second sleep to every isolated case.
+            // The welcome matrix and Environment drivers are already ready.
+            // Capture fonts, completed transitions and painted frames instead
+            // of adding a fixed sleep to every isolated launch.
             await window.webContents.executeJavaScript(`(async () => {
               await document.fonts.ready;
               await new Promise((resolve) => requestAnimationFrame(resolve));
