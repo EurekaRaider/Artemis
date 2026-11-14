@@ -60,13 +60,12 @@
 }
 :root[data-artemis-skin="com.artemis.default"] {
   --artemis-color-surface-base: var(--panel);
-  /* 暖墨: warm dark selection, and a sidebar tint heavy enough to hold
-     near #1a1a18 over any wallpaper. Light values are unchanged. */
+  /* Keep the warm dark tint translucent so the native sidebar glass shows through. */
   --nocturne-s3: light-dark(#e6e6ea, #3b3b37);
   --nocturne-chart-1: light-dark(#ececef, #30302d);
   --nocturne-glass-sidebar: light-dark(
     rgb(244 245 248 / 0.58),
-    rgb(26 26 24 / 0.92)
+    rgb(26 26 24 / 0.52)
   );
   .app-shell {
     --bg: light-dark(#fff, #20201e);
