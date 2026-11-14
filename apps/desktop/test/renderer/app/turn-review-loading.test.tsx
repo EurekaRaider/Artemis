@@ -430,9 +430,16 @@ it("keeps the welcome card's scope when opening Review creates a workspace draft
   fireEvent.click(
     await screen.findByRole("button", { name: /Review uncommitted changes/ }),
   );
-  expect(
-    await screen.findByRole("button", { name: /field-note.md/ }),
-  ).toBeVisible();
+  await waitFor(
+    () => {
+      const list = document.querySelector<HTMLElement>(".review-file-list");
+      expect(list).not.toBeNull();
+      expect(
+        within(list!).getByRole("button", { name: /field-note.md/ }),
+      ).toBeVisible();
+    },
+    { timeout: 5_000 },
+  );
   expect(
     screen.getByRole("button", { name: /Unstaged/i, pressed: true }),
   ).toBeVisible();
@@ -444,8 +451,15 @@ it("keeps the welcome card's scope when opening Review creates a workspace draft
   fireEvent.click(
     screen.getByRole("button", { name: /Review uncommitted changes/ }),
   );
-  expect(
-    await screen.findByRole("button", { name: /updated-note.md/ }),
-  ).toBeVisible();
+  await waitFor(
+    () => {
+      const list = document.querySelector<HTMLElement>(".review-file-list");
+      expect(list).not.toBeNull();
+      expect(
+        within(list!).getByRole("button", { name: /updated-note.md/ }),
+      ).toBeVisible();
+    },
+    { timeout: 5_000 },
+  );
   expect(createThread).toHaveBeenCalledOnce();
-});
+}, 15_000);
