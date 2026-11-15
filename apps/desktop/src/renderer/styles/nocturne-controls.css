@@ -387,9 +387,10 @@ details[open] > summary .disclosure-chevron {
   font: 600 11px/1.5 var(--font);
 }
 .settings-panel .provider-key-field {
-  height: 32px;
+  min-height: 32px;
   box-sizing: border-box;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   border: 1px solid var(--border);
@@ -399,7 +400,7 @@ details[open] > summary .disclosure-chevron {
   background: var(--surface);
 }
 .settings-panel .provider-api-key {
-  flex: 1;
+  flex: 1 1 160px;
   min-width: 0;
 }
 .settings-panel .provider-api-key input[data-part="control"] {
@@ -423,9 +424,31 @@ details[open] > summary .disclosure-chevron {
   order: 3;
   margin: 0;
   flex: none;
+  width: auto;
+  max-width: 100%;
 }
 .settings-panel .provider-key-field .provider-form-actions:empty {
   display: none;
+}
+.settings-panel
+  .provider-key-field
+  .provider-form-actions
+  .provider-key-submit[data-artemis-component="button"] {
+  height: 24px;
+  min-height: 24px;
+  min-inline-size: 0;
+  padding: 0 8px;
+  gap: 5px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--panel-3);
+  box-shadow: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+}
+.settings-panel .provider-key-submit:hover:not(:disabled) {
+  background: var(--artemis-color-surface-sunken);
 }
 .provider-defaults-note {
   flex-basis: 100%;

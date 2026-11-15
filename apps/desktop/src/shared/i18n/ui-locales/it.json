@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "Cerca nelle impostazioni",
   "Providers.keychain": "Portachiavi di sistema",
   "ResourceCenter.sandbox": "Sandbox",
-  "SettingsPanel.newTaskDefaults": "Valori predefiniti per nuove attività",
+  "SettingsPanel.newTaskDefaults": "Valori globali predefiniti per nuove attività",
   "SettingsPanel.defaultModel": "Modello predefinito",
   "Update.checking": "Ricerca aggiornamenti…",
   "Update.toVersion": "Aggiorna a v{{version}}",

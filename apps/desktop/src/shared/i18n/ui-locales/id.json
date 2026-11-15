@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "Cari pengaturan",
   "Providers.keychain": "Rantai Kunci Sistem",
   "ResourceCenter.sandbox": "Sandbox",
-  "SettingsPanel.newTaskDefaults": "Default tugas baru",
+  "SettingsPanel.newTaskDefaults": "Default global untuk tugas baru",
   "SettingsPanel.defaultModel": "Model default",
   "Update.checking": "Memeriksa pembaruan…",
   "Update.toVersion": "Perbarui ke v{{version}}",

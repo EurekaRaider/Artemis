@@ -322,6 +322,9 @@ export function createModelRuntime(
 
   async function catalog(): Promise<AgentRuntimeCatalog> {
     const modelRuntime = await services.getModelRuntime();
+    // Credentials are replaced outside Pi's login/logout API. Refresh its
+    // availability snapshot before reporting whether a provider is configured.
+    await modelRuntime.refresh({ allowNetwork: false });
     return {
       authoritativeProviderIds: services.openRouterCatalogPersonalized
         ? ["openrouter"]

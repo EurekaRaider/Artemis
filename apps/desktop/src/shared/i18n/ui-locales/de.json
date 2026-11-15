@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "Einstellungen suchen",
   "Providers.keychain": "Systemschlüsselbund",
   "ResourceCenter.sandbox": "Sandbox",
-  "SettingsPanel.newTaskDefaults": "Vorgaben für neue Aufgaben",
+  "SettingsPanel.newTaskDefaults": "Globale Vorgaben für neue Aufgaben",
   "SettingsPanel.defaultModel": "Standardmodell",
   "Update.checking": "Suche nach Updates…",
   "Update.toVersion": "Auf v{{version}} aktualisieren",

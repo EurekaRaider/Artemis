@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "Buscar ajustes",
   "Providers.keychain": "Llavero del sistema",
   "ResourceCenter.sandbox": "Entorno aislado",
-  "SettingsPanel.newTaskDefaults": "Valores predeterminados para nuevas tareas",
+  "SettingsPanel.newTaskDefaults": "Valores globales para nuevas tareas",
   "SettingsPanel.defaultModel": "Modelo predeterminado",
   "Update.checking": "Buscando actualizaciones…",
   "Update.toVersion": "Actualizar a v{{version}}",

@@ -94,7 +94,9 @@ interface UseProviderActionsContext {
     import("react").SetStateAction<boolean>
   >;
   readonly setProviderDeleteTarget: import("react").Dispatch<
-    import("react").SetStateAction<ProviderConnection | undefined>
+    import("react").SetStateAction<
+      Pick<ProviderConnection, "id" | "name"> | undefined
+    >
   >;
 }
 export function useProviderActions(context: UseProviderActionsContext) {
@@ -262,7 +264,9 @@ export function useProviderActions(context: UseProviderActionsContext) {
     setProviderImages(model?.input.includes("image") ?? false);
   }
 
-  async function deleteProviderConnection(provider: ProviderConnection) {
+  async function deleteProviderConnection(
+    provider: Pick<ProviderConnection, "id" | "name">,
+  ) {
     await context.run(async () => {
       const updated = await window.artemis.deleteProviderConnection(
         provider.id,

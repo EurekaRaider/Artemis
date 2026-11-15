@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "搜尋設定",
   "Providers.keychain": "系統鑰匙圈",
   "ResourceCenter.sandbox": "沙箱",
-  "SettingsPanel.newTaskDefaults": "新任務預設",
+  "SettingsPanel.newTaskDefaults": "新任務全域預設",
   "SettingsPanel.defaultModel": "預設模型",
   "Update.checking": "正在檢查更新…",
   "Update.toVersion": "更新至 v{{version}}",

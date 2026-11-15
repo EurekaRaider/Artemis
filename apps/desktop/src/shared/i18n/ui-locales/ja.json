@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "設定を検索",
   "Providers.keychain": "システムキーチェーン",
   "ResourceCenter.sandbox": "サンドボックス",
-  "SettingsPanel.newTaskDefaults": "新しいタスクの既定値",
+  "SettingsPanel.newTaskDefaults": "新しいタスクのグローバル既定値",
   "SettingsPanel.defaultModel": "既定のモデル",
   "Update.checking": "更新を確認中…",
   "Update.toVersion": "v{{version}} に更新",

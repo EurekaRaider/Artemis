@@ -1094,7 +1094,9 @@ describe("settings management operation contract (MIG5A)", () => {
     expect(credential.value).toBe(sentinel);
     expect(document.body.textContent).not.toContain(sentinel);
 
-    await userEvent.click(screen.getByRole("button", { name: "Save API key" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save", exact: true }),
+    );
     await waitFor(() => expect(saveApiKey).toHaveBeenCalledTimes(1));
     expect(saveApiKey).toHaveBeenCalledWith("synthetic-provider", sentinel);
     expect(credential).toHaveValue("");

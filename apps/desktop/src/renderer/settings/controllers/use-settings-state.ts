@@ -114,7 +114,7 @@ export function useSettingsState(context: UseSettingsStateContext) {
   const [editingModelKey, setEditingModelKey] = useState<string>();
   const [savedModelKey, setSavedModelKey] = useState<string>();
   const [providerDeleteTarget, setProviderDeleteTarget] =
-    useState<ProviderConnection>();
+    useState<Pick<ProviderConnection, "id" | "name">>();
   const [globalAgentsContent, setGlobalAgentsContent] = useState(
     initialSettings?.globalAgents.content ?? "",
   );

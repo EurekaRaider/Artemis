@@ -798,3 +798,38 @@ it("defers Office-only resource changes without rebuilding models and applies th
     host.dispose();
   }
 });
+
+it("refreshes catalog authentication after removing a built-in credential", async () => {
+  vi.stubEnv("OPENAI_API_KEY", "");
+  const host = new ArtemisAgentHost(
+    {
+      async request() {
+        throw new Error("No external calls expected");
+      },
+    },
+    { emit() {} },
+  );
+  try {
+    await host.configure({
+      credentials: { openai: { type: "api_key", key: "fixture-only" } },
+      providers: [provider("fixture", "Fixture")],
+    });
+    expect(
+      (await host.catalog()).models
+        .filter((model) => model.providerId === "openai")
+        .every((model) => model.configured),
+    ).toBe(true);
+    await host.configure({
+      credentials: {},
+      providers: [provider("fixture", "Fixture")],
+    });
+    const openai = (await host.catalog()).models.filter(
+      (model) => model.providerId === "openai",
+    );
+    expect(openai.length).toBeGreaterThan(0);
+    expect(openai.every((model) => !model.configured)).toBe(true);
+  } finally {
+    host.dispose();
+    vi.unstubAllEnvs();
+  }
+});

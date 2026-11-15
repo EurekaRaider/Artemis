@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "البحث في الإعدادات",
   "Providers.keychain": "سلسلة مفاتيح النظام",
   "ResourceCenter.sandbox": "بيئة معزولة",
-  "SettingsPanel.newTaskDefaults": "الإعدادات الافتراضية للمهام الجديدة",
+  "SettingsPanel.newTaskDefaults": "الإعدادات العامة الافتراضية للمهام الجديدة",
   "SettingsPanel.defaultModel": "النموذج الافتراضي",
   "Update.checking": "جارٍ التحقق من التحديثات…",
   "Update.toVersion": "التحديث إلى v{{version}}",

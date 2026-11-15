@@ -444,7 +444,7 @@ export function SettingsPanel({
     return useProviderActionsRuntime.editProviderConnection(provider, modelId);
   }
   function deleteProviderConnection(
-    provider: ProviderConnection,
+    provider: Pick<ProviderConnection, "id" | "name">,
   ): ReturnType<typeof useProviderActionsRuntime.deleteProviderConnection> {
     return useProviderActionsRuntime.deleteProviderConnection(provider);
   }
@@ -744,6 +744,82 @@ export function SettingsPanel({
               )}
               {activeTab === "providers" && (
                 <>
+                  {!showProviderForm && (
+                    <ManagementSection
+                      className="settings-section provider-defaults"
+                      title={uiText(locale, "SettingsPanel.newTaskDefaults")}
+                    >
+                      <Select
+                        label={uiText(locale, "SettingsPanel.defaultModel")}
+                        disabled={busy || defaultModels.length === 0}
+                        size="compact"
+                        value={
+                          defaultModel
+                            ? modelKey(
+                                defaultModel.providerId,
+                                defaultModel.modelId,
+                              )
+                            : ""
+                        }
+                        options={
+                          defaultModels.length
+                            ? defaultModels.map((model) => ({
+                                value: modelKey(
+                                  model.providerId,
+                                  model.modelId,
+                                ),
+                                label: defaultModels.some(
+                                  (other) =>
+                                    other !== model &&
+                                    normalizedModelLabel(other.name) ===
+                                      normalizedModelLabel(model.name),
+                                )
+                                  ? `${model.name} · ${model.providerId}/${model.modelId}`
+                                  : model.name,
+                              }))
+                            : [{ value: "", label: t.noAddedModels }]
+                        }
+                        onValueChange={(key) => {
+                          const model = defaultModels.find(
+                            (item) =>
+                              modelKey(item.providerId, item.modelId) === key,
+                          );
+                          if (model)
+                            void saveDefaultModel(
+                              selectionForModelSwitch(
+                                model,
+                                settings.selection,
+                              ),
+                            );
+                        }}
+                      />
+                      {defaultThinkingLevels.length > 0 &&
+                        settings.selection && (
+                          <ThinkingLevelControl
+                            model={defaultModel}
+                            selection={settings.selection}
+                            locale={locale}
+                            disabled={busy}
+                            onChange={(thinkingLevel, ultraMode) => {
+                              if (settings.selection)
+                                void saveDefaultModel({
+                                  ...settings.selection,
+                                  thinkingLevel,
+                                  ultraMode,
+                                });
+                            }}
+                          />
+                        )}
+                      {defaultModel && (
+                        <span className="settings-hint">
+                          {defaultModel.providerId}
+                        </span>
+                      )}
+                      <p className="settings-hint provider-defaults-note">
+                        {uiText(locale, "Review02.existingTaskDefaults")}
+                      </p>
+                    </ManagementSection>
+                  )}
                   <ProviderWorkspace
                     settings={settings}
                     locale={locale}
@@ -776,7 +852,10 @@ export function SettingsPanel({
                       setProviderDeleteTarget(
                         settings.providers.find(
                           (item) => item.id === selectedProviderId,
-                        ),
+                        ) ?? {
+                          id: selectedProviderId,
+                          name: selectedProviderId,
+                        },
                       )
                     }
                   >
@@ -1120,77 +1199,6 @@ export function SettingsPanel({
                             </p>
                           )}
                         </div>
-                      </ManagementSection>
-                    )}
-                    {!showProviderForm && (
-                      <ManagementSection
-                        className="settings-section provider-defaults"
-                        title={uiText(locale, "SettingsPanel.newTaskDefaults")}
-                      >
-                        <Select
-                          label={uiText(locale, "SettingsPanel.defaultModel")}
-                          disabled={busy || defaultModels.length === 0}
-                          size="compact"
-                          value={
-                            defaultModel
-                              ? modelKey(
-                                  defaultModel.providerId,
-                                  defaultModel.modelId,
-                                )
-                              : ""
-                          }
-                          options={
-                            defaultModels.length
-                              ? defaultModels.map((model) => ({
-                                  value: modelKey(
-                                    model.providerId,
-                                    model.modelId,
-                                  ),
-                                  label: defaultModels.some(
-                                    (other) =>
-                                      other !== model &&
-                                      normalizedModelLabel(other.name) ===
-                                        normalizedModelLabel(model.name),
-                                  )
-                                    ? `${model.name} · ${model.providerId}/${model.modelId}`
-                                    : model.name,
-                                }))
-                              : [{ value: "", label: t.noAddedModels }]
-                          }
-                          onValueChange={(key) => {
-                            const model = defaultModels.find(
-                              (item) =>
-                                modelKey(item.providerId, item.modelId) === key,
-                            );
-                            if (model)
-                              void saveDefaultModel(
-                                selectionForModelSwitch(
-                                  model,
-                                  settings.selection,
-                                ),
-                              );
-                          }}
-                        />
-                        {defaultThinkingLevels.length > 0 &&
-                          settings.selection && (
-                            <ThinkingLevelControl
-                              model={defaultModel}
-                              selection={settings.selection}
-                              locale={locale}
-                              disabled={busy}
-                              onChange={(thinkingLevel, ultraMode) => {
-                                if (settings.selection)
-                                  void saveDefaultModel({
-                                    ...settings.selection,
-                                    thinkingLevel,
-                                    ultraMode,
-                                  });
-                              }}
-                            />
-                          )}
-                        <p className="settings-hint provider-defaults-note">
-                          {uiText(locale, "Review02.existingTaskDefaults")}
-                        </p>
                       </ManagementSection>
                     )}
                     {showProviderForm && (

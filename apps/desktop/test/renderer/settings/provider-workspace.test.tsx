@@ -115,7 +115,9 @@ it("shows neutral credential metadata and keeps model editing independent of cre
     "placeholder",
     "••••••••••••",
   );
-  expect(screen.queryByRole("button", { name: "Update API key" })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Save", exact: true }),
+  ).toBeNull();
   expect(screen.queryByText(/unauthorized|not authorized/i)).toBeNull();
   expect(screen.queryByRole("alert")).toBeNull();
   await userEvent.click(
@@ -172,7 +174,9 @@ it("keeps failed credential edits for retry and prevents concurrent model writes
     screen.getByLabelText("API key · synthetic-provider"),
     "fixture-secret",
   );
-  await userEvent.click(screen.getByRole("button", { name: "Save API key" }));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save", exact: true }),
+  );
   for (const button of screen.getAllByRole("button", { name: "Add model" }))
     expect(button).toBeDisabled();
   expect(
@@ -183,7 +187,9 @@ it("keeps failed credential edits for retry and prevents concurrent model writes
   expect(screen.getByLabelText("API key · synthetic-provider")).toHaveValue(
     "fixture-secret",
   );
-  expect(screen.getByRole("button", { name: "Save API key" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Save", exact: true }),
+  ).toBeEnabled();
 });
 
 it("offers only the selected provider's supported login routes and refreshes after immediate completion", async () => {
@@ -421,6 +427,10 @@ it("saves new-task model defaults without changing credentials and constrains ef
   stubSettingsApi(settings, { setModelSelection: save, saveApiKey: saveKey });
   await open(settings);
   expect(
+    screen.getByLabelText("Default model").closest(".provider-detail"),
+  ).toBeNull();
+  expect(screen.getByText("Global defaults for new tasks")).toBeVisible();
+  expect(
     screen.getByRole("img", { name: "Default model: Synthetic Model" }),
   ).toBeVisible();
   expect(
@@ -502,6 +512,103 @@ async function openCustomProvider(settings: SettingsSnapshot) {
     ),
   );
 }
+
+it("removes an unsaved catalog provider and allows adding it again", async () => {
+  const settings = settingsSnapshot({
+    models: [{ ...syntheticModel, configured: false }],
+  });
+  const remove = vi.fn();
+  stubSettingsApi(settings, { deleteProviderConnection: remove });
+  await open(settings);
+  const add = async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Add provider" }));
+    await userEvent.click(
+      within(screen.getByRole("dialog", { name: "Add provider" })).getByRole(
+        "button",
+        {
+          name: syntheticModel.providerId,
+        },
+      ),
+    );
+  };
+  await add();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Service actions" }),
+  );
+  await userEvent.click(
+    screen.getByRole("menuitem", { name: "Remove service…" }),
+  );
+  expect(screen.queryByLabelText("API key · synthetic-provider")).toBeNull();
+  expect(remove).not.toHaveBeenCalled();
+  await add();
+  expect(screen.getByLabelText("API key · synthetic-provider")).toHaveValue("");
+});
+
+it("confirms removal of a built-in provider after saving its pasted key", async () => {
+  const settings = settingsSnapshot({
+    models: [{ ...syntheticModel, configured: false }],
+  });
+  const saved = settingsSnapshot({
+    models: [syntheticModel],
+    credentials: [{ providerId: syntheticModel.providerId, type: "api_key" }],
+  });
+  const save = vi.fn(async () => saved);
+  const remove = vi.fn(async () => settings);
+  stubSettingsApi(settings, {
+    saveApiKey: save,
+    deleteProviderConnection: remove,
+  });
+  await open(settings);
+  await userEvent.click(screen.getByRole("button", { name: "Add provider" }));
+  await userEvent.click(
+    within(screen.getByRole("dialog", { name: "Add provider" })).getByRole(
+      "button",
+      {
+        name: syntheticModel.providerId,
+      },
+    ),
+  );
+  await userEvent.click(screen.getByLabelText("API key · synthetic-provider"));
+  await userEvent.paste(" fixture-secret ");
+  await userEvent.click(
+    screen.getByRole("button", { name: "Save", exact: true }),
+  );
+  await waitFor(() =>
+    expect(save).toHaveBeenCalledWith(
+      syntheticModel.providerId,
+      "fixture-secret",
+    ),
+  );
+  await userEvent.click(
+    screen.getByRole("button", { name: "Service actions" }),
+  );
+  await userEvent.click(
+    screen.getByRole("menuitem", { name: "Remove service…" }),
+  );
+  await userEvent.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Cancel",
+    }),
+  );
+  expect(remove).not.toHaveBeenCalled();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Service actions" }),
+  );
+  await userEvent.click(
+    screen.getByRole("menuitem", { name: "Remove service…" }),
+  );
+  await userEvent.click(
+    within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Confirm deletion",
+    }),
+  );
+  await waitFor(() =>
+    expect(remove).toHaveBeenCalledWith(syntheticModel.providerId),
+  );
+  await waitFor(() =>
+    expect(screen.queryByLabelText("API key · synthetic-provider")).toBeNull(),
+  );
+});
 
 it("preserves model capabilities and advanced parameters when their disclosures are collapsed before saving", async () => {
   const settings = settingsSnapshot();

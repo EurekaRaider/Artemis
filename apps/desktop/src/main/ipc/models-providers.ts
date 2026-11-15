@@ -398,9 +398,16 @@ export function registerModelsProvidersIpc(services: Dependencies): void {
       }
       const providerId =
         typeof providerIdInput === "string" ? providerIdInput.trim() : "";
-      const provider = (
-        await services.settingsStore.providerConnections()
-      ).find((candidate) => candidate.id === providerId);
+      const snapshot = await getSettingsSnapshot();
+      const provider =
+        snapshot.providers.find((candidate) => candidate.id === providerId) ??
+        (snapshot.credentials.some((item) => item.providerId === providerId) ||
+        snapshot.addedModels.some((item) => item.providerId === providerId) ||
+        snapshot.models.some(
+          (item) => item.providerId === providerId && item.configured,
+        )
+          ? { id: providerId }
+          : undefined);
       if (!provider) {
         throw new Error("Provider connection was not found.");
       }

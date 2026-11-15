@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "설정 검색",
   "Providers.keychain": "시스템 키체인",
   "ResourceCenter.sandbox": "샌드박스",
-  "SettingsPanel.newTaskDefaults": "새 작업 기본값",
+  "SettingsPanel.newTaskDefaults": "새 작업의 전역 기본값",
   "SettingsPanel.defaultModel": "기본 모델",
   "Update.checking": "업데이트 확인 중…",
   "Update.toVersion": "v{{version}}로 업데이트",

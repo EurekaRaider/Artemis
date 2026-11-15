@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "Search settings",
   "Providers.keychain": "System Keychain",
   "ResourceCenter.sandbox": "Sandbox",
-  "SettingsPanel.newTaskDefaults": "New task defaults",
+  "SettingsPanel.newTaskDefaults": "Global defaults for new tasks",
   "SettingsPanel.defaultModel": "Default model",
   "Update.checking": "Checking for updates…",
   "Update.toVersion": "Update to v{{version}}",

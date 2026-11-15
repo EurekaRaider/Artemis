@@ -4,6 +4,11 @@
   flex: 1;
   min-height: 0;
 }
+.settings-panel .provider-defaults {
+  flex: none;
+  padding-block-end: 16px;
+  border-block-end: 1px solid var(--border-soft);
+}
 .provider-sidebar {
   display: flex;
   flex-direction: column;

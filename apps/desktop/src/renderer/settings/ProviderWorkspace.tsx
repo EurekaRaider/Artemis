@@ -118,8 +118,13 @@ export function ProviderWorkspace({
   const fallbackId = entries[0]?.[0];
   const selectionExists = providers.has(selectedProviderId);
   useEffect(() => {
-    if (!creating && !selectionExists && fallbackId) onSelect(fallbackId);
-  }, [creating, selectionExists, fallbackId, onSelect]);
+    if (
+      !creating &&
+      !selectionExists &&
+      selectedProviderId !== (fallbackId ?? "")
+    )
+      onSelect(fallbackId ?? "");
+  }, [creating, selectionExists, selectedProviderId, fallbackId, onSelect]);
 
   useEffect(() => {
     navigation.current
@@ -298,11 +303,12 @@ export function ProviderWorkspace({
               >
                 {status(selectedProviderId)}
               </span>
-              {connection && (
+              {selectionExists && (
                 <>
                   <IconButton
                     variant="quiet"
                     label={uiText(locale, "Review03.serviceActions")}
+                    disabled={locked}
                     icon={<ArtemisIcon name="more" />}
                     onClick={(event) => {
                       menuAnchor.current = event.currentTarget;
@@ -312,6 +318,7 @@ export function ProviderWorkspace({
                   />
                   <Popover
                     anchorRef={menuAnchor}
+                    portalContainer={menuAnchor.current?.closest("dialog")}
                     open={menuOpen}
                     onOpenChange={setMenuOpen}
                     role="menu"
@@ -320,9 +327,27 @@ export function ProviderWorkspace({
                     <button
                       role="menuitem"
                       className="danger"
+                      disabled={locked}
                       onClick={() => {
                         setMenuOpen(false);
-                        onDeleteConnection();
+                        const persisted =
+                          connection ||
+                          connected(selectedProviderId) ||
+                          settings.addedModels.some(
+                            (model) => model.providerId === selectedProviderId,
+                          );
+                        if (persisted) {
+                          onDeleteConnection();
+                        } else {
+                          setDraftProviders((current) =>
+                            current.filter((id) => id !== selectedProviderId),
+                          );
+                          onSelect(
+                            entries.find(
+                              ([id]) => id !== selectedProviderId,
+                            )?.[0] ?? "",
+                          );
+                        }
                       }}
                     >
                       {uiText(locale, "Review03.removeService")}
@@ -341,7 +366,31 @@ export function ProviderWorkspace({
               )}
               disabled={locked}
               onBusy={onBusy}
-              onChange={onChange}
+              onChange={(updated) => {
+                setDraftProviders((current) => {
+                  const remaining = current.filter(
+                    (id) => id !== selectedProviderId,
+                  );
+                  return updated.credentials.some(
+                    (credential) =>
+                      credential.providerId === selectedProviderId,
+                  ) ||
+                    updated.providers.some(
+                      (provider) => provider.id === selectedProviderId,
+                    ) ||
+                    updated.addedModels.some(
+                      (model) => model.providerId === selectedProviderId,
+                    ) ||
+                    updated.models.some(
+                      (model) =>
+                        model.providerId === selectedProviderId &&
+                        model.configured,
+                    )
+                    ? remaining
+                    : [...remaining, selectedProviderId];
+                });
+                onChange(updated);
+              }}
             />
             {connection && (
               <ProviderBaseUrl
@@ -535,20 +584,23 @@ function ProviderCredentials({
                 {apiKey.trim() && (
                   <Button
                     type="submit"
+                    className="provider-key-submit"
                     size="compact"
-                    variant="primary"
+                    variant="quiet"
+                    icon={<ArtemisIcon name="check" />}
+                    title={uiText(
+                      locale,
+                      credential?.type === "api_key"
+                        ? "Providers.updateKey"
+                        : "Providers.saveKey",
+                    )}
                     disabled={
                       disabled ||
                       !settings.encryptionAvailable ||
                       !apiKey.trim()
                     }
                   >
-                    {uiText(
-                      locale,
-                      credential?.type === "api_key"
-                        ? "Providers.updateKey"
-                        : "Providers.saveKey",
-                    )}
+                    {uiText(locale, "App_copy.renameSave")}
                   </Button>
                 )}
               </div>

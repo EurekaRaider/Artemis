@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "搜索设置",
   "Providers.keychain": "系统钥匙串",
   "ResourceCenter.sandbox": "沙箱",
-  "SettingsPanel.newTaskDefaults": "新任务默认",
+  "SettingsPanel.newTaskDefaults": "新任务全局默认",
   "SettingsPanel.defaultModel": "默认模型",
   "Update.checking": "正在检查更新…",
   "Update.toVersion": "更新到 v{{version}}",

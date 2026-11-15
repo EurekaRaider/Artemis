@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "Поиск настроек",
   "Providers.keychain": "Системная связка ключей",
   "ResourceCenter.sandbox": "Песочница",
-  "SettingsPanel.newTaskDefaults": "Настройки новых задач",
+  "SettingsPanel.newTaskDefaults": "Глобальные настройки новых задач",
   "SettingsPanel.defaultModel": "Модель по умолчанию",
   "Update.checking": "Проверка обновлений…",
   "Update.toVersion": "Обновить до v{{version}}",

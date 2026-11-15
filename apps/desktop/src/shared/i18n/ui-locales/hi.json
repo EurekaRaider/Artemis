@@ -2105,7 +2105,7 @@
   "SettingsPanel.search": "सेटिंग खोजें",
   "Providers.keychain": "सिस्टम कीचेन",
   "ResourceCenter.sandbox": "सैंडबॉक्स",
-  "SettingsPanel.newTaskDefaults": "नए कार्य के डिफ़ॉल्ट",
+  "SettingsPanel.newTaskDefaults": "नए कार्यों के वैश्विक डिफ़ॉल्ट",
   "SettingsPanel.defaultModel": "डिफ़ॉल्ट मॉडल",
   "Update.checking": "अपडेट जाँचे जा रहे हैं…",
   "Update.toVersion": "v{{version}} में अपडेट करें",
