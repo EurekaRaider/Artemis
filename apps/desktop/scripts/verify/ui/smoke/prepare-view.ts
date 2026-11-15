@@ -772,6 +772,18 @@ export function prepareViewScript(
                       };
                       return;
                     }
+                    const addService = await waitForElement('.provider-add-service');
+                    if (!(addService instanceof HTMLButtonElement)) {
+                      throw new Error('Settings add service button missing.');
+                    }
+                    addService.click();
+                    const catalog = await waitForElement('.provider-catalog-dialog');
+                    const provider = [...(catalog?.querySelectorAll('.provider-catalog-list button') ?? [])]
+                      .find((button) => button.textContent?.trim() === 'openai');
+                    if (!(provider instanceof HTMLButtonElement)) {
+                      throw new Error('Settings OpenAI catalog provider missing.');
+                    }
+                    provider.click();
                     const addModel = await waitForElement(
                       '.provider-models > [data-part="header"] [data-part="actions"] button',
                     );
