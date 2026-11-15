@@ -437,14 +437,8 @@ try {
   );
   assert(
     JSON.stringify(messageActions.messageActionLabels) ===
-      JSON.stringify([
-        "复制消息",
-        "编辑后重新发送",
-        "复制消息",
-        "分叉",
-        "分享任务",
-      ]),
-    "Completed message actions are missing or out of order.",
+      JSON.stringify(["复制消息", "编辑后重新发送", "复制消息", "分享任务"]),
+    "Interrupted message actions must preserve copy/edit/share order without a historical fork.",
   );
   assert(
     messageActions.composerValue === "把这条被中断的指令恢复到输入框。",
