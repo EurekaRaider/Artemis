@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "{{count}} 則回覆未記錄費用",
   "Usage.responseModels": "實際模型：{{models}}",
   "Usage.unreportedModels": "{{count}} 則回覆未回報實際模型",
-  "Usage.costs": "費用（美元）"
+  "Usage.costs": "費用（美元）",
+  "Fork.fromReply": "從此回覆建立分支",
+  "ModelCompat.requiresNonNullAssistantContent": "助手內容不可為 null",
+  "ModelCompat.requiresToolsWithToolHistory": "工具歷史需附工具清單",
+  "ModelCompat.supportsDeveloperRole": "支援 developer 角色",
+  "ModelCompat.supportsUsageInStreaming": "串流回傳用量",
+  "ModelCompat.maxTokensField": "輸出 Token 欄位",
+  "ModelCompat.promptCacheKeyMode": "提示詞快取鍵",
+  "ModelCompat.supportsLongCacheRetention": "長時間快取",
+  "ModelCompat.supportsMaxOutputTokens": "輸出 Token 上限",
+  "ModelCompat.supportsMessageThreads": "訊息執行緒增量續接"
 }

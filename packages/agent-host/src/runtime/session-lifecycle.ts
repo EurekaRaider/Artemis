@@ -1,3 +1,4 @@
+import { prepareDesktopTemplateInput } from "../context/prompt-templates.js";
 import { createChildSessionLauncher } from "./child-session.js";
 import { createSessionAttachmentTools } from "./tools/session-attachments.js";
 import { createSessionRemoteTools } from "./tools/session-remote.js";
@@ -759,6 +760,14 @@ export function createSessionLifecycle(
         extensionTools.some((candidate) => candidate.name === tool.name),
     );
     const hosted: HostedThread = {
+      prepareTemplateInput: (text) =>
+        request.remoteExecution
+          ? Promise.resolve(text)
+          : prepareDesktopTemplateInput(
+              text,
+              services.agentDir,
+              request.workspacePath,
+            ),
       threadId: request.threadId,
       workspacePath: request.workspacePath,
       target: request.target,
@@ -931,6 +940,15 @@ export function createSessionLifecycle(
           hosted.recoveredQueueMessages = [];
         }
         for (let payload of hosted.adapter.adapt(event as never)) {
+          if (payload.type === "turn.completed" && payload.finalPartId) {
+            const entry = session.sessionManager
+              .getBranch()
+              .findLast(
+                (item) =>
+                  item.type === "message" && item.message.role === "assistant",
+              );
+            if (entry) payload = { ...payload, sessionEntryId: entry.id };
+          }
           if (
             payload.type === "turn.completed" &&
             services.cancelledTurns.has(
@@ -996,6 +1014,7 @@ export function createSessionLifecycle(
   function forkThread(
     threadId: string,
     entryId?: string,
+    assistantText?: string,
   ): { sessionFile: string } {
     const hosted = services.threads.get(threadId);
     if (!hosted) {
@@ -1012,7 +1031,7 @@ export function createSessionLifecycle(
       throw new Error("Cannot fork a thread without a persisted Pi session.");
     }
     return {
-      sessionFile: forkPiSession(sourceSessionFile, entryId),
+      sessionFile: forkPiSession(sourceSessionFile, entryId, assistantText),
     };
   }
 

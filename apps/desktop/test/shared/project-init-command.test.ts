@@ -27,9 +27,9 @@ describe("project init slash command", () => {
     expect(expandProjectInitCommand("Explain /init")).toBe("Explain /init");
   });
 
-  it("expands prompt, steer, and follow-up text inside the one Pi worker", () => {
+  it("expands prompt and queue preparation inside the one Pi worker", () => {
     expect(
       workerSource.match(/expandProjectInitCommand\(command\.text\)/gu),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
   });
 });

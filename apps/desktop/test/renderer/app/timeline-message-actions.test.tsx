@@ -83,8 +83,15 @@ it.each(["completed", "cancelled", "failed"] as const)(
       reply: { id: "reply", type: "text", text: "A useful partial answer" },
     };
     state.turns = {
-      turn: { id: "turn", mode: "work", status, order: state.order },
+      turn: {
+        id: "turn",
+        mode: "work",
+        status,
+        order: state.order,
+        finalPartId: "reply",
+      },
     };
+    const onFork = vi.fn();
     const { container } = render(
       <Timeline
         installedPlugins={[]}
@@ -96,6 +103,7 @@ it.each(["completed", "cancelled", "failed"] as const)(
         onFileLinkContextMenu={vi.fn()}
         onOpenChildAgent={vi.fn()}
         onOpenTurnReview={vi.fn()}
+        onFork={onFork}
         onCopyText={vi.fn()}
         onEditUserMessage={vi.fn()}
         onResolve={vi.fn()}
@@ -107,8 +115,15 @@ it.each(["completed", "cancelled", "failed"] as const)(
       container.querySelector('[data-artemis-component="timeline-turn"]'),
     ).toHaveAttribute("data-state", status);
     if (status === "completed") {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Fork from this reply" }),
+      );
+      expect(onFork).toHaveBeenCalledExactlyOnceWith("turn");
       expect(container.querySelector(".work-record-summary")).toBeNull();
     } else {
+      expect(
+        screen.queryByRole("button", { name: "Fork from this reply" }),
+      ).toBeNull();
       expect(
         container.querySelector(".work-record-summary > svg"),
       ).toHaveAttribute(

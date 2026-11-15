@@ -34,8 +34,13 @@ export const conversationBridge: ConversationApi = {
   archiveThread: (threadId, archived) =>
     ipcRenderer.invoke(IPC.threadArchive, threadId, archived),
   deleteThread: (threadId) => ipcRenderer.invoke(IPC.threadDelete, threadId),
-  forkThread: (threadId, entryId) =>
-    ipcRenderer.invoke(IPC.threadFork, threadId, entryId),
+  forkThread: (threadId, entryId, turnId) =>
+    ipcRenderer.invoke(
+      IPC.threadFork,
+      threadId,
+      entryId,
+      ...(turnId ? [turnId] : []),
+    ),
   compactThread: (threadId, instructions) =>
     ipcRenderer.invoke(IPC.threadCompact, threadId, instructions),
   prepareThread: (threadId) => ipcRenderer.invoke(IPC.threadPrepare, threadId),

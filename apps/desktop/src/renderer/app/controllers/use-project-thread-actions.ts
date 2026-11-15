@@ -419,9 +419,13 @@ export function useProjectThreadActions(
   );
 
   const forkThread = useCallback(
-    async (thread: Thread) => {
+    async (thread: Thread, turnId?: string) => {
       try {
-        const forked = await window.artemis.forkThread(thread.id);
+        const forked = await window.artemis.forkThread(
+          thread.id,
+          undefined,
+          turnId,
+        );
         setSnapshot((current) =>
           current
             ? {

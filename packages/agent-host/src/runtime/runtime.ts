@@ -1027,20 +1027,31 @@ export class ArtemisAgentHost {
     return this.turnLifecycle.compact(threadId, customInstructions, mode);
   }
 
+  prepareTemplateInput(threadId: string, text: string): Promise<string> {
+    return this.turnLifecycle.prepareTemplateInput(threadId, text);
+  }
+
   steer(
     threadId: string,
     text: string,
     attachments?: PromptAttachment[],
+    inputPrepared = false,
   ): Promise<void> {
-    return this.turnLifecycle.steer(threadId, text, attachments);
+    return this.turnLifecycle.steer(threadId, text, attachments, inputPrepared);
   }
 
   followUp(
     threadId: string,
     text: string,
     attachments?: PromptAttachment[],
+    inputPrepared = false,
   ): Promise<void> {
-    return this.turnLifecycle.followUp(threadId, text, attachments);
+    return this.turnLifecycle.followUp(
+      threadId,
+      text,
+      attachments,
+      inputPrepared,
+    );
   }
 
   clearQueue(threadId: string): {
@@ -1078,8 +1089,12 @@ export class ArtemisAgentHost {
     );
   }
 
-  forkThread(threadId: string, entryId?: string): { sessionFile: string } {
-    return this.sessionLifecycle.forkThread(threadId, entryId);
+  forkThread(
+    threadId: string,
+    entryId?: string,
+    assistantText?: string,
+  ): { sessionFile: string } {
+    return this.sessionLifecycle.forkThread(threadId, entryId, assistantText);
   }
 
   closeThread(threadId: string): void {

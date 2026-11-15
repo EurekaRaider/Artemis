@@ -18,7 +18,12 @@ describe("attachment storage authorization and persistence", () => {
       await expect(
         store.operate("task-b", { action: "read", id: ref.id }),
       ).rejects.toThrow(/not available/);
-      await store.copyThread("task-a", "task-c");
+      const later = await store.importPath(input);
+      await store.bind("task-a", [later]);
+      await store.copyThread("task-a", "task-c", [ref.id]);
+      await expect(
+        store.operate("task-c", { action: "read", id: later.id }),
+      ).rejects.toThrow(/not available/);
       await store.deleteThread("task-a");
       await rm(input);
       const reopened = new AttachmentStore(join(root, "store"));

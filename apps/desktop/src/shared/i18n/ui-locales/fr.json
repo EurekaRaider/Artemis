@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "Coût non enregistré pour {{count}} réponses",
   "Usage.responseModels": "Modèle réel : {{models}}",
   "Usage.unreportedModels": "Modèle réel non communiqué pour {{count}} réponses",
-  "Usage.costs": "Coûts (USD)"
+  "Usage.costs": "Coûts (USD)",
+  "Fork.fromReply": "Créer une branche depuis cette réponse",
+  "ModelCompat.requiresNonNullAssistantContent": "Contenu assistant non nul",
+  "ModelCompat.requiresToolsWithToolHistory": "Outils avec historique",
+  "ModelCompat.supportsDeveloperRole": "Rôle developer",
+  "ModelCompat.supportsUsageInStreaming": "Usage en streaming",
+  "ModelCompat.maxTokensField": "Champ des tokens de sortie",
+  "ModelCompat.promptCacheKeyMode": "Clé du cache de prompt",
+  "ModelCompat.supportsLongCacheRetention": "Conservation longue du cache",
+  "ModelCompat.supportsMaxOutputTokens": "Limite de tokens de sortie",
+  "ModelCompat.supportsMessageThreads": "Continuité du fil de messages"
 }

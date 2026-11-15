@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "{{count}} उत्तरों की लागत दर्ज नहीं है",
   "Usage.responseModels": "वास्तविक मॉडल: {{models}}",
   "Usage.unreportedModels": "{{count}} उत्तरों का वास्तविक मॉडल नहीं बताया गया",
-  "Usage.costs": "लागत (USD)"
+  "Usage.costs": "लागत (USD)",
+  "Fork.fromReply": "इस उत्तर से शाखा बनाएँ",
+  "ModelCompat.requiresNonNullAssistantContent": "सहायक सामग्री null न हो",
+  "ModelCompat.requiresToolsWithToolHistory": "टूल इतिहास के साथ टूल सूची",
+  "ModelCompat.supportsDeveloperRole": "developer भूमिका",
+  "ModelCompat.supportsUsageInStreaming": "स्ट्रीमिंग उपयोग",
+  "ModelCompat.maxTokensField": "आउटपुट टोकन फ़ील्ड",
+  "ModelCompat.promptCacheKeyMode": "प्रॉम्प्ट कैश कुंजी",
+  "ModelCompat.supportsLongCacheRetention": "लंबी कैश अवधि",
+  "ModelCompat.supportsMaxOutputTokens": "आउटपुट टोकन सीमा",
+  "ModelCompat.supportsMessageThreads": "संदेश थ्रेड जारी रखें"
 }

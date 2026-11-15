@@ -297,7 +297,14 @@ export type AgentHostCommand =
       followUp: Array<{ sourceIndex: number; text: string }>;
     }
   | {
+      type: "turn.prepare-input";
+      requestId: string;
+      threadId: string;
+      text: string;
+    }
+  | {
       type: "turn.steer" | "turn.follow-up";
+      inputPrepared?: boolean;
       requestId: string;
       threadId: string;
       text: string;
@@ -327,6 +334,7 @@ export type AgentHostCommand =
       requestId: string;
       threadId: string;
       entryId?: string;
+      assistantText?: string;
     }
   | {
       type: "thread.close";

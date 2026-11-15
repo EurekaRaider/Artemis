@@ -387,3 +387,47 @@ it.each([
     expect(original.mock.calls[0]![2].disableContinuation).toBe(true);
   },
 );
+
+it("respects explicit model cache compatibility in policy and outgoing metadata", () => {
+  const controller = new PromptCacheController();
+  expect(
+    controller.resolve(
+      { ...model("gpt-5.6"), compat: { promptCacheKeyMode: "disabled" } },
+      context(),
+    ),
+  ).toMatchObject({ policy: "disabled" });
+  expect(
+    controller.resolve(
+      { ...model("gpt-5.5"), compat: { supportsLongCacheRetention: false } },
+      context(),
+    ),
+  ).toMatchObject({ policy: "short" });
+});
+
+it.each([true, false, undefined])(
+  "honors explicit Anthropic continuation compatibility %s on proxy endpoints",
+  (enabled) => {
+    const streamSimple = vi.fn();
+    const runtime = withPromptCacheController(
+      { streamSimple } as unknown as ModelRuntime,
+      new PromptCacheController(),
+    );
+    runtime.streamSimple(
+      {
+        ...model("claude", "https://proxy.example/v1"),
+        api: "anthropic-messages",
+        provider: "anthropic",
+        ...(enabled === undefined
+          ? {}
+          : { compat: { supportsMessageThreads: enabled } }),
+      },
+      context(),
+      { sessionId: "task-id" },
+    );
+    expect(streamSimple.mock.calls[0]![2].disableContinuation).toBe(
+      enabled !== true,
+    );
+    if (enabled)
+      expect(streamSimple.mock.calls[0]![2].sessionId).toBe("task-id");
+  },
+);

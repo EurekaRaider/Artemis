@@ -37,6 +37,19 @@ export function createTurnQueueRuntime(services: Dependencies) {
     openedThreads,
     recoverableTurnQueues,
   } = services;
+  async function prepareQueueText(
+    threadId: string,
+    text: string,
+  ): Promise<string> {
+    if (!/^\/[^\s:]+(?:\s|$)/u.test(text.trimStart())) return text;
+    return services.agentProcess!.request<string>({
+      type: "turn.prepare-input",
+      requestId: randomUUID(),
+      threadId,
+      text,
+    });
+  }
+
   function publishCompactionQueue(threadId: string): void {
     emitPayload(threadId, `compaction-queue:${threadId}`, {
       type: "queue.updated",
@@ -142,12 +155,15 @@ export function createTurnQueueRuntime(services: Dependencies) {
       throw new Error("Active Pi turn is not available.");
     }
 
+    const preparedText = await prepareQueueText(thread.id, command.text);
+    if (activeTurns.get(thread.id) !== turnId || !openedThreads.has(thread.id))
+      throw new Error("The active turn ended while preparing queued input.");
     const recoverableId = recoverableTurnQueues.add(
       thread.id,
       type === "turn.steer" ? "steering" : "followUp",
       displayText ?? command.text,
       command.attachments,
-      appendPromptFiles(command.text, command.attachments),
+      appendPromptFiles(preparedText, command.attachments),
     );
     let panelSubmissionId: string | undefined;
     try {
@@ -164,7 +180,8 @@ export function createTurnQueueRuntime(services: Dependencies) {
         type,
         requestId: randomUUID(),
         threadId: thread.id,
-        text: command.text,
+        text: preparedText,
+        inputPrepared: true,
         ...(command.attachments?.length
           ? { attachments: command.attachments }
           : {}),
@@ -265,11 +282,28 @@ export function createTurnQueueRuntime(services: Dependencies) {
     }
 
     const queuedTurnId = activeTurns.get(thread.id);
+    const preparedTexts = new Map<string, string>();
+    for (const item of command.followUp) {
+      if (
+        item.text !== command.expectedFollowUp[item.sourceIndex] &&
+        !preparedTexts.has(item.text)
+      )
+        preparedTexts.set(
+          item.text,
+          await prepareQueueText(thread.id, item.text),
+        );
+    }
+    if (
+      activeTurns.get(thread.id) !== queuedTurnId ||
+      !openedThreads.has(thread.id)
+    )
+      throw new Error("The active turn ended while preparing queued input.");
     const rollback = recoverableTurnQueues.replaceFollowUp(
       thread.id,
       command.expectedFollowUp,
       command.followUp,
-      appendPromptFiles,
+      (text, attachments) =>
+        appendPromptFiles(preparedTexts.get(text) ?? text, attachments),
     );
     try {
       await services.agentProcess.request({

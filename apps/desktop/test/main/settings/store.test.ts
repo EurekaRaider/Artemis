@@ -990,6 +990,63 @@ describe("AppStore", () => {
     });
   });
 
+  it("forks replay at a reply boundary without future messages, queues, or duplicate costs", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "artemis-historical-fork-"));
+    temporaryDirectories.push(directory);
+    const store = new AppStore(join(directory, "state.sqlite"));
+    const thread = {
+      id: "source",
+      title: "Source",
+      mode: "work" as const,
+      target: "local" as const,
+      status: "idle" as const,
+      pinned: false,
+      archived: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      store.createThread(thread);
+      store.appendEvent(randomUUID(), thread.id, "first", {
+        type: "user.message",
+        messageId: "m1",
+        text: "Earlier",
+      });
+      store.appendEvent(randomUUID(), thread.id, "first", {
+        type: "queue.updated",
+        steering: [],
+        followUp: ["Pending"],
+      });
+      const boundary = store.appendEvent(randomUUID(), thread.id, "first", {
+        type: "turn.completed",
+        reason: "completed",
+        finalPartId: "answer",
+        sessionEntryId: "pi-entry",
+      });
+      store.appendEvent(randomUUID(), thread.id, "later", {
+        type: "user.message",
+        messageId: "m2",
+        text: "Future",
+      });
+      store.createForkedThread(
+        { ...thread, id: "fork" },
+        thread.id,
+        boundary.seq,
+      );
+      const copied = store.getThreadEvents("fork");
+      expect(copied.map((event) => event.payload.type)).toEqual([
+        "user.message",
+        "turn.completed",
+      ]);
+      expect(JSON.stringify(copied)).not.toContain("Future");
+      expect(JSON.stringify(copied)).not.toContain("Pending");
+      expect(store.getThreadEvents(thread.id)).toHaveLength(4);
+      expect(new Set(copied.map((event) => event.eventId)).size).toBe(2);
+    } finally {
+      store.close();
+    }
+  });
+
   it("returns only files changed by the latest turn", async () => {
     const directory = await mkdtemp(join(tmpdir(), "artemis-store-"));
     temporaryDirectories.push(directory);

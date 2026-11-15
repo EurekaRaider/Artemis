@@ -46,7 +46,11 @@ export interface ConversationApi {
   clearThreadGoal(threadId: string): Promise<Thread>;
   archiveThread(threadId: string, archived: boolean): Promise<Thread>;
   deleteThread(threadId: string): Promise<void>;
-  forkThread(threadId: string, entryId?: string): Promise<ForkThreadResult>;
+  forkThread(
+    threadId: string,
+    entryId?: string,
+    turnId?: string,
+  ): Promise<ForkThreadResult>;
   compactThread(threadId: string, instructions?: string): Promise<void>;
   prepareThread(threadId: string): Promise<void>;
   branchizeWorktree(

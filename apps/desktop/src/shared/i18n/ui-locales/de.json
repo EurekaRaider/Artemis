@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "Kosten für {{count}} Antworten nicht erfasst",
   "Usage.responseModels": "Tatsächliches Modell: {{models}}",
   "Usage.unreportedModels": "Tatsächliches Modell für {{count}} Antworten nicht gemeldet",
-  "Usage.costs": "Kosten (USD)"
+  "Usage.costs": "Kosten (USD)",
+  "Fork.fromReply": "Ab dieser Antwort verzweigen",
+  "ModelCompat.requiresNonNullAssistantContent": "Assistenteninhalt ohne null",
+  "ModelCompat.requiresToolsWithToolHistory": "Tools bei Toolverlauf",
+  "ModelCompat.supportsDeveloperRole": "Developer-Rolle",
+  "ModelCompat.supportsUsageInStreaming": "Streaming-Verbrauch",
+  "ModelCompat.maxTokensField": "Ausgabe-Token-Feld",
+  "ModelCompat.promptCacheKeyMode": "Prompt-Cache-Schlüssel",
+  "ModelCompat.supportsLongCacheRetention": "Lange Cache-Aufbewahrung",
+  "ModelCompat.supportsMaxOutputTokens": "Ausgabe-Token-Limit",
+  "ModelCompat.supportsMessageThreads": "Nachrichtenverlauf fortsetzen"
 }

@@ -1,10 +1,10 @@
 [English / 简体中文](pi-upgrade-modes.md)
 
-# Pi 1.2.0 与 Artemis 任务模式
+# Pi 接入与 Artemis 任务模式
 
 Artemis 只使用 Pi 作为 Agent 循环。新任务默认进入 **Work**。
 
-桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.2.0。本次升级包含更完整的 Codemode 工具声明、启动钩子与队列处理、压缩时排除思考文本，以及提供商兼容性修复。Artemis 保留 MCP 任意 JSON 结构化结果，包括 `null`、`false`、零和数组。安装检查继续要求 `brace-expansion` 5.0.12。
+桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.5.2。Artemis 保留 MCP 任意 JSON 结构化结果，包括 `null`、`false`、零和数组。
 
 | 模式     | 工具与完成方式                                                                                                  |
 | -------- | --------------------------------------------------------------------------------------------------------------- |
@@ -66,3 +66,58 @@ Work 和 Codemode 中，本地 MCP 或受信任扩展工具在沙箱拒绝后，
 ## 验证边界
 
 自动化覆盖包括真实 Pi 循环、真实本地 HTTP socket reset/EOF、已完成工具保留、计划持久化／接受、过期修订、重复点击、迁移、模型路由和加密凭据更新。桌面交互测试使用隔离用户目录、本地模型 fixture 和普通免激活启动。真实服务商 OAuth、付费模型操作、物理 Wi-Fi 断开、Windows 打包与 macOS 发行签名／公证需要各自环境，不包含在这些检查中。
+
+## 历史 Fork 与提示词模板
+
+已完成的助手回复旁的 Fork 操作会创建一个截止到该回复的新会话。Pi 上下文、界面历史和复制的附件使用同一截断位置，不包含之后的消息及待发送队列；原会话保持不变。它分叉的是会话上下文，不会回滚工作目录中的文件。没有保存 Pi 消息 ID 的旧回复，仅在其可见文本能唯一匹配已保存的完成回复时支持历史 Fork；匹配不唯一时会报告错误。
+
+个人模板放在 `~/.pi/agent/prompts/`（或 `$PI_CODING_AGENT_DIR/prompts/`），项目模板放在 `<workspace>/.pi/prompts/`，使用纯文本 Markdown 文件。项目范围以任务实际使用的 checkout 为准，包括托管 worktree；同名时个人模板优先。单个文件不超过 64 KiB 才会出现在建议列表。输入 `/` 查找模板，选择后补充参数。列出模板不会执行脚本；远程 IM 配置仍禁用本地模板。
+
+例如保存 `review.md`：
+
+```markdown
+---
+description: 检查代码修改的正确性
+argument-hint: "<文件> [关注点]"
+---
+
+检查 $1，重点关注 ${2:-正确性}。修改文件前先说明发现的问题。
+```
+
+输入 `/review "src/my file.ts" 性能`，模板会在 Artemis 加入模式与任务指令之前展开。支持带引号的参数、`$1`、`$2`、`$@`、`$ARGUMENTS`、`${1:-默认值}` 以及 `${@:2:3}` 参数切片；替换不递归。内置 `/goal`、`/compact`、`/init`、`/plan`、`/work`、`/codemode` 保持优先。模板不改变工具权限或任务模式。
+
+## 自定义模型兼容选项
+
+在自定义供应商模型的“高级”区域，兼容选项控件会同步更新同一 JSON 编辑框中的 `compat` 对象。“默认”保留 Pi 的自动判断。无效 JSON 会保留供用户修正；与所选 API 不兼容的字段会在保存时被拒绝。没有 `compat` 的已有配置保持原有行为。
+
+| API                | 选项                                                                                                                                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI Completions | `requiresNonNullAssistantContent`、`requiresToolsWithToolHistory`、`supportsDeveloperRole`、`supportsUsageInStreaming`、`maxTokensField`、`promptCacheKeyMode`、`supportsLongCacheRetention` |
+| OpenAI Responses   | `supportsMaxOutputTokens`、`promptCacheKeyMode`、`supportsLongCacheRetention`                                                                                                                |
+| Anthropic Messages | `supportsMessageThreads`                                                                                                                                                                     |
+
+如果代理不接受 `developer` 角色、流式用量和 `max_completion_tokens`，选择 Completions 并设置：
+
+```json
+{
+  "compat": {
+    "supportsDeveloperRole": false,
+    "supportsUsageInStreaming": false,
+    "maxTokensField": "max_tokens"
+  }
+}
+```
+
+如果 Responses 接口不接受缓存字段或输出上限，使用：
+
+```json
+{
+  "compat": {
+    "promptCacheKeyMode": "disabled",
+    "supportsLongCacheRetention": false,
+    "supportsMaxOutputTokens": false
+  }
+}
+```
+
+这些选项描述接口能力，应以实际接口支持情况为准。`supportsMessageThreads` 可以为兼容 Anthropic 的接口启用增量续接，关闭时保留完整消息请求。请求层测试使用确定性的模拟供应商，不代表对某个第三方服务的实测认证。

@@ -68,6 +68,7 @@ export function toPiProviderConfig(
         contextWindow: model.contextWindow,
         maxTokens: model.maxTokens,
         cost: { ...zeroCost },
+        ...(model.compat ? { compat: { ...model.compat } } : {}),
         ...(model.samplingParams
           ? { samplingParams: model.samplingParams }
           : {}),

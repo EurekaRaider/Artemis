@@ -227,18 +227,30 @@ async function handle(command: AgentHostCommand): Promise<void> {
       case "turn.cancel":
         await host.cancel(command.threadId);
         break;
+      case "turn.prepare-input":
+        data = await host.prepareTemplateInput(
+          command.threadId,
+          expandProjectInitCommand(command.text),
+        );
+        break;
       case "turn.steer":
         await host.steer(
           command.threadId,
-          expandProjectInitCommand(command.text),
+          command.inputPrepared
+            ? command.text
+            : expandProjectInitCommand(command.text),
           command.attachments,
+          command.inputPrepared,
         );
         break;
       case "turn.follow-up":
         await host.followUp(
           command.threadId,
-          expandProjectInitCommand(command.text),
+          command.inputPrepared
+            ? command.text
+            : expandProjectInitCommand(command.text),
           command.attachments,
+          command.inputPrepared,
         );
         break;
       case "turn.queue.clear":
@@ -290,7 +302,11 @@ async function handle(command: AgentHostCommand): Promise<void> {
         );
         break;
       case "thread.fork":
-        data = host.forkThread(command.threadId, command.entryId);
+        data = host.forkThread(
+          command.threadId,
+          command.entryId,
+          command.assistantText,
+        );
         break;
       case "thread.close":
         host.closeThread(command.threadId);

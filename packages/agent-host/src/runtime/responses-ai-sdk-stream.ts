@@ -276,6 +276,8 @@ export function streamOpenAIResponsesWithAiSdk(
         ...model.samplingParamsByThinkingLevel?.[options?.reasoning ?? "off"],
         ...options?.samplingParams,
       };
+      const compat = model.compat as
+        import("@earendil-works/pi-ai").OpenAIResponsesCompat | undefined;
       const openai = createOpenAI({
         fetch: async (request, init) => {
           if (
@@ -290,6 +292,22 @@ export function streamOpenAIResponsesWithAiSdk(
                 ...samplingParams,
               }),
             };
+          }
+          if (typeof init?.body === "string" && compat) {
+            const body = JSON.parse(init.body);
+            if (compat.promptCacheKeyMode === "disabled") {
+              delete body.prompt_cache_key;
+              delete body.prompt_cache_retention;
+              delete body.prompt_cache_options;
+            }
+            if (compat.supportsLongCacheRetention === false) {
+              if (body.prompt_cache_retention === "24h")
+                body.prompt_cache_retention = "in_memory";
+              delete body.prompt_cache_options;
+            }
+            if (compat.supportsMaxOutputTokens === false)
+              delete body.max_output_tokens;
+            init = { ...init, body: JSON.stringify(body) };
           }
           const limit = model.inputLimits?.maxRequestBytes;
           if (
@@ -316,7 +334,10 @@ export function streamOpenAIResponsesWithAiSdk(
       const tools = toAiSdkTools(context);
       const cacheRetention = options?.cacheRetention ?? "short";
       const cache = promptCacheMetadata(options);
-      const explicitCache = cache?.policy === "explicit-30m";
+      const explicitCache =
+        cache?.policy === "explicit-30m" &&
+        compat?.promptCacheKeyMode !== "disabled" &&
+        compat?.supportsLongCacheRetention !== false;
       const openaiOptions = {
         forceReasoning: model.reasoning,
         ...(model.reasoning
@@ -338,11 +359,14 @@ export function streamOpenAIResponsesWithAiSdk(
                 ttl: "30m" as const,
               },
             }
-          : options?.sessionId && cacheRetention !== "none"
+          : options?.sessionId &&
+              cacheRetention !== "none" &&
+              compat?.promptCacheKeyMode !== "disabled"
             ? {
                 promptCacheKey: options.sessionId,
                 promptCacheRetention:
-                  cacheRetention === "long"
+                  cacheRetention === "long" &&
+                  compat?.supportsLongCacheRetention !== false
                     ? ("24h" as const)
                     : ("in_memory" as const),
               }
@@ -370,7 +394,8 @@ export function streamOpenAIResponsesWithAiSdk(
         ...(options?.temperature === undefined
           ? {}
           : { temperature: options.temperature }),
-        ...(options?.maxTokens === undefined
+        ...(options?.maxTokens === undefined ||
+        compat?.supportsMaxOutputTokens === false
           ? {}
           : { maxOutputTokens: options.maxTokens }),
         ...(options?.maxRetries === undefined

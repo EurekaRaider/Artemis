@@ -35,6 +35,7 @@ import type { SettingsApi } from "./api/settings.js";
 import type { CustomAgentsApi } from "./api/custom-agents.js";
 import type { ConfigurationImportApi } from "./api/configuration-import.js";
 import type { McpApi } from "./api/mcp.js";
+import type { PromptTemplatesApi } from "./api/prompt-templates.js";
 import type { SkillsApi } from "./api/skills.js";
 import type { IntegrationsApi } from "./api/integrations.js";
 import type { ExtensionsApi } from "./api/extensions.js";
@@ -64,6 +65,7 @@ export interface ArtemisApi
     ConfigurationImportApi,
     McpApi,
     SkillsApi,
+    PromptTemplatesApi,
     IntegrationsApi,
     ExtensionsApi,
     UpdatesDiagnosticsApi,

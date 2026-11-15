@@ -234,6 +234,7 @@ export function createWorkspaceRepository(
   function copyThreadEventsCore(
     sourceThreadId: string,
     targetThreadId: string,
+    throughSeq?: number,
   ): AgentEvent[] {
     const rows = services.database
       .prepare("SELECT body FROM events WHERE thread_id = ? ORDER BY seq ASC")
@@ -241,7 +242,17 @@ export function createWorkspaceRepository(
     const copied: AgentEvent[] = [];
     for (const row of rows) {
       const source = agentEventFromBody(row.body);
-      if (source.payload.type === "assistant.usage") {
+      if (
+        (throughSeq !== undefined && source.seq > throughSeq) ||
+        source.payload.type === "assistant.usage" ||
+        (throughSeq !== undefined &&
+          [
+            "turn.change-set.updated",
+            "queue.updated",
+            "queue.recovered",
+            "thread.notification.updated",
+          ].includes(source.payload.type))
+      ) {
         continue;
       }
       copied.push(
@@ -277,11 +288,16 @@ export function createWorkspaceRepository(
   function createForkedThread(
     thread: Thread,
     sourceThreadId: string,
+    throughSeq?: number,
   ): { thread: Thread; events: AgentEvent[] } {
     services.database.exec("BEGIN IMMEDIATE");
     try {
       const created = services.createThread(thread);
-      const events = services.copyThreadEventsCore(sourceThreadId, thread.id);
+      const events = services.copyThreadEventsCore(
+        sourceThreadId,
+        thread.id,
+        throughSeq,
+      );
       services.database.exec("COMMIT");
       return { thread: created, events };
     } catch (error) {
@@ -294,6 +310,7 @@ export function createWorkspaceRepository(
     thread: Thread,
     worktree: TaskWorktree,
     sourceThreadId: string,
+    throughSeq?: number,
   ): { thread: Thread; worktree: TaskWorktree; events: AgentEvent[] } {
     if (
       thread.id !== worktree.threadId ||
@@ -306,7 +323,11 @@ export function createWorkspaceRepository(
     try {
       const created = services.createThread(thread);
       const createdWorktree = services.insertWorktree(worktree);
-      const events = services.copyThreadEventsCore(sourceThreadId, thread.id);
+      const events = services.copyThreadEventsCore(
+        sourceThreadId,
+        thread.id,
+        throughSeq,
+      );
       services.database.exec("COMMIT");
       return { thread: created, worktree: createdWorktree, events };
     } catch (error) {

@@ -112,6 +112,7 @@ export interface OpenThreadRequest {
 }
 
 export interface HostedThread {
+  prepareTemplateInput?: (text: string) => Promise<string>;
   currentAttachmentIds?: string[];
   threadId: string;
   workspacePath: string;

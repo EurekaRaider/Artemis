@@ -1,8 +1,8 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it, vi } from "vitest";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   createAssistantMessageEventStream,
   type Context,
@@ -119,10 +119,13 @@ it.each(["none", "steer", "followUp", "steerQueuedFollowUp"] as const)(
         target: "local",
         selection,
       });
+      await mkdir(join(root, ".pi/prompts"), { recursive: true });
+      await writeFile(join(root, ".pi/prompts/do.md"), "Do $1");
+      await writeFile(join(root, ".pi/prompts/correct.md"), "$ARGUMENTS");
       const turn = host.prompt(
         "task",
         "first",
-        "Do work",
+        "/do work",
         "work",
         undefined,
         undefined,
@@ -141,11 +144,21 @@ it.each(["none", "steer", "followUp", "steerQueuedFollowUp"] as const)(
           await host.followUp("task", correction);
           await host.steerQueuedFollowUp("task", 0, [correction]);
         } else {
-          await host[supplement]("task", correction);
+          await host[supplement]("task", `/correct "${correction}"`);
         }
         releaseFirst!();
       }
       await turn;
+      expect(JSON.stringify(contexts[0]!.messages)).toContain("Do work");
+      expect(JSON.stringify(contexts[0]!.messages)).not.toContain("/do work");
+      const completion = payloads.findLast((p) => p.type === "turn.completed");
+      expect(
+        completion?.type === "turn.completed" && completion.sessionEntryId,
+      ).toBeTruthy();
+      const firstEntryId =
+        completion?.type === "turn.completed"
+          ? completion.sessionEntryId
+          : undefined;
       const turnRequests = supplement === "none" ? 1 : 2;
       expect(contexts).toHaveLength(turnRequests);
       expect(
@@ -186,6 +199,24 @@ it.each(["none", "steer", "followUp", "steerQueuedFollowUp"] as const)(
       payloads.length = 0;
       await host.prompt("task", "second", "Explain", "work");
       expect(contexts).toHaveLength(turnRequests + 1);
+      const forkFile = host.forkThread("task", firstEntryId);
+      const forkHistory = SessionManager.open(forkFile.sessionFile).getBranch();
+      expect(forkHistory.at(-1)?.id).toBe(firstEntryId);
+      if (supplement === "none") {
+        expect(() =>
+          host.forkThread("task", undefined, "Work completed."),
+        ).toThrow(/uniquely/);
+      } else {
+        const legacyFork = host.forkThread(
+          "task",
+          undefined,
+          "Here are the steps.",
+        );
+        expect(
+          SessionManager.open(legacyFork.sessionFile).getBranch().at(-1)?.id,
+        ).toBe(firstEntryId);
+      }
+      expect(JSON.stringify(forkHistory)).not.toContain('"text":"Explain"');
       expect(
         JSON.stringify(
           contexts.at(-1)!.messages.filter((m) => m.role === "assistant"),

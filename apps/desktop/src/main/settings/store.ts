@@ -684,10 +684,12 @@ export class AppStore {
   private copyThreadEventsCore(
     sourceThreadId: string,
     targetThreadId: string,
+    throughSeq?: number,
   ): AgentEvent[] {
     return this.workspaceRepository.copyThreadEventsCore(
       sourceThreadId,
       targetThreadId,
+      throughSeq,
     );
   }
 
@@ -704,19 +706,26 @@ export class AppStore {
   createForkedThread(
     thread: Thread,
     sourceThreadId: string,
+    throughSeq?: number,
   ): { thread: Thread; events: AgentEvent[] } {
-    return this.workspaceRepository.createForkedThread(thread, sourceThreadId);
+    return this.workspaceRepository.createForkedThread(
+      thread,
+      sourceThreadId,
+      throughSeq,
+    );
   }
 
   createForkedThreadWithWorktree(
     thread: Thread,
     worktree: TaskWorktree,
     sourceThreadId: string,
+    throughSeq?: number,
   ): { thread: Thread; worktree: TaskWorktree; events: AgentEvent[] } {
     return this.workspaceRepository.createForkedThreadWithWorktree(
       thread,
       worktree,
       sourceThreadId,
+      throughSeq,
     );
   }
 

@@ -260,7 +260,13 @@ export class PromptCacheController {
     let policy: PromptCachePolicy;
     let reason: PromptCachePolicyReason;
 
-    if (options?.cacheRetention === "none") {
+    const compat = model.compat as
+      | { promptCacheKeyMode?: string; supportsLongCacheRetention?: boolean }
+      | undefined;
+    if (
+      options?.cacheRetention === "none" ||
+      compat?.promptCacheKeyMode === "disabled"
+    ) {
       policy = "disabled";
       reason = "explicitly-disabled";
     } else if (!official) {
@@ -287,6 +293,14 @@ export class PromptCacheController {
         reason = "official-legacy-first-turn";
       }
     } else {
+      policy = "short";
+      reason = "unsupported-model";
+    }
+
+    if (
+      compat?.supportsLongCacheRetention === false &&
+      (policy === "long" || policy === "explicit-30m")
+    ) {
       policy = "short";
       reason = "unsupported-model";
     }
@@ -352,8 +366,18 @@ function optionsForResolution(
   resolution: PromptCacheResolution,
   model: Model<Api>,
 ): SimpleStreamOptions {
-  let anthropicSession = false;
-  if (model.api === "anthropic-messages" && model.provider === "anthropic") {
+  const threads = (
+    model.compat as { supportsMessageThreads?: boolean } | undefined
+  )?.supportsMessageThreads;
+  let anthropicSession =
+    model.api === "anthropic-messages" &&
+    threads === true &&
+    Boolean(options?.sessionId);
+  if (
+    model.api === "anthropic-messages" &&
+    model.provider === "anthropic" &&
+    threads === undefined
+  ) {
     try {
       const endpoint = new URL(model.baseUrl);
       anthropicSession =

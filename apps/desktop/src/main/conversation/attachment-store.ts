@@ -836,9 +836,10 @@ export class AttachmentStore {
     };
   }
 
-  async copyThread(source: string, target: string) {
+  async copyThread(source: string, target: string, ids?: readonly string[]) {
     await this.locked(async () => {
       for (const ref of await this.list(source)) {
+        if (ids && !ids.includes(ref.id)) continue;
         const record = await this.record(ref.id);
         if (!record.owners.includes(target)) record.owners.push(target);
         await this.save(record);

@@ -1,10 +1,10 @@
 [English / 简体中文](pi-upgrade-modes-zh-CN.md)
 
-# Pi 1.2.0 and Artemis task modes
+# Pi integration and Artemis task modes
 
 Artemis uses Pi as its only agent loop. New tasks start in **Work**.
 
-The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.2.0. This upgrade includes richer Codemode declarations, startup-hook and queue handling, compaction that omits thinking text, and provider compatibility fixes. Artemis preserves arbitrary JSON MCP results, including `null`, `false`, zero and arrays. The install check continues to require `brace-expansion` 5.0.12.
+The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.5.2. Artemis preserves arbitrary JSON MCP results, including `null`, `false`, zero and arrays.
 
 | Mode     | Tools and completion                                                                                                                                              |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -66,3 +66,58 @@ Custom sub-agents inherit the active mode and host permissions. The settings edi
 ## Validation boundaries
 
 Automated coverage includes real Pi loops, real local HTTP socket reset/EOF, completed-tool retention, plan persistence/acceptance, stale revisions, duplicate clicks, migration, model routing and encrypted credential updates. Desktop interaction tests use an isolated user directory, a local model fixture and ordinary activation-free startup. Live provider OAuth, paid model operations, physical Wi-Fi loss, Windows packaging and macOS release signing/notarization require their own environment and are not implied by these checks.
+
+## Historical forks and prompt templates
+
+The fork action beside a completed assistant reply creates a new chat ending at that reply. Its Pi transcript, displayed events and copied attachments use the same boundary; later messages and queued input are excluded. The source chat stays intact. This forks conversation context, not historical working-directory contents. Older replies without a saved Pi entry ID can be forked only when their visible text matches a unique completed reply in the saved session; ambiguous matches report an error.
+
+Store text-only prompt templates as Markdown files in `~/.pi/agent/prompts/` (or `$PI_CODING_AGENT_DIR/prompts/`) for personal templates and `<workspace>/.pi/prompts/` for project templates. The actual task checkout, including a managed worktree, determines project scope. A personal template wins if both scopes use the same name. Each file must be at most 64 KiB to appear in suggestions. Type `/` to find a template; select it and supply arguments. Listing templates never executes scripts. Remote IM profiles continue to disable local templates.
+
+For example, save `review.md`:
+
+```markdown
+---
+description: Review a change for correctness
+argument-hint: "<file> [focus]"
+---
+
+Review $1, focusing on ${2:-correctness}. Explain findings before changing files.
+```
+
+`/review "src/my file.ts" performance` expands before Artemis adds mode and task instructions. Templates support quoted arguments, `$1`, `$2`, `$@`, `$ARGUMENTS`, defaults such as `${1:-default}`, and slices such as `${@:2:3}`. Substitution is not recursive. Built-in `/goal`, `/compact`, `/init`, `/plan`, `/work` and `/codemode` retain priority. Templates do not change tool permissions or mode.
+
+## Custom model compatibility
+
+In a custom provider model's Advanced section, compatibility controls update the `compat` object in the same JSON editor. Default leaves Pi's detection in place. Invalid JSON is preserved for correction; incompatible API/option combinations are rejected on save. Existing configurations without `compat` keep their current behavior.
+
+| API                | Options                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI Completions | `requiresNonNullAssistantContent`, `requiresToolsWithToolHistory`, `supportsDeveloperRole`, `supportsUsageInStreaming`, `maxTokensField`, `promptCacheKeyMode`, `supportsLongCacheRetention` |
+| OpenAI Responses   | `supportsMaxOutputTokens`, `promptCacheKeyMode`, `supportsLongCacheRetention`                                                                                                                |
+| Anthropic Messages | `supportsMessageThreads`                                                                                                                                                                     |
+
+For a proxy rejecting `developer`, streamed usage and `max_completion_tokens`, use Completions with:
+
+```json
+{
+  "compat": {
+    "supportsDeveloperRole": false,
+    "supportsUsageInStreaming": false,
+    "maxTokensField": "max_tokens"
+  }
+}
+```
+
+For a Responses endpoint rejecting cache fields or output limits, use:
+
+```json
+{
+  "compat": {
+    "promptCacheKeyMode": "disabled",
+    "supportsLongCacheRetention": false,
+    "supportsMaxOutputTokens": false
+  }
+}
+```
+
+Compatibility flags describe endpoint capabilities; enable them only when the endpoint supports them. `supportsMessageThreads` can opt an Anthropic-compatible endpoint into continuation; disabling it retains full-message requests. Request-level tests use deterministic providers and do not certify a particular third-party endpoint.

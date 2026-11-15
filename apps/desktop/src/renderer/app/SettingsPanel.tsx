@@ -1,3 +1,4 @@
+import { ModelCompatibilityFields } from "../settings/ModelCompatibilityFields.js";
 import {
   type SettingsTab,
   type ProviderThinkingLevel,
@@ -1264,7 +1265,9 @@ export function SettingsPanel({
                                     path:
                                       providerApi === "openai-responses"
                                         ? "/responses"
-                                        : "/chat/completions",
+                                        : providerApi === "anthropic-messages"
+                                          ? "/messages"
+                                          : "/chat/completions",
                                   },
                                 )}
                                 disabled={busy}
@@ -1277,6 +1280,10 @@ export function SettingsPanel({
                                   {
                                     value: "openai-responses",
                                     label: "Responses",
+                                  },
+                                  {
+                                    value: "anthropic-messages",
+                                    label: "Anthropic Messages",
                                   },
                                 ]}
                                 value={providerApi}
@@ -1433,6 +1440,13 @@ export function SettingsPanel({
                                 </span>
                               </summary>
                               <div className="provider-form-disclosure-content">
+                                <ModelCompatibilityFields
+                                  api={providerApi}
+                                  value={providerAdvanced}
+                                  disabled={busy}
+                                  locale={locale}
+                                  onChange={setProviderAdvanced}
+                                />
                                 <TextAreaField
                                   label={uiText(locale, "Model.advanced")}
                                   value={providerAdvanced}

@@ -20,6 +20,7 @@ import { settingsBridge } from "./bridges/settings.js";
 import { customAgentsBridge } from "./bridges/custom-agents.js";
 import { configurationImportBridge } from "./bridges/configuration-import.js";
 import { mcpBridge } from "./bridges/mcp.js";
+import { promptTemplatesBridge } from "./bridges/prompt-templates.js";
 import { skillsBridge } from "./bridges/skills.js";
 import { integrationsBridge } from "./bridges/integrations.js";
 import { extensionsBridge } from "./bridges/extensions.js";
@@ -48,6 +49,7 @@ const api: ArtemisApi = {
   ...configurationImportBridge,
   ...mcpBridge,
   ...skillsBridge,
+  ...promptTemplatesBridge,
   ...integrationsBridge,
   ...extensionsBridge,
   ...updatesDiagnosticsBridge,

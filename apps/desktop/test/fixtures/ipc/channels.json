@@ -946,5 +946,9 @@
   {
     "kind": "handle",
     "key": "reviewCommentDelete"
+  },
+  {
+    "kind": "handle",
+    "key": "promptTemplatesList"
   }
 ]

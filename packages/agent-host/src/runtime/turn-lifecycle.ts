@@ -13,7 +13,10 @@ import {
   replacePiQueuedFollowUp,
 } from "./session-queue.js";
 
-import type { QueuedFollowUpReplacement } from "./runtime-types.js";
+import type {
+  HostedThread,
+  QueuedFollowUpReplacement,
+} from "./runtime-types.js";
 
 import { composerPredictionInstruction } from "@artemis/protocol";
 
@@ -93,6 +96,24 @@ export function createTurnLifecycle(
         services.userInputTails.delete(threadId);
       }
     }
+  }
+
+  async function expandTemplate(
+    hosted: HostedThread,
+    text: string,
+  ): Promise<string> {
+    return hosted.prepareTemplateInput
+      ? hosted.prepareTemplateInput(text)
+      : text;
+  }
+
+  async function prepareTemplateInput(
+    threadId: string,
+    text: string,
+  ): Promise<string> {
+    const hosted = services.threads.get(threadId);
+    if (!hosted) throw new Error(`Thread is not open: ${threadId}`);
+    return expandTemplate(hosted, text);
   }
 
   async function prompt(
@@ -230,9 +251,11 @@ export function createTurnLifecycle(
       hosted.currentAttachmentIds =
         attachments?.filter(isAttachmentReference).map((item) => item.id) ?? [];
       const preparedAttachments = attachments;
+      const userText = recovery ? text : await expandTemplate(hosted, text);
+      if (services.cancelledTurns.has(`${threadId}\0${turnId}`)) return;
       const basePrompt = buildTurnPrompt(
         mode,
-        recovery ? processRecoveryPrompt(text, recovery) : text,
+        recovery ? processRecoveryPrompt(text, recovery) : userText,
         goal,
         memoryContext,
         interruptedTeamContext,
@@ -469,10 +492,18 @@ export function createTurnLifecycle(
     threadId: string,
     text: string,
     attachments?: PromptAttachment[],
+    inputPrepared = false,
   ): Promise<void> {
     const hosted = services.requireActiveThread(threadId);
+    const turnId = hosted.currentTurnId;
+    const prepared = inputPrepared ? text : await expandTemplate(hosted, text);
+    if (
+      hosted.currentTurnId !== turnId ||
+      services.cancelledTurns.has(`${threadId}\0${turnId}`)
+    )
+      throw new Error("The active turn ended while preparing queued input.");
     const images = toSessionImages(attachments);
-    const prompt = appendPromptFiles(text, attachments);
+    const prompt = appendPromptFiles(prepared, attachments);
     await (images
       ? hosted.session.steer(prompt, images)
       : hosted.session.steer(prompt));
@@ -482,10 +513,18 @@ export function createTurnLifecycle(
     threadId: string,
     text: string,
     attachments?: PromptAttachment[],
+    inputPrepared = false,
   ): Promise<void> {
     const hosted = services.requireActiveThread(threadId);
+    const turnId = hosted.currentTurnId;
+    const prepared = inputPrepared ? text : await expandTemplate(hosted, text);
+    if (
+      hosted.currentTurnId !== turnId ||
+      services.cancelledTurns.has(`${threadId}\0${turnId}`)
+    )
+      throw new Error("The active turn ended while preparing queued input.");
     const images = toSessionImages(attachments);
-    const prompt = appendPromptFiles(text, attachments);
+    const prompt = appendPromptFiles(prepared, attachments);
     await (images
       ? hosted.session.followUp(prompt, images)
       : hosted.session.followUp(prompt));
@@ -524,6 +563,7 @@ export function createTurnLifecycle(
     replacePiQueuedFollowUp(hosted.session, expectedFollowUp, followUp);
   }
   const handlers = {
+    prepareTemplateInput,
     serializeUserInput,
     prompt,
     cancel,

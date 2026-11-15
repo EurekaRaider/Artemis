@@ -1,3 +1,4 @@
+import { historicalForkBoundary } from "../conversation/fork-history.js";
 import { randomUUID } from "node:crypto";
 import { app } from "electron";
 import type { Thread } from "@artemis/protocol";
@@ -274,6 +275,7 @@ export function registerThreadMaintenanceIpc(services: Dependencies): void {
       _event,
       threadId: string,
       entryId?: string,
+      turnId?: string,
     ): Promise<ForkThreadResult> => {
       if (!services.store || !services.agentProcess) {
         throw new Error("Application is not ready.");
@@ -283,6 +285,7 @@ export function registerThreadMaintenanceIpc(services: Dependencies): void {
         type: "thread.fork",
         threadId,
         ...(entryId ? { entryId } : {}),
+        ...(turnId ? { turnId } : {}),
       });
       const source = appStore.getThread(command.threadId);
       if (!source) {
@@ -296,6 +299,14 @@ export function registerThreadMaintenanceIpc(services: Dependencies): void {
           "Wait for context compaction before forking this task.",
         );
       }
+      const boundary =
+        command.turnId || command.entryId
+          ? historicalForkBoundary(
+              source.id,
+              appStore.getThreadEvents(source.id),
+              command,
+            )
+          : undefined;
       const sourceContext = await resolveThreadWorkspace(source);
       await openAgentThread(source);
       const fork = await services.agentProcess.request<{ sessionFile: string }>(
@@ -303,130 +314,160 @@ export function registerThreadMaintenanceIpc(services: Dependencies): void {
           type: "thread.fork",
           requestId: randomUUID(),
           threadId: source.id,
-          ...(command.entryId ? { entryId: command.entryId } : {}),
+          ...(boundary
+            ? {
+                ...(boundary.entryId ? { entryId: boundary.entryId } : {}),
+                assistantText: boundary.assistantText,
+              }
+            : {}),
         },
       );
-      const now = new Date().toISOString();
-      const forkedThread: Thread = {
-        id: randomUUID(),
-        ...(source.projectId ? { projectId: source.projectId } : {}),
-        title: `${source.title}${mainText(currentLocale(), "forkSuffix")}`,
-        mode: source.mode,
-        target: source.target === "local" ? "local" : "managed-worktree",
-        status: "idle",
-        sessionFile: fork.sessionFile,
-        ...(source.modelSelection
-          ? { modelSelection: structuredClone(source.modelSelection) }
-          : {}),
-        ...(source.contextWindow
-          ? { contextWindow: source.contextWindow }
-          : {}),
-        pinned: false,
-        archived: false,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const persistFork = async (
-        create: () => ForkThreadResult,
-      ): Promise<ForkThreadResult> => {
-        await taskSourceImages().copyThread(source.id, forkedThread.id);
-        await attachmentStore().copyThread(
-          attachmentScope(source.id),
+      try {
+        const now = new Date().toISOString();
+        const forkedThread: Thread = {
+          id: randomUUID(),
+          ...(source.projectId ? { projectId: source.projectId } : {}),
+          title: `${source.title}${mainText(currentLocale(), "forkSuffix")}`,
+          mode: source.mode,
+          target: source.target === "local" ? "local" : "managed-worktree",
+          status: "idle",
+          sessionFile: fork.sessionFile,
+          ...(source.modelSelection
+            ? { modelSelection: structuredClone(source.modelSelection) }
+            : {}),
+          ...(source.contextWindow
+            ? { contextWindow: source.contextWindow }
+            : {}),
+          pinned: false,
+          archived: false,
+          createdAt: now,
+          updatedAt: now,
+        };
+        const persistFork = async (
+          create: () => ForkThreadResult,
+        ): Promise<ForkThreadResult> => {
+          try {
+            await taskSourceImages().copyThread(
+              source.id,
+              forkedThread.id,
+              boundary?.sourceIds,
+            );
+            await attachmentStore().copyThread(
+              attachmentScope(source.id),
+              forkedThread.id,
+              boundary?.attachmentIds,
+            );
+            return create();
+          } catch (error) {
+            const cleanup = await Promise.allSettled([
+              taskSourceImages().deleteThread(forkedThread.id),
+              attachmentStore().deleteThread(forkedThread.id),
+            ]);
+            const failures = cleanup.flatMap((result) =>
+              result.status === "rejected" ? [result.reason] : [],
+            );
+            if (failures.length)
+              throw new AggregateError(
+                [error, ...failures],
+                "Task fork failed and its copied artifacts could not be removed.",
+              );
+            throw error;
+          }
+        };
+        if (forkedThread.target === "local") {
+          if (!source.projectId) {
+            let workspaceCopied = false;
+            try {
+              await copyTemporaryConversationWorkspace(
+                app.getPath("userData"),
+                source.id,
+                forkedThread.id,
+              );
+              workspaceCopied = true;
+              return await persistFork(() =>
+                appStore.createForkedThread(
+                  forkedThread,
+                  source.id,
+                  boundary?.throughSeq,
+                ),
+              );
+            } catch (error) {
+              const cleanupErrors: unknown[] = [error];
+              if (workspaceCopied) {
+                try {
+                  await removeTemporaryConversationWorkspace(
+                    app.getPath("userData"),
+                    forkedThread.id,
+                  );
+                } catch (cleanupError) {
+                  cleanupErrors.push(cleanupError);
+                }
+              }
+              if (cleanupErrors.length > 1) {
+                throw new AggregateError(
+                  cleanupErrors,
+                  "Temporary conversation fork failed and one or more artifacts could not be removed.",
+                );
+              }
+              throw error;
+            }
+          }
+          return await persistFork(() =>
+            appStore.createForkedThread(
+              forkedThread,
+              source.id,
+              boundary?.throughSeq,
+            ),
+          );
+        }
+
+        const sourceRegistration = (
+          await listGitWorktrees(sourceContext.project.path)
+        ).find((item) => pathsEqual(item.path, sourceContext.workspacePath));
+        if (!sourceRegistration) {
+          throw new Error("Source task worktree is not registered with Git.");
+        }
+        const worktree = await createManagedTaskWorktree(
+          sourceContext.project,
           forkedThread.id,
+          sourceRegistration.head,
         );
         try {
-          return create();
+          return await persistFork(() =>
+            appStore.createForkedThreadWithWorktree(
+              forkedThread,
+              worktree,
+              source.id,
+              boundary?.throughSeq,
+            ),
+          );
         } catch (error) {
           try {
-            await taskSourceImages().deleteThread(forkedThread.id);
+            await removeManagedWorktree({
+              repositoryPath: sourceContext.project.path,
+              managedRoot: managedWorktreeRoot(sourceContext.project.id),
+              worktreePath: worktree.path,
+              recoveryRoot: worktreeRecoveryRoot(sourceContext.project.id),
+              force: false,
+            });
           } catch (cleanupError) {
             throw new AggregateError(
               [error, cleanupError],
-              "Task fork failed and its copied source images could not be removed.",
+              "Task fork failed and its clean worktree could not be removed.",
             );
           }
           throw error;
         }
-      };
-      if (forkedThread.target === "local") {
-        if (!source.projectId) {
-          let workspaceCopied = false;
-          try {
-            await copyTemporaryConversationWorkspace(
-              app.getPath("userData"),
-              source.id,
-              forkedThread.id,
-            );
-            workspaceCopied = true;
-            return await persistFork(() =>
-              appStore.createForkedThread(forkedThread, source.id),
-            );
-          } catch (error) {
-            const cleanupErrors: unknown[] = [error];
-            if (workspaceCopied) {
-              try {
-                await removeTemporaryConversationWorkspace(
-                  app.getPath("userData"),
-                  forkedThread.id,
-                );
-              } catch (cleanupError) {
-                cleanupErrors.push(cleanupError);
-              }
-            }
-            try {
-              await deletePiSessionTranscript(
-                fork.sessionFile,
-                piSessionsRoot(process.env, app.getPath("home")),
-              );
-            } catch (cleanupError) {
-              cleanupErrors.push(cleanupError);
-            }
-            if (cleanupErrors.length > 1) {
-              throw new AggregateError(
-                cleanupErrors,
-                "Temporary conversation fork failed and one or more artifacts could not be removed.",
-              );
-            }
-            throw error;
-          }
-        }
-        return await persistFork(() =>
-          appStore.createForkedThread(forkedThread, source.id),
-        );
-      }
-
-      const sourceRegistration = (
-        await listGitWorktrees(sourceContext.project.path)
-      ).find((item) => pathsEqual(item.path, sourceContext.workspacePath));
-      if (!sourceRegistration) {
-        throw new Error("Source task worktree is not registered with Git.");
-      }
-      const worktree = await createManagedTaskWorktree(
-        sourceContext.project,
-        forkedThread.id,
-        sourceRegistration.head,
-      );
-      try {
-        return await persistFork(() =>
-          appStore.createForkedThreadWithWorktree(
-            forkedThread,
-            worktree,
-            source.id,
-          ),
-        );
       } catch (error) {
         try {
-          await removeManagedWorktree({
-            repositoryPath: sourceContext.project.path,
-            managedRoot: managedWorktreeRoot(sourceContext.project.id),
-            worktreePath: worktree.path,
-            recoveryRoot: worktreeRecoveryRoot(sourceContext.project.id),
-            force: false,
-          });
+          await deletePiSessionTranscript(
+            fork.sessionFile,
+            piSessionsRoot(process.env, app.getPath("home")),
+          );
         } catch (cleanupError) {
           throw new AggregateError(
             [error, cleanupError],
-            "Task fork failed and its clean worktree could not be removed.",
+            "Task fork failed and its session transcript could not be removed.",
           );
         }
         throw error;

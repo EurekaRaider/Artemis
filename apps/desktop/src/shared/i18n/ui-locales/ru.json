@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "Стоимость не записана для {{count}} ответов",
   "Usage.responseModels": "Фактическая модель: {{models}}",
   "Usage.unreportedModels": "Фактическая модель не указана для {{count}} ответов",
-  "Usage.costs": "Стоимость (USD)"
+  "Usage.costs": "Стоимость (USD)",
+  "Fork.fromReply": "Создать ветку с этого ответа",
+  "ModelCompat.requiresNonNullAssistantContent": "Содержимое ассистента без null",
+  "ModelCompat.requiresToolsWithToolHistory": "Инструменты при наличии истории",
+  "ModelCompat.supportsDeveloperRole": "Роль developer",
+  "ModelCompat.supportsUsageInStreaming": "Использование в потоке",
+  "ModelCompat.maxTokensField": "Поле выходных токенов",
+  "ModelCompat.promptCacheKeyMode": "Ключ кеша промпта",
+  "ModelCompat.supportsLongCacheRetention": "Длительное хранение кеша",
+  "ModelCompat.supportsMaxOutputTokens": "Лимит выходных токенов",
+  "ModelCompat.supportsMessageThreads": "Продолжение ветки сообщений"
 }

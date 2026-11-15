@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "{{count}} 件の応答で費用が未記録",
   "Usage.responseModels": "実際のモデル：{{models}}",
   "Usage.unreportedModels": "{{count}} 件の応答で実際のモデルが未報告",
-  "Usage.costs": "費用（米ドル）"
+  "Usage.costs": "費用（米ドル）",
+  "Fork.fromReply": "この返信から分岐",
+  "ModelCompat.requiresNonNullAssistantContent": "助手内容の null を禁止",
+  "ModelCompat.requiresToolsWithToolHistory": "ツール履歴にツール一覧を付加",
+  "ModelCompat.supportsDeveloperRole": "developer ロール",
+  "ModelCompat.supportsUsageInStreaming": "ストリーム使用量",
+  "ModelCompat.maxTokensField": "出力トークンのフィールド",
+  "ModelCompat.promptCacheKeyMode": "プロンプトキャッシュキー",
+  "ModelCompat.supportsLongCacheRetention": "長期キャッシュ保持",
+  "ModelCompat.supportsMaxOutputTokens": "出力トークン上限",
+  "ModelCompat.supportsMessageThreads": "メッセージスレッドの継続"
 }

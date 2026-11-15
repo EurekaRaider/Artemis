@@ -1,3 +1,4 @@
+import { registerPromptTemplatesIpc } from "./prompt-templates.js";
 import { registerProjectInstructionsIpc } from "./project-instructions.js";
 import { registerComputerIpc } from "./computer.js";
 import { registerHooksIpc } from "./hooks.js";
@@ -35,6 +36,7 @@ import { registerReviewIpc } from "./review.js";
 import type { ApplicationServices } from "../application/application-services.js";
 export function registerIpc(services: ApplicationServices): void {
   registerProjectInstructionsIpc(services);
+  registerPromptTemplatesIpc(services);
   registerComputerIpc(services);
   registerHooksIpc(services);
   registerConversationHistoryIpc(services);

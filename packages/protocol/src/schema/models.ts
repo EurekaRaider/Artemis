@@ -11,8 +11,23 @@ export const providerThinkingLevelSchema = z.enum([
   "max",
 ]);
 
+export const modelCompatibilitySchema = z
+  .object({
+    requiresNonNullAssistantContent: z.boolean().optional(),
+    requiresToolsWithToolHistory: z.boolean().optional(),
+    supportsDeveloperRole: z.boolean().optional(),
+    supportsUsageInStreaming: z.boolean().optional(),
+    maxTokensField: z.enum(["max_tokens", "max_completion_tokens"]).optional(),
+    promptCacheKeyMode: z.enum(["auto", "enabled", "disabled"]).optional(),
+    supportsLongCacheRetention: z.boolean().optional(),
+    supportsMaxOutputTokens: z.boolean().optional(),
+    supportsMessageThreads: z.boolean().optional(),
+  })
+  .strict();
+
 export const modelAdvancedOptionsSchema = z
   .object({
+    compat: modelCompatibilitySchema.optional(),
     virtualRoutes: z
       .array(
         z.object({
@@ -98,29 +113,63 @@ export const providerModelSchema = modelAdvancedOptionsSchema.extend({
 
 export type ProviderModel = z.infer<typeof providerModelSchema>;
 
-export const providerConnectionSchema = z.object({
-  id: z
-    .string()
-    .trim()
-    .min(1)
-    .max(80)
-    .regex(/^[a-z0-9][a-z0-9._-]*$/u),
-  name: z.string().trim().min(1).max(80),
-  baseUrl: z
-    .string()
-    .trim()
-    .url()
-    .refine((value) => {
-      const url = new URL(value);
-      return (
-        (url.protocol === "http:" || url.protocol === "https:") &&
-        !url.username &&
-        !url.password
-      );
-    }, "Provider Base URL must use HTTP(S) without embedded credentials"),
-  api: z.enum(["openai-completions", "openai-responses"]).optional(),
-  models: z.array(providerModelSchema).min(1).max(32),
-});
+export const providerConnectionSchema = z
+  .object({
+    id: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .regex(/^[a-z0-9][a-z0-9._-]*$/u),
+    name: z.string().trim().min(1).max(80),
+    baseUrl: z
+      .string()
+      .trim()
+      .url()
+      .refine((value) => {
+        const url = new URL(value);
+        return (
+          (url.protocol === "http:" || url.protocol === "https:") &&
+          !url.username &&
+          !url.password
+        );
+      }, "Provider Base URL must use HTTP(S) without embedded credentials"),
+    api: z
+      .enum(["openai-completions", "openai-responses", "anthropic-messages"])
+      .optional(),
+    models: z.array(providerModelSchema).min(1).max(32),
+  })
+  .superRefine((provider, ctx) => {
+    const api = provider.api ?? "openai-completions";
+    const allowed =
+      api === "anthropic-messages"
+        ? ["supportsMessageThreads"]
+        : api === "openai-responses"
+          ? [
+              "promptCacheKeyMode",
+              "supportsLongCacheRetention",
+              "supportsMaxOutputTokens",
+            ]
+          : [
+              "requiresNonNullAssistantContent",
+              "requiresToolsWithToolHistory",
+              "supportsDeveloperRole",
+              "supportsUsageInStreaming",
+              "maxTokensField",
+              "promptCacheKeyMode",
+              "supportsLongCacheRetention",
+            ];
+    provider.models.forEach((model, index) => {
+      for (const key of Object.keys(model.compat ?? {})) {
+        if (!allowed.includes(key))
+          ctx.addIssue({
+            code: "custom",
+            path: ["models", index, "compat", key],
+            message: `${key} is not supported by ${api}.`,
+          });
+      }
+    });
+  });
 
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
 

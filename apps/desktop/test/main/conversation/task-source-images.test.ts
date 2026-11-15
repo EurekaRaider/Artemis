@@ -23,7 +23,15 @@ describe("task source image store", () => {
       "private image bytes",
     );
 
-    await store.copyThread("thread-1", "thread-2");
+    await store.save("thread-1", "future", {
+      name: "future.png",
+      mimeType: "image/png",
+      data,
+    });
+    await store.copyThread("thread-1", "thread-2", ["source-1"]);
+    await expect(store.read("thread-2", "future")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
     expect(await store.read("thread-2", "source-1")).toBe(data);
 
     await store.deleteThread("thread-1");

@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "Biaya tidak tercatat untuk {{count}} respons",
   "Usage.responseModels": "Model aktual: {{models}}",
   "Usage.unreportedModels": "Model aktual tidak dilaporkan untuk {{count}} respons",
-  "Usage.costs": "Biaya (USD)"
+  "Usage.costs": "Biaya (USD)",
+  "Fork.fromReply": "Buat cabang dari balasan ini",
+  "ModelCompat.requiresNonNullAssistantContent": "Konten asisten bukan null",
+  "ModelCompat.requiresToolsWithToolHistory": "Alat dengan riwayat alat",
+  "ModelCompat.supportsDeveloperRole": "Peran developer",
+  "ModelCompat.supportsUsageInStreaming": "Penggunaan streaming",
+  "ModelCompat.maxTokensField": "Kolom token keluaran",
+  "ModelCompat.promptCacheKeyMode": "Kunci cache prompt",
+  "ModelCompat.supportsLongCacheRetention": "Retensi cache panjang",
+  "ModelCompat.supportsMaxOutputTokens": "Batas token keluaran",
+  "ModelCompat.supportsMessageThreads": "Kelanjutan utas pesan"
 }

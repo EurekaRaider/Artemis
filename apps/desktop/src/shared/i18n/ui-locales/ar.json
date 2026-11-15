@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "لم تُسجّل تكلفة {{count}} من الردود",
   "Usage.responseModels": "النموذج الفعلي: {{models}}",
   "Usage.unreportedModels": "لم يُبلّغ عن النموذج الفعلي لعدد {{count}} من الردود",
-  "Usage.costs": "التكاليف (دولار أمريكي)"
+  "Usage.costs": "التكاليف (دولار أمريكي)",
+  "Fork.fromReply": "إنشاء فرع من هذا الرد",
+  "ModelCompat.requiresNonNullAssistantContent": "محتوى مساعد غير فارغ",
+  "ModelCompat.requiresToolsWithToolHistory": "أدوات مع سجل الأدوات",
+  "ModelCompat.supportsDeveloperRole": "دور developer",
+  "ModelCompat.supportsUsageInStreaming": "الاستخدام أثناء البث",
+  "ModelCompat.maxTokensField": "حقل رموز الإخراج",
+  "ModelCompat.promptCacheKeyMode": "مفتاح تخزين المطالبة",
+  "ModelCompat.supportsLongCacheRetention": "الاحتفاظ الطويل بالتخزين",
+  "ModelCompat.supportsMaxOutputTokens": "حد رموز الإخراج",
+  "ModelCompat.supportsMessageThreads": "متابعة سلسلة الرسائل"
 }

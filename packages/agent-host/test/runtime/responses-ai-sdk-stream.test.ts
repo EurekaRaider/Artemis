@@ -338,6 +338,53 @@ describe("streamOpenAIResponsesWithAiSdk", () => {
     expect(fetch).toHaveBeenCalledOnce();
   });
 
+  it("removes unsupported Responses fields from the actual request even when sampling adds them", async () => {
+    sdk.streamText.mockReturnValue({
+      fullStream: fullStream([
+        { type: "finish", finishReason: "stop", totalUsage: usage },
+      ]),
+    });
+    const fetch = vi.fn(async () => new Response("{}"));
+    await Array.fromAsync(
+      streamOpenAIResponsesWithAiSdk(
+        {
+          ...model,
+          compat: {
+            supportsMaxOutputTokens: false,
+            promptCacheKeyMode: "disabled",
+            supportsLongCacheRetention: false,
+          },
+          samplingParams: {
+            max_output_tokens: 42,
+            prompt_cache_key: "must-not-leak",
+          },
+        },
+        { messages: [] },
+        { fetch },
+      ),
+    );
+    const providerFetch = (
+      sdk.createOpenAI.mock.calls[0] as unknown as [
+        { fetch: typeof globalThis.fetch },
+      ]
+    )[0].fetch;
+    await providerFetch(model.baseUrl, {
+      body: JSON.stringify({
+        input: [],
+        max_output_tokens: 100,
+        prompt_cache_key: "key",
+        prompt_cache_retention: "24h",
+        prompt_cache_options: { mode: "explicit" },
+      }),
+    });
+    expect(
+      JSON.parse(
+        (fetch.mock.calls[0] as unknown as [unknown, RequestInit])[1]
+          .body as string,
+      ),
+    ).toEqual({ input: [] });
+  });
+
   it("rejects truncated text and tool streams without a provider finish event", async () => {
     for (const part of [
       { type: "text-delta", id: "text", text: "Partial answer" },

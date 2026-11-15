@@ -493,10 +493,10 @@ describe("Codex conversation shell contract", () => {
     expect(copyWorkspace).toBeGreaterThanOrEqual(0);
     expect(persistFork).toBeGreaterThan(copyWorkspace);
     expect(forkHandler.slice(0, copyWorkspace)).toContain(
-      "await taskSourceImages().copyThread(source.id, forkedThread.id)",
+      "boundary?.sourceIds",
     );
     expect(forkHandler.slice(0, copyWorkspace)).toContain(
-      "await taskSourceImages().deleteThread(forkedThread.id)",
+      "taskSourceImages().deleteThread(forkedThread.id)",
     );
     expect(removeWorkspace).toBeGreaterThan(persistFork);
     expect(removeTranscript).toBeGreaterThan(removeWorkspace);

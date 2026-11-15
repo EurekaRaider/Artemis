@@ -64,6 +64,7 @@ export const turnCompletedPayloadSchema = z.object({
   type: z.literal("turn.completed"),
   reason: z.enum(["completed", "cancelled"]),
   finalPartId: z.string().min(1).optional(),
+  sessionEntryId: z.string().min(1).optional(),
   durationMs: z.number().int().nonnegative().optional(),
   backgroundProcessesRunning: z.boolean().optional(),
 });

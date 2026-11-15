@@ -51,13 +51,37 @@ describe("forkPiSession", () => {
     const sourceFile = manager.getSessionFile();
     expect(sourceFile && existsSync(sourceFile)).toBe(true);
 
+    const firstReplyId = manager.getLeafId()!;
+    manager.appendMessage({
+      role: "user",
+      content: "Later request",
+      timestamp: Date.now(),
+    });
+    const historical = SessionManager.open(
+      forkPiSession(sourceFile!, firstReplyId, "Original response"),
+    );
+    expect(historical.getEntries()).toHaveLength(2);
+    expect(
+      SessionManager.open(
+        forkPiSession(sourceFile!, undefined, "Original response"),
+      ).getEntries(),
+    ).toHaveLength(2);
+    expect(() =>
+      forkPiSession(sourceFile!, undefined, "unknown reply"),
+    ).toThrow(/uniquely/);
+    expect(() =>
+      forkPiSession(sourceFile!, manager.getLeafId()!, "Later request"),
+    ).toThrow(/completed assistant/);
+    expect(() =>
+      forkPiSession(sourceFile!, "missing", "Original response"),
+    ).toThrow(/not found/);
     const forkedFile = forkPiSession(sourceFile!);
     const reopenedSource = SessionManager.open(sourceFile!);
     const forked = SessionManager.open(forkedFile);
 
     expect(forkedFile).not.toBe(sourceFile);
-    expect(reopenedSource.getEntries()).toHaveLength(2);
-    expect(forked.getEntries()).toHaveLength(2);
+    expect(reopenedSource.getEntries()).toHaveLength(3);
+    expect(forked.getEntries()).toHaveLength(3);
     expect(forked.getHeader().parentSession).toBe(sourceFile);
   });
 });

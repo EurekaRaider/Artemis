@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
 
@@ -46,6 +46,63 @@ function queueTestThread(host: ArtemisAgentHost, threadId: string) {
 }
 
 describe("follow-up queue mutation", () => {
+  it("refreshes only text templates and queues literal expanded bodies once", async () => {
+    const root = await mkdtemp(join(tmpdir(), "artemis-queue-template-"));
+    const workspacePath = join(root, "workspace");
+    const agentDir = join(root, "agent");
+    await mkdir(workspacePath);
+    await mkdir(join(agentDir, "prompts"), { recursive: true });
+    await writeFile(
+      join(agentDir, "prompts/inner.md"),
+      "Should not expand twice",
+    );
+    const host = new ArtemisAgentHost(
+      { async request() {} },
+      { emit() {} },
+      { agentDir },
+    );
+    try {
+      await host.openThread({
+        threadId: "local",
+        workspacePath,
+        target: "local",
+      });
+      const thread = queueTestThread(host, "local");
+      thread.currentTurnId = "turn";
+      const loader = (
+        thread as unknown as { resourceLoader: { reload(): Promise<void> } }
+      ).resourceLoader;
+      const reload = vi.spyOn(loader, "reload");
+      await writeFile(join(agentDir, "prompts/review.md"), "/inner $1");
+      expect(await host.prepareTemplateInput("local", "/review first")).toBe(
+        "\n/inner first",
+      );
+      await host.followUp("local", "/review first");
+      expect(thread.session.getFollowUpMessages()).toEqual(["\n/inner first"]);
+      await writeFile(join(agentDir, "prompts/review.md"), "Updated $1");
+      await host.steer("local", "/review second");
+      expect(thread.session.getSteeringMessages()).toEqual(["Updated second"]);
+      await rm(join(agentDir, "prompts/inner.md"));
+      await host.followUp("local", "/inner deleted");
+      expect(thread.session.getFollowUpMessages()).toEqual([
+        "\n/inner first",
+        "\n/inner deleted",
+      ]);
+      expect(reload).not.toHaveBeenCalled();
+      await host.openThread({
+        threadId: "remote",
+        workspacePath,
+        target: "local",
+        remoteExecution: { network: false, shell: false },
+      });
+      expect(await host.prepareTemplateInput("remote", "/review private")).toBe(
+        "/review private",
+      );
+    } finally {
+      host.dispose();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it("edits, deletes, and reorders exact follow-ups without losing images", async () => {
     const root = await mkdtemp(join(tmpdir(), "artemis-queue-replacement-"));
     const workspacePath = join(root, "workspace");

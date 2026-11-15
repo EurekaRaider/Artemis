@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ProviderConnection } from "@artemis/protocol";
+import {
+  providerConnectionSchema,
+  type ProviderConnection,
+} from "@artemis/protocol";
 
 import { toPiProviderConfig } from "../../src/models/provider-configuration.js";
 import { streamOpenAIResponsesWithAiSdk } from "../../src/runtime/responses-ai-sdk-stream.js";
@@ -93,4 +96,49 @@ describe("toPiProviderConfig", () => {
       },
     });
   });
+});
+
+it("validates compatibility by API and forwards it to Pi without losing false values", () => {
+  for (const [api, compat] of [
+    [
+      "openai-completions",
+      {
+        requiresNonNullAssistantContent: true,
+        requiresToolsWithToolHistory: true,
+        supportsDeveloperRole: false,
+        supportsUsageInStreaming: false,
+        maxTokensField: "max_tokens",
+      },
+    ],
+    [
+      "openai-responses",
+      {
+        supportsMaxOutputTokens: false,
+        promptCacheKeyMode: "disabled",
+        supportsLongCacheRetention: false,
+      },
+    ],
+    ["anthropic-messages", { supportsMessageThreads: false }],
+  ] as const) {
+    const connection = providerConnectionSchema.parse({
+      ...provider,
+      api,
+      models: [{ ...provider.models[0], compat }],
+    });
+    expect(toPiProviderConfig(connection, false).models[0]).toMatchObject({
+      compat,
+    });
+  }
+  for (const compat of [
+    { supportsMessageThreads: false },
+    { supportsDeveloperRole: "false" },
+    { unsupported: true },
+  ]) {
+    expect(
+      providerConnectionSchema.safeParse({
+        ...provider,
+        models: [{ ...provider.models[0], compat }],
+      }).success,
+    ).toBe(false);
+  }
 });

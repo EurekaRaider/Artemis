@@ -95,6 +95,7 @@ export interface StoreDependencies {
   copyThreadEventsCore(
     sourceThreadId: string,
     targetThreadId: string,
+    throughSeq?: number,
   ): AgentEvent[];
   mutateThreadGoal(
     threadId: string,

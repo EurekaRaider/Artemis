@@ -1628,6 +1628,15 @@
       "args": ["argument-0"]
     }
   ],
+  "prompt-templates": [
+    {
+      "name": "listPromptTemplates",
+      "kind": "invoke",
+      "channel": "artemis:prompt-templates-list",
+      "arity": 2,
+      "args": ["argument-0", "argument-1"]
+    }
+  ],
   "integrations": [
     {
       "name": "listArtemisPlugins",

@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "{{count}} 条回复未记录费用",
   "Usage.responseModels": "实际模型：{{models}}",
   "Usage.unreportedModels": "{{count}} 条回复未报告实际模型",
-  "Usage.costs": "费用（美元）"
+  "Usage.costs": "费用（美元）",
+  "Fork.fromReply": "从此回复创建分支",
+  "ModelCompat.requiresNonNullAssistantContent": "助手内容不可为 null",
+  "ModelCompat.requiresToolsWithToolHistory": "工具历史需附工具列表",
+  "ModelCompat.supportsDeveloperRole": "支持 developer 角色",
+  "ModelCompat.supportsUsageInStreaming": "流式返回用量",
+  "ModelCompat.maxTokensField": "输出 Token 字段",
+  "ModelCompat.promptCacheKeyMode": "提示词缓存键",
+  "ModelCompat.supportsLongCacheRetention": "长时间缓存",
+  "ModelCompat.supportsMaxOutputTokens": "输出 Token 上限",
+  "ModelCompat.supportsMessageThreads": "消息线程增量续接"
 }

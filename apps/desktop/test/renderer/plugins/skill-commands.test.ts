@@ -239,3 +239,28 @@ describe("Skill slash commands", () => {
     ).toEqual(["document-authoring", "spreadsheet-analysis"]);
   });
 });
+
+it("offers templates only at the leading command and preserves builtin and skill commands", () => {
+  const templates = [
+    { name: "review", description: "Check changes", scope: "project" as const },
+    { name: "goal", description: "shadow", scope: "user" as const },
+  ];
+  expect(slashCommandSuggestionsForPrompt("/rev", skills, templates)).toEqual([
+    { kind: "template", template: templates[0] },
+  ]);
+  expect(
+    slashCommandSuggestionsForPrompt("/", skills, templates).filter(
+      (item) => item.kind === "template",
+    ),
+  ).toHaveLength(1);
+  expect(
+    slashCommandSuggestionsForPrompt("text /rev", skills, templates).filter(
+      (item) => item.kind === "template",
+    ),
+  ).toHaveLength(0);
+  expect(
+    slashCommandSuggestionsForPrompt("/skill:rev", skills, templates).filter(
+      (item) => item.kind === "template",
+    ),
+  ).toHaveLength(0);
+});

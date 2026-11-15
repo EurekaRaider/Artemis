@@ -17,6 +17,8 @@ import { useConversationHistory } from "./controllers/use-conversation-history.j
 import { useConversationState } from "./controllers/use-conversation-state.js";
 import { useComposerModelDetails } from "./controllers/use-composer-model-details.js";
 import { useComposerModelSelection } from "./controllers/use-composer-model-selection.js";
+import { usePromptTemplates } from "./controllers/use-prompt-templates.js";
+import { PromptTemplateSuggestions } from "../conversation/PromptTemplateSuggestions.js";
 import { useTimelineViewport } from "./controllers/use-timeline-viewport.js";
 import { useReviewController } from "./controllers/use-review-controller.js";
 import { useProjectThreadActions } from "./controllers/use-project-thread-actions.js";
@@ -1052,7 +1054,16 @@ export function App() {
     setThreadMenuId,
   });
 
+  const promptTemplates = usePromptTemplates(
+    activeThreadId
+      ? snapshot?.threads.find((thread) => thread.id === activeThreadId)
+          ?.projectId
+      : activeProjectId,
+    activeThreadId,
+    !skillMenuDismissed && prompt.trimStart().startsWith("/"),
+  );
   const {
+    templateSuggestions,
     skillCommandMenuOpen,
     installedPluginBySkillName,
     slashCommandSuggestions,
@@ -1063,6 +1074,7 @@ export function App() {
     skillSuggestions,
     selectedSkills,
   } = useComposerSuggestions({
+    promptTemplates: promptTemplates.templates,
     skillMenuDismissed,
     prompt,
     installedPlugins,
@@ -2871,7 +2883,8 @@ export function App() {
                             activeThread &&
                             !turnActive &&
                             !activeThread.archived
-                              ? () => void forkThread(activeThread)
+                              ? (turnId) =>
+                                  void forkThread(activeThread, turnId)
                               : undefined
                           }
                           onShare={
@@ -3431,6 +3444,11 @@ export function App() {
                               <div className="slash-command-heading">
                                 {uiText(locale, "Review06.commands")}
                               </div>
+                              {promptTemplates.error && (
+                                <div className="slash-command-status error">
+                                  {promptTemplates.error}
+                                </div>
+                              )}
                               {goalSuggestionIndex >= 0 && (
                                 <button
                                   aria-selected={
@@ -3520,6 +3538,11 @@ export function App() {
                                   </button>
                                 );
                               })}
+                              <PromptTemplateSuggestions
+                                suggestions={templateSuggestions}
+                                activeIndex={activeSlashSuggestion}
+                                onSelect={selectComposerCommand}
+                              />
                             </div>
                           )}
                           {(skillCommandMenuOpen ||
@@ -3771,6 +3794,12 @@ export function App() {
                                       suggestion?.kind === "codemode"
                                     ) {
                                       void selectModeCommand(suggestion.kind);
+                                    } else if (
+                                      suggestion?.kind === "template"
+                                    ) {
+                                      selectComposerCommand(
+                                        `/${suggestion.template.name} `,
+                                      );
                                     } else if (suggestion?.kind === "skill") {
                                       selectSkillCommand(suggestion.skill);
                                     }

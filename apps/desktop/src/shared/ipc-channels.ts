@@ -1,4 +1,5 @@
 export const IPC = {
+  promptTemplatesList: "artemis:prompt-templates-list",
   conversationShare: "artemis:conversation-share",
   computerRegisterBrowser: "artemis:computer-register-browser",
   computerState: "artemis:computer-state",

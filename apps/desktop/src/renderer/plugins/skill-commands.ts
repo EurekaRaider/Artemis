@@ -1,3 +1,4 @@
+import type { PromptTemplateInfo } from "../../shared/api/prompt-templates.js";
 import type { RunMode } from "@artemis/protocol";
 
 import type { InstalledSkill } from "../../shared/api.js";
@@ -11,6 +12,7 @@ interface ActiveSlashCommand {
 }
 
 export type SlashCommandSuggestion =
+  | { kind: "template"; template: PromptTemplateInfo }
   | { kind: "goal" }
   | { kind: "compact" }
   | { kind: "init" }
@@ -81,6 +83,7 @@ export function skillSuggestionsForPrompt(
 export function slashCommandSuggestionsForPrompt(
   prompt: string,
   skills: readonly InstalledSkill[],
+  templates: readonly PromptTemplateInfo[] = [],
 ): SlashCommandSuggestion[] {
   const command = activeSlashCommand(prompt);
   if (!command) return [];
@@ -105,6 +108,23 @@ export function slashCommandSuggestionsForPrompt(
     ...(compactVisible ? ([{ kind: "compact" }] as const) : []),
     ...(initVisible ? ([{ kind: "init" }] as const) : []),
     ...modeSuggestions,
+    ...(command.start === 0 && !command.skillPrefixed
+      ? templates
+          .filter(
+            (template) =>
+              !["goal", "compact", "init", ...RUN_MODE_ORDER].includes(
+                template.name,
+              ) &&
+              (!command.query ||
+                `${template.name} ${template.description}`
+                  .toLocaleLowerCase()
+                  .includes(command.query)),
+          )
+          .map((template): SlashCommandSuggestion => ({
+            kind: "template",
+            template,
+          }))
+      : []),
     ...skillSuggestionsForPrompt(prompt, skills).map(
       (skill): SlashCommandSuggestion => ({ kind: "skill", skill }),
     ),

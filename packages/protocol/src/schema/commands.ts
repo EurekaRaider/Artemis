@@ -80,6 +80,7 @@ export const threadCommandSchema = z.discriminatedUnion("type", [
     type: z.literal("thread.fork"),
     threadId: z.string().min(1),
     entryId: z.string().min(1).optional(),
+    turnId: z.string().min(1).optional(),
   }),
   z.object({
     type: z.literal("thread.compact"),

@@ -18,6 +18,10 @@
       "types": "./dist/policy/custom-agent-capabilities.d.ts",
       "import": "./dist/policy/custom-agent-capabilities.js"
     },
+    "./prompt-templates": {
+      "types": "./dist/context/prompt-templates.d.ts",
+      "import": "./dist/context/prompt-templates.js"
+    },
     "./turn-prompt": {
       "types": "./dist/context/turn-prompt.d.ts",
       "import": "./dist/context/turn-prompt.js"

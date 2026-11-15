@@ -107,7 +107,7 @@ export function Timeline({
   onOpenChildAgent: (child: ChildAgentState) => void;
   onOpenTurnReview: (turnId: string, path?: string) => void;
   onCopyText: (text: string) => Promise<void>;
-  onFork?: (() => void) | undefined;
+  onFork?: ((turnId: string) => void) | undefined;
   onShare?: (() => void) | undefined;
   onEditUserMessage: ((text: string) => void) | undefined;
   onResolve: ResolveApprovalDecision;
@@ -411,17 +411,19 @@ export function Timeline({
                     <CopyIcon />
                   </button>
                 </Tooltip>
-                {onFork && (
-                  <button
-                    className="message-action"
-                    aria-label={t.forkTask}
-                    title={t.forkTask}
-                    type="button"
-                    onClick={onFork}
-                  >
-                    <ArtemisIcon name="fork" width={14} height={14} />
-                  </button>
-                )}
+                {onFork &&
+                  turn?.status === "completed" &&
+                  turn.finalPartId === id && (
+                    <button
+                      className="message-action"
+                      aria-label={uiText(locale, "Fork.fromReply")}
+                      title={uiText(locale, "Fork.fromReply")}
+                      type="button"
+                      onClick={() => onFork(turn.id)}
+                    >
+                      <ArtemisIcon name="fork" width={14} height={14} />
+                    </button>
+                  )}
                 {onShare && (
                   <button
                     className="message-action"

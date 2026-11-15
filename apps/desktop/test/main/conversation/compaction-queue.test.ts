@@ -1,19 +1,14 @@
 import { ipcHandlerSource } from "../../fixtures/ipc/source-handler.js";
-import { readMainProcessSources } from "../../fixtures/application/main-source.js";
+import { createTurnQueueRuntime } from "../../../src/main/conversation/turn-queue-runtime.js";
 
 import { transformSync } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 import { RecoverableTurnQueues } from "../../../src/main/conversation/recoverable-turn-queue.js";
 import { threadCommandSchema } from "@artemis/protocol";
 
-const source = readMainProcessSources();
 const compactRegistration = await ipcHandlerSource(
   "thread-maintenance",
   "threadCompact",
-);
-const section = source.slice(
-  source.indexOf("function publishCompactionQueue("),
-  source.indexOf("async function steerQueuedTurn("),
 );
 function fixture() {
   const thread = { id: "a", mode: "work", status: "idle" };
@@ -55,19 +50,21 @@ function fixture() {
     parseThreadCommand: (command: unknown) =>
       threadCommandSchema.parse(command),
     randomUUID: () => "test-id",
-    appendPromptFiles: (text: string) => text,
     emitPayload: (threadId: string, turnId: string, payload: unknown) =>
       events.push({ threadId, turnId, payload }),
   };
-  const code = transformSync(section + compactRegistration, {
+  const handlers = createTurnQueueRuntime(
+    scope as unknown as Parameters<typeof createTurnQueueRuntime>[0],
+  );
+  const ipcScope = { ...scope, ...handlers };
+  const code = transformSync(compactRegistration, {
     loader: "ts",
     target: "es2022",
   }).code;
-  const handlers = new Function(
-    "services",
-    ...Object.keys(scope),
-    `${code}; return {queueTurn, controlTurnQueue, replaceTurnQueue, resumeCompactionFollowUps};`,
-  )(scope, ...Object.values(scope));
+  new Function("services", ...Object.keys(ipcScope), code)(
+    ipcScope,
+    ...Object.values(ipcScope),
+  );
   return {
     ...scope,
     ...handlers,

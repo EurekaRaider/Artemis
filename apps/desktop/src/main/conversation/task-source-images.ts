@@ -56,6 +56,7 @@ export class TaskSourceImageStore {
   async copyThread(
     sourceThreadId: string,
     targetThreadId: string,
+    sourceIds?: readonly string[],
   ): Promise<void> {
     const source = this.threadDirectory(sourceThreadId);
     const target = this.threadDirectory(targetThreadId);
@@ -71,6 +72,15 @@ export class TaskSourceImageStore {
         errorOnExist: true,
         force: false,
         recursive: true,
+        ...(sourceIds
+          ? {
+              filter: (path: string) =>
+                path === source ||
+                sourceIds.some(
+                  (id) => path === this.imagePath(sourceThreadId, id),
+                ),
+            }
+          : {}),
       });
     } catch (error) {
       await rm(target, { force: true, recursive: true });

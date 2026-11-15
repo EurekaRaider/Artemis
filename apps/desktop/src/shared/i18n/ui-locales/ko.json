@@ -2303,5 +2303,15 @@
   "Usage.unrecordedCost": "응답 {{count}}개의 비용이 기록되지 않음",
   "Usage.responseModels": "실제 모델: {{models}}",
   "Usage.unreportedModels": "응답 {{count}}개의 실제 모델이 보고되지 않음",
-  "Usage.costs": "비용(USD)"
+  "Usage.costs": "비용(USD)",
+  "Fork.fromReply": "이 응답에서 분기",
+  "ModelCompat.requiresNonNullAssistantContent": "빈 assistant 내용 금지",
+  "ModelCompat.requiresToolsWithToolHistory": "도구 기록에 도구 목록 첨부",
+  "ModelCompat.supportsDeveloperRole": "developer 역할",
+  "ModelCompat.supportsUsageInStreaming": "스트리밍 사용량",
+  "ModelCompat.maxTokensField": "출력 토큰 필드",
+  "ModelCompat.promptCacheKeyMode": "프롬프트 캐시 키",
+  "ModelCompat.supportsLongCacheRetention": "장기 캐시 보존",
+  "ModelCompat.supportsMaxOutputTokens": "출력 토큰 제한",
+  "ModelCompat.supportsMessageThreads": "메시지 스레드 이어가기"
 }

@@ -1,3 +1,4 @@
+import type { PromptTemplateInfo } from "../../../shared/api/prompt-templates.js";
 import { useMemo } from "react";
 
 import type {
@@ -11,6 +12,7 @@ import {
 } from "../../plugins/skill-commands.js";
 
 interface UseComposerSuggestionsContext {
+  readonly promptTemplates?: readonly PromptTemplateInfo[];
   readonly skillMenuDismissed: boolean;
   readonly prompt: string;
   readonly installedPlugins: InstalledArtemisPlugin[];
@@ -20,6 +22,7 @@ interface UseComposerSuggestionsContext {
 }
 export function useComposerSuggestions(context: UseComposerSuggestionsContext) {
   const {
+    promptTemplates,
     skillMenuDismissed,
     prompt,
     installedPlugins,
@@ -47,6 +50,7 @@ export function useComposerSuggestions(context: UseComposerSuggestionsContext) {
           !selectedNames.has(skill.name) &&
           !installedPluginBySkillName.has(skill.name),
       ),
+      promptTemplates,
     );
     return [
       ...suggestions.filter((suggestion) => suggestion.kind === "skill"),
@@ -60,6 +64,7 @@ export function useComposerSuggestions(context: UseComposerSuggestionsContext) {
       ),
     ];
   }, [
+    promptTemplates,
     installedPluginBySkillName,
     installedSkills,
     skillsLoading,
@@ -106,6 +111,9 @@ export function useComposerSuggestions(context: UseComposerSuggestionsContext) {
     initSuggestionIndex,
     modeSuggestions,
     skillSuggestions,
+    templateSuggestions: slashCommandSuggestions.flatMap((item, index) =>
+      item.kind === "template" ? [{ index, template: item.template }] : [],
+    ),
     selectedSkills,
   };
 }
