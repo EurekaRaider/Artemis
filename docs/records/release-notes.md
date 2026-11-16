@@ -1,15 +1,13 @@
-# Artemis v2.0.10
+# Artemis v2.0.11
 
 ## 中文
 
-- 修复粘贴 API Key 后输入框被保存按钮挤压的问题，并将保存按钮调整为紧凑的勾选图标与“保存”文字。
-- 为内置模型供应商补充移除入口，修复设置弹窗内移除菜单无法点击的问题；删除已配置供应商需要确认，并处理受影响的默认模型与会话设置。
-- 修复删除凭据后认证状态缓存未及时刷新、供应商仍显示“已连接”的问题。
-- 将“新任务全局默认”移到独立区域并显示默认模型所属供应商，避免与当前供应商的模型混淆。
+- 统一服务商、MCP、插件与技能、头像、子代理和群成员等界面的行内操作按钮，采用紧凑尺寸、轻量边框处理和一致的图标间距。
+- 移除与卸载按钮默认弱化显示，悬停或键盘聚焦时显示柔和的危险色，并保留原有确认步骤和禁用状态。
+- 优化 MCP 参数添加按钮、插件操作的长文字换行，以及 API Key 操作按钮的样式覆盖，改善深浅主题和窄窗口下的显示。
 
 ## English
 
-- Fix API-key inputs collapsing when the save button appears after pasting, and use a compact checkmark and Save button.
-- Add removal actions for built-in model providers and make the removal menu clickable inside Settings. Removing a configured provider requires confirmation and updates affected default-model and conversation selections.
-- Refresh cached authentication availability after credential removal so deleted credentials no longer leave providers marked as connected.
-- Separate global new-task defaults from individual provider details and show the default model's provider.
+- Unify inline actions across providers, MCP, plugins and skills, profile avatars, custom agents, and group members with compact sizing, lighter borders, and consistent icon spacing.
+- Keep remove and uninstall actions visually quiet until hover or keyboard focus, then show a subtle danger treatment while preserving existing confirmations and disabled states.
+- Refine MCP add-row actions, long-label wrapping in plugin actions, and API-key button style precedence for consistent light, dark, and narrow-window layouts.

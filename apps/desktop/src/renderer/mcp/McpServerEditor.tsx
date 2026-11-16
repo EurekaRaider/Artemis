@@ -543,28 +543,29 @@ export function McpServerEditor({
                       value={argument}
                     />
                     <IconButton
-                      className="mcp-remove-row"
+                      className="mcp-remove-row inline-control-action management-destructive-action"
                       disabled={busy || locksCredentialTarget}
-                      icon="×"
+                      icon={<ArtemisIcon name="trash" />}
                       label={`${t.delete} ${index + 1}`}
                       onClick={() =>
                         setArgumentsList((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
                         )
                       }
-                      variant="danger"
+                      variant="quiet"
                     />
                   </div>
                 ))}
                 <Button
-                  className="mcp-add-row"
+                  className="mcp-add-row inline-control-action"
+                  icon={<ArtemisIcon name="plus" />}
                   disabled={busy || locksCredentialTarget}
                   onClick={() =>
                     setArgumentsList((current) => [...current, ""])
                   }
-                  variant="secondary"
+                  variant="quiet"
                 >
-                  + {t.addArgument}
+                  {t.addArgument}
                 </Button>
               </div>
             </ManagementCard>
@@ -612,10 +613,10 @@ export function McpServerEditor({
                     />
                     <IconButton
                       disabled={busy || locksCredentialTarget}
-                      className="mcp-remove-row"
-                      icon="×"
+                      className="mcp-remove-row inline-control-action management-destructive-action"
+                      icon={<ArtemisIcon name="trash" />}
                       label={`${t.delete} (${t.encryptedEnvironment}) ${index + 1}`}
-                      variant="danger"
+                      variant="quiet"
                       onClick={() =>
                         setCredentialEnvironment((current) =>
                           current.filter((_, i) => i !== index),
@@ -626,8 +627,9 @@ export function McpServerEditor({
                 ))}
                 <Button
                   disabled={busy || locksCredentialTarget}
-                  className="mcp-add-row"
-                  variant="secondary"
+                  className="mcp-add-row inline-control-action"
+                  icon={<ArtemisIcon name="plus" />}
+                  variant="quiet"
                   onClick={() =>
                     setCredentialEnvironment((current) => [
                       ...current,
@@ -635,7 +637,7 @@ export function McpServerEditor({
                     ])
                   }
                 >
-                  + {t.encryptedEnvironment}
+                  {t.encryptedEnvironment}
                 </Button>
               </div>
             </ManagementCard>
@@ -680,21 +682,22 @@ export function McpServerEditor({
                       value={entry.value}
                     />
                     <IconButton
-                      className="mcp-remove-row"
+                      className="mcp-remove-row inline-control-action management-destructive-action"
                       disabled={busy}
-                      icon="×"
+                      icon={<ArtemisIcon name="trash" />}
                       label={`${t.delete} ${index + 1}`}
                       onClick={() =>
                         setEnvironment((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
                         )
                       }
-                      variant="danger"
+                      variant="quiet"
                     />
                   </div>
                 ))}
                 <Button
-                  className="mcp-add-row"
+                  className="mcp-add-row inline-control-action"
+                  icon={<ArtemisIcon name="plus" />}
                   disabled={busy}
                   onClick={() =>
                     setEnvironment((current) => [
@@ -703,7 +706,7 @@ export function McpServerEditor({
                     ])
                   }
                 >
-                  + {t.addEnvironment}
+                  {t.addEnvironment}
                 </Button>
               </div>
             </ManagementCard>
@@ -730,27 +733,28 @@ export function McpServerEditor({
                       value={name}
                     />
                     <IconButton
-                      className="mcp-remove-row"
+                      className="mcp-remove-row inline-control-action management-destructive-action"
                       disabled={busy}
-                      icon="×"
+                      icon={<ArtemisIcon name="trash" />}
                       label={`${t.delete} ${index + 1}`}
                       onClick={() =>
                         setEnvironmentVariables((current) =>
                           current.filter((_, itemIndex) => itemIndex !== index),
                         )
                       }
-                      variant="danger"
+                      variant="quiet"
                     />
                   </div>
                 ))}
                 <Button
-                  className="mcp-add-row"
+                  className="mcp-add-row inline-control-action"
+                  icon={<ArtemisIcon name="plus" />}
                   disabled={busy}
                   onClick={() =>
                     setEnvironmentVariables((current) => [...current, ""])
                   }
                 >
-                  + {t.addEnvironmentVariable}
+                  {t.addEnvironmentVariable}
                 </Button>
               </div>
             </ManagementCard>

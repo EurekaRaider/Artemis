@@ -109,8 +109,8 @@ describe("icon size tier tokens (D#76 PR9A §5)", () => {
     expect(names).toEqual(
       [...TIER_ORDER].map((tier) => `--icon-size-${tier}`).sort(),
     );
-    // Environment selectors use four pairs; catalogue actions add one reference.
-    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(14);
+    // Environment selectors use four pairs alongside the five tier definitions.
+    expect(stylesSource.match(/--icon-size-/g)?.length ?? 0).toBe(13);
   });
 
   it("keeps tier values distinct and strictly increasing", () => {

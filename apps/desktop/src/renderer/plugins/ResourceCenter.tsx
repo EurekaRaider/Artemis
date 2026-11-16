@@ -1402,7 +1402,7 @@ export function ResourceCenter({
                             />
                           </span>
                           <IconButton
-                            className="resource-icon-button resource-marketplace-remove-button"
+                            className="resource-icon-button resource-marketplace-remove-button inline-control-action management-destructive-action"
                             disabled={
                               operationPending ||
                               busyId === `marketplace:${source.id}`
@@ -1832,7 +1832,7 @@ export function ResourceCenter({
           <ManagementSection
             actions={
               <IconButton
-                className="resource-icon-button"
+                className="resource-icon-button inline-control-action"
                 disabled={operationPending}
                 icon={<GearIcon />}
                 label={t.manage}
@@ -2052,7 +2052,7 @@ export function ResourceCenter({
                         </Button>
                       ) : null}
                       <IconButton
-                        className="resource-icon-button"
+                        className="resource-icon-button inline-control-action"
                         disabled={operationPending || busyId === plugin.id}
                         icon={<RefreshIcon />}
                         label={`${t.update} ${pluginDisplayName(plugin)}`}
@@ -2062,7 +2062,7 @@ export function ResourceCenter({
                         title={t.update}
                       />
                       <IconButton
-                        className="resource-icon-button management-destructive-action"
+                        className="resource-icon-button inline-control-action management-destructive-action"
                         disabled={operationPending || busyId === plugin.id}
                         icon={<TrashIcon />}
                         label={`${t.remove} ${pluginDisplayName(plugin)}`}
@@ -2152,7 +2152,7 @@ export function ResourceCenter({
                     </Button>
                     {extension.state === "changed" && (
                       <IconButton
-                        className="resource-icon-button"
+                        className="resource-icon-button inline-control-action"
                         disabled={
                           operationPending || busyId === extension.config.id
                         }
@@ -2167,7 +2167,7 @@ export function ResourceCenter({
                       />
                     )}
                     <IconButton
-                      className="resource-icon-button"
+                      className="resource-icon-button inline-control-action management-destructive-action"
                       disabled={
                         operationPending || busyId === extension.config.id
                       }
@@ -2179,7 +2179,7 @@ export function ResourceCenter({
                         )
                       }
                       title={t.remove}
-                      variant="danger"
+                      variant="quiet"
                     />
                     <Switch
                       checked={extension.config.enabled}
@@ -2342,7 +2342,7 @@ export function ResourceCenter({
                   actions={
                     <div className="resource-row-actions">
                       <IconButton
-                        className="resource-icon-button"
+                        className="resource-icon-button inline-control-action"
                         disabled={operationPending}
                         icon={<GearIcon />}
                         label={`${t.addMcp}: ${displayName}`}
@@ -2350,7 +2350,7 @@ export function ResourceCenter({
                         title={t.addMcp}
                       />
                       <IconButton
-                        className="resource-icon-button resource-remove-button"
+                        className="resource-icon-button resource-remove-button inline-control-action management-destructive-action"
                         disabled={
                           operationPending ||
                           busyId === server.config.id ||
@@ -2629,7 +2629,7 @@ export function ResourceCenter({
                                 .replace(/\/[^/]+$/, "")}
                       </span>
                       <IconButton
-                        className="resource-icon-button resource-remove-button"
+                        className="resource-icon-button resource-remove-button inline-control-action management-destructive-action"
                         disabled={
                           operationPending ||
                           busyId === skill.id ||

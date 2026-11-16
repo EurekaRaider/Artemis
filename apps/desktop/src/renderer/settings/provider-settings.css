@@ -750,7 +750,9 @@ span.provider-brand-icon-fireworks {
     gap: 8px;
     width: 100%;
   }
-  & .provider-form-actions [data-artemis-component="button"] {
+  &
+    .provider-form-actions
+    [data-artemis-component="button"]:where(:not(.inline-control-action)) {
     min-height: 32px;
     min-inline-size: 88px;
     height: auto;

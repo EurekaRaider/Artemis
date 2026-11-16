@@ -573,8 +573,10 @@ function ProviderCredentials({
               <div className="provider-form-actions">
                 {credential?.type === "api_key" && (
                   <Button
-                    variant="secondary"
+                    className="provider-key-remove inline-control-action management-destructive-action"
+                    variant="quiet"
                     size="compact"
+                    icon={<ArtemisIcon name="trash" />}
                     disabled={disabled}
                     onClick={() => setRemove(true)}
                   >
@@ -584,7 +586,7 @@ function ProviderCredentials({
                 {apiKey.trim() && (
                   <Button
                     type="submit"
-                    className="provider-key-submit"
+                    className="provider-key-submit inline-control-action"
                     size="compact"
                     variant="quiet"
                     icon={<ArtemisIcon name="check" />}
@@ -629,7 +631,14 @@ function ProviderCredentials({
             {credential?.type === "oauth" && (
               <div className="provider-form-actions">
                 <span>{uiText(locale, "Providers.signedIn")}</span>
-                <Button disabled={disabled} onClick={() => setRemove(true)}>
+                <Button
+                  className="inline-control-action management-destructive-action"
+                  variant="quiet"
+                  size="compact"
+                  icon={<ArtemisIcon name="close" />}
+                  disabled={disabled}
+                  onClick={() => setRemove(true)}
+                >
                   {uiText(locale, "Providers.signOut")}
                 </Button>
               </div>
@@ -738,6 +747,9 @@ function ProviderBaseUrl({
       {value.trim() !== connection.baseUrl && (
         <Button
           type="submit"
+          className="inline-control-action"
+          variant="quiet"
+          icon={<ArtemisIcon name="check" />}
           size="compact"
           disabled={disabled || !value.trim()}
         >

@@ -430,25 +430,52 @@ details[open] > summary .disclosure-chevron {
 .settings-panel .provider-key-field .provider-form-actions:empty {
   display: none;
 }
-.settings-panel
-  .provider-key-field
-  .provider-form-actions
-  .provider-key-submit[data-artemis-component="button"] {
-  height: 24px;
+.mcp-add-row.inline-control-action {
+  justify-self: start;
+  align-self: start;
+}
+/* Compact actions embedded in fields and management rows. */
+:root .inline-control-action[data-artemis-component] {
   min-height: 24px;
+  min-block-size: 24px;
+  height: auto;
   min-inline-size: 0;
-  padding: 0 8px;
+  padding: 3px 8px;
   gap: 5px;
   border: 0;
   border-radius: 5px;
-  background: var(--panel-3);
+  background: transparent;
   box-shadow: none;
-  color: var(--text);
+  color: var(--artemis-color-text-secondary);
   font-size: 12px;
   font-weight: 500;
+  line-height: 18px;
 }
-.settings-panel .provider-key-submit:hover:not(:disabled) {
+:root .inline-control-action[data-artemis-component="icon-button"] {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 5px;
+}
+:root .inline-control-action[data-artemis-component] svg {
+  width: 14px;
+  height: 14px;
+}
+:root .inline-control-action[data-artemis-component]:hover:not(:disabled) {
   background: var(--artemis-color-surface-sunken);
+  color: var(--text);
+}
+:root
+  .inline-control-action.management-destructive-action[data-artemis-component]:is(
+    :hover,
+    :focus-visible
+  ):not(:disabled) {
+  background: var(--artemis-color-status-danger-subtle);
+  color: var(--danger);
+}
+:root .provider-key-submit[data-artemis-component="button"] {
+  background: var(--panel-3);
+  color: var(--text);
 }
 .provider-defaults-note {
   flex-basis: 100%;

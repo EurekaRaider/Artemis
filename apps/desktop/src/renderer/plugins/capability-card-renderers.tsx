@@ -164,8 +164,8 @@ export function createCapabilityCardRenderers({
                     </Button>
                   )}
                   <Button
-                    variant="secondary"
-                    className="management-destructive-action plugin-market-remove-action"
+                    variant="quiet"
+                    className="management-destructive-action plugin-market-remove-action inline-control-action"
                     icon={<TrashIcon />}
                     disabled={status?.versions.some((version) => version.inUse)}
                     title={
@@ -288,9 +288,9 @@ export function createCapabilityCardRenderers({
                     </Button>
                   ) : null}
                   <Button
-                    className="management-destructive-action plugin-market-remove-action"
+                    className="management-destructive-action plugin-market-remove-action inline-control-action"
                     icon={<TrashIcon />}
-                    variant="secondary"
+                    variant="quiet"
                     disabled={
                       operationPending ||
                       status?.versions.some((version) => version.inUse)

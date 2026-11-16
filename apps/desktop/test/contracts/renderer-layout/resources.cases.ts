@@ -165,7 +165,10 @@ describe("renderer layout contract", () => {
   it("lets capability-center MCP entries be removed", () => {
     expect(resourceCenterSource).toContain("window.artemis.removeMcpServer");
     expect(resourceCenterSource).toContain("<ManagementRow");
-    expect(resourceCenterSource).toContain('variant="danger"');
+    expect(resourceCenterSource).toContain("management-destructive-action");
+    expect(resourceCenterSource).toContain(
+      'setResourceRemovalDraft({ kind: "mcp", server })',
+    );
   });
   it("keeps resource search editable and notices aligned after installation", () => {
     expect(resourceCenterSource).toContain('<InlineNotice tone="info">');

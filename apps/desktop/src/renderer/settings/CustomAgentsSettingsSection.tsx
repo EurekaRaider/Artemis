@@ -472,6 +472,8 @@ export function CustomAgentsSettingsSection({
                     }
                   />
                   <IconButton
+                    className="inline-control-action"
+                    variant="quiet"
                     disabled={busy}
                     onClick={() => void openEdit(definition)}
                     icon={<ArtemisIcon name="edit" />}
@@ -497,6 +499,8 @@ export function CustomAgentsSettingsSection({
                     </>
                   ) : (
                     <IconButton
+                      className="inline-control-action management-destructive-action"
+                      variant="quiet"
                       disabled={busy}
                       icon={<ArtemisIcon name="trash" />}
                       label={t.delete}

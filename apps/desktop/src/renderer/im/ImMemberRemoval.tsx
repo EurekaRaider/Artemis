@@ -29,7 +29,8 @@ export function ImMemberRemoval({
     return (
       <Tooltip label={`${label}：${name}`} align="end">
         <IconButton
-          className="im-member-action im-member-remove"
+          className="im-member-action im-member-remove inline-control-action management-destructive-action"
+          variant="quiet"
           icon={<ArtemisIcon name="close" width={14} height={14} />}
           label={`${label}：${name}`}
           disabled={disabled}
@@ -40,7 +41,10 @@ export function ImMemberRemoval({
   if (!confirming)
     return (
       <Button
+        className="inline-control-action management-destructive-action"
         variant="quiet"
+        size="compact"
+        icon={<ArtemisIcon name="trash" />}
         label={`${label}：${name}`}
         disabled={disabled}
         onClick={() => setConfirming(true)}

@@ -799,7 +799,7 @@ describe("McpServerEditor feedback wiring (D#76 PR8 §10 state matrix)", () => {
 it("sends credential values separately from persisted MCP configuration", async () => {
   const { api } = renderEditor({ server: stdioServer });
   fireEvent.click(
-    screen.getByRole("button", { name: "+ Encrypted environment variables" }),
+    screen.getByRole("button", { name: "Encrypted environment variables" }),
   );
   fireEvent.change(
     screen.getByRole("textbox", {
@@ -832,7 +832,7 @@ it("retains saved credential bindings without sending blank replacement secrets"
     screen.getByLabelText("Value (Encrypted environment variables) 1"),
   ).toHaveValue("");
   expect(
-    screen.getByRole("button", { name: "+ Encrypted environment variables" }),
+    screen.getByRole("button", { name: "Encrypted environment variables" }),
   ).toBeDisabled();
   expect(
     screen.getByRole("textbox", { name: labels.launchCommand }),

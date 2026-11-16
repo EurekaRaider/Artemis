@@ -1074,6 +1074,7 @@ export function SettingsPanel({
                                     actions={
                                       <span className="mcp-server-actions">
                                         <IconButton
+                                          className="inline-control-action"
                                           disabled={
                                             busy ||
                                             Boolean(editingModelKey && !editing)
@@ -1117,7 +1118,7 @@ export function SettingsPanel({
                                           }
                                         />
                                         <IconButton
-                                          className="management-destructive-action"
+                                          className="inline-control-action management-destructive-action"
                                           icon={<ArtemisIcon name="trash" />}
                                           title={t.delete}
                                           disabled={
@@ -1553,6 +1554,9 @@ export function SettingsPanel({
                           type="file"
                         />
                         <Button
+                          className="inline-control-action"
+                          variant="quiet"
+                          icon={<ArtemisIcon name="edit" />}
                           size="compact"
                           disabled={busy}
                           onClick={() => profileAvatarInputRef.current?.click()}
@@ -1563,6 +1567,9 @@ export function SettingsPanel({
                         </Button>
                         {settings.profileAvatar && (
                           <Button
+                            className="inline-control-action management-destructive-action"
+                            variant="quiet"
+                            icon={<ArtemisIcon name="trash" />}
                             size="compact"
                             disabled={busy}
                             onClick={() => void setProfileAvatar(undefined)}

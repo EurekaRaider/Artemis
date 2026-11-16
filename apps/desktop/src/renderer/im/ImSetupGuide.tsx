@@ -2,6 +2,7 @@ import { type UiTranslate } from "../../shared/i18n/ui-text.js";
 import type { AppLocale, ImStatus } from "@artemis/protocol";
 import { SlidersHorizontal } from "@phosphor-icons/react";
 import { Button } from "@artemis/ui/actions";
+import { ArtemisIcon } from "@artemis/ui/icons";
 import { ManagementSection } from "@artemis/ui/management";
 
 type Translate = UiTranslate;
@@ -62,7 +63,13 @@ export function ImFirstTaskInstructions({
           <li key={item.command}>
             <div className="im-actions">
               <code className="im-identifier">{item.command}</code>
-              <Button onClick={() => copy(item.command)}>
+              <Button
+                className="inline-control-action"
+                variant="quiet"
+                size="compact"
+                icon={<ArtemisIcon name="copy" />}
+                onClick={() => copy(item.command)}
+              >
                 {t("ImSetupGuide.message15")}
               </Button>
             </div>

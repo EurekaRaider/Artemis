@@ -508,7 +508,7 @@ export function createPluginCardRenderers({
                     )}
                   {hasOfficeCapability ? (
                     <Button
-                      className="plugin-market-configure-action"
+                      className="plugin-market-configure-action inline-control-action"
                       disabled={officeUpdating}
                       icon={
                         <ArtemisIcon
@@ -519,7 +519,7 @@ export function createPluginCardRenderers({
                           }
                         />
                       }
-                      variant="secondary"
+                      variant="quiet"
                       title={
                         officeCapabilityInstalled === false
                           ? office.shared
@@ -534,9 +534,9 @@ export function createPluginCardRenderers({
                   ) : null}
                   {pluginHasConnection(installedPlugin) && (
                     <Button
-                      className="plugin-market-configure-action"
+                      className="plugin-market-configure-action inline-control-action"
                       icon={<GearIcon />}
-                      variant="secondary"
+                      variant="quiet"
                       disabled={operationPending || busyId === plugin.id}
                       onClick={() => setConnectionPlugin(installedPlugin)}
                     >
@@ -544,11 +544,11 @@ export function createPluginCardRenderers({
                     </Button>
                   )}
                   <Button
-                    className="management-destructive-action plugin-market-remove-action"
+                    className="management-destructive-action plugin-market-remove-action inline-control-action"
                     icon={<TrashIcon />}
                     disabled={operationPending || busyId === plugin.id}
                     onClick={() => setPluginUninstallDraft(installedPlugin)}
-                    variant="secondary"
+                    variant="quiet"
                   >
                     {t.remove}
                   </Button>
