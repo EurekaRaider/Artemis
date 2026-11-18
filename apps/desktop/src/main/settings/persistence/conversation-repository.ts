@@ -44,6 +44,7 @@ export function createConversationRepository(
   >,
 ) {
   function plans(threadId: string) {
+    // ORDER BY seq otherwise favors scanning every event in the thread.
     const rows = services.database
       .prepare(
         `
@@ -53,7 +54,7 @@ export function createConversationRepository(
       )
       SELECT seq, body FROM plan_events
       UNION ALL
-      SELECT seq, body FROM events WHERE thread_id = ?
+      SELECT seq, body FROM events INDEXED BY ix_events_turn_end WHERE thread_id = ?
         AND json_extract(body, '$.payload.type') IN ('turn.completed','turn.failed')
         AND json_extract(body, '$.turnId') IN (
           SELECT json_extract(body, '$.payload.sourceTurnId') FROM plan_events
