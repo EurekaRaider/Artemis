@@ -2,6 +2,7 @@ import type {
   ImTaskOperations,
   Binding,
   PendingAction,
+  Receipt,
 } from "./im-runtime-types.js";
 import type { ImMessageKey } from "@artemis/gateway";
 
@@ -255,6 +256,7 @@ export interface ImCoordinatorDependencies {
   ): Promise<Response>;
   applySettingsEffects(settings: ImSettings): Promise<ImStatus>;
   list<T>(namespace: string): T[];
+  receipts(state: Receipt["state"]): Receipt[];
   cancelOperations(threadId: string): void;
   syncSecurity(completingOperation?: string): Promise<void>;
   error: string | undefined;

@@ -309,7 +309,28 @@ it.each([false, true])(
       f.threads.findIndex((t) => t.id === workerId),
       1,
     );
-    if (cleanBinding) f.service.deleteThread(workerId);
+    if (cleanBinding) {
+      f.service.deleteThread(workerId);
+      const fetch = globalThis.fetch;
+      const offline = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation((url, init) => {
+          if (String(url).endsWith("/v1/device/native-task-deleted"))
+            return Promise.reject(new Error("Offline"));
+          return fetch(url, init);
+        });
+      try {
+        await f.service.poll();
+      } finally {
+        offline.mockRestore();
+      }
+      expect(
+        f.gateway.store.get<{ state: string }>(
+          "native-tasks",
+          JSON.stringify([f.groupId, nativeTaskId]),
+        )?.state,
+      ).toBe("running");
+    }
     await f.service.poll();
     expect(
       f.gateway.store.get<{ state: string }>(

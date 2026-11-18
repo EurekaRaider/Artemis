@@ -506,6 +506,7 @@ export function createImManagementRuntime(
       for (const namespace of [
         "outbox",
         "receipts",
+        "pending-native-deletions",
         "selections",
         "actions",
         "subscriptions",

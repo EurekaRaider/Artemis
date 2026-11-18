@@ -8,7 +8,10 @@ import { createImConnectionCoordinator } from "./im-connection-coordinator.js";
 import { createImAuthorizationCoordinator } from "./im-authorization-coordinator.js";
 import { createImConfiguration } from "./im-configuration.js";
 import { createImSecurityContext } from "./im-security-context.js";
-import { createImStateRepository } from "./im-state-repository.js";
+import {
+  createImStateRepository,
+  initializeReceiptIndexes,
+} from "./im-state-repository.js";
 import type { ImServiceDependencies } from "./im-service-dependencies.js";
 import { createImCommandRuntime } from "./im-command-runtime.js";
 import { createImManagementRuntime } from "./im-management-runtime.js";
@@ -219,6 +222,9 @@ export class ImService {
       },
       get applySettingsEffects() {
         return host.applySettingsEffects.bind(host);
+      },
+      get receipts() {
+        return host.imStateRepository.receipts;
       },
       get list() {
         return host.list.bind(host);
@@ -522,6 +528,7 @@ export class ImService {
       put: this.put.bind(this),
       remove: this.remove.bind(this),
       list: this.list.bind(this),
+      receipts: this.imStateRepository.receipts,
       manage: this.manage.bind(this),
       text: this.text.bind(this),
       reply: this.reply.bind(this),
@@ -834,6 +841,7 @@ export class ImService {
     this.db.exec(
       "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS im_state(namespace TEXT NOT NULL,id TEXT NOT NULL,version INTEGER NOT NULL DEFAULT 1,value TEXT NOT NULL,PRIMARY KEY(namespace,id));",
     );
+    initializeReceiptIndexes(this.db);
     this.config = imSettingsSchema.parse(
       this.get("settings-v3", "current") ??
         this.get("settings-v2", "current") ??
@@ -859,20 +867,19 @@ export class ImService {
         this.error = this.text("credentialsUnreadable");
       }
     }
-    for (const receipt of this.list<Receipt>("receipts"))
-      if (receipt.state === "dispatching") {
-        receipt.state = "uncertain";
-        this.put("receipts", receipt.request.id, receipt);
-        this.reply(
-          receipt.request,
-          this.text("deliveryInterrupted", receipt.request),
-          receipt.threadId,
-          true,
-          "conversation",
-          randomUUID(),
-          "failed",
-        );
-      }
+    for (const receipt of this.imStateRepository.receipts("dispatching")) {
+      receipt.state = "uncertain";
+      this.put("receipts", receipt.request.id, receipt);
+      this.reply(
+        receipt.request,
+        this.text("deliveryInterrupted", receipt.request),
+        receipt.threadId,
+        true,
+        "conversation",
+        randomUUID(),
+        "failed",
+      );
+    }
   }
   private get<T>(namespace: string, id: string): T | undefined {
     return this.imStateRepository.get<T>(namespace, id);

@@ -57,6 +57,7 @@ export function createImCommandRuntime(
     | "config"
     | "get"
     | "put"
+    | "receipts"
     | "list"
     | "reply"
     | "text"
@@ -113,9 +114,7 @@ export function createImCommandRuntime(
 
   async function drain(): Promise<void> {
     if (!services.ops.ready()) return;
-    for (const receipt of services
-      .list<Receipt>("receipts")
-      .filter((r) => r.state === "pending")) {
+    for (const receipt of services.receipts("pending")) {
       if (!services.config.enabled) return;
       if (
         services.get<Receipt>("receipts", receipt.request.id)?.state !==
@@ -295,9 +294,8 @@ export function createImCommandRuntime(
         request.collaboration.taskId,
       );
       if (assigned) handlers.controllableThread(request, assigned);
-      for (const pending of services.list<Receipt>("receipts"))
+      for (const pending of services.receipts("pending"))
         if (
-          pending.state === "pending" &&
           pending.request.id !== request.id &&
           pending.request.collaboration?.taskId === request.collaboration.taskId
         ) {

@@ -1,3 +1,4 @@
+import { queueNativeDeletions } from "./im-state-repository.js";
 import { busy } from "./im-runtime-values.js";
 import type { Binding, PendingAction } from "./im-runtime-types.js";
 import { isExecutionMode } from "@artemis/protocol";
@@ -291,6 +292,7 @@ export function createImLocalExecution(
       for (const action of services.list<PendingAction>("actions"))
         if (action.threadId === threadId)
           services.remove("actions", action.token);
+      queueNativeDeletions(services.db, threadId);
       // Keep receipts and assignment links: redelivery must not recreate a deleted task.
       services.db.exec("COMMIT");
     } catch (error) {

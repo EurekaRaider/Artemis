@@ -1,3 +1,7 @@
+import {
+  nativeReceiptPage,
+  queueNativeDeletions,
+} from "./im-state-repository.js";
 import { errorMessage, busy } from "./im-runtime-values.js";
 import type { Binding, Receipt } from "./im-runtime-types.js";
 
@@ -21,6 +25,7 @@ import type { ImCoordinatorDependencies } from "./im-coordinator-dependencies.js
 export function createImConnectionCoordinator(
   services: Pick<
     ImCoordinatorDependencies,
+    | "db"
     | "config"
     | "get"
     | "closed"
@@ -152,6 +157,44 @@ export function createImConnectionCoordinator(
     return response;
   }
 
+  let repairAfter = "";
+  let nextRepair = 0;
+  async function reconcileNativeDeletions(): Promise<void> {
+    if (Date.now() >= nextRepair) {
+      const limit = 128;
+      const page = nativeReceiptPage(services.db, repairAfter, limit);
+      for (const receipt of page) {
+        if (
+          !services.ops.thread(receipt.threadId) &&
+          !services.get("deleted-native-tasks", receipt.id)
+        ) {
+          services.put("pending-native-deletions", receipt.id, {
+            invocationId: receipt.id,
+            threadId: receipt.threadId,
+          });
+        }
+      }
+      repairAfter = page.at(-1)?.id ?? "";
+      if (page.length < limit) {
+        repairAfter = "";
+        nextRepair = Date.now() + 10 * 60_000;
+      }
+    }
+    for (const deletion of services.list<{
+      invocationId: string;
+      threadId: string;
+    }>("pending-native-deletions")) {
+      if (
+        !services.ops.thread(deletion.threadId) &&
+        !services.get("deleted-native-tasks", deletion.invocationId)
+      ) {
+        await services.http("/v1/device/native-task-deleted", "POST", deletion);
+        services.put("deleted-native-tasks", deletion.invocationId, true);
+      }
+      services.remove("pending-native-deletions", deletion.invocationId);
+    }
+  }
+
   async function poll(): Promise<void> {
     if (
       services.polling ||
@@ -161,12 +204,24 @@ export function createImConnectionCoordinator(
     )
       return;
     services.polling = true;
+    if (services.state !== "connected") {
+      repairAfter = "";
+      nextRepair = 0;
+    }
     services.state =
       services.state === "connected" ? "connected" : "connecting";
     try {
       await services.refreshConnection();
       if (services.closed) return;
-      for (const binding of services.list<Binding>("bindings"))
+      for (const binding of services.list<Binding>("bindings")) {
+        if (
+          binding.request.nativeTaskId &&
+          services.ops.ready() &&
+          services.usesLocalGateway() &&
+          !services.ops.thread(binding.threadId)
+        ) {
+          queueNativeDeletions(services.db, binding.threadId);
+        }
         try {
           services.grant(binding);
         } catch {
@@ -177,6 +232,7 @@ export function createImConnectionCoordinator(
           )
             await services.ops.cancel(binding.threadId);
         }
+      }
       const inbox = await (await services.http("/v1/device/inbox")).json();
       for (const input of z
         .array(remoteInvocationSchema)
@@ -190,23 +246,7 @@ export function createImConnectionCoordinator(
       }
       if (services.closed) return;
       if (services.ops.ready() && services.usesLocalGateway()) {
-        // Receipts deliberately survive deletion to prevent redelivery from
-        // recreating a task. They also repair orphaned native state after restart.
-        for (const receipt of services.list<Receipt>("receipts")) {
-          if (
-            receipt.state !== "done" ||
-            !receipt.request.nativeTaskId ||
-            !receipt.threadId ||
-            services.ops.thread(receipt.threadId) ||
-            services.get("deleted-native-tasks", receipt.request.id)
-          )
-            continue;
-          await services.http("/v1/device/native-task-deleted", "POST", {
-            invocationId: receipt.request.id,
-            threadId: receipt.threadId,
-          });
-          services.put("deleted-native-tasks", receipt.request.id, true);
-        }
+        await reconcileNativeDeletions();
       }
       if (!services.reconciled && services.ops.ready()) {
         for (const binding of services.list<Binding>("bindings"))

@@ -2,6 +2,7 @@ import {
   type ImTaskOperations,
   type Binding,
   type PendingAction,
+  type Receipt,
 } from "./im-runtime-types.js";
 import { type ImMessageKey } from "@artemis/gateway";
 import { SlackSetupService } from "./slack-setup-service.js";
@@ -71,6 +72,7 @@ export interface ImServiceDependencies {
   put(namespace: string, id: string, value: unknown): void;
   remove(namespace: string, id: string): void;
   list<T>(namespace: string): T[];
+  receipts(state: Receipt["state"]): Receipt[];
   manage(input: ImManagement, serialized?: boolean): Promise<unknown>;
   text(
     key: ImMessageKey,
