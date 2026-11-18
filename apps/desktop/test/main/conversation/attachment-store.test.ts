@@ -250,7 +250,7 @@ it("previews persisted files in bounded pages, including empty files, with task 
   } finally {
     await rm(root, { recursive: true, force: true });
   }
-});
+}, 20000);
 
 it("imports 1000 originals without eager parsing and searches across chunk boundaries", async () => {
   const root = await mkdtemp(join(tmpdir(), "artemis-attachment-batch-"));

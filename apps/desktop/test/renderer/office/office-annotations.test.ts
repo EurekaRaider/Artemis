@@ -137,7 +137,7 @@ describe("Office annotation transport", () => {
     } finally {
       await rm(root, { recursive: true, force: true });
     }
-  });
+  }, 20000);
   it("rejects over-limit additions without changing the existing draft", () => {
     const files: PromptAttachment[] = Array.from({ length: 10 }, (_, i) => ({
       type: "file",

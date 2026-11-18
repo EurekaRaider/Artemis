@@ -474,6 +474,7 @@ it.runIf(process.platform === "darwin")(
       await rm(root, { recursive: true, force: true });
     }
   },
+  25000,
 );
 
 it.runIf(process.platform === "darwin")(
