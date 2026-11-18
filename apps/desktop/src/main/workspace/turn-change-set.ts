@@ -284,6 +284,7 @@ async function materializeEntries(
   entries: readonly (SnapshotEntry | undefined)[],
 ) {
   const root = join(snapshotPath, name);
+  await rm(root, { recursive: true, force: true });
   await mkdir(root, { recursive: true });
   for (const entry of entries) {
     if (!entry || (entry.kind !== "file" && entry.kind !== "symlink")) continue;
@@ -372,6 +373,17 @@ async function captureSnapshot(
         pack.nextOffset,
         entry.packedOffset + entry.size,
       );
+  }
+  if (name === "after") {
+    // A failed completion may have appended bytes after the original snapshot.
+    const file = await open(pack.path, "a+");
+    try {
+      const { size } = await file.stat();
+      if (size < pack.nextOffset) throw new Error("Incomplete turn snapshot.");
+      if (size > pack.nextOffset) await file.truncate(pack.nextOffset);
+    } finally {
+      await file.close();
+    }
   }
   const totalBytes = { value: 0 };
   const entries: SnapshotEntry[] = [];
@@ -614,11 +626,6 @@ export class TurnChangeSetService {
         changed.map((change) => change.after),
       );
       diffText = await snapshotDiff(checkpoint.snapshotPath);
-      // The persisted undo format still uses before/<path> and the original manifests.
-      await rm(join(checkpoint.snapshotPath, "objects"), {
-        recursive: true,
-        force: true,
-      });
     }
     const review = reviewDiffFromText("turn", diffText);
     const reviewByPath = new Map(review.files.map((file) => [file.path, file]));
@@ -682,11 +689,13 @@ export class TurnChangeSetService {
     )) {
       await rm(path, { recursive: true, force: true }).catch(() => undefined);
     }
-    if (!undoAvailable) {
-      await rm(checkpoint.snapshotPath, { recursive: true, force: true }).catch(
-        () => undefined,
-      );
-    }
+    // Only the materialized before/<path> files are needed after the record is durable.
+    const disposable = undoAvailable
+      ? join(checkpoint.snapshotPath, "objects")
+      : checkpoint.snapshotPath;
+    await rm(disposable, { recursive: true, force: true }).catch(
+      () => undefined,
+    );
     this.active.delete(turnId);
     return payloadFromRecord(record);
   }

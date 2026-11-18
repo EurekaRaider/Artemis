@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppStore } from "../../../src/main/settings/store.js";
 import { TurnChangeSetService } from "../../../src/main/workspace/turn-change-set.js";
@@ -79,6 +79,35 @@ async function fixture(): Promise<{
 }
 
 describe("TurnChangeSetService", () => {
+  it("rebuilds the diff from the original snapshot after a failed save", async () => {
+    const { root, service, store } = await fixture();
+    try {
+      await service.begin({
+        threadId: "thread-1",
+        turnId: "retry",
+        workspacePath: root,
+      });
+      await writeFile(join(root, "a.txt"), "abandoned edit\n");
+      vi.spyOn(store, "upsertTurnChangeSet").mockImplementationOnce(() => {
+        throw new Error("interrupted save");
+      });
+      await expect(service.complete("thread-1", "retry")).rejects.toThrow(
+        "interrupted save",
+      );
+      await writeFile(join(root, "a.txt"), "before a\n");
+      await writeFile(join(root, "b.txt"), "latest edit\n");
+      const saved = await service.complete("thread-1", "retry");
+      expect(saved?.files.map((file) => file.path)).toEqual(["b.txt"]);
+      const diff = service.review("thread-1", "retry").text;
+      expect(diff).toContain("+latest edit");
+      expect(diff).not.toContain("abandoned edit");
+      await service.undo("thread-1", "retry");
+      expect(await readFile(join(root, "b.txt"), "utf8")).toBe("before b\n");
+    } finally {
+      store.close();
+    }
+  });
+
   it("materializes only changed paths and restores raw dirty and untracked bytes", async () => {
     const { root, service, store } = await fixture();
     const raw = Buffer.from([0, 13, 10, 255]);
