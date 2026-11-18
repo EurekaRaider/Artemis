@@ -108,6 +108,20 @@ export function preserveLoadedEvents(
   };
 }
 
+// Record direct immutable array ancestry without retaining the previous event array.
+const streamRevisions = new WeakMap<
+  readonly AgentEvent[],
+  { id: symbol; textParent?: symbol }
+>();
+export function streamRevision(events: readonly AgentEvent[]) {
+  let revision = streamRevisions.get(events);
+  if (!revision) {
+    revision = { id: Symbol() };
+    streamRevisions.set(events, revision);
+  }
+  return revision;
+}
+
 export function appendLiveEvents(
   existing: AgentEvent[],
   incoming: AgentEvent[],
@@ -124,6 +138,19 @@ export function appendLiveEvents(
     appended.push(event);
     ids?.add(event.eventId);
     lastSeq = Math.max(lastSeq, event.seq);
+  }
+  if (
+    appended &&
+    incoming.every(
+      (event) =>
+        event.payload.type === "message.part.delta" &&
+        event.payload.partType === "text",
+    )
+  ) {
+    streamRevisions.set(appended, {
+      id: Symbol(),
+      textParent: streamRevision(existing).id,
+    });
   }
   return appended ?? existing;
 }

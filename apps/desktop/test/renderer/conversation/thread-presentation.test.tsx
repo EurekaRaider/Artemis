@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createThreadViewState,
   PROTOCOL_VERSION,
@@ -14,6 +14,7 @@ import {
   ThreadStatusIndicator,
   ThreadWaitingBadge,
 } from "../../../src/renderer/conversation/ThreadStatusIndicator.js";
+import { appendLiveEvents } from "../../../src/renderer/conversation/stream-snapshot.js";
 const thread = {
   id: "t",
   projectId: "p",
@@ -40,6 +41,44 @@ const inputRequested: AgentEvent["payload"] = {
   expiresAt: "2026-11-01T01:00:00.000Z",
 };
 describe("one waiting presentation across header, sidebar and metadata", () => {
+  it("shares status replay and leaves queued on the first visible text delta", () => {
+    const history = state();
+    history.status = "running";
+    history.activity = { phase: "queued", message: "Waiting" };
+    const events = [
+      event(1, {
+        type: "message.part.delta",
+        partType: "text",
+        partId: "p",
+        delta: "hello",
+      }),
+    ];
+    const scan = vi.spyOn(events, "filter");
+    const props = { thread, locale: "en" as const, historyState: history };
+    expect(
+      renderToStaticMarkup(<ThreadStatusIndicator {...props} events={[]} />),
+    ).toContain("status-dot queued");
+    expect(
+      renderToStaticMarkup(
+        <ThreadStatusIndicator {...props} events={events} />,
+      ),
+    ).toContain("status-dot running");
+    renderToStaticMarkup(<ThreadWaitingBadge {...props} events={events} />);
+    expect(scan).toHaveBeenCalledTimes(1);
+    const next = appendLiveEvents(events, [
+      event(2, {
+        type: "message.part.delta",
+        partType: "text",
+        partId: "p",
+        delta: "!",
+      }),
+    ]);
+    const replay = vi.spyOn(next, "filter");
+    expect(
+      renderToStaticMarkup(<ThreadStatusIndicator {...props} events={next} />),
+    ).toContain("status-dot running");
+    expect(replay).not.toHaveBeenCalled();
+  });
   it.each(["input", "approval", "plan"])(
     "keeps pending %s ahead of stale running/completed statuses",
     (kind) => {

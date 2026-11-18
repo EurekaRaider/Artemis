@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { streamRevision } from "./stream-snapshot.js";
 import {
   createThreadViewState,
   reduceAgentEventBatch,
@@ -25,7 +25,7 @@ export function ThreadStatusIndicator({
   events?: readonly AgentEvent[] | undefined;
   historyState?: ThreadViewState | undefined;
 }) {
-  const presentation = useThreadPresentation(thread, events, historyState);
+  const presentation = sidebarPresentation(thread, events, historyState);
   const status =
     presentation === "idle" ||
     (presentation === "completed" && !thread.notification?.unread)
@@ -68,7 +68,7 @@ export function ThreadWaitingBadge({
   events?: readonly AgentEvent[] | undefined;
   historyState?: ThreadViewState | undefined;
 }) {
-  const status = useThreadPresentation(thread, events, historyState);
+  const status = sidebarPresentation(thread, events, historyState);
   if (status !== "waiting-approval" && status !== "waiting-user-input")
     return null;
   const label = uiText(locale, "Review02.waitingDecision");
@@ -80,26 +80,51 @@ export function ThreadWaitingBadge({
 }
 
 const NO_EVENTS: readonly AgentEvent[] = [];
-function useThreadPresentation(
+const presentations = new WeakMap<
+  Thread,
+  {
+    revision: symbol;
+    history: ThreadViewState | undefined;
+    status: ReturnType<typeof threadPresentationStatus>;
+  }
+>();
+function sidebarPresentation(
   thread: Thread,
   events = NO_EVENTS,
   historyState?: ThreadViewState,
 ) {
-  return useMemo(() => {
-    const state = historyState
+  const revision = streamRevision(events);
+  const previous = presentations.get(thread);
+  if (previous && previous.history === historyState) {
+    if (previous.revision === revision.id) return previous.status;
+    // Text clears queued activity. Once running, more text cannot change the badge.
+    if (
+      previous.status === "running" &&
+      previous.revision === revision.textParent
+    ) {
+      presentations.set(thread, { ...previous, revision: revision.id });
+      return previous.status;
+    }
+  }
+  const state = historyState
+    ? reduceAgentEventBatch(
+        historyState,
+        events.filter((event) => event.seq > historyState.lastSeq),
+      )
+    : events.length
       ? reduceAgentEventBatch(
-          historyState,
-          events.filter((event) => event.seq > historyState.lastSeq),
+          {
+            ...createThreadViewState(thread.id, thread.mode),
+            status: thread.status,
+          },
+          [...events],
         )
-      : events.length
-        ? reduceAgentEventBatch(
-            {
-              ...createThreadViewState(thread.id, thread.mode),
-              status: thread.status,
-            },
-            [...events],
-          )
-        : undefined;
-    return threadPresentationStatus(thread, state);
-  }, [thread, events, historyState]);
+      : undefined;
+  const status = threadPresentationStatus(thread, state);
+  presentations.set(thread, {
+    revision: revision.id,
+    history: historyState,
+    status,
+  });
+  return status;
 }
