@@ -43,6 +43,17 @@ export function createTurnLatency(services: Dependencies) {
       trace.workspaceStartedAt,
       trace.workspaceEndedAt,
     );
+    addStage("initialPlanAndTitleLookup", 0, trace.initialPlanAndTitleLookupMs);
+    addStage(
+      "previousTurnWait",
+      trace.workspaceEndedAt,
+      trace.previousTurnSettledAt,
+    );
+    addStage(
+      "snapshotCapture",
+      trace.previousTurnSettledAt,
+      trace.snapshotEndedAt,
+    );
     addStage("threadOpen", trace.threadOpenStartedAt, trace.threadOpenEndedAt);
     addStage("memoryRecall", trace.memoryStartedAt, trace.memoryEndedAt);
     addStage("hostDispatch", trace.hostDispatchedAt, trace.hostReceivedAt);

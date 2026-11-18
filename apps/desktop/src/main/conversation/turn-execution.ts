@@ -134,7 +134,9 @@ export function createTurnExecution(services: Dependencies) {
     if (thread.archived) {
       throw new Error("Archived tasks cannot start a turn.");
     }
+    const planLookupStart = performance.now();
     const plans = services.store.plans(thread.id);
+    const planLookupMs = performance.now() - planLookupStart;
     if (options.acceptance) {
       assertAcceptablePlan(plans, options.acceptance);
       if (options.origin !== "desktop" || source !== "user")
@@ -209,14 +211,16 @@ export function createTurnExecution(services: Dependencies) {
       requestText,
       input.mode,
     );
-    if (
-      shouldGenerateTaskTitle(
-        thread.title,
-        source,
-        () => services.store!.hasUserMessage(input.threadId),
-        options.titleContext?.initialTitle,
-      )
-    ) {
+    const titleLookupStart = performance.now();
+    const generateTitle = shouldGenerateTaskTitle(
+      thread.title,
+      source,
+      () => services.store!.hasUserMessage(input.threadId),
+      options.titleContext?.initialTitle,
+    );
+    const initialPlanAndTitleLookupMs =
+      planLookupMs + (performance.now() - titleLookupStart);
+    if (generateTitle) {
       const titleRequest = options.displayText ?? requestText;
       const formatTitle = (title: string) =>
         options.titleContext
@@ -292,6 +296,7 @@ export function createTurnExecution(services: Dependencies) {
       mcpToolCount: services.runtimeMcpToolCount,
       optionalStartedAt: now,
       workspaceStartedAt: now,
+      initialPlanAndTitleLookupMs,
       queueDepth: 0,
       eventCount: 0,
     };
@@ -312,6 +317,7 @@ export function createTurnExecution(services: Dependencies) {
       throw error;
     }
     await turnChangeSetCompletionTails.get(thread.id);
+    trace.previousTurnSettledAt = Date.now();
     if (
       isExecutionMode(input.mode) &&
       !context.temporary &&
@@ -331,6 +337,8 @@ export function createTurnExecution(services: Dependencies) {
             error instanceof Error ? error.message : String(error)
           }`,
         });
+      } finally {
+        trace.snapshotEndedAt = Date.now();
       }
     }
     trace.threadOpenStartedAt = Date.now();

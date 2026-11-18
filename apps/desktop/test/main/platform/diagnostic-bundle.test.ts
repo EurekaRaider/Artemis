@@ -152,6 +152,9 @@ describe("DiagnosticBundleService", () => {
       stagesMs: {
         localPreModel: 42,
         workspaceResolve: 3,
+        previousTurnWait: 4,
+        snapshotCapture: 87,
+        initialPlanAndTitleLookup: 0.3,
         modelToFirstText: 120,
       },
       prompt: "private prompt must not persist",
@@ -252,6 +255,9 @@ describe("DiagnosticBundleService", () => {
         stagesMs: expect.objectContaining({
           localPreModel: 42,
           workspaceResolve: 3,
+          previousTurnWait: 4,
+          snapshotCapture: 87,
+          initialPlanAndTitleLookup: 0.3,
         }),
       }),
     ]);

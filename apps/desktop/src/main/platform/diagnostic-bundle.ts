@@ -66,6 +66,9 @@ export interface TurnLatencySample {
     submitToMain?: number;
     localPreModel?: number;
     optionalCapabilities?: number;
+    initialPlanAndTitleLookup?: number;
+    previousTurnWait?: number;
+    snapshotCapture?: number;
     workspaceResolve?: number;
     threadOpen?: number;
     memoryRecall?: number;
@@ -156,6 +159,9 @@ const LATENCY_STAGE_NAMES = [
   "submitToMain",
   "localPreModel",
   "optionalCapabilities",
+  "initialPlanAndTitleLookup",
+  "previousTurnWait",
+  "snapshotCapture",
   "workspaceResolve",
   "threadOpen",
   "memoryRecall",

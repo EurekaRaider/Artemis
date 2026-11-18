@@ -43,6 +43,9 @@ export interface TurnLatencyTrace {
   mcpToolCount: number;
   optionalStartedAt: number;
   optionalReadyAt?: number;
+  initialPlanAndTitleLookupMs?: number;
+  previousTurnSettledAt?: number;
+  snapshotEndedAt?: number;
   workspaceStartedAt: number;
   workspaceEndedAt?: number;
   threadOpenStartedAt?: number;
