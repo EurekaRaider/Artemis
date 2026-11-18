@@ -1,13 +1,13 @@
-# Artemis v2.0.11
+# Artemis v2.0.12
 
 ## 中文
 
-- 统一服务商、MCP、插件与技能、头像、子代理和群成员等界面的行内操作按钮，采用紧凑尺寸、轻量边框处理和一致的图标间距。
-- 移除与卸载按钮默认弱化显示，悬停或键盘聚焦时显示柔和的危险色，并保留原有确认步骤和禁用状态。
-- 优化 MCP 参数添加按钮、插件操作的长文字换行，以及 API Key 操作按钮的样式覆盖，改善深浅主题和窄窗口下的显示。
+- 改善浏览历史对话时的滚动体验，尤其是同一条回复中带有多个 HTML 预览和 PDF 文件卡片时。快速滚动时延后加载 HTML，返回旧消息时保留已测量的预览高度，减少阅读位置跳动。
+- 在 HTML 预览上滚动可继续浏览聊天记录。预览内的表格等区域优先响应滚动，到达边界后可接着滚动外层对话。
+- 较早的对话记录按需分页加载。工作区快照优先处理本轮改动的文件，并修复 Windows 保存重试时的检查点写入问题。
 
 ## English
 
-- Unify inline actions across providers, MCP, plugins and skills, profile avatars, custom agents, and group members with compact sizing, lighter borders, and consistent icon spacing.
-- Keep remove and uninstall actions visually quiet until hover or keyboard focus, then show a subtle danger treatment while preserving existing confirmations and disabled states.
-- Refine MCP add-row actions, long-label wrapping in plugin actions, and API-key button style precedence for consistent light, dark, and narrow-window layouts.
+- Improve scrolling through conversation history, especially replies with multiple HTML previews and PDF file cards. HTML previews defer loading during fast scrolling and retain their measured space when revisited, reducing jumps in reading position.
+- Scroll through the conversation with the pointer over an HTML preview. Scrollable regions inside the preview, such as tables, handle the gesture first and hand scrolling back to the conversation at their boundaries.
+- Load older conversation pages on demand. Workspace snapshots focus on files changed during the turn, and checkpoint writes now use a writable handle when retrying a save on Windows.
