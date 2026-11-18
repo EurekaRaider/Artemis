@@ -2,13 +2,16 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
+  appendFile,
   chmod,
   copyFile,
   lstat,
   mkdir,
+  open,
   readFile,
   readlink,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -37,6 +40,7 @@ interface SnapshotEntry {
   hash: string;
   mode: number;
   size: number;
+  packedOffset?: number;
   linkTarget?: string;
   reason?: string;
 }
@@ -126,7 +130,10 @@ function valueHash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function repositoryMetadata(root: string): Promise<{
+async function repositoryMetadata(
+  root: string,
+  staged?: string,
+): Promise<{
   head: string;
   index: string;
 }> {
@@ -134,7 +141,9 @@ async function repositoryMetadata(root: string): Promise<{
     runGit(root, ["rev-parse", "--verify", "HEAD"], [0, 128]).then(
       (value) => value.trim() || "UNBORN",
     ),
-    runGit(root, ["ls-files", "--stage", "-z"]).then(valueHash),
+    staged === undefined
+      ? runGit(root, ["ls-files", "--stage", "-z"]).then(valueHash)
+      : valueHash(staged),
   ]);
   return { head, index };
 }
@@ -149,10 +158,24 @@ function submodulePaths(indexOutput: string): Set<string> {
   return result;
 }
 
+interface SmallFilePack {
+  path: string;
+  nextOffset: number;
+  pending: Buffer[];
+  pendingBytes: number;
+}
+async function flushPack(pack: SmallFilePack): Promise<void> {
+  if (!pack.pendingBytes) return;
+  await appendFile(pack.path, Buffer.concat(pack.pending, pack.pendingBytes));
+  pack.pending = [];
+  pack.pendingBytes = 0;
+}
+
 async function snapshotEntry(
   repositoryRoot: string,
-  contentRoot: string,
   objectRoot: string,
+  objects: Map<string, number | undefined>,
+  pack: SmallFilePack,
   path: string,
   totalBytes: { value: number },
 ): Promise<SnapshotEntry> {
@@ -169,9 +192,6 @@ async function snapshotEntry(
   const mode = sourceStat.mode & 0o777;
   if (sourceStat.isSymbolicLink()) {
     const linkTarget = await readlink(source);
-    const destination = resolveInside(contentRoot, path);
-    await mkdir(resolve(destination, ".."), { recursive: true });
-    await symlink(linkTarget, destination);
     return {
       path,
       kind: "symlink",
@@ -206,27 +226,101 @@ async function snapshotEntry(
       reason: "The file exceeds the safe snapshot size limit.",
     };
   }
-  totalBytes.value += sourceStat.size;
-  const hash = await fileHash(source);
-  const objectPath = join(objectRoot, hash.slice(0, 2), hash);
-  try {
-    await lstat(objectPath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    await mkdir(resolve(objectPath, ".."), { recursive: true });
-    await copyFile(source, objectPath);
+  // Hash the captured bytes so an external editor cannot change them between hashing and saving.
+  // Keep large files off the JS heap. Entries are captured sequentially in this private directory.
+  const pending = join(objectRoot, "pending");
+  const bytes =
+    sourceStat.size <= 1024 * 1024 ? await readFile(source) : undefined;
+  if (!bytes) await copyFile(source, pending);
+  const size = bytes?.byteLength ?? (await lstat(pending)).size;
+  const hash = bytes
+    ? createHash("sha256").update(bytes).digest("hex")
+    : await fileHash(pending);
+  if (
+    size > MAX_SNAPSHOT_FILE_BYTES ||
+    totalBytes.value + size > MAX_SNAPSHOT_TOTAL_BYTES
+  ) {
+    if (!bytes) await rm(pending);
+    return {
+      path,
+      kind: "unsupported",
+      hash,
+      mode,
+      size,
+      reason: "The file exceeds the safe snapshot size limit.",
+    };
   }
-  const destination = resolveInside(contentRoot, path);
-  await mkdir(resolve(destination, ".."), { recursive: true });
-  await copyFile(objectPath, destination);
-  await chmod(destination, mode);
+  totalBytes.value += size;
+  let packedOffset = objects.get(hash);
+  if (!objects.has(hash)) {
+    if (bytes) {
+      packedOffset = pack.nextOffset;
+      pack.nextOffset += size;
+      if (size) {
+        pack.pending.push(bytes);
+        pack.pendingBytes += size;
+      }
+      if (pack.pendingBytes >= 1024 * 1024) await flushPack(pack);
+    } else {
+      await rename(pending, join(objectRoot, hash));
+    }
+    objects.set(hash, packedOffset);
+  } else if (!bytes) {
+    await rm(pending);
+  }
   return {
     path,
     kind: "file",
     hash,
     mode,
-    size: sourceStat.size,
+    size,
+    ...(packedOffset === undefined ? {} : { packedOffset }),
   };
+}
+
+async function materializeEntries(
+  snapshotPath: string,
+  name: string,
+  entries: readonly (SnapshotEntry | undefined)[],
+) {
+  const root = join(snapshotPath, name);
+  await mkdir(root, { recursive: true });
+  for (const entry of entries) {
+    if (!entry || (entry.kind !== "file" && entry.kind !== "symlink")) continue;
+    const destination = resolveInside(root, entry.path);
+    await mkdir(resolve(destination, ".."), { recursive: true });
+    if (entry.kind === "symlink") await symlink(entry.linkTarget!, destination);
+    else {
+      if (entry.packedOffset === undefined) {
+        await copyFile(join(snapshotPath, "objects", entry.hash), destination);
+      } else {
+        const bytes = Buffer.alloc(entry.size);
+        if (entry.size) {
+          const pack = await open(
+            join(snapshotPath, "objects", "small.pack"),
+            "r",
+          );
+          try {
+            let read = 0;
+            while (read < bytes.length) {
+              const { bytesRead } = await pack.read(
+                bytes,
+                read,
+                bytes.length - read,
+                entry.packedOffset + read,
+              );
+              if (!bytesRead) throw new Error("Incomplete turn snapshot.");
+              read += bytesRead;
+            }
+          } finally {
+            await pack.close();
+          }
+        }
+        await writeFile(destination, bytes);
+      }
+      await chmod(destination, entry.mode);
+    }
+  }
 }
 
 async function captureSnapshot(
@@ -234,6 +328,7 @@ async function captureSnapshot(
   snapshotPath: string,
   name: "before" | "after" | "recovery",
   onlyPaths?: readonly string[],
+  previousEntries: readonly SnapshotEntry[] = [],
 ): Promise<SnapshotManifest> {
   const repositoryRoot = await realpath(
     resolve(
@@ -243,13 +338,13 @@ async function captureSnapshot(
   if ((await realpath(resolve(workspacePath))) !== repositoryRoot) {
     throw new Error("Turn snapshots require the project Git root.");
   }
-  const [listed, staged, metadata] = await Promise.all([
+  const [listed, staged] = await Promise.all([
     onlyPaths
       ? Promise.resolve(onlyPaths.join("\0"))
       : runGit(repositoryRoot, ["ls-files", "-co", "--exclude-standard", "-z"]),
     runGit(repositoryRoot, ["ls-files", "--stage", "-z"]),
-    repositoryMetadata(repositoryRoot),
   ]);
+  const metadata = await repositoryMetadata(repositoryRoot, staged);
   const submodules = submodulePaths(staged);
   const paths = [
     ...new Set(
@@ -260,23 +355,39 @@ async function captureSnapshot(
         .filter((path) => !submodules.has(path)),
     ),
   ].sort();
-  const contentRoot = join(snapshotPath, name);
   const objectRoot = join(snapshotPath, "objects");
-  await rm(contentRoot, { recursive: true, force: true });
-  await mkdir(contentRoot, { recursive: true });
+  await mkdir(objectRoot, { recursive: true });
+  const objects = new Map<string, number | undefined>();
+  const pack: SmallFilePack = {
+    path: join(objectRoot, "small.pack"),
+    nextOffset: 0,
+    pending: [],
+    pendingBytes: 0,
+  };
+  for (const entry of previousEntries) {
+    if (entry.kind !== "file") continue;
+    objects.set(entry.hash, entry.packedOffset);
+    if (entry.packedOffset !== undefined)
+      pack.nextOffset = Math.max(
+        pack.nextOffset,
+        entry.packedOffset + entry.size,
+      );
+  }
   const totalBytes = { value: 0 };
   const entries: SnapshotEntry[] = [];
   for (const path of paths) {
     entries.push(
       await snapshotEntry(
         repositoryRoot,
-        contentRoot,
         objectRoot,
+        objects,
+        pack,
         path,
         totalBytes,
       ),
     );
   }
+  await flushPack(pack);
   const manifest: SnapshotManifest = {
     repositoryRoot,
     ...metadata,
@@ -288,6 +399,10 @@ async function captureSnapshot(
     JSON.stringify(manifest),
     "utf8",
   );
+  if (name === "recovery") {
+    await materializeEntries(snapshotPath, name, entries);
+    await rm(objectRoot, { recursive: true, force: true });
+  }
   return manifest;
 }
 
@@ -453,11 +568,17 @@ export class TurnChangeSetService {
     const snapshotPath = join(this.root, "checkpoints", threadId, turnId);
     await rm(snapshotPath, { recursive: true, force: true });
     await mkdir(snapshotPath, { recursive: true });
-    const before = await captureSnapshot(
-      input.workspacePath,
-      snapshotPath,
-      "before",
-    );
+    let before: SnapshotManifest;
+    try {
+      before = await captureSnapshot(
+        input.workspacePath,
+        snapshotPath,
+        "before",
+      );
+    } catch (error) {
+      await rm(snapshotPath, { recursive: true, force: true });
+      throw error;
+    }
     this.active.set(input.turnId, {
       ...input,
       snapshotPath,
@@ -476,9 +597,29 @@ export class TurnChangeSetService {
       checkpoint.workspacePath,
       checkpoint.snapshotPath,
       "after",
+      undefined,
+      checkpoint.before.entries,
     );
     const changed = changedSnapshotEntries(checkpoint.before, after);
-    const diffText = await snapshotDiff(checkpoint.snapshotPath);
+    let diffText = "";
+    if (changed.length) {
+      await materializeEntries(
+        checkpoint.snapshotPath,
+        "before",
+        changed.map((change) => change.before),
+      );
+      await materializeEntries(
+        checkpoint.snapshotPath,
+        "after",
+        changed.map((change) => change.after),
+      );
+      diffText = await snapshotDiff(checkpoint.snapshotPath);
+      // The persisted undo format still uses before/<path> and the original manifests.
+      await rm(join(checkpoint.snapshotPath, "objects"), {
+        recursive: true,
+        force: true,
+      });
+    }
     const review = reviewDiffFromText("turn", diffText);
     const reviewByPath = new Map(review.files.map((file) => [file.path, file]));
     const unsupported = changed.filter(

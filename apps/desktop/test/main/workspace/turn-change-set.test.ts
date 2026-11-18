@@ -1,7 +1,14 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -72,6 +79,64 @@ async function fixture(): Promise<{
 }
 
 describe("TurnChangeSetService", () => {
+  it("materializes only changed paths and restores raw dirty and untracked bytes", async () => {
+    const { root, service, store } = await fixture();
+    const raw = Buffer.from([0, 13, 10, 255]);
+    await writeFile(join(root, "a.txt"), "dirty\r\n");
+    await writeFile(join(root, "untracked.bin"), raw);
+    await service.begin({
+      threadId: "thread-1",
+      turnId: "turn-1",
+      workspacePath: root,
+    });
+    const checkpoint = join(
+      dirname(root),
+      "private",
+      "checkpoints",
+      "thread-1",
+      "turn-1",
+    );
+    await expect(readdir(join(checkpoint, "before"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await writeFile(join(root, "a.txt"), "changed\n");
+    await writeFile(join(root, "untracked.bin"), "changed");
+    await service.complete("thread-1", "turn-1");
+    expect((await readdir(join(checkpoint, "before"))).sort()).toEqual([
+      "a.txt",
+      "untracked.bin",
+    ]);
+    await service.undo("thread-1", "turn-1");
+    expect(await readFile(join(root, "untracked.bin"))).toEqual(raw);
+    expect(await readFile(join(root, "a.txt"), "utf8")).toBe("dirty\r\n");
+    store.close();
+  });
+  it("restores duplicate, empty and large files across small-file pack boundaries", async () => {
+    const { root, service, store } = await fixture();
+    const values = [
+      Buffer.alloc(0),
+      Buffer.alloc(700000, 97),
+      Buffer.alloc(700000, 98),
+      Buffer.alloc(700000, 97),
+      Buffer.alloc(1100000, 99),
+    ];
+    for (const [i, value] of values.entries())
+      await writeFile(join(root, "bin-" + i), value);
+    await service.begin({
+      threadId: "thread-1",
+      turnId: "packed",
+      workspacePath: root,
+    });
+    for (const i of values.keys())
+      await writeFile(join(root, "bin-" + i), "changed");
+    await service.complete("thread-1", "packed");
+    await service.undo("thread-1", "packed");
+    for (const [i, value] of values.entries()) {
+      expect((await readFile(join(root, "bin-" + i))).equals(value)).toBe(true);
+    }
+    store.close();
+  });
+
   it("captures an immutable turn diff and restores the exact before state", async () => {
     const { root, service, store } = await fixture();
     await service.begin({
