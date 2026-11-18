@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AppLocale } from "@artemis/protocol";
 import { remotePreviewImage } from "../../shared/timeline-preview.js";
+import { HistoryPreviewLayout } from "./history-preview-layout.js";
 import { timelinePreviewCopy } from "./timeline-preview-copy.js";
 import { usePreviewVisible } from "./use-preview-visible.js";
 import { uiText } from "../../shared/i18n/ui-text.js";
@@ -20,17 +21,26 @@ export function TimelineImagePreview({
   onOpen?: ((path: string) => void) | undefined;
 }) {
   const { ref, visible } = usePreviewVisible();
-  const [source, setSource] = useState<string>();
+  const layout = useContext(HistoryPreviewLayout);
+  const cachedSource = layout?.images.get(path);
+  const [source, setSource] = useState<string | undefined>(cachedSource);
   const [failed, setFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const t = timelinePreviewCopy(locale);
   useEffect(() => {
     if (!visible) return;
+    const cached = attempt === 0 ? layout?.images.get(path) : undefined;
+    if (cached) {
+      setSource(cached);
+      setFailed(false);
+      return;
+    }
     let active = true;
     setSource(undefined);
     setFailed(false);
     if (remotePreviewImage(path)) {
+      layout?.images.set(path, path);
       setSource(path);
       return;
     }
@@ -46,7 +56,9 @@ export function TimelineImagePreview({
           setFailed(true);
           return;
         }
-        setSource(`data:${image.mimeType};base64,${image.data}`);
+        const dataUrl = `data:${image.mimeType};base64,${image.data}`;
+        layout?.images.set(path, dataUrl);
+        setSource(dataUrl);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -54,7 +66,8 @@ export function TimelineImagePreview({
     return () => {
       active = false;
     };
-  }, [threadId, path, visible, attempt]);
+  }, [threadId, path, visible, attempt, layout]);
+  const resolvedSource = source ?? cachedSource;
   return (
     <span ref={ref} className="timeline-image-preview">
       {failed ? (
@@ -74,7 +87,7 @@ export function TimelineImagePreview({
           className="timeline-image-button"
           type="button"
           aria-label={`${t.enlarge}: ${alt}`}
-          disabled={!source}
+          disabled={!resolvedSource}
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -83,15 +96,18 @@ export function TimelineImagePreview({
         >
           <img
             alt={alt}
-            src={source}
+            src={resolvedSource}
             loading="lazy"
             referrerPolicy="no-referrer"
-            onError={() => setFailed(true)}
+            onError={() => {
+              layout?.images.delete(path);
+              setFailed(true);
+            }}
           />
         </button>
       )}
       {enlarged &&
-        source &&
+        resolvedSource &&
         createPortal(
           <dialog
             className="composer-attachment-dialog"
@@ -114,7 +130,7 @@ export function TimelineImagePreview({
                 {t.close}
               </button>
             </header>
-            <img alt={alt} src={source} referrerPolicy="no-referrer" />
+            <img alt={alt} src={resolvedSource} referrerPolicy="no-referrer" />
           </dialog>,
           document.body,
         )}

@@ -325,6 +325,8 @@ function externalHttpAnchor(
 // Default English copy; workspace readers pass a localized failure message
 // through the imageFailureText prop while timeline Markdown keeps the default.
 const WORKSPACE_IMAGE_FAILURE_TEXT = "image failed to load";
+const sanitizedHtmlCache = new Map<string, string>();
+const MAX_SANITIZED_HTML_CACHE = 512;
 
 // A workspace image whose resolver rejects or yields a non-image payload is
 // swapped for an accessible, text-bearing placeholder so its slot never
@@ -378,6 +380,13 @@ export const MarkdownContent = memo(function MarkdownContent({
   const imagesEnabled = Boolean(resolveImage);
   const delegateExternalLinks = Boolean(onExternalLink);
   const html = useMemo(() => {
+    const cacheKey = `${imagesEnabled ? 1 : 0}${fileLinkIcons ? 1 : 0}${delegateExternalLinks ? 1 : 0}${externalLinkIcons ? 1 : 0}${videoThreadId ? 1 : 0}:${text}`;
+    const cached = sanitizedHtmlCache.get(cacheKey);
+    if (cached !== undefined) {
+      sanitizedHtmlCache.delete(cacheKey);
+      sanitizedHtmlCache.set(cacheKey, cached);
+      return cached;
+    }
     const renderer = markdownRenderer(
       imagesEnabled,
       fileLinkIcons,
@@ -390,35 +399,41 @@ export const MarkdownContent = memo(function MarkdownContent({
       ...(videoThreadId ? { extensions: timelineMathExtensions } : {}),
     });
     const parsed = parser.parse(text, { async: false });
-    return typeof DOMPurify.sanitize === "function"
-      ? DOMPurify.sanitize(parsed, {
-          ALLOWED_ATTR: [
-            "alt",
-            "aria-hidden",
-            "aria-label",
-            "class",
-            "data-external-link-icon",
-            "data-external-http",
-            "data-workspace-file",
-            "data-workspace-image",
-            "data-workspace-preview",
-            "data-mermaid-source",
-            "data-math-source",
-            "data-math-display",
-            "href",
-            "height",
-            "id",
-            "loading",
-            "rel",
-            "referrerpolicy",
-            "src",
-            "target",
-            "title",
-            "width",
-          ],
-          ALLOWED_TAGS: allowedTags,
-        })
-      : parsed;
+    const sanitized =
+      typeof DOMPurify.sanitize === "function"
+        ? DOMPurify.sanitize(parsed, {
+            ALLOWED_ATTR: [
+              "alt",
+              "aria-hidden",
+              "aria-label",
+              "class",
+              "data-external-link-icon",
+              "data-external-http",
+              "data-workspace-file",
+              "data-workspace-image",
+              "data-workspace-preview",
+              "data-mermaid-source",
+              "data-math-source",
+              "data-math-display",
+              "href",
+              "height",
+              "id",
+              "loading",
+              "rel",
+              "referrerpolicy",
+              "src",
+              "target",
+              "title",
+              "width",
+            ],
+            ALLOWED_TAGS: allowedTags,
+          })
+        : parsed;
+    sanitizedHtmlCache.set(cacheKey, sanitized);
+    if (sanitizedHtmlCache.size > MAX_SANITIZED_HTML_CACHE) {
+      sanitizedHtmlCache.delete(sanitizedHtmlCache.keys().next().value!);
+    }
+    return sanitized;
   }, [
     delegateExternalLinks,
     externalLinkIcons,

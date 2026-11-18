@@ -1,7 +1,12 @@
 import { createContext } from "react";
 
-// Presentation metadata survives virtualization for the lifetime of this turn.
-export const HistoryPreviewLayout = createContext<{
+export interface HistoryPreviewLayoutState {
   paths: Map<string, string>;
   heights: Map<string, number>;
-} | null>(null);
+  images: Map<string, string>;
+  markup: Map<string, string>;
+}
+
+// Presentation metadata survives virtualization for the lifetime of this turn.
+export const HistoryPreviewLayout =
+  createContext<HistoryPreviewLayoutState | null>(null);

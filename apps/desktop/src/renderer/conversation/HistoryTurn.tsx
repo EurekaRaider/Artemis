@@ -1,4 +1,7 @@
-import { HistoryPreviewLayout } from "./history-preview-layout.js";
+import {
+  HistoryPreviewLayout,
+  type HistoryPreviewLayoutState,
+} from "./history-preview-layout.js";
 import { observeHistoryTurn } from "./history-visibility.js";
 import {
   useEffect,
@@ -10,6 +13,34 @@ import {
 
 const measuredHeights = new Map<string, number>();
 const PLACEHOLDER_DEFAULT_HEIGHT = 180;
+
+const resizeListeners = new WeakMap<Element, (height: number) => void>();
+let sharedResizeObserver: ResizeObserver | undefined;
+
+function observeTurnSize(
+  element: Element,
+  onResize: (height: number) => void,
+): () => void {
+  if (typeof ResizeObserver === "undefined") return () => {};
+  if (!sharedResizeObserver) {
+    sharedResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const listener = resizeListeners.get(entry.target);
+        if (!listener) continue;
+        const blockSize =
+          entry.borderBoxSize?.[0]?.blockSize ||
+          entry.target.getBoundingClientRect().height;
+        if (blockSize > 0) listener(blockSize);
+      }
+    });
+  }
+  resizeListeners.set(element, onResize);
+  sharedResizeObserver.observe(element);
+  return () => {
+    resizeListeners.delete(element);
+    sharedResizeObserver?.unobserve(element);
+  };
+}
 
 // Guess a placeholder height from the average of already-measured turns of
 // the same thread. A fixed guess is wildly wrong for tool-heavy turns (which
@@ -49,9 +80,11 @@ export function HistoryTurn({
     height.current =
       measuredHeights.get(cacheKey) ?? estimatePlaceholderHeight(cacheKey);
   }
-  const [previewLayout] = useState(() => ({
+  const [previewLayout] = useState<HistoryPreviewLayoutState>(() => ({
     paths: new Map<string, string>(),
     heights: new Map<string, number>(),
+    images: new Map<string, string>(),
+    markup: new Map<string, string>(),
   }));
   const [visible, setVisible] = useState(initialVisible || active);
   // Synchronous visibility check shared by first paint and scroll events:
@@ -84,25 +117,14 @@ export function HistoryTurn({
   }, []);
   useLayoutEffect(() => {
     const element = root.current;
-    if (
-      !element ||
-      !(visible || active) ||
-      typeof ResizeObserver === "undefined"
-    )
-      return;
-    const observer = new ResizeObserver(([entry]) => {
-      height.current =
-        entry?.borderBoxSize?.[0]?.blockSize ||
-        element.getBoundingClientRect().height ||
-        height.current ||
-        PLACEHOLDER_DEFAULT_HEIGHT;
+    if (!element || !(visible || active)) return;
+    return observeTurnSize(element, (measured) => {
+      height.current = measured || height.current || PLACEHOLDER_DEFAULT_HEIGHT;
       measuredHeights.delete(cacheKey);
       measuredHeights.set(cacheKey, height.current);
       if (measuredHeights.size > 4_096)
         measuredHeights.delete(measuredHeights.keys().next().value!);
     });
-    observer.observe(element);
-    return () => observer.disconnect();
   }, [visible, active, cacheKey]);
   return (
     <div

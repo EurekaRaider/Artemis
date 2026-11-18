@@ -3,7 +3,7 @@ interface TimelineObservation {
   subscribe(element: Element, notify: (visible: boolean) => void): () => void;
 }
 const timelines = new WeakMap<Element, TimelineObservation>();
-const HISTORY_BUFFER = 1_600;
+const HISTORY_BUFFER = 2_800;
 
 export function observeHistoryTurn(
   element: Element,

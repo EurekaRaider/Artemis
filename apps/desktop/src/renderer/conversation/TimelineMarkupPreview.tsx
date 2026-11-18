@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AppLocale } from "@artemis/protocol";
+import { HistoryPreviewLayout } from "./history-preview-layout.js";
 import { timelinePreviewCopy } from "./timeline-preview-copy.js";
 import { usePreviewVisible } from "./use-preview-visible.js";
 
@@ -45,13 +46,22 @@ export default function TimelineMarkupPreview({
   locale: AppLocale;
 }) {
   const { ref, visible } = usePreviewVisible();
-  const [result, setResult] = useState<string>();
+  const layout = useContext(HistoryPreviewLayout);
+  const cacheKey = `${kind}:${display ? 1 : 0}:${source}`;
+  const cachedResult = layout?.markup.get(cacheKey);
+  const [result, setResult] = useState<string | undefined>(cachedResult);
   const [failed, setFailed] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [copied, setCopied] = useState<"yes" | "failed">();
   const t = timelinePreviewCopy(locale);
   useEffect(() => {
     if (!visible) return;
+    const cached = layout?.markup.get(cacheKey);
+    if (cached !== undefined) {
+      setResult(cached);
+      setFailed(false);
+      return;
+    }
     let active = true;
     setResult(undefined);
     setFailed(false);
@@ -95,7 +105,9 @@ export default function TimelineMarkupPreview({
     };
     void render()
       .then((value) => {
-        if (active) setResult(value);
+        if (!active) return;
+        if (value !== undefined) layout?.markup.set(cacheKey, value);
+        setResult(value);
       })
       .catch(() => {
         if (active) setFailed(true);
@@ -103,7 +115,7 @@ export default function TimelineMarkupPreview({
     return () => {
       active = false;
     };
-  }, [source, kind, display, visible]);
+  }, [source, kind, display, visible, cacheKey, layout]);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(source);
@@ -112,6 +124,7 @@ export default function TimelineMarkupPreview({
       setCopied("failed");
     }
   };
+  const resolvedResult = result ?? cachedResult;
   if (kind === "math")
     return (
       <span
@@ -119,8 +132,8 @@ export default function TimelineMarkupPreview({
         className={display ? "timeline-math display" : "timeline-math"}
         title={source}
       >
-        {result ? (
-          <span dangerouslySetInnerHTML={{ __html: result }} />
+        {resolvedResult ? (
+          <span dangerouslySetInnerHTML={{ __html: resolvedResult }} />
         ) : (
           <code>{source}</code>
         )}
@@ -142,14 +155,14 @@ export default function TimelineMarkupPreview({
     );
   return (
     <span ref={ref} className="timeline-diagram-preview">
-      {result ? (
+      {resolvedResult ? (
         <button
           type="button"
           className="timeline-image-button"
           aria-label={`${t.enlarge}: ${t.diagram}`}
           onClick={() => setEnlarged(true)}
         >
-          <img src={result} alt={t.diagram} />
+          <img src={resolvedResult} alt={t.diagram} />
         </button>
       ) : (
         <span role="status">{failed ? t.failed : t.loading}</span>
@@ -168,7 +181,7 @@ export default function TimelineMarkupPreview({
             : t.copy}
       </button>
       {enlarged &&
-        result &&
+        resolvedResult &&
         createPortal(
           <dialog
             className="composer-attachment-dialog"
@@ -191,7 +204,7 @@ export default function TimelineMarkupPreview({
                 {t.close}
               </button>
             </header>
-            <img src={result} alt={t.diagram} />
+            <img src={resolvedResult} alt={t.diagram} />
           </dialog>,
           document.body,
         )}

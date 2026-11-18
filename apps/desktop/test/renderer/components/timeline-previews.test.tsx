@@ -548,3 +548,75 @@ it("keeps measured HTML and PDF card space when a virtualized turn returns", asy
   act(() => intersect(preview(), true));
   await waitFor(() => expect(html).toHaveBeenCalledTimes(2));
 });
+
+it("defers preview mounting and disables frame pointer events until momentum scrolling settles", async () => {
+  vi.useFakeTimers();
+  try {
+    const observers = new Map<Element, IntersectionObserverCallback>();
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(private callback: IntersectionObserverCallback) {}
+        observe(element: Element) {
+          observers.set(element, this.callback);
+        }
+        unobserve(element: Element) {
+          observers.delete(element);
+        }
+        disconnect() {}
+      },
+    );
+    const { html, read } = api();
+    const result = render(
+      <div className="timeline-scroll" data-testid="timeline-scroll">
+        <MarkdownContent
+          text="![Chart](chart.png) [Demo](index.html)"
+          videoThreadId="task"
+        />
+      </div>,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    const scroller = result.getByTestId("timeline-scroll");
+    const preview = result.container.querySelector(".timeline-html-preview")!;
+    const image = result.container.querySelector(".timeline-image-preview")!;
+    fireEvent.scroll(scroller);
+    expect(scroller.dataset.scrolling).toBe("true");
+    act(() => {
+      observers.get(preview)!(
+        [
+          {
+            target: preview,
+            isIntersecting: true,
+          } as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
+      observers.get(image)!(
+        [{ target: image, isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+    // Simulate a 700ms momentum scroll gesture (past the old 450ms timer).
+    for (let elapsed = 0; elapsed < 700; elapsed += 100) {
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      fireEvent.scroll(scroller);
+    }
+    expect(html).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
+    expect(scroller.dataset.scrolling).toBe("true");
+    // Once scrolling stops, idle flush mounts the previews across animation frames.
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(scroller.dataset.scrolling).toBeUndefined();
+    expect(html).toHaveBeenCalledOnce();
+    expect(read).toHaveBeenCalledOnce();
+  } finally {
+    vi.useRealTimers();
+  }
+});

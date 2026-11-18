@@ -72,21 +72,39 @@ export function MarkdownVideoContent({
     void Promise.all(
       candidates.map(async (href) => {
         try {
-          if (remotePreviewImage(href)) return [href, href] as const;
+          if (remotePreviewImage(href)) {
+            if (active) layout?.paths.set(href, href);
+            return [href, href] as const;
+          }
           const { path } = await window.artemis.inspectWorkspaceFileLink(
             threadId,
             href,
           );
-          const kind = timelineFileKind(href);
-          if (active && (kind === "document" || kind === "html"))
-            layout?.paths.set(href, path);
+          if (active) layout?.paths.set(href, path);
           return [href, path] as const;
         } catch {
+          if (active) layout?.paths.set(href, href);
           return [href, href] as const;
         }
       }),
     ).then((entries) => {
-      if (active) setPaths(Object.fromEntries(entries));
+      if (!active) return;
+      setPaths((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const [href, path] of entries) {
+          const kind = timelineFileKind(href);
+          const fallback =
+            kind === "document" || kind === "html"
+              ? href.replace(/^\.\//u, "")
+              : undefined;
+          if ((current[href] ?? fallback) !== path) {
+            changed = true;
+          }
+          next[href] = path;
+        }
+        return changed ? next : current;
+      });
     });
     return () => {
       active = false;
@@ -118,7 +136,7 @@ export function MarkdownVideoContent({
     if (kind === "image")
       return (
         <TimelineImagePreview
-          key={path}
+          key={href}
           threadId={threadId}
           path={path}
           alt={alt ?? path}
@@ -129,7 +147,7 @@ export function MarkdownVideoContent({
     if (kind === "document")
       return (
         <TimelineDocumentCard
-          key={path}
+          key={href}
           path={path}
           href={href}
           locale={locale}
@@ -149,7 +167,7 @@ export function MarkdownVideoContent({
       );
     return (
       <WorkspaceVideoPlayer
-        key={path}
+        key={href}
         threadId={threadId}
         href={path}
         locale={locale}

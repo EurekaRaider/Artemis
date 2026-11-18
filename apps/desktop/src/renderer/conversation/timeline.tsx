@@ -130,6 +130,19 @@ export function Timeline({
     }
     return timestamps;
   }, [events, imGroup]);
+  const eventsByTurnId = useMemo(() => {
+    const grouped = new Map<string, AgentEvent[]>();
+    for (const event of events ?? []) {
+      if (!event.turnId) continue;
+      let list = grouped.get(event.turnId);
+      if (!list) {
+        list = [];
+        grouped.set(event.turnId, list);
+      }
+      list.push(event);
+    }
+    return grouped;
+  }, [events]);
   const renderMessageTime = (entry: string, savedTimestamp?: string) => {
     const timestamp = savedTimestamp ?? messageTimestamps.get(entry);
     return timestamp ? (
@@ -437,7 +450,11 @@ export function Timeline({
                 )}
                 {turn?.finalPartId === id && (
                   <span className="message-usage-meta">
-                    {turnUsageLabel(events ?? [], turn.id, locale)}
+                    {turnUsageLabel(
+                      eventsByTurnId.get(turn.id) ?? [],
+                      turn.id,
+                      locale,
+                    )}
                   </span>
                 )}
               </>
@@ -606,7 +623,10 @@ export function Timeline({
               const workRecord = (
                 <WorkRecord
                   turn={turn}
-                  changedFileCount={turnChangedFileCount(events ?? [], turn)}
+                  changedFileCount={turnChangedFileCount(
+                    eventsByTurnId.get(turn.id) ?? [],
+                    turn,
+                  )}
                   locale={locale}
                   entries={workEntries}
                   childAgents={state.childAgents}
@@ -667,7 +687,10 @@ export function Timeline({
             const workRecord = (
               <WorkRecord
                 turn={turn}
-                changedFileCount={turnChangedFileCount(events ?? [], turn)}
+                changedFileCount={turnChangedFileCount(
+                  eventsByTurnId.get(turn.id) ?? [],
+                  turn,
+                )}
                 locale={locale}
                 entries={executionEntries}
                 childAgents={state.childAgents}
