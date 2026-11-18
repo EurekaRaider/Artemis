@@ -80,7 +80,15 @@ export function applyAgentEvent(
   orderedItems: Set<string>,
   index: ReductionIndex,
 ): void {
-  state.seenEventIds[event.eventId] = true;
+  if (
+    state.persistedThrough !== undefined &&
+    state.persistedThrough === state.lastSeq &&
+    event.seq === state.persistedThrough + 1
+  ) {
+    state.persistedThrough = event.seq;
+  } else {
+    state.seenEventIds[event.eventId] = true;
+  }
   state.lastSeq = Math.max(state.lastSeq, event.seq);
   if (event.turnId && !index.writableTurns.has(event.turnId)) {
     const existing = state.turns[event.turnId];
@@ -159,14 +167,14 @@ export function reduceAgentEvent(
   state: ThreadViewState,
   event: AgentEvent,
 ): ThreadViewState {
-  if (event.threadId !== state.threadId || state.seenEventIds[event.eventId]) {
-    return state;
-  }
-
-  const next = cloneThreadViewState(state);
-  applyAgentEvent(next, event, new Set(next.order), createReductionIndex(next));
-  return next;
+  return reduceAgentEventBatch(state, [event]);
 }
+
+// Transfer an index to the next immutable live view. A fork from an older view rebuilds its own.
+const liveIndexes = new WeakMap<
+  ThreadViewState,
+  { orderedItems: Set<string>; index: ReductionIndex }
+>();
 
 export function reduceAgentEventBatch(
   state: ThreadViewState,
@@ -179,17 +187,32 @@ export function reduceAgentEventBatch(
     const current = next ?? state;
     if (
       event.threadId !== current.threadId ||
+      (current.persistedThrough !== undefined &&
+        event.seq <= current.persistedThrough) ||
       current.seenEventIds[event.eventId]
     ) {
       continue;
     }
     if (!next) {
-      next = cloneThreadViewState(state);
-      orderedItems = new Set(next.order);
-      index = createReductionIndex(next);
+      next = cloneThreadViewState(
+        state,
+        events.every((item) => item.payload.type === "message.part.delta"),
+      );
+      const prior = liveIndexes.get(state);
+      if (prior) {
+        liveIndexes.delete(state);
+        orderedItems = prior.orderedItems;
+        index = prior.index;
+        index.writableTurns.clear();
+      } else {
+        orderedItems = new Set(next.order);
+        index = createReductionIndex(next);
+      }
     }
     applyAgentEvent(next, event, orderedItems!, index!);
   }
+  if (next?.persistedThrough !== undefined)
+    liveIndexes.set(next, { orderedItems: orderedItems!, index: index! });
   return next ?? state;
 }
 

@@ -867,6 +867,33 @@ describe("reduceAgentEvent", () => {
     expect(next.turns["turn-2"]?.order).toEqual(["part:p2"]);
   });
 
+  it("compacts consecutive SQLite events while replaying gaps and independent branches exactly once", () => {
+    const seed = { ...createThreadViewState("thread-1"), persistedThrough: -1 };
+    const delta = (seq: number) =>
+      event("id-" + seq, seq, {
+        type: "message.part.delta",
+        partType: "text",
+        partId: "p",
+        delta: String(seq),
+      });
+    const a = reduceAgentEventBatch(seed, [delta(0), delta(1)]);
+    expect(a.seenEventIds).toEqual({});
+    expect(a.tools).toBe(seed.tools);
+    expect(reduceAgentEvent(a, delta(0))).toBe(a);
+    const gap = reduceAgentEventBatch(a, [
+      delta(3),
+      delta(1),
+      delta(2),
+      delta(3),
+    ]);
+    expect(gap.messageParts.p?.text).toBe("0132");
+    expect(reduceAgentEventBatch(gap, [delta(2), delta(3)])).toBe(gap);
+    expect(reduceAgentEventBatch(a, [delta(2)]).messageParts.p?.text).toBe(
+      "012",
+    );
+    expect(a.messageParts.p?.text).toBe("01");
+  });
+
   it("applies a live event batch with one immutable state update", () => {
     const original = reduceAgentEvents("thread-1", [
       event("first", 1, {

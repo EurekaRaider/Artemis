@@ -168,6 +168,9 @@ export interface ThreadViewState {
     followUp: string[];
   };
   changedFiles: string[];
+  // Set only for projections seeded from the ordered, unique SQLite event log.
+  // Replays through this sequence are already represented in the snapshot.
+  persistedThrough?: number;
   seenEventIds: Record<string, true>;
   lastSeq: number;
   error?: string;
@@ -226,16 +229,24 @@ export function createThreadViewState(
   };
 }
 
-export function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
-  return {
+export function cloneThreadViewState(
+  state: ThreadViewState,
+  textOnly = false,
+): ThreadViewState {
+  const next = {
     ...state,
     order: [...state.order],
     turnOrder: [...state.turnOrder],
     turns: { ...state.turns },
     entryTurnIds: { ...state.entryTurnIds },
+    messageParts: { ...state.messageParts },
+    seenEventIds: { ...state.seenEventIds },
+  };
+  if (textOnly) return next;
+  return {
+    ...next,
     userMessages: { ...state.userMessages },
     plans: (state.plans ?? []).map((plan) => ({ ...plan })),
-    messageParts: { ...state.messageParts },
     tools: { ...state.tools },
     approvals: { ...state.approvals },
     userInputs: { ...state.userInputs },
@@ -257,6 +268,5 @@ export function cloneThreadViewState(state: ThreadViewState): ThreadViewState {
       followUp: [...state.queue.followUp],
     },
     changedFiles: [...state.changedFiles],
-    seenEventIds: { ...state.seenEventIds },
   };
 }

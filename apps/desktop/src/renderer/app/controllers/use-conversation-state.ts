@@ -144,7 +144,10 @@ export function useConversationState(context: UseConversationStateContext) {
         )
       : activeHistory
         ? reduceAgentEventBatch(
-            activeHistory.state,
+            {
+              ...activeHistory.state,
+              persistedThrough: activeHistory.state.lastSeq,
+            },
             activeEvents.filter(
               (event) => event.seq > activeHistory.state.lastSeq,
             ),
@@ -162,7 +165,10 @@ export function useConversationState(context: UseConversationStateContext) {
     if (state.order.length < turnWatermark) {
       guardedState = activeHistory
         ? reduceAgentEventBatch(
-            activeHistory.state,
+            {
+              ...activeHistory.state,
+              persistedThrough: activeHistory.state.lastSeq,
+            },
             activeEvents.filter(
               (event) => event.seq > activeHistory.state.lastSeq,
             ),
