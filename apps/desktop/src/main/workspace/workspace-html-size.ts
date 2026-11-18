@@ -43,14 +43,15 @@ export function workspaceHtmlSizeScript(url: string): string {
       }
     };
     const changed = () => { contentChanged = true; schedule(); };
-    // Wheel events do not cross an opaque iframe. Keep inner scrolling when
-    // possible, then hand the remaining gesture back to the timeline.
-    addEventListener("wheel", (event) => {
-      if (parent === window || event.ctrlKey || !event.deltaY) return;
+    // Chromium chains ordinary wheel input across the frame natively. A
+    // gesture latched to an inner scroller can stall at its boundary. Only
+    // scrollers that actually moved need a non-passive listener for that case.
+    const handOffAtEdge = (event) => {
+      if (parent === window || event.ctrlKey || !event.deltaY ||
+          event.defaultPrevented || !event.cancelable) return;
       for (const node of event.composedPath()) {
-        if (!(node instanceof Element)) continue;
-        const style = getComputedStyle(node);
-        if (!/(auto|scroll)/.test(style.overflowY) && node !== document.scrollingElement) continue;
+        if (!(node instanceof Element) || node.scrollHeight <= node.clientHeight) continue;
+        if (node !== document.scrollingElement && !/(auto|scroll)/.test(getComputedStyle(node).overflowY)) continue;
         if (event.deltaY < 0 ? node.scrollTop > 0 :
             node.scrollTop + node.clientHeight < node.scrollHeight - 1) return;
       }
@@ -58,7 +59,11 @@ export function workspaceHtmlSizeScript(url: string): string {
       event.preventDefault();
       parent.postMessage({ type: ${JSON.stringify(WORKSPACE_HTML_WHEEL_MESSAGE)},
         version: 1, url, deltaY }, "*");
-    }, { passive: false });
+    };
+    addEventListener("scroll", (event) => {
+      if (event.target instanceof Element || event.target === document)
+        event.target.addEventListener("wheel", handOffAtEdge, { passive: false });
+    }, { capture: true, passive: true });
     const start = () => {
       new ResizeObserver(schedule).observe(document.body);
       new MutationObserver(changed).observe(document.body, {

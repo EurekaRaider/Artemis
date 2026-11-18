@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { MarkdownContent } from "../../../src/renderer/components/MarkdownContent.js";
+import { HistoryTurn } from "../../../src/renderer/conversation/HistoryTurn.js";
 import { timelineFileKind } from "../../../src/shared/timeline-preview.js";
 import { stubWindowArtemis } from "../../fixtures/renderer-test-utils.js";
 
@@ -378,7 +379,7 @@ it("forwards validated wheel messages as soon as the preview frame mounts", asyn
   }));
   const { container } = render(
     <div
-      style={{ overflowY: "auto" }}
+      className="timeline-scroll"
       data-testid="timeline-scroll"
       onWheel={userWheel}
     >
@@ -389,6 +390,11 @@ it("forwards validated wheel messages as soon as the preview frame mounts", asyn
   Object.defineProperties(scroll, {
     scrollHeight: { value: 2000 },
     clientHeight: { value: 400 },
+  });
+  Object.defineProperty(scroll, "scrollBy", {
+    value: (_x: number, y: number) => {
+      scroll.scrollTop += y;
+    },
   });
   scroll.scrollTop = 500;
   let frame!: HTMLIFrameElement;
@@ -453,4 +459,92 @@ it("forwards validated wheel messages as soon as the preview frame mounts", asyn
   report("100");
   expect(scroll.scrollTop).toBe(480);
   expect(userWheel).toHaveBeenCalledTimes(2);
+});
+
+it("keeps measured HTML and PDF card space when a virtualized turn returns", async () => {
+  const observers = new Map<Element, IntersectionObserverCallback>();
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(element: Element) {
+        observers.set(element, this.callback);
+      }
+      unobserve(element: Element) {
+        observers.delete(element);
+      }
+      disconnect() {}
+    },
+  );
+  const { html, releaseHtml } = api();
+  const inspect = vi.spyOn(window.artemis, "inspectWorkspaceFileLink");
+  const result = render(
+    <div className="timeline-scroll">
+      <HistoryTurn
+        cacheKey="history:document-turn"
+        initialVisible={true}
+        active={false}
+      >
+        {() => (
+          <MarkdownContent
+            text="[Demo](/workspace/index.html) [Report](report.pdf)"
+            videoThreadId="task"
+          />
+        )}
+      </HistoryTurn>
+    </div>,
+  );
+  const find = (selector: string) =>
+    result.container.querySelector<HTMLElement>(selector)!;
+  const intersect = (target: Element, isIntersecting: boolean) => {
+    observers.get(target)!(
+      [{ target, isIntersecting } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
+  };
+  await waitFor(() =>
+    expect(find(".timeline-document-name strong").textContent).toBe(
+      "index.html",
+    ),
+  );
+  const preview = () => find(".timeline-html-preview");
+  const turn = find("[data-history-turn]");
+  await waitFor(() => expect(observers.has(preview())).toBe(true));
+  act(() => {
+    intersect(preview(), true);
+    intersect(preview(), false);
+  });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  expect(html).not.toHaveBeenCalled();
+  act(() => intersect(preview(), true));
+  await waitFor(() => expect(find("iframe")).toBeTruthy());
+  const frame = result.container.querySelector("iframe")!;
+  expect(html).toHaveBeenCalledExactlyOnceWith("task", "/workspace/index.html");
+  fireEvent(
+    window,
+    new MessageEvent("message", {
+      source: frame.contentWindow,
+      data: {
+        type: "artemis:html-size",
+        version: 1,
+        url: frame.src,
+        height: 1200,
+      },
+    }),
+  );
+  act(() => intersect(preview(), false));
+  expect(find("iframe")).toBeNull();
+  expect(releaseHtml).toHaveBeenCalledOnce();
+  expect(find(".timeline-html-viewport").style.height).toBe("1202px");
+  act(() => intersect(turn, false));
+  expect(preview()).toBeNull();
+  act(() => intersect(turn, true));
+  expect(find(".timeline-html-viewport").style.height).toBe("1202px");
+  expect(
+    result.container.querySelectorAll(".timeline-document-card"),
+  ).toHaveLength(2);
+  expect(inspect).toHaveBeenCalledTimes(2);
+  expect(html).toHaveBeenCalledOnce();
+  act(() => intersect(preview(), true));
+  await waitFor(() => expect(html).toHaveBeenCalledTimes(2));
 });

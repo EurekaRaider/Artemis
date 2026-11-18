@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   prepareTimelineRestore,
   resolveTimelinePinned,
+  scrolledUpInTimeline,
   resolveTimelineScrollTarget,
 } from "../../../src/renderer/conversation/timeline-scroll.js";
 
@@ -53,6 +54,14 @@ describe("timeline auto-scroll", () => {
         userInitiated: true,
       }),
     ).toBe(true);
+  });
+
+  it("recognizes upward native scrolling over a frame without interpreting reflow as input", () => {
+    const snapshot = { pinned: true, scrollTop: 1000, scrollExtent: 1000 };
+    expect(scrolledUpInTimeline(snapshot, 820, 1000)).toBe(true);
+    expect(scrolledUpInTimeline(snapshot, 820, 820)).toBe(false);
+    expect(scrolledUpInTimeline(snapshot, 1000, 1200)).toBe(false);
+    expect(scrolledUpInTimeline(undefined, 820, 1000)).toBe(false);
   });
 
   it("returns a pinned conversation to the latest content", () => {

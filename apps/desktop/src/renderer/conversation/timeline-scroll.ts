@@ -3,6 +3,7 @@ const TIMELINE_SCROLL_THRESHOLD = 80;
 export interface TimelineScrollSnapshot {
   pinned: boolean;
   scrollTop: number;
+  scrollExtent?: number;
 }
 
 export interface PendingTimelineRestore {
@@ -20,6 +21,18 @@ export function prepareTimelineRestore(
     threadId,
     ...(snapshot ? { snapshot } : {}),
   };
+}
+
+// Native wheel chaining from an iframe moves the viewport without a wheel
+// event on the parent. Ignore offsets changed by resizing the scroll range.
+export function scrolledUpInTimeline(
+  previous: TimelineScrollSnapshot | undefined,
+  scrollTop: number,
+  scrollExtent: number,
+): boolean {
+  return (
+    previous?.scrollExtent === scrollExtent && scrollTop < previous.scrollTop
+  );
 }
 
 export function resolveTimelinePinned({

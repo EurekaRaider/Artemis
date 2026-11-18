@@ -1,3 +1,4 @@
+import { HistoryPreviewLayout } from "./history-preview-layout.js";
 import { observeHistoryTurn } from "./history-visibility.js";
 import {
   useEffect,
@@ -48,6 +49,10 @@ export function HistoryTurn({
     height.current =
       measuredHeights.get(cacheKey) ?? estimatePlaceholderHeight(cacheKey);
   }
+  const [previewLayout] = useState(() => ({
+    paths: new Map<string, string>(),
+    heights: new Map<string, number>(),
+  }));
   const [visible, setVisible] = useState(initialVisible || active);
   // Synchronous visibility check shared by first paint and scroll events:
   // the IntersectionObserver callback is async, so a placeholder can sit
@@ -106,7 +111,11 @@ export function HistoryTurn({
       data-history-turn=""
       data-mounted={visible || active ? "true" : "false"}
     >
-      {visible || active ? children() : null}
+      {visible || active ? (
+        <HistoryPreviewLayout.Provider value={previewLayout}>
+          {children()}
+        </HistoryPreviewLayout.Provider>
+      ) : null}
     </div>
   );
 }

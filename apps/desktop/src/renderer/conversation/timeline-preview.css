@@ -80,10 +80,16 @@
 .timeline-document-card button {
   flex-shrink: 0;
 }
+.timeline-html-viewport,
 .timeline-html-preview iframe {
   display: block;
   width: 100%;
   height: 360px;
+}
+.timeline-html-viewport {
+  overflow: clip;
+}
+.timeline-html-preview iframe {
   box-sizing: border-box;
   border: 1px solid #8884;
   border-radius: 8px;
@@ -164,6 +170,7 @@
   .timeline-document-card button {
     margin-inline-start: auto;
   }
+  .timeline-html-viewport,
   .timeline-html-preview iframe {
     height: 280px;
   }

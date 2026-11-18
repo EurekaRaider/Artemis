@@ -1,4 +1,5 @@
 import {
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -12,6 +13,7 @@ import {
   WORKSPACE_HTML_SIZE_MESSAGE,
   WORKSPACE_HTML_WHEEL_MESSAGE,
 } from "../../shared/workspace-html-size.js";
+import { HistoryPreviewLayout } from "./history-preview-layout.js";
 import { timelinePreviewCopy } from "./timeline-preview-copy.js";
 import { usePreviewVisible } from "./use-preview-visible.js";
 import {
@@ -66,25 +68,32 @@ export function TimelineHtmlPreview({
   locale: AppLocale;
   onOpen?: ((href: string) => void) | undefined;
 }) {
-  const { ref, visible } = usePreviewVisible();
+  const { ref, visible } = usePreviewVisible(true);
+  const layout = useContext(HistoryPreviewLayout);
   const [url, setUrl] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState<number>();
+  const [measurement, setMeasurement] = useState<{
+    url: string;
+    height: number;
+  }>();
+  const reservedHeight = measurement?.height ?? layout?.heights.get(href);
   const t = timelinePreviewCopy(locale);
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setUrl(undefined);
+      return;
+    }
     let active = true;
     let lease: string | undefined;
     const release = (value: string) => {
       void window.artemis.releaseWorkspaceHtml(threadId, value).catch(() => {});
     };
     setUrl(undefined);
-    setHeight(undefined);
     setFailed(false);
     void window.artemis
-      .openWorkspaceHtml(threadId, path)
+      .openWorkspaceHtml(threadId, href)
       .then((result) => {
         if (!active) {
           release(result.url);
@@ -104,7 +113,7 @@ export function TimelineHtmlPreview({
       active = false;
       if (lease) release(lease);
     };
-  }, [threadId, path, attempt, visible]);
+  }, [threadId, href, attempt, visible]);
   // Register before paint so a newly mounted frame cannot outpace the listener.
   useLayoutEffect(() => {
     if (!url) return;
@@ -121,22 +130,13 @@ export function TimelineHtmlPreview({
       if (data.type === WORKSPACE_HTML_WHEEL_MESSAGE) {
         if (typeof data.deltaY !== "number" || !Number.isFinite(data.deltaY))
           return;
-        let parent = frameRef.current.parentElement;
-        while (parent) {
-          if (
-            /(auto|scroll)/.test(getComputedStyle(parent).overflowY) &&
-            parent.scrollHeight > parent.clientHeight
-          ) {
-            const deltaY = Math.max(-2000, Math.min(2000, data.deltaY));
-            // Let the timeline recognize user intent before its scroll handler
-            // runs; otherwise automatic bottom-following remains enabled.
-            frameRef.current.dispatchEvent(
-              new WheelEvent("wheel", { bubbles: true, deltaY }),
-            );
-            parent.scrollTop += deltaY;
-            break;
-          }
-          parent = parent.parentElement;
+        const timeline = frameRef.current.closest(".timeline-scroll");
+        if (timeline) {
+          const deltaY = Math.max(-2000, Math.min(2000, data.deltaY));
+          frameRef.current.dispatchEvent(
+            new WheelEvent("wheel", { bubbles: true, deltaY }),
+          );
+          timeline.scrollBy(0, deltaY);
         }
         return;
       }
@@ -147,13 +147,14 @@ export function TimelineHtmlPreview({
         data.height <= 0
       )
         return;
-      setHeight(
-        Math.min(WORKSPACE_HTML_MAX_HEIGHT, Math.ceil(data.height)) + 2,
-      );
+      const height =
+        Math.min(WORKSPACE_HTML_MAX_HEIGHT, Math.ceil(data.height)) + 2;
+      layout?.heights.set(href, height);
+      setMeasurement({ url, height });
     };
     window.addEventListener("message", resize);
     return () => window.removeEventListener("message", resize);
-  }, [url]);
+  }, [url, href, layout]);
   return (
     <span ref={ref} className="timeline-html-preview">
       <TimelineDocumentCard
@@ -162,18 +163,29 @@ export function TimelineHtmlPreview({
         locale={locale}
         onOpen={onOpen}
       />
-      {url ? (
-        <iframe
-          ref={frameRef}
-          title={path}
-          src={url}
-          style={height === undefined ? undefined : { height }}
-          sandbox="allow-scripts"
-          referrerPolicy="no-referrer"
-        />
+      {failed ? (
+        <span role="alert">{t.failed}</span>
       ) : (
-        <span role={failed ? "alert" : "status"}>
-          {failed ? t.failed : t.loading}
+        <span
+          className="timeline-html-viewport"
+          style={{ height: reservedHeight }}
+        >
+          {visible && url ? (
+            <iframe
+              ref={frameRef}
+              title={path}
+              src={url}
+              style={
+                measurement?.url === url
+                  ? { height: measurement.height }
+                  : undefined
+              }
+              sandbox="allow-scripts"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span role="status">{t.loading}</span>
+          )}
         </span>
       )}
       <span className="timeline-preview-toolbar">

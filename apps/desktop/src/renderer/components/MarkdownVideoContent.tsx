@@ -2,6 +2,7 @@ import {
   createElement,
   lazy,
   Suspense,
+  useContext,
   useEffect,
   useMemo,
   useState,
@@ -12,6 +13,7 @@ import {
   timelineFileKind,
   remotePreviewImage,
 } from "../../shared/timeline-preview.js";
+import { HistoryPreviewLayout } from "../conversation/history-preview-layout.js";
 import { TimelineImagePreview } from "../conversation/TimelineImagePreview.js";
 import {
   TimelineDocumentCard,
@@ -41,34 +43,44 @@ export function MarkdownVideoContent({
     template.innerHTML = html;
     return template.content;
   }, [html]);
-  const hrefs = [
-    ...new Set(
-      [
-        ...parsed.querySelectorAll<HTMLElement>(
-          "[data-workspace-preview],a[data-workspace-file]",
-        ),
-      ]
-        .map(
-          (node) =>
-            node.dataset.workspacePreview ?? node.dataset.workspaceFile ?? "",
-        )
-        .filter((href) => timelineFileKind(href) || remotePreviewImage(href)),
-    ),
-  ];
+  const layout = useContext(HistoryPreviewLayout);
+  const hrefs = useMemo(
+    () => [
+      ...new Set(
+        [
+          ...parsed.querySelectorAll<HTMLElement>(
+            "[data-workspace-preview],a[data-workspace-file]",
+          ),
+        ]
+          .map(
+            (node) =>
+              node.dataset.workspacePreview ?? node.dataset.workspaceFile ?? "",
+          )
+          .filter((href) => timelineFileKind(href) || remotePreviewImage(href)),
+      ),
+    ],
+    [parsed],
+  );
   const signature = JSON.stringify(hrefs);
   const [paths, setPaths] = useState<Record<string, string>>({});
   useEffect(() => {
     let active = true;
-    const candidates = JSON.parse(signature) as string[];
+    const candidates = (JSON.parse(signature) as string[]).filter(
+      (href) => !layout?.paths.has(href),
+    );
+    if (!candidates.length) return;
     void Promise.all(
       candidates.map(async (href) => {
         try {
           if (remotePreviewImage(href)) return [href, href] as const;
-          return [
+          const { path } = await window.artemis.inspectWorkspaceFileLink(
+            threadId,
             href,
-            (await window.artemis.inspectWorkspaceFileLink(threadId, href))
-              .path,
-          ] as const;
+          );
+          const kind = timelineFileKind(href);
+          if (active && (kind === "document" || kind === "html"))
+            layout?.paths.set(href, path);
+          return [href, path] as const;
         } catch {
           return [href, href] as const;
         }
@@ -79,16 +91,27 @@ export function MarkdownVideoContent({
     return () => {
       active = false;
     };
-  }, [signature, threadId]);
+  }, [signature, threadId, layout]);
+
+  const pathFor = (href: string) => {
+    const path = paths[href] ?? layout?.paths.get(href);
+    if (path) return path;
+    // Reserve document cards immediately, including the first visit while
+    // main resolves aliases. Actual opens always validate the original href.
+    const kind = timelineFileKind(href);
+    return kind === "document" || kind === "html"
+      ? href.replace(/^\.\//u, "")
+      : undefined;
+  };
 
   const embedded = new Set(
     [...parsed.querySelectorAll<HTMLElement>("[data-workspace-preview]")]
-      .map((node) => paths[node.dataset.workspacePreview ?? ""])
+      .map((node) => pathFor(node.dataset.workspacePreview ?? ""))
       .filter(Boolean),
   );
   const rendered = new Set<string>();
   const player = (href: string, alt?: string) => {
-    const path = paths[href];
+    const path = pathFor(href);
     if (!path || rendered.has(path)) return null;
     rendered.add(path);
     const kind = remotePreviewImage(href) ? "image" : timelineFileKind(href);
@@ -116,7 +139,7 @@ export function MarkdownVideoContent({
     if (kind === "html")
       return (
         <TimelineHtmlPreview
-          key={path}
+          key={href}
           threadId={threadId}
           path={path}
           href={href}
@@ -188,7 +211,7 @@ export function MarkdownVideoContent({
         renderNode(node, String(index)),
       )}
       {hrefs
-        .filter((href) => !embedded.has(paths[href]))
+        .filter((href) => !embedded.has(pathFor(href)))
         .map((href) => player(href))}
     </>
   );

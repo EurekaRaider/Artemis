@@ -77,3 +77,50 @@ it("does not grow a viewport-sized page after delayed resize deliveries, but sti
   measure();
   expect(reports.at(-1)?.height).toBe(116);
 });
+
+it("leaves ordinary wheel input native and hands off a latched inner scroller only at its edge", () => {
+  class Scroller extends EventTarget {
+    scrollTop = 20;
+    scrollHeight = 300;
+    clientHeight = 100;
+  }
+  const inner = new Scroller();
+  const reports: unknown[] = [];
+  const listeners = new Map<string, EventListener>();
+  const source = workspaceHtmlSizeScript("artemis-preview://lease/sample.html");
+  runInNewContext(source.slice("<script>".length, -"</script>".length), {
+    window: {},
+    parent: { postMessage: (data: unknown) => reports.push(data) },
+    Element: Scroller,
+    innerWidth: 800,
+    innerHeight: 360,
+    document: { readyState: "loading", addEventListener() {} },
+    addEventListener: (name: string, listener: EventListener) =>
+      listeners.set(name, listener),
+    getComputedStyle: () => ({ overflowY: "auto" }),
+  });
+  expect(listeners.has("wheel")).toBe(false);
+  const scroll = new Event("scroll");
+  Object.defineProperty(scroll, "target", { value: inner });
+  listeners.get("scroll")!(scroll);
+  const wheel = () => {
+    const event = Object.assign(new Event("wheel", { cancelable: true }), {
+      deltaY: 25,
+      deltaMode: 0,
+      composedPath: () => [inner],
+    });
+    inner.dispatchEvent(event);
+    return event;
+  };
+  expect(wheel().defaultPrevented).toBe(false);
+  inner.scrollTop = 200;
+  expect(wheel().defaultPrevented).toBe(true);
+  expect(reports).toEqual([
+    {
+      type: "artemis:html-wheel",
+      version: 1,
+      url: "artemis-preview://lease/sample.html",
+      deltaY: 25,
+    },
+  ]);
+});

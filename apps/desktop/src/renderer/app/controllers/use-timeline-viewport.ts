@@ -76,10 +76,16 @@ export function useTimelineViewport(context: UseTimelineViewportContext) {
       if (!container) return;
       timelinePinned.current = pending.snapshot?.pinned ?? true;
       pendingTimelineRestore.current = undefined;
+      const { clientHeight, scrollHeight } = container;
       container.scrollTop = resolveTimelineScrollTarget({
-        clientHeight: container.clientHeight,
-        scrollHeight: container.scrollHeight,
+        clientHeight,
+        scrollHeight,
         ...(pending.snapshot ? { snapshot: pending.snapshot } : {}),
+      });
+      timelineScrollSnapshots.current.set(activeThreadId, {
+        pinned: timelinePinned.current,
+        scrollTop: container.scrollTop,
+        scrollExtent: scrollHeight - clientHeight,
       });
     });
     return () => window.cancelAnimationFrame(frame);
@@ -112,7 +118,8 @@ export function useTimelineViewport(context: UseTimelineViewportContext) {
     if (!timelinePinned.current) return;
     const frame = window.requestAnimationFrame(() => {
       const container = timelineScroll.current;
-      if (container) container.scrollTop = container.scrollHeight;
+      if (container && timelinePinned.current)
+        container.scrollTop = container.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
   }, [threadState?.lastSeq]);

@@ -213,6 +213,7 @@ import { clampTreeActiveRowId } from "./project-thread-tree.js";
 
 import {
   resolveTimelinePinned,
+  scrolledUpInTimeline,
   type TimelineScrollSnapshot,
 } from "../conversation/timeline-scroll.js";
 
@@ -2764,29 +2765,34 @@ export function App() {
                     }}
                     onScroll={(event) => {
                       const container = event.currentTarget;
-                      if (
-                        container.scrollTop < 240 &&
-                        (timelineScrollIntent.current ||
-                          timelineScrollbarPointerActive.current)
-                      )
+                      const { clientHeight, scrollHeight, scrollTop } =
+                        container;
+                      const scrollExtent = scrollHeight - clientHeight;
+                      const threadId = activeThreadIdRef.current;
+                      const previous = threadId
+                        ? timelineScrollSnapshots.current.get(threadId)
+                        : undefined;
+                      const userInitiated =
+                        timelineScrollIntent.current ||
+                        timelineScrollbarPointerActive.current ||
+                        scrolledUpInTimeline(previous, scrollTop, scrollExtent);
+                      if (scrollTop < 240 && userInitiated)
                         loadEarlierHistory();
                       timelinePinned.current = resolveTimelinePinned({
-                        clientHeight: container.clientHeight,
+                        clientHeight,
                         pinned: timelinePinned.current,
-                        scrollHeight: container.scrollHeight,
-                        scrollTop: container.scrollTop,
-                        userInitiated:
-                          timelineScrollIntent.current ||
-                          timelineScrollbarPointerActive.current,
+                        scrollHeight,
+                        scrollTop,
+                        userInitiated,
                       });
-                      const threadId = activeThreadIdRef.current;
                       if (
                         threadId &&
                         pendingTimelineRestore.current?.threadId !== threadId
                       ) {
                         timelineScrollSnapshots.current.set(threadId, {
                           pinned: timelinePinned.current,
-                          scrollTop: container.scrollTop,
+                          scrollTop,
+                          scrollExtent,
                         });
                       }
                       timelineScrollIntent.current = false;
