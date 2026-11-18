@@ -135,6 +135,12 @@ export function initializeStoreDatabase(database: DatabaseSync): void {
         ON threads(project_id, archived, updated_at DESC);
       CREATE INDEX IF NOT EXISTS ix_events_thread
         ON events(thread_id, seq);
+      CREATE INDEX IF NOT EXISTS ix_events_user_message ON events(thread_id)
+        WHERE json_extract(body, '$.payload.type') = 'user.message';
+      CREATE INDEX IF NOT EXISTS ix_events_plan ON events(thread_id, seq)
+        WHERE json_extract(body, '$.payload.type') IN ('plan.proposed','plan.accepted','plan.superseded');
+      CREATE INDEX IF NOT EXISTS ix_events_turn_end ON events(thread_id, json_extract(body, '$.turnId'), seq)
+        WHERE json_extract(body, '$.payload.type') IN ('turn.completed','turn.failed');
 
       CREATE TABLE IF NOT EXISTS turn_change_sets (
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,

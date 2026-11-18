@@ -134,12 +134,12 @@ export function createTurnExecution(services: Dependencies) {
     if (thread.archived) {
       throw new Error("Archived tasks cannot start a turn.");
     }
-    const pendingPlan = services.store.plans(thread.id).at(-1);
+    const plans = services.store.plans(thread.id);
     if (options.acceptance) {
-      assertAcceptablePlan(services.store.plans(thread.id), options.acceptance);
+      assertAcceptablePlan(plans, options.acceptance);
       if (options.origin !== "desktop" || source !== "user")
         throw new Error("Plan acceptance requires a desktop user choice.");
-    } else if (pendingPlan?.status === "proposed") {
+    } else if (plans.at(-1)?.status === "proposed") {
       if (source !== "user" || options.origin !== "desktop")
         throw new Error("PLAN_REQUIRES_USER_CHOICE");
       input = { ...input, mode: "plan" };
@@ -213,7 +213,7 @@ export function createTurnExecution(services: Dependencies) {
       shouldGenerateTaskTitle(
         thread.title,
         source,
-        services.store.getThreadEvents(thread.id),
+        () => services.store!.hasUserMessage(input.threadId),
         options.titleContext?.initialTitle,
       )
     ) {

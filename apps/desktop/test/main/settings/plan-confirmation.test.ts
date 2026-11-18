@@ -1,9 +1,9 @@
-import { acceptedPlanPrompt } from "@artemis/protocol";
+import { acceptedPlanPrompt, collectPlans } from "@artemis/protocol";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { AppStore } from "../../../src/main/settings/store.js";
 const dirs: string[] = [];
 afterEach(async () => {
@@ -192,4 +192,31 @@ it("refuses an accepted checkpoint containing only a reference to the plan", asy
   ).toThrow(/PLAN_ACCEPT/);
   expect(store.plans("t")[0]?.status).toBe("proposed");
   store.close();
+});
+
+it("reads only plan lifecycle records and recognizes persisted user messages", async () => {
+  const { store } = await fixture();
+  try {
+    expect(store.hasUserMessage("t")).toBe(false);
+    store.appendEvent(randomUUID(), "t", "other", {
+      type: "user.message",
+      messageId: "u",
+      text: "hi",
+    });
+    store.appendEvent(randomUUID(), "t", "other", {
+      type: "turn.failed",
+      message: "other",
+    });
+    store.appendEvent(randomUUID(), "t", "p", {
+      type: "turn.completed",
+      reason: "completed",
+    });
+    const expected = collectPlans(store.getThreadEvents("t"));
+    const wholeLog = vi.spyOn(store, "getThreadEvents");
+    expect(store.hasUserMessage("t")).toBe(true);
+    expect(store.plans("t")).toEqual(expected);
+    expect(wholeLog).not.toHaveBeenCalled();
+  } finally {
+    store.close();
+  }
 });

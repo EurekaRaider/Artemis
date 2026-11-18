@@ -1,5 +1,5 @@
 import { imText } from "@artemis/gateway";
-import type { AgentEvent, AppLocale, Thread } from "@artemis/protocol";
+import type { AppLocale, Thread } from "@artemis/protocol";
 
 import { I18N_RESOURCES } from "../../shared/i18n/i18n-resources.js";
 import { mainText } from "../settings/i18n.js";
@@ -101,13 +101,13 @@ export function isAutomaticTaskTitle(title: string): boolean {
 export function shouldGenerateTaskTitle(
   title: string,
   source: "user" | "goal-continuation",
-  events: readonly AgentEvent[],
+  hasUserMessage: () => boolean,
   initialImTitle?: string,
 ): boolean {
   return (
     source === "user" &&
     (isAutomaticTaskTitle(title) || title === initialImTitle) &&
-    !events.some((event) => event.payload.type === "user.message")
+    !hasUserMessage()
   );
 }
 

@@ -30,7 +30,6 @@ import type { StoreDependencies } from "./store-dependencies.js";
 export function createConversationRepository(
   services: Pick<
     StoreDependencies,
-    | "getThreadEvents"
     | "getThread"
     | "plans"
     | "appendEvent"
@@ -45,7 +44,36 @@ export function createConversationRepository(
   >,
 ) {
   function plans(threadId: string) {
-    return collectPlans(services.getThreadEvents(threadId));
+    const rows = services.database
+      .prepare(
+        `
+      WITH plan_events AS MATERIALIZED (
+        SELECT seq, body FROM events WHERE thread_id = ?
+          AND json_extract(body, '$.payload.type') IN ('plan.proposed','plan.accepted','plan.superseded')
+      )
+      SELECT seq, body FROM plan_events
+      UNION ALL
+      SELECT seq, body FROM events WHERE thread_id = ?
+        AND json_extract(body, '$.payload.type') IN ('turn.completed','turn.failed')
+        AND json_extract(body, '$.turnId') IN (
+          SELECT json_extract(body, '$.payload.sourceTurnId') FROM plan_events
+        )
+      ORDER BY seq`,
+      )
+      .all(threadId, threadId);
+    return collectPlans(
+      rows.map((row) => agentEventFromBody(String(row.body))),
+    );
+  }
+
+  function hasUserMessage(threadId: string): boolean {
+    return Boolean(
+      services.database
+        .prepare(
+          "SELECT 1 FROM events WHERE thread_id = ? AND json_extract(body, '$.payload.type') = 'user.message' LIMIT 1",
+        )
+        .get(threadId),
+    );
   }
 
   function proposePlan(
@@ -116,13 +144,11 @@ export function createConversationRepository(
   ): { events: AgentEvent[]; thread: Thread } {
     services.database.exec("BEGIN IMMEDIATE");
     try {
-      const latest = services.plans(threadId).at(-1);
+      const storedPlans = services.plans(threadId);
+      const latest = storedPlans.at(-1);
       const prefixes: EventAppendInput[] = [];
       if (acceptance) {
-        const acceptedPlan = assertAcceptablePlan(
-          services.plans(threadId),
-          acceptance,
-        );
+        const acceptedPlan = assertAcceptablePlan(storedPlans, acceptance);
         const current = services.getThread(threadId);
         if (
           !checkpoint ||
@@ -516,6 +542,7 @@ export function createConversationRepository(
   }
   const handlers = {
     plans,
+    hasUserMessage,
     proposePlan,
     appendEvent,
     appendEvents,

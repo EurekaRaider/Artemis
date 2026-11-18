@@ -234,6 +234,10 @@ export class AppStore {
     return this.conversationRepository.plans(threadId);
   }
 
+  hasUserMessage(threadId: string): boolean {
+    return this.conversationRepository.hasUserMessage(threadId);
+  }
+
   proposePlan(
     threadId: string,
     turnId: string,

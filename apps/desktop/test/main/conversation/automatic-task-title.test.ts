@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AgentEvent, Thread } from "@artemis/protocol";
+import type { Thread } from "@artemis/protocol";
 import {
   AutomaticTaskTitles,
   shouldGenerateTaskTitle,
@@ -101,18 +101,21 @@ describe("automatic model task titles", () => {
 
 describe("first-message title eligibility", () => {
   it("only names untouched conversations on a user turn", () => {
-    expect(shouldGenerateTaskTitle("New task", "user", [])).toBe(true);
-    expect(shouldGenerateTaskTitle("My title", "user", [])).toBe(false);
-    expect(shouldGenerateTaskTitle("New task", "goal-continuation", [])).toBe(
+    const hasUserMessage = vi.fn(() => false);
+    expect(shouldGenerateTaskTitle("My title", "user", hasUserMessage)).toBe(
       false,
     );
+    expect(
+      shouldGenerateTaskTitle("New task", "goal-continuation", hasUserMessage),
+    ).toBe(false);
+    expect(hasUserMessage).not.toHaveBeenCalled();
+    expect(shouldGenerateTaskTitle("New task", "user", hasUserMessage)).toBe(
+      true,
+    );
+    expect(hasUserMessage).toHaveBeenCalledOnce();
   });
   it("does not retry on later messages or after restoring persisted history", () => {
-    const events = [
-      { payload: { type: "user.message", text: "first request" } },
-    ] as AgentEvent[];
-    expect(shouldGenerateTaskTitle("New task", "user", events)).toBe(false);
-    expect(shouldGenerateTaskTitle("已生成标题", "user", events)).toBe(false);
+    expect(shouldGenerateTaskTitle("New task", "user", () => true)).toBe(false);
   });
 });
 
@@ -131,21 +134,23 @@ describe("IM task titles", () => {
   });
   it("allows only the explicitly supplied initial IM title on the first turn", () => {
     const initial = "Slack · Jupiter 你好";
-    expect(shouldGenerateTaskTitle(initial, "user", [], initial)).toBe(true);
-    expect(shouldGenerateTaskTitle(initial, "user", [])).toBe(false);
-    expect(shouldGenerateTaskTitle("手动命名", "user", [], initial)).toBe(
-      false,
+    expect(shouldGenerateTaskTitle(initial, "user", () => false, initial)).toBe(
+      true,
     );
+    expect(shouldGenerateTaskTitle(initial, "user", () => false)).toBe(false);
     expect(
-      shouldGenerateTaskTitle(initial, "goal-continuation", [], initial),
+      shouldGenerateTaskTitle("手动命名", "user", () => false, initial),
     ).toBe(false);
     expect(
       shouldGenerateTaskTitle(
         initial,
-        "user",
-        [{ payload: { type: "user.message", text: "你好" } }] as AgentEvent[],
+        "goal-continuation",
+        () => false,
         initial,
       ),
     ).toBe(false);
+    expect(shouldGenerateTaskTitle(initial, "user", () => true, initial)).toBe(
+      false,
+    );
   });
 });
