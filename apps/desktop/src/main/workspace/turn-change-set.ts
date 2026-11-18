@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import {
   appendFile,
   chmod,
@@ -376,7 +376,7 @@ async function captureSnapshot(
   }
   if (name === "after") {
     // A failed completion may have appended bytes after the original snapshot.
-    const file = await open(pack.path, "a+");
+    const file = await open(pack.path, constants.O_RDWR | constants.O_CREAT);
     try {
       const { size } = await file.stat();
       if (size < pack.nextOffset) throw new Error("Incomplete turn snapshot.");
