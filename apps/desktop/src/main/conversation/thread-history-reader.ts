@@ -15,11 +15,19 @@ import type {
 
 const PAGE_TURNS = 30;
 // Bump when the projection shape or reducer semantics change.
-const SNAPSHOT_VERSION = 3;
+const SNAPSHOT_VERSION = 4;
+const CHECKPOINT_INTERVAL = 4096;
 interface Snapshot {
   version: number;
   state: ThreadViewState;
   events: AgentEvent[];
+}
+
+interface IndexedSnapshot {
+  snapshot: Snapshot;
+  mode: RunMode;
+  checkpointSeq?: number;
+  positions: { turns: Map<string, number>; entries: Map<string, number> };
 }
 
 // This reader runs exclusively in the history worker, including SQLite, parsing
@@ -27,6 +35,8 @@ interface Snapshot {
 export class ThreadHistoryReader {
   private readonly database: DatabaseSync;
   private readonly cache: DatabaseSync;
+  private recent: IndexedSnapshot | undefined;
+  private idleTimer?: NodeJS.Timeout;
   constructor(databasePath: string) {
     this.database = new DatabaseSync(databasePath, { readOnly: true });
     this.cache = new DatabaseSync(`${databasePath}.history-cache`);
@@ -101,28 +111,83 @@ export class ThreadHistoryReader {
           .run(threadId);
       }
     }
+    const { snapshot, positions } = this.projection(
+      threadId,
+      thread.mode,
+      endSeq,
+      !cursor,
+    );
+    const end = Math.min(
+      cursor?.beforeTurn ?? snapshot.state.turnOrder.length,
+      snapshot.state.turnOrder.length,
+    );
+    const page = this.page(snapshot, endSeq, end, !cursor, positions);
+    if (!cursor) {
+      this.cache.exec("BEGIN");
+      try {
+        this.cache
+          .prepare("DELETE FROM thread_history_pages WHERE thread_id = ?")
+          .run(threadId);
+        this.cache
+          .prepare("INSERT INTO thread_history_pages VALUES (?, ?, -1, ?)")
+          .run(threadId, endSeq, JSON.stringify(page));
+        this.cache.exec("COMMIT");
+      } catch (error) {
+        this.cache.exec("ROLLBACK");
+        throw error;
+      }
+    }
+    return page;
+  }
+
+  private projection(
+    threadId: string,
+    mode: RunMode,
+    endSeq: number,
+    latest: boolean,
+  ): IndexedSnapshot {
+    // Keep one indexed snapshot while paging. Release a large idle thread between visits.
+    if (this.idleTimer) this.idleTimer.refresh();
+    else
+      this.idleTimer = setTimeout(() => {
+        this.recent = undefined;
+      }, 30_000).unref();
+    const recent = this.recent;
+    const compatible =
+      recent?.snapshot.state.threadId === threadId &&
+      recent.mode === mode &&
+      recent.snapshot.state.lastSeq <= endSeq;
+    if (compatible && recent.snapshot.state.lastSeq === endSeq) return recent;
+    let checkpointSeq: number | undefined;
     let snapshot: Snapshot = {
       version: SNAPSHOT_VERSION,
-      state: createThreadViewState(threadId, thread.mode),
+      state: createThreadViewState(threadId, mode),
       events: [],
     };
-    const cached = this.cache
-      .prepare(
-        "SELECT body FROM thread_history_snapshots WHERE thread_id = ? AND seq <= ?",
-      )
-      .get(threadId, endSeq) as { body: string } | undefined;
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached.body) as Snapshot;
-        if (
-          parsed.version === SNAPSHOT_VERSION &&
-          parsed.state.threadId === threadId &&
-          parsed.state.mode === thread.mode &&
-          parsed.state.lastSeq <= endSeq
+    if (compatible) {
+      snapshot = { ...recent.snapshot, events: [...recent.snapshot.events] };
+      checkpointSeq = recent.checkpointSeq;
+    } else {
+      const cached = this.cache
+        .prepare(
+          "SELECT body FROM thread_history_snapshots WHERE thread_id = ? AND seq <= ?",
         )
-          snapshot = parsed;
-      } catch {
-        /* A disposable projection can always be rebuilt. */
+        .get(threadId, endSeq) as { body: string } | undefined;
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached.body) as Snapshot;
+          if (
+            parsed.version === SNAPSHOT_VERSION &&
+            parsed.state.threadId === threadId &&
+            parsed.state.mode === mode &&
+            parsed.state.lastSeq <= endSeq
+          ) {
+            snapshot = parsed;
+            checkpointSeq = parsed.state.lastSeq;
+          }
+        } catch {
+          /* A disposable projection can always be rebuilt. */
+        }
       }
     }
     const rows = this.database
@@ -146,50 +211,29 @@ export class ThreadHistoryReader {
     }
     snapshot.state = reduceAgentEventBatch(snapshot.state, batch);
     snapshot.state.seenEventIds = {};
-    if (!cursor)
+    if (
+      latest &&
+      (checkpointSeq === undefined ||
+        endSeq - checkpointSeq >= CHECKPOINT_INTERVAL)
+    ) {
       this.cache
         .prepare(
           "INSERT OR REPLACE INTO thread_history_snapshots VALUES (?, ?, ?)",
         )
         .run(threadId, endSeq, JSON.stringify(snapshot));
-    const end = Math.min(
-      cursor?.beforeTurn ?? snapshot.state.turnOrder.length,
-      snapshot.state.turnOrder.length,
-    );
+      checkpointSeq = endSeq;
+    }
     const positions = {
       turns: new Map(snapshot.state.turnOrder.map((id, index) => [id, index])),
       entries: new Map(snapshot.state.order.map((id, index) => [id, index])),
     };
-    const page = this.page(snapshot, endSeq, end, !cursor, positions);
-    if (!cursor) {
-      // Materialize page-sized projections once, so cursor reads never parse
-      // the full snapshot. These tables are disposable, not user data.
-      this.cache.exec("BEGIN");
-      try {
-        this.cache
-          .prepare("DELETE FROM thread_history_pages WHERE thread_id = ?")
-          .run(threadId);
-        const insert = this.cache.prepare(
-          "INSERT INTO thread_history_pages VALUES (?, ?, ?, ?)",
-        );
-        insert.run(threadId, endSeq, -1, JSON.stringify(page));
-        for (let before = end - PAGE_TURNS; before > 0; before -= PAGE_TURNS) {
-          insert.run(
-            threadId,
-            endSeq,
-            before,
-            JSON.stringify(
-              this.page(snapshot, endSeq, before, false, positions),
-            ),
-          );
-        }
-        this.cache.exec("COMMIT");
-      } catch (error) {
-        this.cache.exec("ROLLBACK");
-        throw error;
-      }
-    }
-    return page;
+    this.recent = {
+      snapshot,
+      mode,
+      positions,
+      ...(checkpointSeq === undefined ? {} : { checkpointSeq }),
+    };
+    return this.recent;
   }
 
   private page(
@@ -216,7 +260,7 @@ export class ThreadHistoryReader {
       entryPositions: Object.fromEntries(
         state.order.map((id) => [id, positions.entries.get(id)!]),
       ),
-      events: snapshot.events,
+      events: includeRuntime ? snapshot.events : [],
       ...(start > 0
         ? { cursor: { snapshotSeq: endSeq, beforeTurn: start } }
         : {}),
@@ -224,6 +268,8 @@ export class ThreadHistoryReader {
   }
 
   discard(threadId: string): void {
+    if (this.recent?.snapshot.state.threadId === threadId)
+      this.recent = undefined;
     this.cache
       .prepare("DELETE FROM thread_history_pages WHERE thread_id = ?")
       .run(threadId);
@@ -233,6 +279,8 @@ export class ThreadHistoryReader {
   }
 
   close(): void {
+    clearTimeout(this.idleTimer);
+    this.recent = undefined;
     this.cache.close();
     this.database.close();
   }
@@ -341,7 +389,10 @@ export function historyWindow(
         }),
     );
   return {
-    ...state,
+    ...(includeRuntime
+      ? state
+      : createThreadViewState(state.threadId, state.mode)),
+    lastSeq: state.lastSeq,
     order,
     turnOrder,
     turns,
@@ -353,6 +404,8 @@ export function historyWindow(
     userMessages: pick(state.userMessages, "user"),
     messageParts: pick(state.messageParts, "part"),
     tools: pick(state.tools, "tool"),
+    approvals: pick(state.approvals, "approval"),
+    userInputs: pick(state.userInputs, "input"),
     seenEventIds: {},
   };
 }

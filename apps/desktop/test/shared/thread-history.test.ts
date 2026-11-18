@@ -232,6 +232,49 @@ describe("paged history projections", () => {
     });
   });
 
+  it("builds older pages on demand and scopes resolved interactions to their turn", () => {
+    const { reader, add, path } = fixture();
+    for (const turn of ["t0", "t64"]) {
+      add(turn, {
+        type: "approval.requested",
+        approvalId: turn,
+        nonce: "history-nonce-0001",
+        summary: "Run tests",
+        risk: "low",
+        allowedScopes: ["once"],
+        paths: [],
+        network: [],
+      });
+      add(turn, {
+        type: "approval.resolved",
+        approvalId: turn,
+        nonce: "history-nonce-0001",
+        approved: true,
+        scope: "once",
+      });
+    }
+    let page = reader.read("thread");
+    const cache = new DatabaseSync(path + ".history-cache", { readOnly: true });
+    try {
+      expect(
+        cache.prepare("SELECT count(*) AS n FROM thread_history_pages").get()
+          ?.n,
+      ).toBe(1);
+    } finally {
+      cache.close();
+    }
+    expect(Object.keys(page.state.approvals)).toEqual(["t64"]);
+    const cursor = page.cursor!;
+    add("t66", { type: "turn.started", mode: "work" });
+    reader.read("thread");
+    const older = reader.read("thread", cursor);
+    expect(older.state.lastSeq).toBe(cursor.snapshotSeq);
+    expect(older.events).toEqual([]);
+    while (page.cursor)
+      page = mergeHistoryPage(page, reader.read("thread", page.cursor));
+    expect(Object.keys(page.state.approvals).sort()).toEqual(["t0", "t64"]);
+  });
+
   it("updates a persisted projection from only the new suffix and rebuilds incompatible caches", () => {
     const { reader, add, path, store } = fixture(2);
     reader.read("thread");

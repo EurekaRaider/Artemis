@@ -48,6 +48,8 @@ export function mergeHistoryPage(
       userMessages: { ...old.userMessages, ...state.userMessages },
       messageParts: { ...old.messageParts, ...state.messageParts },
       tools: { ...old.tools, ...state.tools },
+      approvals: { ...old.approvals, ...state.approvals },
+      userInputs: { ...old.userInputs, ...state.userInputs },
     },
   };
 }
