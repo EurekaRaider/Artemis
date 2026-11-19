@@ -639,6 +639,21 @@ for (const testCase of selectedCases) {
       assert.equal(g.y, 0);
       assert.equal(g.height, 46);
       assert.ok(Math.abs(g.width - (g.viewport - g.sidebarWidth)) <= 2);
+      const input = page.locator(".composer-input textarea");
+      await input.focus();
+      assert.equal(
+        await input.getAttribute("placeholder"),
+        await input.getAttribute("aria-label"),
+        "the empty prompt uses the textarea's native placeholder",
+      );
+      await page.keyboard.insertText("输入测试");
+      assert.equal(await input.inputValue(), "输入测试");
+      await input.fill("");
+      assert.ok(
+        await input.evaluate((element) =>
+          element.matches(":placeholder-shown"),
+        ),
+      );
       if (view.startsWith("conversation-timeline-empty")) {
         await verifyKeycaps(
           page,
@@ -730,6 +745,35 @@ for (const testCase of selectedCases) {
         );
       }
       await verifyPendingGap(page, checks);
+    }
+    if (view === "conversation-timeline-rich") {
+      const plan = page.locator(".task-plan-progress");
+      const trigger = plan.locator('[data-part="trigger"]');
+      const steps = plan.locator('[data-part="steps"]');
+      await trigger.focus();
+      await steps.waitFor({ state: "visible" });
+      const composer = await page.locator(".composer").boundingBox();
+      checks.planCenterOffsets = {};
+      for (const [name, part] of [
+        ["trigger", trigger],
+        ["steps", steps],
+      ]) {
+        const box = await part.boundingBox();
+        const offset =
+          box.x + box.width / 2 - (composer.x + composer.width / 2);
+        checks.planCenterOffsets[name] = offset;
+        assert.ok(
+          Math.abs(offset) <= 1,
+          `plan ${name} center offset is ${offset}px`,
+        );
+        assert.ok(
+          box.y + box.height <= composer.y,
+          `plan ${name} is above the composer`,
+        );
+      }
+      await shot(id + "-expanded-plan");
+      await page.keyboard.press("Escape");
+      await steps.waitFor({ state: "hidden" });
     }
     if (view === "environment-feedback-approval") {
       checks.intermediate = await page

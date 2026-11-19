@@ -774,6 +774,61 @@ describe("reduceAgentEvent", () => {
     }
   });
 
+  it("keeps manual compaction queue events out of the turn history", () => {
+    const usage = {
+      type: "context.usage",
+      tokens: 42,
+      contextWindow: 32000,
+    } as const;
+    const error = "Compaction failed: Nothing to compact (session too small)";
+    const queueTurnId = "compaction-queue:thread-1";
+    const events = [
+      {
+        ...event("compact", 1, { ...usage, compacting: true }),
+        turnId: undefined,
+      },
+      {
+        ...event("queue", 2, {
+          type: "queue.updated",
+          steering: [],
+          followUp: ["Next"],
+        }),
+        turnId: queueTurnId,
+      },
+      {
+        ...event("failed", 3, {
+          ...usage,
+          compacting: false,
+          compactionResult: { status: "failed", error },
+        }),
+        turnId: undefined,
+      },
+      {
+        ...event("recover", 4, { type: "queue.recovered", messages: ["Next"] }),
+        turnId: queueTurnId,
+      },
+      {
+        ...event("clear", 5, {
+          type: "queue.updated",
+          steering: [],
+          followUp: [],
+        }),
+        turnId: queueTurnId,
+      },
+    ];
+    let live = createThreadViewState("thread-1");
+    for (const e of events) {
+      live = reduceAgentEvent(live, e);
+      expect(live.turnOrder).toEqual([]);
+    }
+    expect(live.contextCompactions.compact).toMatchObject({
+      status: "failed",
+      error,
+    });
+    expect(live.queue.followUp).toEqual([]);
+    expect(reduceAgentEvents("thread-1", events)).toEqual(live);
+  });
+
   it("ignores events for another thread", () => {
     const state = createThreadViewState("thread-1");
     const foreign = {

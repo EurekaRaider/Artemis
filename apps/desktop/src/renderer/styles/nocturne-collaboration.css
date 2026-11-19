@@ -876,7 +876,7 @@
   }
 }
 .app-shell {
-  .composer-status-row :is(.goal-bar, .task-plan-progress) {
+  .composer-status-row .goal-bar {
     margin: 0;
     max-width: 100%;
     width: auto;
@@ -902,8 +902,7 @@
     background: var(--panel-3);
   }
   .task-plan-progress [data-part="steps"] {
-    inset-inline-start: 0;
-    left: auto;
+    inset-inline: auto;
     transform: none;
     width: min(520px, calc(var(--conversation-column-width, 100cqi) - 40px));
   }
@@ -983,13 +982,6 @@
       }
     }
   }
-}
-.composer-empty-hint {
-  position: absolute;
-  inset-inline-start: 0;
-  color: var(--muted-2);
-  padding: 0;
-  pointer-events: none;
 }
 .timeline-decision {
   padding: 0 18px;

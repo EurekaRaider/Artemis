@@ -3053,9 +3053,6 @@ export function App() {
                             onResume={() => void updateActiveGoal("resume")}
                           />
                         )}
-                        {taskPlan && (
-                          <TaskPlanProgress locale={locale} plan={taskPlan} />
-                        )}
                         {queuedFollowUps.length > 0 && (
                           <details className="composer-queue">
                             <summary>
@@ -3217,6 +3214,9 @@ export function App() {
                           </details>
                         )}
                       </div>
+                      {taskPlan && (
+                        <TaskPlanProgress locale={locale} plan={taskPlan} />
+                      )}
                       {toast && (
                         <TransientNotice
                           dismissLabel={t.dismissNotice}
@@ -3875,26 +3875,11 @@ export function App() {
                                 composerPrediction.dismiss();
                                 handleAttachmentPaste(event);
                               }}
-                              placeholder={
-                                !prompt &&
-                                !visibleComposerPrediction &&
-                                !pendingComposerDecision
-                                  ? ""
-                                  : composerPlaceholder
-                              }
+                              placeholder={composerPlaceholder}
                               ref={promptInput}
                               rows={1}
                               value={prompt}
                             />
-                            {!prompt &&
-                              !visibleComposerPrediction &&
-                              !pendingComposerDecision && (
-                                <small className="composer-empty-hint">
-                                  <span className="composer-placeholder">
-                                    {composerPlaceholder}
-                                  </span>
-                                </small>
-                              )}
                           </div>
                           <div className="composer-toolbar">
                             <div className="composer-leading">

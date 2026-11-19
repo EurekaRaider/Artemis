@@ -1,11 +1,13 @@
-# Artemis v2.0.14
+# Artemis v2.0.15
 
 ## 中文
 
-- 已连接 OpenAI API 或 Codex 的用户可以在设置中添加 GPT‑6.2 Astra 和 Sol。Artemis 会在启动、连接供应商和重新打开设置时检查 Pi 模型目录，让已配置的供应商获得新收录的模型。
-- 上次同步超过四小时后，Artemis 会在下次检查时刷新目录。离线时仍可浏览上次同步的模型列表，并恢复已选择的模型。
+- 计划进度按钮和展开的步骤列表现在都在输入框上方水平居中，同时显示目标栏或排队消息时也能保持对齐。
+- 输入框的占位文字和输入光标现在使用同一条基线，输入或清空文字时首字位置保持一致。
+- 手动压缩上下文失败后，会话会保留失败原因，并移除多余的“工作中”提示和转圈。重新打开旧会话时也会纠正这条状态。
 
 ## English
 
-- Users connected to the OpenAI API or Codex can now add GPT‑6.2 Astra and Sol in Settings. Artemis checks Pi’s model catalog at startup, after connecting a provider, and when reopening Settings, so configured providers can pick up newly listed models.
-- Artemis refreshes the catalog on the next check after four hours. When offline, it can show the last synced catalog and restore your model selection.
+- The plan button and its expanded step list are centered above the message box, including when a goal or queued messages are visible.
+- Placeholder text now shares the caret’s baseline and starting position when you type or clear a message.
+- After manual context compaction fails, the conversation keeps the error message and clears the stray “Working” spinner. Reopening an older conversation also corrects the stale indicator.

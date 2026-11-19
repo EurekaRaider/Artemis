@@ -10,7 +10,13 @@ export function ensureTurn(
   state: ThreadViewState,
   event: AgentEvent,
 ): TurnViewState | undefined {
-  if (!event.turnId) return undefined;
+  // Queue notifications describe the thread, including during standalone compaction.
+  if (
+    !event.turnId ||
+    event.payload.type === "queue.updated" ||
+    event.payload.type === "queue.recovered"
+  )
+    return undefined;
   const existing = state.turns[event.turnId];
   if (existing) return existing;
   const turn: TurnViewState = {

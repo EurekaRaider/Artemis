@@ -15,7 +15,7 @@ import type {
 
 const PAGE_TURNS = 30;
 // Bump when the projection shape or reducer semantics change.
-const SNAPSHOT_VERSION = 4;
+const SNAPSHOT_VERSION = 5;
 const CHECKPOINT_INTERVAL = 4096;
 interface Snapshot {
   version: number;

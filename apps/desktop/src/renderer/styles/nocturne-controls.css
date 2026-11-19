@@ -190,18 +190,11 @@ details[open] > summary .disclosure-chevron {
   outline: none;
 }
 
-.composer-empty-hint {
-  inset-inline: 16px;
-  inset-block-start: 14px;
-  font-size: 14px;
-  line-height: 1.6;
-  opacity: 1;
+.composer-input > textarea::placeholder {
+  color: var(--muted-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.composer-placeholder {
-  color: var(--muted-2);
 }
 .app-shell .task-plan-progress [data-part="trigger"] > [data-part="marker"] {
   display: none;
