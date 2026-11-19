@@ -24,6 +24,7 @@ import type { ApplicationServices } from "../application/application-services.js
 type Dependencies = Pick<
   ApplicationServices,
   | "getSettingsSnapshot"
+  | "refreshAgentCatalogIfStale"
   | "ipcMain"
   | "settingsStore"
   | "languagePreference"
@@ -60,7 +61,10 @@ export function registerPreferencesIpc(services: Dependencies): void {
     applyAgentCapacityChange,
   } = services;
 
-  ipcMain.handle(IPC.settingsGet, () => getSettingsSnapshot());
+  ipcMain.handle(IPC.settingsGet, async () => {
+    await services.refreshAgentCatalogIfStale();
+    return getSettingsSnapshot();
+  });
   ipcMain.handle(
     IPC.settingsProfileAvatarSet,
     async (_event, avatar: string | undefined): Promise<SettingsSnapshot> => {

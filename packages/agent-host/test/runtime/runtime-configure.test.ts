@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AgentSession,
   DefaultResourceLoader,
@@ -15,7 +15,12 @@ import { ArtemisAgentHost } from "../../src/runtime/runtime.js";
 
 const cleanupPaths: string[] = [];
 
+beforeEach(() => {
+  vi.stubEnv("PI_OFFLINE", "1");
+});
+
 afterEach(async () => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   await Promise.all(
     cleanupPaths

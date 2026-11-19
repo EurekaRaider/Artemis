@@ -66,6 +66,8 @@ export function createModelRuntime(
   function getModelRuntime(): ReturnType<typeof ModelRuntime.create> {
     services.modelRuntimePromise ??= ModelRuntime.create({
       credentials: services.credentials,
+      // Restore immediately. Network discovery runs after custom providers and
+      // account-specific catalogs have been installed.
       allowModelNetwork: false,
     }).then((runtime) => {
       registerArtemisBuiltinModels(runtime);
@@ -86,6 +88,27 @@ export function createModelRuntime(
       );
     });
     return services.modelRuntimePromise;
+  }
+
+  function usesPiPublicCatalog(runtime: ModelRuntime, providerId: string) {
+    return (
+      !services.registeredProviderIds.has(providerId) &&
+      runtime.getProvider(providerId)?.refreshModelsAuth === "configured"
+    );
+  }
+
+  async function refreshPublicCatalogs(
+    runtime: ModelRuntime,
+    providers: string[],
+  ) {
+    if (!providers.length || process.env.PI_OFFLINE !== undefined) return;
+    // Pi restores its cache first and revalidates stale catalogs against pi.dev.
+    // Leave time for the desktop's 10-second runtime.catalog IPC deadline.
+    await runtime.refresh({
+      providers,
+      allowNetwork: true,
+      signal: AbortSignal.timeout(4_000),
+    });
   }
 
   async function configure(
@@ -201,10 +224,21 @@ export function createModelRuntime(
     }
     const selection = resolvedConfiguration.selection;
     if (selection) {
-      const catalogModel = modelRuntime.getModel(
+      let catalogModel = modelRuntime.getModel(
         selection.providerId,
         selection.modelId,
       );
+      if (
+        !catalogModel &&
+        usesPiPublicCatalog(modelRuntime, selection.providerId)
+      ) {
+        await refreshPublicCatalogs(modelRuntime, [selection.providerId]);
+        if (revision !== services.configurationRevision) return;
+        catalogModel = modelRuntime.getModel(
+          selection.providerId,
+          selection.modelId,
+        );
+      }
       if (!catalogModel) {
         throw new Error(
           `Configured model is unavailable: ${selection.providerId}/${selection.modelId}`,
@@ -325,10 +359,19 @@ export function createModelRuntime(
     // Credentials are replaced outside Pi's login/logout API. Refresh its
     // availability snapshot before reporting whether a provider is configured.
     await modelRuntime.refresh({ allowNetwork: false });
+    const publicCatalogs = modelRuntime
+      .getProviders()
+      .map((provider) => provider.id)
+      .filter(
+        (id) =>
+          modelRuntime.hasConfiguredAuth(id) &&
+          usesPiPublicCatalog(modelRuntime, id),
+      );
+    await refreshPublicCatalogs(modelRuntime, publicCatalogs);
     return {
       authoritativeProviderIds: services.openRouterCatalogPersonalized
-        ? ["openrouter"]
-        : [],
+        ? [...publicCatalogs, "openrouter"]
+        : publicCatalogs,
       models: modelRuntime.getModels().map((model) => {
         const thinkingLevels = getSupportedThinkingLevels(model);
         return {

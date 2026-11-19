@@ -265,6 +265,44 @@ export function createRuntimeCoordinator(services: Dependencies) {
       });
   }
 
+  let pendingCatalog: Promise<void> | undefined;
+  let lastCatalogRead = 0;
+  async function refreshAgentCatalog(onlyIfStale = false): Promise<void> {
+    const agent = services.agentProcess;
+    if (!agent) return;
+    if (onlyIfStale) {
+      if (pendingCatalog) return pendingCatalog;
+      // Startup populates the first snapshot. Keep ordinary settings reads cheap.
+      if (!lastCatalogRead || Date.now() - lastCatalogRead < 60_000) return;
+    }
+    lastCatalogRead = Date.now();
+    const request: Promise<void> = agent
+      .request<AgentRuntimeCatalog>(
+        { type: "runtime.catalog", requestId: randomUUID() },
+        10_000,
+      )
+      .then((catalog) => {
+        if (agent !== services.agentProcess || pendingCatalog !== request)
+          return;
+        services.cachedAgentCatalog = catalog;
+        services.activeRuntimeSelection = catalog.selection
+          ? structuredClone(catalog.selection)
+          : undefined;
+      })
+      .catch((error) => {
+        services.diagnosticBundleService?.record({
+          source: "main",
+          severity: "warning",
+          message: `Agent model catalog refresh failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      });
+    pendingCatalog = request;
+    await request;
+    if (pendingCatalog === request) pendingCatalog = undefined;
+  }
+
   async function applyAgentRuntime(
     configuration?: AgentRuntimeConfiguration,
   ): Promise<void> {
@@ -337,29 +375,7 @@ export function createRuntimeCoordinator(services: Dependencies) {
       AGENT_RUNTIME_CONFIGURATION_TIMEOUT_MS,
     );
     services.activeRuntimeSelection = undefined;
-    await services.agentProcess
-      .request<AgentRuntimeCatalog>(
-        {
-          type: "runtime.catalog",
-          requestId: randomUUID(),
-        },
-        10_000,
-      )
-      .then((catalog) => {
-        services.cachedAgentCatalog = catalog;
-        services.activeRuntimeSelection = catalog.selection
-          ? structuredClone(catalog.selection)
-          : undefined;
-      })
-      .catch((error) => {
-        services.diagnosticBundleService?.record({
-          source: "main",
-          severity: "warning",
-          message: `Agent model catalog refresh failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        });
-      });
+    await refreshAgentCatalog();
     services.runtimeMcpToolCount = resolved.mcpTools.length;
     services.runtimeToolCount =
       resolved.mcpTools.length + (resolved.extensionTools?.length ?? 0);
@@ -417,6 +433,7 @@ export function createRuntimeCoordinator(services: Dependencies) {
     interruptTurnsAfterAgentHostExit,
     restartAgentHost,
     applyAgentRuntime,
+    refreshAgentCatalog,
     resetAgentThreadsForToolChange,
     tightenThreadToRestrictedProfile,
   };

@@ -1747,6 +1747,8 @@ export function createApplicationServices() {
     resetAgentThreadsForToolChange,
     refreshTrustedExtensions,
     applyAgentRuntime,
+    refreshAgentCatalogIfStale: (): Promise<void> =>
+      runtimeCoordinator.refreshAgentCatalog(true),
     get agentCapacityController(): AgentCapacityController | undefined {
       return agentCapacityController;
     },
