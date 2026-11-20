@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "立即压缩较早的上下文",
   "App_copy.contextCompacting": "正在压缩上下文",
   "App_copy.contextCompacted": "上下文压缩已完成",
+  "App_copy.contextCompactionTooShort": "当前会话太短，无需压缩",
   "App_copy.contextCompactionFailed": "上下文压缩失败",
   "App_copy.contextCompactionCancelled": "上下文压缩已取消",
   "App_copy.compactRequiresTask": "请先打开已有任务，再压缩上下文。",

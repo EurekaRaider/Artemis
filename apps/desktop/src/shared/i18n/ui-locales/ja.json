@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "古いコンテキストを今すぐ圧縮",
   "App_copy.contextCompacting": "コンテキストを圧縮中",
   "App_copy.contextCompacted": "コンテキストの圧縮が完了しました",
+  "App_copy.contextCompactionTooShort": "現在の会話は短いため、圧縮は不要です。",
   "App_copy.contextCompactionFailed": "コンテキストの圧縮に失敗しました",
   "App_copy.contextCompactionCancelled": "コンテキストの圧縮をキャンセルしました",
   "App_copy.compactRequiresTask": "コンテキストを圧縮する前に既存のタスクを開いてください。",

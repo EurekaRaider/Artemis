@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "Padatkan konteks lama sekarang",
   "App_copy.contextCompacting": "Memadatkan konteks",
   "App_copy.contextCompacted": "Pemadatan konteks selesai",
+  "App_copy.contextCompactionTooShort": "Percakapan ini masih terlalu singkat sehingga tidak perlu dipadatkan.",
   "App_copy.contextCompactionFailed": "Pemadatan konteks gagal",
   "App_copy.contextCompactionCancelled": "Pemadatan konteks dibatalkan",
   "App_copy.compactRequiresTask": "Buka tugas yang sudah ada sebelum memadatkan konteks.",

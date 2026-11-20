@@ -69,6 +69,27 @@ describe("manual context compaction", () => {
     expect(compact).not.toHaveBeenCalled();
   });
 
+  it("finishes a short-session request normally and propagates other compaction errors", async () => {
+    const compact = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("Nothing to compact (session too small)"),
+      )
+      .mockRejectedValueOnce(new Error("Summary service unavailable"));
+    const host = new ArtemisAgentHost({ async request() {} }, { emit() {} });
+    const hosted = { compacting: false, session: { compact } };
+    (host as unknown as { threads: Map<string, unknown> }).threads.set(
+      "thread",
+      hosted,
+    );
+
+    await expect(host.compact("thread")).resolves.toBeUndefined();
+    expect(hosted.compacting).toBe(false);
+    await expect(host.compact("thread")).rejects.toThrow(
+      "Summary service unavailable",
+    );
+  });
+
   it("compacts an idle conversation while another conversation is active", async () => {
     const compact = vi.fn().mockResolvedValue({});
     const host = new ArtemisAgentHost({ async request() {} }, { emit() {} });

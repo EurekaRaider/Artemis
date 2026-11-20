@@ -37,6 +37,7 @@ import { resolve } from "node:path";
 
 import {
   type CustomAgentDefinition,
+  isShortSessionCompactionError,
   PiAdapter,
   type PromptAttachment,
   type RunMode,
@@ -472,7 +473,16 @@ export function createTurnLifecycle(
         if (hosted.currentTurnId) {
           throw new Error("Cannot compact context during an active turn.");
         }
-        await hosted.session.compact(customInstructions);
+        try {
+          await hosted.session.compact(customInstructions);
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            isShortSessionCompactionError(error.message)
+          )
+            return;
+          throw error;
+        }
         hosted.executeTools = hosted.executeTools.filter(
           (tool) => !hosted.mcpDirectToolNames.has(tool.name),
         );

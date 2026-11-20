@@ -1,13 +1,11 @@
-# Artemis v2.0.15
+# Artemis v2.0.16
 
 ## 中文
 
-- 计划进度按钮和展开的步骤列表现在都在输入框上方水平居中，同时显示目标栏或排队消息时也能保持对齐。
-- 输入框的占位文字和输入光标现在使用同一条基线，输入或清空文字时首字位置保持一致。
-- 手动压缩上下文失败后，会话会保留失败原因，并移除多余的“工作中”提示和转圈。重新打开旧会话时也会纠正这条状态。
+- 上下文压缩提示会保留在时间线中实际发生的位置。新消息排在提示之后，重新打开会话时也保持这个顺序。
+- 会话太短时，时间线显示“当前会话太短，无需压缩”。其他压缩错误仍会显示具体原因。
 
 ## English
 
-- The plan button and its expanded step list are centered above the message box, including when a goal or queued messages are visible.
-- Placeholder text now shares the caret’s baseline and starting position when you type or clear a message.
-- After manual context compaction fails, the conversation keeps the error message and clears the stray “Working” spinner. Reopening an older conversation also corrects the stale indicator.
+- Context compaction notices stay where they occurred in the timeline. New messages appear below them, including when you reopen the conversation.
+- When a conversation is too short to need compaction, Artemis shows an informational message. Other compaction failures still show the original error.

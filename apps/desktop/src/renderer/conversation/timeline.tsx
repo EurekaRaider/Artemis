@@ -182,39 +182,47 @@ export function Timeline({
     );
     return servers?.length === 1 ? servers[0]?.config : undefined;
   };
-  const groupedTimeline = useMemo(() => {
-    const assigned = new Set<string>();
+  const { turns, leading } = useMemo(() => {
+    // Standalone entries (such as manual compactions) occupy the gap after
+    // the preceding turn, including the gap before the first turn.
+    const standalone = new Map<string | undefined, string[]>();
+    let precedingTurnId: string | undefined;
+    for (const entry of state.order) {
+      const turnId = state.entryTurnIds[entry];
+      if (turnId && state.turns[turnId]) {
+        precedingTurnId = turnId;
+      } else {
+        const gap = standalone.get(precedingTurnId);
+        if (gap) gap.push(entry);
+        else standalone.set(precedingTurnId, [entry]);
+      }
+    }
+    const activities = (order: string[]) =>
+      groupTimelineActivities(order, state.tools, state.messageParts);
     const turns = state.turnOrder.flatMap((turnId) => {
       const turn = state.turns[turnId];
       if (!turn) return [];
-      for (const entry of turn.order) assigned.add(entry);
       return [
         {
           turn,
-          entries: groupTimelineActivities(
-            turn.order,
-            state.tools,
-            state.messageParts,
-          ),
+          entries: activities(turn.order),
+          following: activities(standalone.get(turnId) ?? []),
         },
       ];
     });
     return {
       turns,
-      unassigned: groupTimelineActivities(
-        state.order.filter((entry) => !assigned.has(entry)),
-        state.tools,
-        state.messageParts,
-      ),
+      leading: activities(standalone.get(undefined) ?? []),
     };
   }, [
     state.order,
+    state.entryTurnIds,
     state.tools,
     state.turnOrder,
     state.turns,
     state.messageParts,
   ]);
-  const activeTimelineEntries = groupedTimeline.turns.findLast(
+  const activeTimelineEntries = turns.findLast(
     ({ turn }) => turn.status === "running",
   )?.entries;
   const activeToolGroupKey =
@@ -593,12 +601,13 @@ export function Timeline({
       className="timeline"
       data-group={imGroup ? "true" : undefined}
     >
-      {groupedTimeline.turns.map(({ entries, turn }, turnIndex) => (
+      {leading.map((entry) => renderTimelineEntry(entry))}
+      {turns.flatMap(({ entries, turn, following }, turnIndex) => [
         <HistoryTurn
           key={`${state.threadId}:${turn.id}`}
           cacheKey={`${state.threadId}:${turn.id}`}
           active={turn.status === "running"}
-          initialVisible={turnIndex >= groupedTimeline.turns.length - 12}
+          initialVisible={turnIndex >= turns.length - 12}
         >
           {() => {
             if (turn.status === "running") {
@@ -730,9 +739,9 @@ export function Timeline({
               </TimelineTurn>
             );
           }}
-        </HistoryTurn>
-      ))}
-      {groupedTimeline.unassigned.map((entry) => renderTimelineEntry(entry))}
+        </HistoryTurn>,
+        ...following.map((entry) => renderTimelineEntry(entry)),
+      ])}
       {state.queue.steering.map((message, index) => (
         <ConversationMessage
           className="user-message steering-message"

@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "Compact older context now",
   "App_copy.contextCompacting": "Compacting context",
   "App_copy.contextCompacted": "Context compaction completed",
+  "App_copy.contextCompactionTooShort": "This conversation is too short to need compaction.",
   "App_copy.contextCompactionFailed": "Context compaction failed",
   "App_copy.contextCompactionCancelled": "Context compaction cancelled",
   "App_copy.compactRequiresTask": "Open an existing task before compacting context.",

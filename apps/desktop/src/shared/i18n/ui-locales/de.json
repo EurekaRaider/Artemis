@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "Älteren Kontext jetzt komprimieren",
   "App_copy.contextCompacting": "Kontext wird komprimiert",
   "App_copy.contextCompacted": "Kontextkomprimierung abgeschlossen",
+  "App_copy.contextCompactionTooShort": "Die Unterhaltung ist zu kurz. Eine Komprimierung ist nicht nötig.",
   "App_copy.contextCompactionFailed": "Kontextkomprimierung fehlgeschlagen",
   "App_copy.contextCompactionCancelled": "Kontextkomprimierung abgebrochen",
   "App_copy.compactRequiresTask": "Öffne eine bestehende Aufgabe, bevor du den Kontext komprimierst.",

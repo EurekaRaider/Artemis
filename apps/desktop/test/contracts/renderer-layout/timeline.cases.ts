@@ -127,10 +127,7 @@ describe("renderer layout contract", () => {
     );
     expect(appSource).toContain('if (kind === "compaction")');
     expect(appSource).toContain("state.contextCompactions[id]");
-    expect(appSource).toContain("COMPACTION_COMPLETION_NOTICE_MILLISECONDS");
     expect(appSource).toContain("function ContextCompactionStatus(");
-    expect(appSource).toContain("completionDeadline - Date.now()");
-    expect(appSource).toContain("setVisible(false)");
     expect(appSource).toContain("!latestTimelineEntryIsCompaction");
     expect(cssRule(".turn-status.running > span:nth-child(2)")).toMatch(
       /\banimation:\s*tool-summary-shimmer\b/u,

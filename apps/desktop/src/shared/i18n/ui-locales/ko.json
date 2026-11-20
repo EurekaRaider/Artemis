@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "이전 문맥을 지금 압축",
   "App_copy.contextCompacting": "문맥 압축 중",
   "App_copy.contextCompacted": "문맥 압축 완료",
+  "App_copy.contextCompactionTooShort": "현재 대화가 짧아 압축할 필요가 없습니다.",
   "App_copy.contextCompactionFailed": "문맥 압축 실패",
   "App_copy.contextCompactionCancelled": "문맥 압축 취소됨",
   "App_copy.compactRequiresTask": "문맥을 압축하려면 먼저 기존 작업을 여세요.",

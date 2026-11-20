@@ -292,6 +292,10 @@ export const UI_COPY = {
     compactCommandDetail: uiText(locale, "App_copy.compactCommandDetail"),
     contextCompacting: uiText(locale, "App_copy.contextCompacting"),
     contextCompacted: uiText(locale, "App_copy.contextCompacted"),
+    contextCompactionTooShort: uiText(
+      locale,
+      "App_copy.contextCompactionTooShort",
+    ),
     contextCompactionFailed: uiText(locale, "App_copy.contextCompactionFailed"),
     contextCompactionCancelled: uiText(
       locale,

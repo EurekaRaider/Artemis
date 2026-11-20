@@ -5,6 +5,14 @@ import {
 import type { AgentPayload } from "./schema.js";
 import { isLegacyInternalAgentMessage } from "./internal-messages.js";
 
+// Pi throws the bare message and prefixes it in the persisted compaction event.
+export function isShortSessionCompactionError(
+  message: string | undefined,
+): boolean {
+  const reason = "Nothing to compact (session too small)";
+  return message === reason || message === `Compaction failed: ${reason}`;
+}
+
 interface PiMessage {
   id?: string;
   role?: string;

@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "पुराना संदर्भ अभी संक्षिप्त करें",
   "App_copy.contextCompacting": "संदर्भ संक्षिप्त हो रहा है",
   "App_copy.contextCompacted": "संदर्भ संक्षेपण पूरा हुआ",
+  "App_copy.contextCompactionTooShort": "यह बातचीत अभी बहुत छोटी है, इसे संक्षिप्त करने की ज़रूरत नहीं है।",
   "App_copy.contextCompactionFailed": "संदर्भ संक्षेपण विफल हुआ",
   "App_copy.contextCompactionCancelled": "संदर्भ संक्षेपण रद्द हुआ",
   "App_copy.compactRequiresTask": "संदर्भ संक्षिप्त करने से पहले कोई मौजूदा कार्य खोलें।",

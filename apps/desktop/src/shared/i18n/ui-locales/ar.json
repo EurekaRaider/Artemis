@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "ضغط السياق الأقدم الآن",
   "App_copy.contextCompacting": "جارٍ ضغط السياق",
   "App_copy.contextCompacted": "اكتمل ضغط السياق",
+  "App_copy.contextCompactionTooShort": "المحادثة الحالية قصيرة ولا تحتاج إلى ضغط",
   "App_copy.contextCompactionFailed": "فشل ضغط السياق",
   "App_copy.contextCompactionCancelled": "أُلغي ضغط السياق",
   "App_copy.compactRequiresTask": "افتح مهمة موجودة قبل ضغط السياق.",

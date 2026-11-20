@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "立即壓縮較早的上下文",
   "App_copy.contextCompacting": "正在壓縮上下文",
   "App_copy.contextCompacted": "上下文壓縮已完成",
+  "App_copy.contextCompactionTooShort": "目前對話太短，無需壓縮",
   "App_copy.contextCompactionFailed": "上下文壓縮失敗",
   "App_copy.contextCompactionCancelled": "上下文壓縮已取消",
   "App_copy.compactRequiresTask": "請先打開已有任務，再壓縮上下文。",

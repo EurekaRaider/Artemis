@@ -341,6 +341,7 @@
   "App_copy.compactCommandDetail": "Сжать старый контекст сейчас",
   "App_copy.contextCompacting": "Сжатие контекста",
   "App_copy.contextCompacted": "Сжатие контекста завершено",
+  "App_copy.contextCompactionTooShort": "Этот разговор пока слишком короткий, сжатие не требуется.",
   "App_copy.contextCompactionFailed": "Ошибка сжатия контекста",
   "App_copy.contextCompactionCancelled": "Сжатие контекста отменено",
   "App_copy.compactRequiresTask": "Откройте существующую задачу перед сжатием контекста.",
