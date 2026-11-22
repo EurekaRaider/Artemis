@@ -38,6 +38,20 @@
     padding-inline-start var(--sidebar-toggle-duration)
       var(--sidebar-toggle-ease);
 }
+.app-shell[data-platform="win32"][data-sidebar-open="false"] .workspace-header {
+  /* The conversation clips at the sidebar edge, including during hover expansion. */
+  margin-inline-start: 0;
+}
+:root:not([dir="rtl"])
+  .app-shell[data-platform="win32"]
+  .sidebar[data-state="collapsed"] {
+  /* The Windows caption buttons occupy the right edge. The left rail can start at the top. */
+  &::after,
+  & > [data-part="rail"],
+  & > [data-part="main"] {
+    inset-block-start: 0;
+  }
+}
 .app-shell[data-platform="win32"]
   .workspace-header
   :is(button, a, input, [role="menu"], [role="dialog"]) {
