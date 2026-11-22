@@ -133,7 +133,9 @@ export async function verifyDesktopShellInteractions({
     checks.push(
       "brief hover cancels the shared 200ms debounce without flicker",
     );
-    assert.equal((await header.boundingBox()).x, 0);
+    const windows = process.platform === "win32";
+    const sidebarTop = windows ? 0 : 48;
+    assert.equal((await header.boundingBox()).x, windows ? before.x : 0);
     if (process.platform === "darwin") {
       assert.equal(
         await header.evaluate((el) => getComputedStyle(el).paddingInlineStart),
@@ -149,7 +151,7 @@ export async function verifyDesktopShellInteractions({
     }
 
     const railGeometry = await page.locator(".sidebar-rail").boundingBox();
-    assert.equal(railGeometry.y, 48);
+    assert.equal(railGeometry.y, sidebarTop);
     assert.equal(railGeometry.y + railGeometry.height, 720);
     assert.match(
       await page
@@ -184,7 +186,7 @@ export async function verifyDesktopShellInteractions({
     const after = await page.locator(".workspace").boundingBox();
     assert.equal(after.x, 280);
     assert.equal(after.width, before.width - (280 - 48));
-    assert.equal((await header.boundingBox()).x, 0);
+    assert.equal((await header.boundingBox()).x, windows ? after.x : 0);
     assert(
       (await draft.boundingBox()).x >=
         (await main.boundingBox()).x + (await main.boundingBox()).width,
@@ -193,8 +195,8 @@ export async function verifyDesktopShellInteractions({
     checks.push(
       "hover expansion shifts and narrows the conversation and composer without overlap",
     );
-    assert.equal((await main.boundingBox()).y, 48);
-    assert.equal((await main.boundingBox()).height, 672);
+    assert.equal((await main.boundingBox()).y, sidebarTop);
+    assert.equal((await main.boundingBox()).height, 720 - sidebarTop);
     const drawerTransition = await main.evaluate(
       (el) => getComputedStyle(el).transition,
     );
