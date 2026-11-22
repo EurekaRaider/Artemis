@@ -1,105 +1,278 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="512" viewBox="0 0 960 512" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="604" viewBox="0 0 1080 604" role="img" aria-labelledby="title desc">
   <title id="title">Artemis desktop architecture</title>
-  <desc id="desc">A sandboxed React renderer talks to Electron Main through a typed preload bridge. Main owns task execution, approvals, host services and a versioned SQLite event log, sends commands to the Pi Agent Host utility process and receives its normalized events. An optional IM Gateway routes authorized chat tasks into Main; the Agent Host calls model providers. Brokered tools run through the execution surfaces.</desc>
+  <desc id="desc">Artemis local-first desktop architecture showing external IM channels and Model Providers, an optional IM Gateway, and three isolated local OS processes (Sandboxed React Renderer, Electron Main control plane with SQLite and OS safeStorage, and Pi Agent Host utility process with PiAdapter and Child Agents) routing through brokered policy to Web Sandbox, Native OS Sandbox, and Desktop-User execution surfaces.</desc>
   <defs>
-    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1.5 8 5 1 8.5z" fill="#8c959f"/></marker>
+    <pattern id="dots" width="16" height="16" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="0.85" fill="#16171a" fill-opacity="0.065"/>
+    </pattern>
+    <linearGradient id="pi-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffaf0"/>
+      <stop offset="100%" stop-color="#f9edd0"/>
+    </linearGradient>
+    <linearGradient id="logo-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#dfb150"/>
+      <stop offset="100%" stop-color="#b57d14"/>
+    </linearGradient>
+    <marker id="arr" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M1.5 1.8 L8 5 L1.5 8.2" fill="none" stroke="#7c8089" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-ext" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M1.5 1.8 L8 5 L1.5 8.2" fill="none" stroke="#969aa3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <marker id="arr-gold" viewBox="0 0 10 10" refX="7.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto">
+      <path d="M1.5 1.8 L8 5 L1.5 8.2" fill="none" stroke="#b88318" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
     <style>
-      text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif; }
-      .label { font: 600 10px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: 1.2px; fill: #59636e; }
-      .title { font-size: 16px; font-weight: 600; fill: #1f2328; }
-      .small-title { font-size: 13.5px; font-weight: 600; fill: #1f2328; }
-      .row { font-size: 12px; fill: #1f2328; }
-      .gold { fill: #7d4e00; font-weight: 600; }
-      .key { font: 11.5px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; fill: #1f2328; }
-      .sub { font-size: 11.5px; fill: #59636e; }
-      .edge { font-size: 11px; fill: #59636e; }
-      .tag { font: 600 9px ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: 0.8px; fill: #59636e; }
-      .chip { font-size: 12px; font-weight: 600; fill: #1f2328; }
-      .chip-sub { font-size: 10.5px; fill: #59636e; }
+      .sans { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Inter, Helvetica, Arial, sans-serif; }
+      .mono { font-family: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .eyebrow { font-size: 9.5px; font-weight: 600; letter-spacing: 1.1px; fill: #6b6f78; }
+      .title { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; fill: #16171a; }
+      .stitle { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; fill: #16171a; }
+      .row { font-size: 11.5px; font-weight: 500; fill: #16171a; }
+      .key { font-size: 11px; font-weight: 600; fill: #16171a; }
+      .sub { font-size: 11px; fill: #5c606a; }
+      .meta { font-size: 10.5px; fill: #6b6f78; }
+      .edge { font-size: 10.5px; font-weight: 500; fill: #5c606a; }
+      .pill { font-size: 8.8px; font-weight: 600; letter-spacing: 0.75px; }
+      .chip { font-size: 12px; font-weight: 600; fill: #16171a; }
+      .chip-sub { font-size: 10.5px; fill: #5c606a; }
     </style>
   </defs>
-  <rect x="0.5" y="0.5" width="959" height="511" rx="14" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <rect x="32.5" y="32.5" width="199" height="59" rx="10" fill="#f6f8fa" stroke="#d1d9e0" stroke-dasharray="4 4"/>
-  <text x="48" y="57" class="small-title">IM channels</text>
-  <text x="48" y="77" class="sub">Feishu / Lark · Slack · WeCom</text>
-  <rect x="328.5" y="32.5" width="303" height="59" rx="10" fill="#ffffff" stroke="#d1d9e0"/>
-  <text x="344" y="57" class="small-title">IM Gateway</text>
-  <rect x="552.5" y="44.5" width="63" height="17" rx="8.5" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="584" y="56.5" class="tag" text-anchor="middle">OPTIONAL</text>
-  <text x="344" y="77" class="sub">Routes chat tasks through desktop policy</text>
-  <rect x="728.5" y="32.5" width="199" height="59" rx="10" fill="#f6f8fa" stroke="#d1d9e0" stroke-dasharray="4 4"/>
-  <text x="744" y="57" class="small-title">Model providers</text>
-  <text x="744" y="77" class="sub">Responses · Chat Completions</text>
-  <line x1="236" y1="62" x2="324" y2="62" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <line x1="480" y1="92" x2="480" y2="134" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="490" y="118" class="edge">authorized tasks</text>
-  <line x1="828" y1="136" x2="828" y2="94" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="838" y="118" class="edge">model requests</text>
-  <rect x="32.5" y="136.5" width="199" height="207" rx="10" fill="#ffffff" stroke="#d1d9e0"/>
-  <text x="48" y="162" class="label">RENDERER PROCESS</text>
-  <text x="48" y="186" class="title">React workspace</text>
-  <rect x="44" y="202" width="176" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="56" y="219" class="row">Views &amp; controllers</text>
-  <rect x="44" y="234" width="176" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="56" y="251" class="row">Protocol reducers</text>
-  <rect x="44" y="266" width="176" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="56" y="283" class="row">Sandboxed · no Node</text>
-  <line x1="33" y1="306" x2="231" y2="306" stroke="#d1d9e0"/>
-  <text x="48" y="330" class="sub"><tspan class="key">window.artemis</tspan> API</text>
-  <rect x="328.5" y="136.5" width="303" height="207" rx="10" fill="#ffffff" stroke="#d1d9e0"/>
-  <text x="344" y="162" class="label">MAIN PROCESS</text>
-  <text x="344" y="186" class="title">Electron Main</text>
-  <rect x="340" y="202" width="280" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="352" y="219" class="key">conversation/</text>
-  <text x="456" y="219" class="sub">tasks · Goals</text>
-  <rect x="340" y="234" width="280" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="352" y="251" class="key">broker/</text>
-  <text x="456" y="251" class="sub">approvals · tool dispatch</text>
-  <rect x="340" y="266" width="280" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="352" y="283" class="key">services</text>
-  <text x="456" y="283" class="sub">Git · Terminal · MCP · IM</text>
-  <line x1="329" y1="306" x2="631" y2="306" stroke="#d1d9e0"/>
-  <g fill="none" stroke="#59636e" stroke-width="1.2"><ellipse cx="350" cy="322" rx="5" ry="2"/><path d="M345 322v8c0 1.1 2.24 2 5 2s5-.9 5-2v-8"/></g>
-  <text x="364" y="330" class="sub">SQLite · versioned event log</text>
-  <rect x="728.5" y="136.5" width="199" height="207" rx="10" fill="#ffffff" stroke="#d1d9e0"/>
-  <text x="744" y="162" class="label">UTILITY PROCESS</text>
-  <text x="744" y="186" class="title">Agent Host</text>
-  <rect x="740" y="202" width="176" height="26" rx="6" fill="#fff8c5" stroke="#e3b341"/>
-  <text x="752" y="219" class="row gold">Pi · single agent loop</text>
-  <rect x="740" y="234" width="176" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="752" y="251" class="row">PiAdapter · events</text>
-  <rect x="740" y="266" width="176" height="26" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="752" y="283" class="row">Child Agents · up to 64</text>
-  <line x1="729" y1="306" x2="927" y2="306" stroke="#d1d9e0"/>
-  <g fill="none" stroke="#59636e" stroke-width="1.2"><ellipse cx="750" cy="322" rx="5" ry="2"/><path d="M745 322v8c0 1.1 2.24 2 5 2s5-.9 5-2v-8"/></g>
-  <text x="764" y="330" class="sub">Pi JSONL · task history</text>
-  <line x1="238" y1="240" x2="322" y2="240" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)" marker-start="url(#a)"/>
-  <text x="280" y="230" class="edge" text-anchor="middle">typed IPC</text>
-  <text x="280" y="260" class="edge" text-anchor="middle">preload bridge</text>
-  <line x1="636" y1="226" x2="724" y2="226" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="680" y="216" class="edge" text-anchor="middle">commands</text>
-  <line x1="724" y1="254" x2="636" y2="254" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="680" y="272" class="edge" text-anchor="middle">events</text>
-  <line x1="480" y1="344" x2="480" y2="390" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="490" y="372" class="edge">brokered approval</text>
-  <line x1="828" y1="344" x2="828" y2="390" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <rect x="328.5" y="392.5" width="599" height="87" rx="10" fill="#ffffff" stroke="#d1d9e0"/>
-  <text x="344" y="414" class="label">EXECUTION SURFACES</text>
-  <rect x="340" y="424" width="138" height="44" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="352" y="442" class="chip">Pi bash</text>
-  <text x="352" y="458" class="chip-sub">desktop-user access</text>
-  <rect x="486" y="424" width="138" height="44" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="498" y="442" class="chip">Terminal</text>
-  <text x="498" y="458" class="chip-sub">never auto-elevates</text>
-  <rect x="632" y="424" width="138" height="44" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="644" y="442" class="chip">Local MCP</text>
-  <text x="644" y="458" class="chip-sub">native OS sandbox</text>
-  <rect x="778" y="424" width="138" height="44" rx="6" fill="#f6f8fa" stroke="#d1d9e0"/>
-  <text x="790" y="442" class="chip">Extensions</text>
-  <text x="790" y="458" class="chip-sub">trusted, sandboxed</text>
-  <text x="48" y="414" class="label">LEGEND</text>
-  <line x1="48" y1="436" x2="84" y2="436" stroke="#8c959f" stroke-width="1.5" marker-end="url(#a)"/>
-  <text x="96" y="440" class="sub">request or data flow</text>
-  <rect x="48.5" y="452.5" width="35" height="15" rx="4" fill="#f6f8fa" stroke="#d1d9e0" stroke-dasharray="4 4"/>
-  <text x="96" y="464" class="sub">outside Artemis</text>
+
+  <rect x="0.5" y="0.5" width="1079" height="603" rx="16" fill="#fafaf9" stroke="#e4e4e2"/>
+
+  <!-- External & Optional Ingress -->
+  <rect x="40" y="18" width="232" height="62" rx="10" fill="#ffffff" stroke="#c8c8c3" stroke-dasharray="4 3.5"/>
+  <g transform="translate(54, 34)" fill="none" stroke="#6b6f78" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M1.5 3.5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2H6l-2.8 2V10h-.7a2 2 0 0 1-1-1.7z"/>
+  </g>
+  <text x="73" y="43.5" class="sans stitle">IM Channels</text>
+  <rect x="200" y="30" width="58" height="17" rx="8.5" fill="#f4f4f2" stroke="#dcdcd7"/>
+  <text x="229" y="41.5" class="mono pill" fill="#6b6f78" text-anchor="middle">EXTERNAL</text>
+  <text x="54" y="65" class="sans sub">Feishu / Lark · Slack · WeCom</text>
+
+  <circle cx="276" cy="49" r="2.3" fill="#969aa3"/>
+  <path d="M 278 49 H 366" fill="none" stroke="#969aa3" stroke-width="1.4" marker-end="url(#arr-ext)"/>
+
+  <rect x="372" y="18" width="336" height="62" rx="10" fill="#ffffff" stroke="#d4d4cf"/>
+  <g transform="translate(387, 34)" fill="none" stroke="#5c606a" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="3" cy="6.5" r="1.8"/>
+    <circle cx="11" cy="3" r="1.8"/>
+    <circle cx="11" cy="10" r="1.8"/>
+    <path d="M4.7 5.8 L9.3 3.7 M4.7 7.2 L9.3 9.3"/>
+  </g>
+  <text x="407" y="43.5" class="sans stitle">IM Gateway</text>
+  <rect x="632" y="30" width="62" height="17" rx="8.5" fill="#f4f4f2" stroke="#dcdcd7"/>
+  <text x="663" y="41.5" class="mono pill" fill="#6b6f78" text-anchor="middle">OPTIONAL</text>
+  <text x="387" y="65" class="sans sub">Routes remote threads through desktop policy</text>
+
+  <rect x="808" y="18" width="232" height="62" rx="10" fill="#ffffff" stroke="#c8c8c3" stroke-dasharray="4 3.5"/>
+  <g transform="translate(822, 34)" fill="none" stroke="#6b6f78" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 1.5 L8.3 5.2 L12 6.5 L8.3 7.8 L7 11.5 L5.7 7.8 L2 6.5 L5.7 5.2 Z"/>
+  </g>
+  <text x="841" y="43.5" class="sans stitle">Model Providers</text>
+  <rect x="968" y="30" width="58" height="17" rx="8.5" fill="#f4f4f2" stroke="#dcdcd7"/>
+  <text x="997" y="41.5" class="mono pill" fill="#6b6f78" text-anchor="middle">EXTERNAL</text>
+  <text x="822" y="65" class="sans sub">Pi catalog · Responses · Chat</text>
+
+  <!-- Artemis Desktop Local-First Frame -->
+  <rect x="24" y="114" width="1032" height="442" rx="14" fill="#f4f4f2" stroke="#dcdcd7"/>
+  <rect x="25" y="115" width="1030" height="440" rx="13" fill="url(#dots)"/>
+
+  <g transform="translate(40, 126)">
+    <rect width="16" height="16" rx="3.5" fill="#1a1b20"/>
+    <g transform="translate(8.1 7.9) scale(0.27) translate(-24 -24) rotate(-45 24 24)" fill="url(#logo-gold)" stroke="url(#logo-gold)" stroke-linejoin="round">
+      <path d="M31.84 11.21A15 15 0 1 0 31.84 36.79A13 13 0 1 1 31.84 11.21Z" stroke-width="1"/>
+      <path d="M41.4 24L24.4 16.4L28.7 24L24.4 31.6Z" stroke-width="1.6"/>
+    </g>
+  </g>
+  <text x="64" y="138" class="mono eyebrow"><tspan fill="#16171a">ARTEMIS DESKTOP</tspan><tspan fill="#8a8e98">  ·  LOCAL-FIRST PROCESS BOUNDARY</tspan></text>
+
+  <!-- Ingress / Egress Arrows -->
+  <circle cx="540" cy="80" r="2.3" fill="#7c8089"/>
+  <path d="M 540 82 V 147" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="550" y="101.5" class="sans edge">authorized tasks</text>
+
+  <circle cx="924" cy="154" r="2.3" fill="#969aa3"/>
+  <path d="M 924 152 V 85" fill="none" stroke="#969aa3" stroke-width="1.4" marker-end="url(#arr-ext)"/>
+  <text x="912" y="101.5" class="sans edge" text-anchor="end">model API · prompt cache</text>
+
+  <!-- Process Boundary Dividers -->
+  <line x1="322" y1="166" x2="322" y2="360" stroke="#d0d0ca" stroke-width="1" stroke-dasharray="3 3.5"/>
+  <line x1="758" y1="166" x2="758" y2="360" stroke="#d0d0ca" stroke-width="1" stroke-dasharray="3 3.5"/>
+
+  <!-- Renderer Process -->
+  <rect x="40" y="154" width="232" height="218" rx="12" fill="#ffffff" stroke="#d8d8d3"/>
+  <text x="56" y="176" class="mono eyebrow">RENDERER</text>
+  <rect x="186" y="164" width="70" height="17" rx="8.5" fill="#e9f6ee" stroke="#bfe3ce"/>
+  <text x="221" y="175.5" class="mono pill" fill="#166e43" text-anchor="middle">SANDBOXED</text>
+  <text x="56" y="199" class="sans title">React Workspace</text>
+
+  <rect x="54" y="212" width="204" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="66" y="232" class="sans row">Views &amp; controllers</text>
+
+  <rect x="54" y="252" width="204" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="66" y="272" class="sans row">Protocol reducers</text>
+  <text x="247" y="272" class="mono meta" text-anchor="end">replay</text>
+
+  <rect x="54" y="292" width="204" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="66" y="312" class="sans row">No Node · no local FS</text>
+
+  <line x1="41" y1="336" x2="271" y2="336" stroke="#ecece8"/>
+  <text x="56" y="358" class="sans sub"><tspan class="mono key">window.artemis</tspan><tspan> API</tspan></text>
+
+  <!-- Preload Bridge -->
+  <circle cx="277" cy="232" r="2.2" fill="#7c8089"/>
+  <path d="M 279 232 H 366" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="322" y="223" class="sans edge" text-anchor="middle">actions</text>
+
+  <rect x="281" y="247" width="82" height="32" rx="8" fill="#ffffff" stroke="#d4d4ce"/>
+  <text x="322" y="260.5" class="sans" font-size="10" font-weight="600" fill="#16171a" text-anchor="middle">Preload</text>
+  <text x="322" y="272.5" class="mono" font-size="9" fill="#6b6f78" text-anchor="middle">typed IPC</text>
+
+  <circle cx="367" cy="296" r="2.2" fill="#7c8089"/>
+  <path d="M 365 296 H 278" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="322" y="312" class="sans edge" text-anchor="middle">UI events</text>
+
+  <!-- Main Process -->
+  <rect x="372" y="154" width="336" height="218" rx="12" fill="#ffffff" stroke="#c8c8c2"/>
+  <line x1="386" y1="154.75" x2="694" y2="154.75" stroke="#16171a" stroke-width="2" stroke-linecap="round"/>
+  <text x="388" y="176" class="mono eyebrow">MAIN PROCESS</text>
+  <rect x="600" y="164" width="92" height="17" rx="8.5" fill="#f2f2ef" stroke="#d8d8d2"/>
+  <text x="646" y="175.5" class="mono pill" fill="#464952" text-anchor="middle">CONTROL PLANE</text>
+  <text x="388" y="199" class="sans title">Electron Main</text>
+
+  <rect x="386" y="212" width="308" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="398" y="232" class="mono key">conversation/</text>
+  <text x="682" y="232" class="sans sub" text-anchor="end">Tasks · Goals · Automations</text>
+
+  <rect x="386" y="252" width="308" height="32" rx="7" fill="#fdfaf2" stroke="#e6d3a8"/>
+  <rect x="391" y="258" width="2.8" height="20" rx="1.4" fill="#c08a1e"/>
+  <g transform="translate(401, 261.5)" fill="none" stroke="#9a6308" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.5 1 L9.8 2.8 V6.2 C9.8 9 7.8 10.9 5.5 11.8 C3.2 10.9 1.2 9 1.2 6.2 V2.8 Z"/>
+  </g>
+  <text x="417" y="272" class="mono key" fill="#7d5200">broker/</text>
+  <text x="682" y="272" class="sans sub" fill="#785b22" text-anchor="end">Plan / Work / Code · Approvals</text>
+
+  <rect x="386" y="292" width="308" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="398" y="312" class="mono key">services</text>
+  <text x="682" y="312" class="sans sub" text-anchor="end">Git · Worktrees · PTY · MCP · IM</text>
+
+  <line x1="373" y1="336" x2="707" y2="336" stroke="#ecece8"/>
+  <g transform="translate(388, 349)" fill="none" stroke="#6b6f78" stroke-width="1.25">
+    <ellipse cx="5" cy="2.2" rx="4.5" ry="1.8"/>
+    <path d="M0.5 2.2v6.6c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V2.2"/>
+  </g>
+  <text x="404" y="358" class="sans sub"><tspan class="mono key">SQLite</tspan><tspan> · event log</tspan></text>
+  <line x1="546" y1="344" x2="546" y2="365" stroke="#e5e5e0"/>
+  <g transform="translate(558, 349)" fill="none" stroke="#6b6f78" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="1.5" y="4.8" width="7.5" height="5.7" rx="1.4"/>
+    <path d="M3.2 4.8V3.2a2.1 2.1 0 0 1 4.2 0v1.6"/>
+  </g>
+  <text x="574" y="358" class="sans sub"><tspan class="mono key">safeStorage</tspan><tspan> · keys</tspan></text>
+
+  <!-- Utility IPC -->
+  <circle cx="713" cy="232" r="2.2" fill="#7c8089"/>
+  <path d="M 715 232 H 802" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="758" y="223" class="sans edge" text-anchor="middle">commands</text>
+
+  <rect x="720" y="252" width="76" height="22" rx="11" fill="#ffffff" stroke="#d4d4ce"/>
+  <text x="758" y="266" class="mono" font-size="9" fill="#6b6f78" text-anchor="middle">utility IPC</text>
+
+  <circle cx="803" cy="296" r="2.2" fill="#b88318"/>
+  <path d="M 801 296 H 714" fill="none" stroke="#b88318" stroke-width="1.5" marker-end="url(#arr-gold)"/>
+  <text x="758" y="312" class="sans edge" fill="#8f6108" text-anchor="middle">events</text>
+
+  <!-- Agent Host Utility Process -->
+  <rect x="808" y="154" width="232" height="218" rx="12" fill="#ffffff" stroke="#d8d8d3"/>
+  <text x="824" y="176" class="mono eyebrow">UTILITY PROCESS</text>
+  <rect x="964" y="164" width="60" height="17" rx="8.5" fill="#f2f2ef" stroke="#d8d8d2"/>
+  <text x="994" y="175.5" class="mono pill" fill="#5c606a" text-anchor="middle">ISOLATED</text>
+  <text x="824" y="199" class="sans title">Agent Host</text>
+
+  <rect x="822" y="212" width="204" height="32" rx="7" fill="url(#pi-bg)" stroke="#d8aa4c"/>
+  <path d="M836 222.5 L837.5 226.5 L841.5 228 L837.5 229.5 L836 233.5 L834.5 229.5 L830.5 228 L834.5 226.5 Z" fill="#b88318"/>
+  <text x="847" y="232" class="sans" font-size="11.5" font-weight="600" fill="#7d5200">Pi · Single agent loop</text>
+
+  <rect x="822" y="252" width="204" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="834" y="272" class="mono key">PiAdapter</text>
+  <text x="1014" y="272" class="sans meta" text-anchor="end">normalizes</text>
+
+  <rect x="822" y="292" width="204" height="32" rx="7" fill="#f7f7f5" stroke="#e8e8e4"/>
+  <text x="834" y="312" class="sans row">Child Agents</text>
+  <text x="1014" y="312" class="mono meta" text-anchor="end">up to 64</text>
+
+  <line x1="809" y1="336" x2="1039" y2="336" stroke="#ecece8"/>
+  <g transform="translate(824, 349)" fill="none" stroke="#6b6f78" stroke-width="1.25">
+    <ellipse cx="5" cy="2.2" rx="4.5" ry="1.8"/>
+    <path d="M0.5 2.2v6.6c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V2.2"/>
+  </g>
+  <text x="840" y="358" class="sans sub"><tspan class="mono key">Pi JSONL</tspan><tspan> · model history</tspan></text>
+
+  <!-- Dispatch Bus to Execution Surfaces -->
+  <circle cx="540" cy="372" r="2.3" fill="#7c8089"/>
+  <path d="M 540 374 V 412" fill="none" stroke="#7c8089" stroke-width="1.5"/>
+  <path d="M 540 412 H 155 Q 147 412 147 420 V 430" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <path d="M 457 412 V 430" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <path d="M 540 412 H 750 Q 758 412 758 420 V 430" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <circle cx="540" cy="412" r="2.2" fill="#7c8089"/>
+  <circle cx="457" cy="412" r="2.2" fill="#7c8089"/>
+  <rect x="455" y="383" width="170" height="19" rx="9.5" fill="#ffffff" stroke="#d6d6d0"/>
+  <text x="540" y="395.5" class="sans edge" text-anchor="middle">brokered policy &amp; dispatch</text>
+
+  <circle cx="942" cy="372" r="2.3" fill="#7c8089"/>
+  <path d="M 942 374 V 430" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="890" y="383" width="104" height="19" rx="9.5" fill="#ffffff" stroke="#d6d6d0"/>
+  <text x="942" y="395.5" class="sans edge" text-anchor="middle">approved bash</text>
+
+  <!-- Execution Surfaces by Trust Boundary -->
+  <rect x="40" y="436" width="214" height="104" rx="11" fill="#f3f7fe" stroke="#c8d8f5"/>
+  <circle cx="56" cy="452.5" r="5.5" fill="#2f5bd3" fill-opacity="0.14"/>
+  <circle cx="56" cy="452.5" r="2.8" fill="#2f5bd3"/>
+  <text x="68" y="456" class="mono pill" fill="#244ab3">WEB SANDBOX</text>
+  <rect x="52" y="468" width="190" height="58" rx="8" fill="#ffffff" stroke="#d6e2f7"/>
+  <text x="64" y="491" class="sans chip">Built-in Browser</text>
+  <text x="64" y="510" class="sans chip-sub">HTTP/HTTPS · no Node or FS</text>
+
+  <rect x="268" y="436" width="378" height="104" rx="11" fill="#eff9f3" stroke="#badfca"/>
+  <circle cx="284" cy="452.5" r="5.5" fill="#187a4b" fill-opacity="0.15"/>
+  <circle cx="284" cy="452.5" r="2.8" fill="#187a4b"/>
+  <text x="296" y="456" class="mono pill" fill="#146940">NATIVE OS SANDBOX</text>
+  <text x="634" y="456" class="sans meta" fill="#3a7558" text-anchor="end">AppContainer / Seatbelt</text>
+  <rect x="280" y="468" width="171" height="58" rx="8" fill="#ffffff" stroke="#cde8d8"/>
+  <text x="292" y="491" class="sans chip">Local MCP</text>
+  <text x="292" y="510" class="sans chip-sub">Workspace · per-server net</text>
+  <rect x="463" y="468" width="171" height="58" rx="8" fill="#ffffff" stroke="#cde8d8"/>
+  <text x="475" y="491" class="sans chip">Pi Extensions</text>
+  <text x="475" y="510" class="sans chip-sub">Content-hash · isolated</text>
+
+  <rect x="660" y="436" width="380" height="104" rx="11" fill="#fdf4f0" stroke="#ebc7b7"/>
+  <circle cx="676" cy="452.5" r="5.5" fill="#b84a24" fill-opacity="0.14"/>
+  <circle cx="676" cy="452.5" r="2.8" fill="#b84a24"/>
+  <text x="688" y="456" class="mono pill" fill="#9c3c1b">DESKTOP-USER ACCESS</text>
+  <text x="1028" y="456" class="sans meta" fill="#9e5c45" text-anchor="end">Explicit boundary</text>
+  <rect x="672" y="468" width="172" height="58" rx="8" fill="#ffffff" stroke="#f0d5c8"/>
+  <text x="684" y="491" class="sans chip">Integrated Terminal</text>
+  <text x="684" y="510" class="sans chip-sub">User PTY · no auto-elevate</text>
+  <rect x="856" y="468" width="172" height="58" rx="8" fill="#ffffff" stroke="#f0d5c8"/>
+  <text x="868" y="491" class="sans chip">Pi bash</text>
+  <text x="868" y="510" class="sans chip-sub">Work / Code · brokered</text>
+
+  <!-- Legend -->
+  <g transform="translate(-8, 574)">
+    <rect x="142" y="0" width="22" height="12" rx="3.5" fill="#ffffff" stroke="#c0c0ba" stroke-dasharray="3 2.5"/>
+    <text x="172" y="9.5" class="sans meta">Outside Artemis</text>
+
+    <circle cx="294" cy="6" r="3.5" fill="#c08a1e"/>
+    <text x="305" y="9.5" class="sans meta">Single agent loop &amp; events</text>
+
+    <circle cx="484" cy="6" r="3.5" fill="#187a4b"/>
+    <text x="495" y="9.5" class="sans meta">Sandboxed by default</text>
+
+    <circle cx="648" cy="6" r="3.5" fill="#b84a24"/>
+    <text x="659" y="9.5" class="sans meta">Desktop-user permissions</text>
+
+    <path d="M 830 6 H 852" fill="none" stroke="#7c8089" stroke-width="1.5" marker-end="url(#arr)"/>
+    <text x="862" y="9.5" class="sans meta">Control &amp; data flow</text>
+  </g>
 </svg>
