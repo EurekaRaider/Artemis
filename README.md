@@ -1,11 +1,12 @@
 <p align="center">
-  <img src="apps/desktop/build/icon.svg" width="88" height="88" alt="" />
+  <img src="apps/desktop/build/icon.svg" width="80" height="80" alt="" />
 </p>
 
 <h1 align="center">Artemis</h1>
 
 <p align="center">
-  A local-first desktop agent for coding, research and everyday work.
+  <strong>A local-first desktop agent workspace built on <a href="https://github.com/earendil-works/pi">Pi</a>.</strong><br />
+  Work with real repositories, files, and tools — inside boundaries you can see.
 </p>
 
 <p align="center">
@@ -19,178 +20,162 @@
 <p align="center">
   <a href="https://github.com/EurekaRaider/Artemis/releases/latest"><strong>Download</strong></a>
   &nbsp;·&nbsp;
-  <a href="#quick-start"><strong>Quick start</strong></a>
+  <a href="#quick-start">Quick start</a>
   &nbsp;·&nbsp;
-  <a href="#a-quick-tour"><strong>Tour</strong></a>
+  <a href="#inside-the-workspace">Workspace</a>
   &nbsp;·&nbsp;
-  <a href="docs/README-en.md"><strong>Documentation</strong></a>
+  <a href="#security-model">Security</a>
+  &nbsp;·&nbsp;
+  <a href="#architecture">Architecture</a>
+  &nbsp;·&nbsp;
+  <a href="docs/README-en.md">Docs</a>
+  &nbsp;·&nbsp;
+  <a href="docs/README.md">中文</a>
 </p>
 
 <br />
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/images/workspace-dark.png" />
-  <img src="docs/assets/images/workspace-light.png" alt="Artemis workspace with a project task, a completed agent reply and the composer with Plan, Work and Code modes" />
+  <img src="docs/assets/images/workspace-light.png" alt="Artemis workspace showing a project task, a structured agent reply, and the composer with Plan, Work, and Code modes" />
 </picture>
 
 <br />
 <br />
 
-Artemis is a desktop workspace where an agent works with your real files,
-repositories and tools — a terminal, a browser, Git review — inside boundaries
-you can see. Persistent project tasks carry ongoing work; Temporary chats handle
-quick research, documents, spreadsheets and presentations.
+Artemis puts an agent directly beside your real work — Git diff review, a native
+terminal, project files, and a built-in browser — without hiding what runs where.
+Persistent project tasks carry ongoing engineering and research; Temporary chats
+handle quick exploration, writing, and documents.
+
+- **Local-first by default** — Task history, project memory, and workspace context
+  stay on your machine. Model providers and connected services receive only what
+  their requests need; credentials live in OS-encrypted storage and fail closed
+  rather than falling back to plaintext.
+- **One agent loop** — [Pi](https://github.com/earendil-works/pi) runs inside an
+  isolated utility process and drives every task, child agent, Goal, and
+  automation. There is no second orchestration framework to reason about.
+- **Replay-safe state** — Every UI event uses a versioned envelope in
+  `@artemis/protocol` and reduces idempotently over SQLite WAL, so task history
+  replays cleanly after any restart.
+- **Visible trust boundaries** — Plan mode is strictly read-only, local MCP
+  servers and extensions default to OS-native sandboxes, and approvals are
+  brokered in Main before anything executes.
+
+## Inside the workspace
+
+<img src="docs/assets/images/git-review.png" alt="Git Review panel beside a task showing unstaged TypeScript hunks with Stage, Revert, Restore snapshot, and Commit controls" />
+
+<p align="center">
+  <sub><strong>Git Review</strong> — Compare last-turn, unstaged, staged, or branch diffs, comment inline, stage files or hunks, and restore a recovery snapshot before reverting.</sub>
+</p>
+
+<br />
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h4>Local-first</h4>
-      Project history, memory and context stay on your computer. Model providers
-      and connected services receive the data their requests need, and
-      credentials are protected by operating-system encryption.
+      <img src="docs/assets/images/terminal.png" alt="Integrated terminal running git status inside the project workspace" />
+      <p><strong>Native Terminal</strong><br />A real shell in your task checkout or worktree, docked beside the conversation with no automatic elevation.</p>
     </td>
     <td width="50%" valign="top">
-      <h4>Replay-safe</h4>
-      Every persisted event is versioned and reduced idempotently, so task
-      history replays cleanly after a restart.
+      <img src="docs/assets/images/agent-team.png" alt="Agent team panel displaying completed child specialist tasks" />
+      <p><strong>Parallel Agents</strong><br />Fan out work across up to 64 child agents with fair scheduling and follow each specialist's output in place.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h4>Explicit trust</h4>
-      Plan mode is read-only, local MCP servers run in a native sandbox, and
-      extensions and hooks stay disabled until you trust their exact content.
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/images/im-group-chat-dark.png" />
+        <img src="docs/assets/images/im-group-chat.png" alt="Group collaboration task with Slack channel state, members, and per-project read/write authorization" />
+      </picture>
+      <p><strong>Team &amp; IM Collaboration</strong><br />Work from Slack, Feishu / Lark, or WeCom with per-member project authorization and explicit read/write scopes.</p>
     </td>
     <td width="50%" valign="top">
-      <h4>One agent loop</h4>
-      <a href="https://github.com/earendil-works/pi">Pi</a> drives every task,
-      child Agent and automation — no second orchestration layer to reason about.
-    </td>
-  </tr>
-</table>
-
-## A quick tour
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/git-review.png"><img src="docs/assets/images/git-review.png" alt="Git Review showing unstaged TypeScript changes with Stage and Revert controls" /></a>
-      <p><strong>Git Review</strong><br />Compare turn, staged or branch changes, comment inline, and stage files or hunks.</p>
-    </td>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/terminal.png"><img src="docs/assets/images/terminal.png" alt="Integrated terminal running git status in the project" /></a>
-      <p><strong>Native Terminal</strong><br />A real shell in the task workspace, docked beside the conversation.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/agent-team.png"><img src="docs/assets/images/agent-team.png" alt="Agent team panel with two completed specialist tasks" /></a>
-      <p><strong>Parallel Agents</strong><br />Split work across up to 64 child Agents and follow each one's result.</p>
-    </td>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/im-group-chat.png"><img src="docs/assets/images/im-group-chat.png" alt="Group collaboration task with members, channel and project authorization" /></a>
-      <p><strong>Group collaboration</strong><br />Work from Slack or Feishu / Lark with per-member project permissions.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/resources.png"><img src="docs/assets/images/resources.png" alt="Resource Center with Plugins, MCP and Skills tabs" /></a>
-      <p><strong>Resource Center</strong><br />Plugins, MCP servers and Skills, installed and managed in one place.</p>
-    </td>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/markdown-files.png"><img src="docs/assets/images/markdown-files.png" alt="Markdown reader with rich text and source modes" /></a>
-      <p><strong>Files &amp; Markdown</strong><br />Read and edit project files with rich Markdown and source views.</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/automations.png"><img src="docs/assets/images/automations.png" alt="Automations with weekly project tasks and schedule controls" /></a>
-      <p><strong>Automations</strong><br />Schedule recurring project work with its own model and reasoning settings.</p>
-    </td>
-    <td width="50%" valign="top">
-      <a href="docs/assets/images/token-usage.png"><img src="docs/assets/images/token-usage.png" alt="Token Usage with totals, an activity heatmap and token composition" /></a>
-      <p><strong>Usage insights</strong><br />Daily and cumulative Tokens, cache usage and per-model breakdowns.</p>
+      <img src="docs/assets/images/resources.png" alt="Resource Center showing signed Office, Design, and Computer Use packs alongside Plugins, MCP, and Skills tabs" />
+      <p><strong>Resource Center</strong><br />Install signed Office, Design, and Computer Use packs alongside MCP servers, plugins, and Skills in one view.</p>
     </td>
   </tr>
 </table>
 
 <details>
-<summary><strong>More screenshots</strong></summary>
+<summary><strong>More views</strong> — Environment panel, Files &amp; Markdown, Automations, Usage &amp; Settings</summary>
 <br />
 
-![Environment panel with workspace, Git state and Agent activity](docs/assets/images/environment-panel-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/images/environment-panel-dark.png" />
+  <img src="docs/assets/images/environment-panel-light.png" alt="Environment panel showing local checkout, branch comparison, Git changes, child agent activity, and task context" />
+</picture>
 
-![General settings with language and theme preferences](docs/assets/images/settings-general.png)
+<p align="center"><sub><strong>Environment panel</strong> — Workspace target, branch status, pending diffs, agent activity, and attached context at a glance.</sub></p>
 
-![Workspace in Simplified Chinese](docs/assets/images/workspace-zh-CN.png)
+<br />
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/images/markdown-files.png" alt="Markdown file reader showing rich text and source toggle beside the task" />
+      <p><strong>Files &amp; Markdown</strong><br />Browse and edit project files with rich Markdown and raw source views.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/images/automations.png" alt="Automations page listing scheduled weekly project tasks" />
+      <p><strong>Automations</strong><br />Schedule recurring local project runs with dedicated mode, workspace, and model settings.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/images/token-usage.png" alt="Token Usage dashboard with totals, cache hit rate, activity heatmap, and token composition" />
+      <p><strong>Usage &amp; Prompt Cache</strong><br />Track daily, weekly, and cumulative tokens, cache-hit savings, and per-model breakdowns.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/images/settings-general.png" alt="General settings showing language, theme, Liquid glass sidebar, skin selection, and config import" />
+      <p><strong>Settings &amp; Localization</strong><br />Switch among 14 languages, Liquid glass surfaces, visual skins, and credential-free config import.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/assets/images/welcome-dark.png" alt="Artemis dark welcome view with the task composer and quick-continue cards" />
+      <p><strong>Welcome</strong><br />Start a new task or pick up recent work, uncommitted changes, and scheduled briefs.</p>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/assets/images/workspace-zh-CN.png" alt="Artemis workspace rendered in Simplified Chinese" />
+      <p><strong>Native Multilingual UI</strong><br />Full localization across 14 interface languages, including Simplified Chinese and Arabic right-to-left.</p>
+    </td>
+  </tr>
+</table>
 
 </details>
 
-<sub>Screenshots use an isolated demo project and synthetic accounts. See
-[how they were captured](docs/records/readme-visuals-en.md).</sub>
+<sub>Screenshots are captured from a production build using an isolated demo repository and synthetic accounts. See [how they were captured](docs/records/readme-visuals-en.md).</sub>
 
-## Features
+## Capabilities
 
-### Work on real projects
+### Workspace & continuity
 
-- **Persistent tasks** — resume after restart, fork a task, queue follow-ups,
-  steer a running turn or cancel it.
-- **Your checkout or a worktree** — tasks start in the project's local checkout
-  and can be handed off to a managed Git worktree.
-- **Rich conversation** — attach images, PDFs and Office files; see sources, tool
-  activity and approvals inline; preview Mermaid, LaTeX, audio, video and
-  sandboxed interactive HTML.
-- **Built-in Browser** — open HTTP and HTTPS pages next to the task.
+- **Persistent tasks & Temporary chats** — Resume after restarts, fork a thread from any completed reply, queue follow-ups, steer a running turn, or open a lightweight Temporary chat for quick research.
+- **Local checkout or managed worktree** — Interactive tasks start in your project's local checkout and can be handed off to a managed Git worktree (up to 10 globally, with snapshot-backed cleanup).
+- **Rich media & Built-in Browser** — Attach images, PDFs, and Office documents; render Mermaid, LaTeX, audio, video, and sandboxed HTML previews inline; open HTTP/HTTPS pages beside the task.
+- **Goals & Automations** — Track multi-step objectives with an optional token budget you can pause and resume at any time, or schedule recurring project work locally.
 
-### Keep work moving
+### Models, agents & context
 
-- **Goals** — track an objective with an optional Token budget; pause and resume
-  it at any time.
-- **Custom sub-agents** — give specialists their own instructions and model,
-  then call them with `@` or let Artemis delegate.
-- **Memory and instructions** — bounded, project-first memory plus global
-  `AGENTS.md`. Import instructions, Skills and MCP settings from Codex, OpenCode
-  or Claude — never credentials.
-- **Share a conversation** — export a reviewed snapshot as offline HTML, or
-  upload it to Radius or a secret GitHub Gist. Tool details, thinking and images
-  are left out by default.
+- **Any provider, per-task control** — Use the Pi model catalog (including OpenRouter and provider OAuth) or any OpenAI-compatible Responses / Chat Completions or Anthropic-compatible endpoint, with per-task model, thinking level, virtual fallback routes, and **Ultra Mode**.
+- **Automatic Prompt Cache** — Endpoint-aware prompt caching keeps session affinity across restored tasks while reporting uncached input, cache reads, cache writes, and savings in Usage.
+- **Custom sub-agents & Prompt templates** — Define specialists with custom instructions and models (`@`-mentionable or auto-delegated), and expand reusable `/templates` from `~/.pi/agent/prompts/` or `<workspace>/.pi/prompts/`.
+- **Project-first memory & safe import** — Bounded experiential memory works alongside global `AGENTS.md`. Import instructions, Skills, and MCP config selectively from Codex, OpenCode, or Claude — never credentials.
 
-### Extend the workspace
+### Extensions & native surfaces
 
-- **Document tools** — bundled Documents, PDF, Spreadsheets and Presentations
-  Lite plugins, with no external toolchain.
-- **MCP and connected services** — discover servers in the official Registry or
-  add them by hand; account authorization stays separate from configuration.
-- **Computer Use** — let the agent operate websites and desktop apps through a
-  signed native runtime on macOS 14+ and Windows 11.
-- **Design mode** — edit workspace HTML with snapshots, undo and live preview.
-- **Hooks and skins** — run reviewed [lifecycle hooks](docs/guides/hooks-en.md)
-  and restyle the app with [visual skins](docs/guides/visual-skins-en.md).
-
-### Choose your models
-
-- **Any provider** — the Pi model catalog or any OpenAI-compatible Chat
-  Completions or Responses endpoint.
-- **Per-task settings** — each task keeps its own model, thinking level and
-  context window.
-- **Ultra Mode** — the model's highest thinking level and more parallel work,
-  for hard problems.
-
-### Feels at home
-
-- 14 interface languages, including Arabic right-to-left.
-- Light and dark themes with glass or solid surfaces.
-- A unified title bar and native Acrylic surfaces on supported Windows systems.
+- **Office, Design & Computer Use** — Install signed capability packs from the Resource Center: unified **Office** (Word, Excel, PowerPoint, and PDF), **Design** mode with live HTML preview and undo snapshots, and **Computer Use** with a 60 fps read-only [live preview](docs/guides/computer-preview-en.md) on macOS 14+ and Windows 11.
+- **MCP, Plugins, Hooks & Skins** — Discover servers in the official MCP Registry or Git marketplaces, run reviewed [lifecycle hooks](docs/guides/hooks-en.md), and restyle the app with [visual skins](docs/guides/visual-skins-en.md).
+- **Safe conversation sharing** — Export a reviewed snapshot as offline HTML, or publish to Radius or a secret GitHub Gist. Tool details, thinking traces, and images are omitted by default.
+- **Native desktop craft** — 14 interface languages (including Arabic RTL), light and dark themes, Liquid glass or opaque sidebars, and native Acrylic surfaces on supported Windows systems.
 
 ## Quick start
 
-**Download** the latest build for Windows x64 or macOS (Apple Silicon and Intel) from
-[Releases](https://github.com/EurekaRaider/Artemis/releases/latest). Artemis is
-free, MIT-licensed and needs no activation. See the
-[installation guide](docs/install-en.md) for details.
+**Download** the latest installer or archive for Windows x64 or macOS (Apple Silicon and Intel) from [Releases](https://github.com/EurekaRaider/Artemis/releases/latest). Artemis is free, MIT-licensed, and requires no activation. See the [installation guide](docs/install-en.md) for full details.
 
-**Or run from source** with Node.js 26, npm 11+ and Git on Windows 11 x64 or
-macOS 14+ (Apple Silicon):
+**Or run from source** with Node.js 24+ (26 recommended, matching CI), npm 11+, and Git on Windows 11 x64 or macOS 14+:
 
 ```bash
 git clone https://github.com/EurekaRaider/Artemis.git
@@ -199,191 +184,166 @@ npm install
 npm run dev
 ```
 
-Then:
+After launch:
 
-1. Open **Settings → Providers & models** and pick a model.
-2. Add a project folder, or start a **Temporary chat**.
-3. Choose **Plan**, **Work** or **Codemode** and send your first task.
+1. Open **Settings → Model services** to authorize a provider or add an endpoint.
+2. Add a project folder — or open a **Temporary chat**.
+3. Pick **Plan**, **Work**, or **Code** (Codemode) in the composer and send your first task.
 
 ### Platform support
 
-| Platform             | Distribution                                   |
-| -------------------- | ---------------------------------------------- |
-| Windows x64          | Per-user installer with in-app updates, or ZIP |
-| macOS Apple Silicon  | Signed and notarized DMG or ZIP                |
-| macOS Intel          | Signed and notarized DMG or ZIP                |
-| Windows ARM64, Linux | Not supported                                  |
+| Platform             | Distribution                                                    |
+| -------------------- | --------------------------------------------------------------- |
+| Windows x64          | Per-user NSIS installer (signed in-app updates + rollback), ZIP |
+| macOS Apple Silicon  | Signed, notarized, and stapled DMG or ZIP                       |
+| macOS Intel          | Signed, notarized, and stapled DMG or ZIP                       |
+| Windows ARM64, Linux | Not supported                                                   |
 
 <details>
 <summary><strong>Installing a packaged build</strong></summary>
 <br />
 
-**macOS** — open the DMG and drag `Artemis.app` to Applications. For a ZIP,
-extract it and move `Artemis.app` to Applications before launching.
-
-**Windows ZIP** — extract the whole archive into a folder you own (not
-`Program Files`) and run `Artemis.exe`. ZIP builds update manually: extract the
-new version into a new folder and keep your data under `%APPDATA%`. Install the
-NSIS package once to switch to in-app updates.
+- **macOS** — Open the DMG and drag `Artemis.app` to Applications. For a ZIP archive, extract the full archive and move `Artemis.app` to Applications before launching.
+- **Windows** — Prefer the per-user `.exe` installer for signed in-app updates with automatic rollback. For a ZIP build, extract the full archive into a user-owned folder (not `Program Files`) and run `Artemis.exe`; your data remains under `%APPDATA%`. Install the NSIS package once to switch to in-app updates.
 
 </details>
 
 ## Security model
 
-Every task runs in one of three modes. Approvals, sandboxing and trust checks
-apply in all of them.
+Every task runs in one of three modes. Approvals, sandboxing, and trust checks are enforced by the Electron Main broker before any executor or filesystem call runs.
 
-| Mode         | Use it to                                                    | Boundary                                         |
-| ------------ | ------------------------------------------------------------ | ------------------------------------------------ |
-| **Plan**     | Investigate, review and propose a plan for your confirmation | Read-only: no shell, MCP or executable extensions |
-| **Work**     | Edit files, run tools and finish the task (default)          | Brokered approvals and per-surface permissions   |
-| **Codemode** | Orchestrate tools with Pi scripts                            | Same as Work                                     |
+| Mode         | Composer / Slash         | Purpose                                                 | Boundary                                            |
+| ------------ | ------------------------ | ------------------------------------------------------- | --------------------------------------------------- |
+| **Plan**     | `Plan` · `/plan`         | Investigate, review, and submit a plan for confirmation | Read-only: no shell, MCP, or executable extensions  |
+| **Work**     | `Work` · `/work`         | Edit files, run tools, and finish the task *(default)*  | Brokered approvals and per-surface trust boundaries |
+| **Codemode** | `Code` · `/codemode`     | Orchestrate business tools with Pi JavaScript scripts   | Same brokered policy and surface boundaries as Work |
 
-| Surface                 | Runs with                                                                                                |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Agent shell**         | Your desktop user's permissions, after brokered approval (Work and Codemode only)                       |
-| **Integrated Terminal** | Your desktop user's permissions; never elevates automatically                                            |
-| **Local MCP servers**   | AppContainer on Windows or Seatbelt on macOS by default, limited to the workspace with per-server network access |
-| **Pi extensions**       | The native sandbox by default, and only after project and content-hash trust                             |
-| **Browser**             | HTTP and HTTPS only; no Node, preload APIs or local files                                                |
+| Surface                      | Isolation & permission boundary                                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Agent shell (`bash`)**     | Work and Codemode only; runs with your desktop user's permissions after brokered approval.                                                                           |
+| **Integrated Terminal**      | User-opened native PTY with your desktop user's permissions; never elevates automatically.                                                                           |
+| **Local stdio MCP servers**  | Windows AppContainer or macOS Seatbelt by default — limited to the task workspace and server runtime directory, per-server network, and minimal forwarded environment. |
+| **Executable Pi extensions** | Disabled until explicit project and SHA-256 content-hash trust exists; runs in a fresh OS-native sandbox by default (opt-in via extension-only **Full local access**). |
+| **Built-in Browser**         | HTTP and HTTPS with JavaScript, cookies, and web storage; no Node integration, preload APIs, or local-file access.                                                   |
 
-With **Approve for me**, low- and medium-risk operations proceed automatically;
-high-risk operations need an explicit request for that exact action or your
-approval. Secrets are stored with operating-system encryption, and writes fail
-rather than fall back to plain text. See
-[modes in detail](docs/guides/pi-upgrade-modes.md).
+In Work and Codemode, local MCP tools and trusted extensions may request a host-approved, single-call sandbox escalation with a written justification; escalated MCP connections are isolated and closed immediately afterward, leaving saved settings unchanged. With **Approve for me**, low- and medium-risk actions proceed automatically while high-risk actions always require an explicit request for that exact target or your confirmation. Secrets are encrypted with OS `safeStorage` (DPAPI on Windows, Keychain on macOS) and fail closed if encryption is unavailable. See [modes and execution policy](docs/guides/pi-upgrade-modes.md).
 
 ## Architecture
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme-architecture-dark.svg" />
-  <img src="docs/assets/readme-architecture-light.svg" width="960" alt="Architecture: the sandboxed React renderer talks to Electron Main through a typed preload bridge; Main exchanges commands and events with the Pi Agent Host, receives authorized tasks from the optional IM Gateway, and dispatches brokered tools to the execution surfaces." />
+  <img src="docs/assets/readme-architecture-light.svg" alt="Artemis desktop architecture: sandboxed React Renderer communicates via typed preload IPC with Electron Main control plane (conversation, broker, services, SQLite WAL, and OS safeStorage), which exchanges commands and normalized events with the isolated Pi Agent Host utility process and optional IM Gateway, dispatching tools across Web Sandbox, Native OS Sandbox, and Desktop-User execution surfaces." />
 </picture>
 
-- **Renderer** — React views with no Node or Electron access; they consume only
-  typed contracts from `shared/api/` and `@artemis/protocol`.
-- **Main** — owns task execution, approvals and tool dispatch, plus Git,
-  Terminal, Browser, plugins, MCP, IM and automations.
-- **Agent Host** — runs Pi in a utility process. `PiAdapter` normalizes its
-  events; Main sequences and persists them for replay.
-- **IM Gateway** — optional; routes remote conversations through the same
-  authorization and execution policy.
+<br />
+<br />
 
-Read the [architecture notes](docs/architecture.md) and
-[engineering guidance](AGENTS.md) for the full picture.
+- **Renderer** — Sandboxed React workspace (`sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`) consuming only typed contracts from `shared/api/` and `@artemis/protocol`.
+- **Main** — Control plane for task lifecycle (`conversation/`), policy and approvals (`broker/`), Git/worktrees, PTY, Browser, plugins, MCP, IM, SQLite WAL persistence, and `safeStorage`.
+- **Agent Host** — Isolated Electron utility process running Pi's single agent loop, `ModelRuntime` prompt cache, and up to 64 in-memory child agents. `PiAdapter` normalizes every event before Main sequences and persists it.
+- **IM Gateway** — Optional process (`@artemis/gateway`) routing Slack, Feishu / Lark, and WeCom threads through the same desktop authorization and policy layer.
 
-## Repository layout
-
-Artemis is an npm workspace: one desktop app, a set of shared packages, and the
-docs, examples and tooling around them. Desktop code is grouped first by process,
-then by feature.
-
-```text
-Artemis/
-├── apps/
-│   ├── desktop/                  Electron desktop app
-│   │   ├── src/
-│   │   │   ├── main/             host process: conversation, broker, plugins, MCP, IM …
-│   │   │   ├── renderer/         React views, feature controllers and styles
-│   │   │   ├── preload/          typed bridges that expose window.artemis
-│   │   │   ├── agent/            Agent Host utility-process entry
-│   │   │   ├── extension/        executable extension worker
-│   │   │   └── shared/           cross-process API types, IPC channels and i18n
-│   │   ├── test/                 tests that mirror src, plus contracts and fixtures
-│   │   ├── scripts/              build, packaging, release and verification
-│   │   ├── native/               platform-native helpers
-│   │   ├── resources/            shipped runtime resources and sandbox hosts
-│   │   └── build/                icons and installer configuration
-│   └── ui-gallery/               component demos, themes and conformance
-├── packages/                     shared libraries, listed below
-├── docs/                         architecture, guides, records and visual assets
-├── examples/                     plugins, visual skins and hooks
-├── scripts/                      cross-workspace CI, release and tooling
-├── vendor/                       vendored dependencies
-├── third-party/                  third-party license texts
-└── artifacts/                    git-ignored caches and verification output
-```
-
-### Shared packages
-
-Each package is named `@artemis/<name>`.
-
-| Package                                         | Owns                                                |
-| ----------------------------------------------- | --------------------------------------------------- |
-| [`agent-host`](packages/agent-host)             | Pi runtime, sessions, models, tools and policy      |
-| [`protocol`](packages/protocol)                 | Event schemas, `PiAdapter` and replay-safe reducers |
-| [`platform`](packages/platform)                 | Workspace paths, shell execution and sandboxing     |
-| [`gateway`](packages/gateway)                   | IM channels, routing and authorization              |
-| [`ui`](packages/ui)                             | Shared components and behavior contracts            |
-| [`theme-contract`](packages/theme-contract)     | Theme and skin contracts                            |
-| [`theme-artemis`](packages/theme-artemis)       | The default theme                                   |
-| [`plugin-contract`](packages/plugin-contract)   | Plugin metadata and JSON Schema                     |
-| [`plugin-sdk`](packages/plugin-sdk)             | Plugin runtime helpers                              |
-
-### Where new code goes
-
-Short paths are relative to `apps/desktop/`.
-
-| Adding                          | Put it in                                                   |
-| ------------------------------- | ----------------------------------------------------------- |
-| Task execution or Goals         | `apps/desktop/src/main/conversation/`                       |
-| Approvals or tool dispatch      | `apps/desktop/src/main/broker/`                             |
-| A cross-process API             | `src/shared/api/`, bridged in `src/preload/bridges/`        |
-| Protocol payloads and reducers  | `packages/protocol/src/schema/` and `reducer/`              |
-| Tests                           | `test/main/`, `test/renderer/` or `test/integration/`       |
-| Fixtures and test helpers       | `test/fixtures/<feature>/`                                  |
-| Desktop verification drivers    | `apps/desktop/scripts/verify/{ui,native,features}/`         |
-
-Production entrypoints never import test fixtures or verification drivers, and
-verification output goes to `artifacts/verification/<topic>/<run>/`. See the
-[repository layout guide](docs/guides/repository-layout-en.md) for the full
-ownership rules, and run `npm run verify:layout` after moving directories.
+Read the [architecture documentation](docs/architecture.md) and [engineering guidance](AGENTS.md) for the complete technical contracts.
 
 ## Development
 
 ```bash
-npm test               # build, run every workspace suite and contract check
-npm run typecheck
-npm run build
-npm run format:check
+npm test               # layout & doc checks, build, workspace suites, and contract tests
+npm run typecheck      # build core/UI libraries and typecheck all workspaces
+npm run build          # production build across core, UI, and desktop
+npm run format:check   # Prettier check
 ```
 
-| Target      | Command                     | Output                     |
-| ----------- | --------------------------- | -------------------------- |
-| Windows x64 | `npm run package:win`       | Per-user NSIS EXE and ZIP  |
-| macOS arm64 | `npm run package:mac:arm64` | DMG and ZIP                |
-| macOS x64   | `npm run package:mac:x64`   | DMG and ZIP                |
+| Target      | Command                     | Output                        |
+| ----------- | --------------------------- | ----------------------------- |
+| Windows x64 | `npm run package:win`       | Per-user NSIS EXE and ZIP     |
+| macOS arm64 | `npm run package:mac:arm64` | DMG and ZIP                   |
+| macOS x64   | `npm run package:mac:x64`   | DMG and ZIP                   |
 
-Build plugins with `npm run plugin -- init <dir> resource`, then `validate`,
-`dev` and `pack`. Start with the [plugin guide](docs/guides/plugin-development-en.md),
-[marketplaces](docs/guides/plugin-marketplaces-en.md),
-[connectors](docs/guides/connectors.md) and [examples](examples/plugins/).
+Build plugins with `npm run plugin -- init <dir> resource`, followed by `validate`, `dev`, and `pack`. See the [plugin guide](docs/guides/plugin-development-en.md), [marketplaces](docs/guides/plugin-marketplaces-en.md), [connectors](docs/guides/connectors.md), and [examples](examples/plugins/).
+
+### Workspace layout
+
+Artemis is an npm workspace with one Electron desktop app, a UI gallery, and nine shared `@artemis/*` packages. Desktop code is organized first by process, then by feature.
+
+```text
+Artemis/
+├── apps/
+│   ├── desktop/            Electron desktop app
+│   │   ├── src/
+│   │   │   ├── main/       control plane: conversation, broker, plugins, MCP, IM
+│   │   │   ├── renderer/   React views, feature controllers, styles
+│   │   │   ├── preload/    typed bridges exposing window.artemis
+│   │   │   ├── agent/      Agent Host utility-process entry
+│   │   │   ├── extension/  sandboxed extension worker
+│   │   │   └── shared/     cross-process API types, IPC channels, i18n
+│   │   ├── test/           source-mirrored tests, contracts, and fixtures
+│   │   ├── scripts/        build, packaging, release, and verification drivers
+│   │   ├── native/         platform-native helpers
+│   │   ├── resources/      shipped runtime resources and Windows sandbox host
+│   │   └── build/          app icons and installer configuration
+│   └── ui-gallery/         component catalog, theme previews, and conformance
+├── packages/               shared @artemis/* libraries
+├── docs/                   architecture, bilingual guides, records, and assets
+├── examples/               reference plugins, visual skins, and hooks
+└── scripts/                cross-workspace CI, release, and plugin tooling
+```
+
+| Package                                       | Responsibility                                     |
+| --------------------------------------------- | -------------------------------------------------- |
+| [`agent-host`](packages/agent-host)           | Pi runtime, sessions, models, prompt cache, policy |
+| [`protocol`](packages/protocol)               | Event schemas, `PiAdapter`, replay-safe reducers   |
+| [`platform`](packages/platform)               | Workspace paths, shell execution, OS sandboxing    |
+| [`gateway`](packages/gateway)                 | IM channels, routing, and per-member authorization |
+| [`ui`](packages/ui)                           | Shared components and behavior contracts           |
+| [`theme-contract`](packages/theme-contract)   | Theme and visual skin contracts                    |
+| [`theme-artemis`](packages/theme-artemis)     | Default Artemis light and dark theme               |
+| [`plugin-contract`](packages/plugin-contract) | Plugin manifest schemas and JSON Schema            |
+| [`plugin-sdk`](packages/plugin-sdk)           | Plugin runtime helpers                             |
+
+<details>
+<summary><strong>Where new code goes</strong></summary>
+<br />
+
+| Adding                         | Location                                                            |
+| ------------------------------ | ------------------------------------------------------------------- |
+| Task execution or Goals        | `apps/desktop/src/main/conversation/`                               |
+| Approvals or tool dispatch     | `apps/desktop/src/main/broker/`                                     |
+| Cross-process API & bridge     | `apps/desktop/src/shared/api/` and `apps/desktop/src/preload/bridges/` |
+| Protocol payloads and reducers | `packages/protocol/src/schema/` and `packages/protocol/src/reducer/` |
+| Tests                          | `apps/desktop/test/{main,renderer,integration}/`                    |
+| Fixtures and test helpers      | `apps/desktop/test/fixtures/<feature>/`                             |
+| Desktop verification drivers   | `apps/desktop/scripts/verify/{ui,native,features}/`                 |
+
+Production entrypoints never import test fixtures or verification drivers; verification artifacts go under git-ignored `artifacts/verification/<topic>/<run>/`. Run `npm run verify:layout` after moving directories, and see the [repository layout guide](docs/guides/repository-layout-en.md).
+
+</details>
 
 <details>
 <summary><strong>Building and shipping releases</strong></summary>
 <br />
 
-CI runs on Windows, Apple Silicon and Intel macOS runners; a release needs all
-three from the same commit. The Release workflow signs and notarizes macOS
-builds, verifies the Windows artifacts and publishes them. See the
-[release guide](docs/guides/release-en.md) and
-[CI conventions](docs/records/ci-reliability-en.md).
+CI runs across Windows x64, macOS Apple Silicon, and macOS Intel runners; an official release requires all three targets from the same commit. The Release workflow signs, notarizes, and staples macOS builds, verifies Windows artifacts and updates the Ed25519-signed channel, and publishes verified assets. See the [release guide](docs/guides/release-en.md) and [CI conventions](docs/records/ci-reliability-en.md).
 
 </details>
 
 <br />
 
 <p align="center">
-  <img src="apps/desktop/build/icon.svg" width="32" height="32" alt="" />
+  <img src="apps/desktop/build/icon.svg" width="28" height="28" alt="" />
   <br />
   <sub>
+    <a href="docs/README-en.md">Documentation</a>
+    &nbsp;·&nbsp;
+    <a href="docs/README.md">中文文档</a>
+    &nbsp;·&nbsp;
     <a href="CONTRIBUTING.md">Contributing</a>
     &nbsp;·&nbsp;
     <a href="SECURITY.md">Security</a>
     &nbsp;·&nbsp;
     <a href="THIRD_PARTY_NOTICES.md">Third-party notices</a>
     &nbsp;·&nbsp;
-    <a href="https://github.com/EurekaRaider/Artemis/issues">Feedback</a>
+    <a href="https://github.com/EurekaRaider/Artemis/issues">Issues</a>
   </sub>
   <br />
   <sub>MIT License · Built on the MIT-licensed Pi SDK</sub>
