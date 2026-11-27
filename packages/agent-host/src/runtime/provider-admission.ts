@@ -1,17 +1,37 @@
-import { providerRetryDelayMilliseconds } from "./stream-health.js";
+import {
+  providerResponseRetryDelayMilliseconds,
+  providerRetryDelayMilliseconds,
+} from "./stream-health.js";
 
 import { parentConcurrencyLimit } from "./context-metrics.js";
-
-import { resolve } from "node:path";
 
 import {
   AGENT_CONCURRENCY_MAXIMUM,
   AGENT_CONCURRENCY_MINIMUM,
 } from "@artemis/protocol";
 
+import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { AgentConcurrencySnapshot } from "./agent-concurrency.js";
 
 import type { AgentRuntimeDependencies } from "./agent-runtime-dependencies.js";
+
+export function createProviderBackoffExtension(
+  resolveProviderId: () => string | undefined,
+  onResponse: (
+    providerId: string,
+    status: number,
+    headers: Record<string, string>,
+  ) => void,
+): ExtensionFactory {
+  return (pi) => {
+    pi.on("after_provider_response", (event, ctx) => {
+      const providerId = ctx.model?.provider ?? resolveProviderId();
+      if (!providerId) return;
+      onResponse(providerId, event.status, event.headers);
+    });
+  };
+}
+
 export function createProviderAdmission(
   services: Pick<
     AgentRuntimeDependencies,
@@ -40,6 +60,20 @@ export function createProviderAdmission(
     return services.concurrency.snapshot;
   }
 
+  function applyProviderBackoffDelay(
+    providerId: string,
+    delay: number | undefined,
+  ): void {
+    if (delay === undefined || delay <= 0) return;
+    services.providerAdmissionBlockedUntil.set(
+      providerId,
+      Math.max(
+        services.providerAdmissionBlockedUntil.get(providerId) ?? 0,
+        Date.now() + delay,
+      ),
+    );
+  }
+
   function recordProviderBackoff(
     providerId: string,
     error: unknown,
@@ -47,13 +81,17 @@ export function createProviderAdmission(
   ): void {
     const delay =
       providerRetryDelayMilliseconds(error) ?? fallbackDelayMilliseconds;
-    if (delay === undefined) return;
-    services.providerAdmissionBlockedUntil.set(
+    applyProviderBackoffDelay(providerId, delay);
+  }
+
+  function recordProviderResponseBackoff(
+    providerId: string,
+    status: number,
+    headers?: Record<string, string>,
+  ): void {
+    applyProviderBackoffDelay(
       providerId,
-      Math.max(
-        services.providerAdmissionBlockedUntil.get(providerId) ?? 0,
-        Date.now() + delay,
-      ),
+      providerResponseRetryDelayMilliseconds(status, headers),
     );
   }
 
@@ -96,6 +134,7 @@ export function createProviderAdmission(
     setConcurrencyLimit,
     concurrencyStatus,
     recordProviderBackoff,
+    recordProviderResponseBackoff,
     waitForProviderAdmission,
   };
   return handlers;

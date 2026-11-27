@@ -315,6 +315,9 @@ export class ArtemisAgentHost {
       get recordProviderBackoff() {
         return host.recordProviderBackoff.bind(host);
       },
+      get recordProviderResponseBackoff() {
+        return host.recordProviderResponseBackoff.bind(host);
+      },
       get parkedDelegationTurns() {
         return host.parkedDelegationTurns;
       },
@@ -470,6 +473,18 @@ export class ArtemisAgentHost {
       providerId,
       error,
       fallbackDelayMilliseconds,
+    );
+  }
+
+  private recordProviderResponseBackoff(
+    providerId: string,
+    status: number,
+    headers?: Record<string, string>,
+  ): void {
+    return this.providerAdmission.recordProviderResponseBackoff(
+      providerId,
+      status,
+      headers,
     );
   }
 

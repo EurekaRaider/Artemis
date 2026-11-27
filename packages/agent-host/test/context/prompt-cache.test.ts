@@ -364,7 +364,6 @@ it.each([
   ["https://proxy.example/v1", "anthropic", "s", undefined],
   ["https://api.anthropic.com.evil.example", "anthropic", "s", undefined],
   ["http://api.anthropic.com", "anthropic", "s", undefined],
-  ["https://api.anthropic.com", "custom", "s", undefined],
   ["https://api.anthropic.com", "anthropic", undefined, undefined],
   ["https://api.anthropic.com", "anthropic", "s", true],
 ] as const)(
@@ -387,6 +386,35 @@ it.each([
     expect(original.mock.calls[0]![2].disableContinuation).toBe(true);
   },
 );
+
+it("enables Anthropic continuation by default for any provider targeting api.anthropic.com unless explicitly disabled", () => {
+  const original = vi.fn();
+  const runtime = withPromptCacheController(
+    { streamSimple: original } as unknown as ModelRuntime,
+    new PromptCacheController(),
+  );
+  const customOfficial = {
+    ...model("claude-sonnet-4-5", "https://api.anthropic.com"),
+    api: "anthropic-messages",
+    provider: "custom-anthropic",
+  } as Model<Api>;
+
+  runtime.streamSimple(customOfficial, context(), { sessionId: "session-1" });
+  expect(original.mock.calls[0]![2]).toMatchObject({
+    disableContinuation: false,
+    sessionId: "session-1",
+  });
+
+  runtime.streamSimple(
+    {
+      ...customOfficial,
+      compat: { supportsMessageThreads: false },
+    },
+    context(),
+    { sessionId: "session-1" },
+  );
+  expect(original.mock.calls[1]![2].disableContinuation).toBe(true);
+});
 
 it("respects explicit model cache compatibility in policy and outgoing metadata", () => {
   const controller = new PromptCacheController();

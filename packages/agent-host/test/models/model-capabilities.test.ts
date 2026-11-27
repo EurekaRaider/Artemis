@@ -105,6 +105,29 @@ it.each(["work", "codemode"] as const)(
     expect(result.structuredContent).toEqual({ answers });
     expect(JSON.stringify(result)).not.toContain("private-image-data");
     classify.mockResolvedValueOnce({
+      stopReason: "stop",
+      provider: "openrouter",
+      model: "~typesafe/jev-latest",
+      answers,
+      responseId: "gen-classify-123",
+    } as never);
+    const withResponseId = await tool.execute(
+      "call-2",
+      args as never,
+      signal,
+      undefined,
+      {} as never,
+    );
+    expect(withResponseId.structuredContent).toEqual({
+      answers,
+      responseId: "gen-classify-123",
+    });
+    expect(withResponseId.details).toMatchObject({
+      provider: "openrouter",
+      model: "~typesafe/jev-latest",
+      responseId: "gen-classify-123",
+    });
+    classify.mockResolvedValueOnce({
       stopReason: "error",
       errorMessage: "Model does not support image input",
     } as never);

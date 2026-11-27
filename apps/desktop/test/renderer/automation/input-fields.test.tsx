@@ -540,12 +540,12 @@ describe("settings management operation contract (MIG5A)", () => {
     );
     expect(
       screen.getByRole("option", {
-        name: "Devstral 2 · mistral · devstral-2512",
+        name: "GLM-5.2 · mistral · glm-5-2",
       }),
     ).toBeVisible();
     expect(
       screen.getByRole("option", {
-        name: "Devstral 2 · mistral · devstral-latest",
+        name: "GLM-5.2 · mistral · zai-glm-5-2",
       }),
     ).toBeVisible();
   });

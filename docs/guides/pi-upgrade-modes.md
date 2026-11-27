@@ -4,7 +4,7 @@
 
 Artemis uses Pi as its only agent loop. New tasks start in **Work**.
 
-The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.5.2. Artemis preserves arbitrary JSON MCP results, including `null`, `false`, zero and arrays.
+The desktop and Agent Host pin `pi-ai` and `pi-coding-agent` to 1.6.1. Artemis preserves arbitrary JSON MCP results, including `null`, `false`, zero and arrays.
 
 | Mode     | Tools and completion                                                                                                                                              |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -51,7 +51,7 @@ A virtual model uses an ordered `virtualRoutes` array of `{ "providerId", "model
 
 Work exposes `model_capabilities`, `generate_image`, and `classify` as thin bridges to Pi for configured image/classifier providers. Main and child agents in Codemode can directly use Pi's native `models.getAvailableOfType()`, `models.getModelOfType()`, `models.classify()`, and `models.generateImages()`; the `tools` bridges remain compatible. Both paths reuse the session model runtime and credentials. Native model calls receive the script cancellation signal and contribute usage to the Codemode result. Use `image(block)` to display generated images. `edit_context` changes earlier assistant/tool context projections at Pi turn boundaries while retaining original history; it cannot edit user or system instructions.
 
-`model_capabilities` includes each model's supported `input`. `classify` accepts optional `images` containing `{ type: "image", data, mimeType }` alongside `state` and `questions`; Pi rejects images for classifiers without image support. GPT-6 Luna classification requires an OpenAI API key and is not available through Sign in with ChatGPT. Classification remains unavailable in Plan.
+`model_capabilities` includes each model's supported `input`. `classify` accepts optional `images` containing `{ type: "image", data, mimeType }` alongside `state` and `questions`, and passes through the provider's `responseId` when reported; Pi rejects images for classifiers without image support. OpenAI's `gpt-6-luna` classifier requires an OpenAI API key rather than Sign in with ChatGPT, while configured GitHub Copilot (`gpt-6-luna-decisions` and account-entitled classifiers) and Radius decision models are also available. Classification remains unavailable in Plan.
 
 MCP tools retain host approval and sandbox enforcement, including after discovery. Structured output schemas, structured results and namespace metadata are passed through to Pi. Existing desktop OAuth supports metadata clients, issuer checking and per-server credential storage. User server configurations support `exposure` and `toolExposure`; `.pi/mcp.json` can restrict existing enabled servers by ID/name, hide tools or change discovery exposure. Project files cannot launch new servers or expand the host's permissions. Plan receives no MCP tools.
 

@@ -139,6 +139,7 @@ export function modelCapabilityTools(
       }),
       outputSchema: Type.Object({
         answers: Type.Record(Type.String(), Type.Unknown()),
+        responseId: Type.Optional(Type.String()),
       }),
       execute: async (_id, args, signal) => {
         requireExecution();
@@ -162,14 +163,26 @@ export function modelCapabilityTools(
           throw new Error(
             result.errorMessage ?? "Classification did not complete.",
           );
+        const responseId =
+          typeof result.responseId === "string" && result.responseId.trim()
+            ? result.responseId
+            : undefined;
+        const structured = {
+          answers: result.answers,
+          ...(responseId ? { responseId } : {}),
+        };
         return {
           content: [
             { type: "text" as const, text: JSON.stringify(result.answers) },
           ],
           structuredContent: JSON.parse(
-            JSON.stringify({ answers: result.answers }),
+            JSON.stringify(structured),
           ) as JsonValue,
-          details: {},
+          details: {
+            ...(result.provider ? { provider: result.provider } : {}),
+            ...(result.model ? { model: result.model } : {}),
+            ...(responseId ? { responseId } : {}),
+          },
           ...(result.usage ? { usage: result.usage } : {}),
         };
       },

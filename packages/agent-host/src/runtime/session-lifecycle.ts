@@ -15,6 +15,7 @@ import { createWriteToolFactory } from "./tools/workspace-write.js";
 import { createRequestUserInputTool } from "./tools/user-input.js";
 import { createLocalFileTools } from "./tools/local-files.js";
 import { createWebSearchTool } from "./tools/web-search.js";
+import { createProviderBackoffExtension } from "./provider-admission.js";
 import { createLazySessionManager } from "./session-storage.js";
 import { terminalAgentStopReason } from "./agent-team-policy.js";
 
@@ -117,6 +118,7 @@ export function createSessionLifecycle(
     | "requestChildCancellation"
     | "descendantAgents"
     | "recordProviderBackoff"
+    | "recordProviderResponseBackoff"
     | "concurrency"
     | "onSessionFile"
     | "handleContextUsageEvent"
@@ -415,6 +417,13 @@ export function createSessionLifecycle(
       noExtensions: true,
       extensionFactories: [
         hooksBridge.factory,
+        createProviderBackoffExtension(
+          () =>
+            services.threads.get(request.threadId)?.selection?.providerId ??
+            selection?.providerId,
+          (providerId, status, headers) =>
+            services.recordProviderResponseBackoff(providerId, status, headers),
+        ),
         contextEditingExtension(
           () => services.threads.get(request.threadId)?.currentMode,
         ),

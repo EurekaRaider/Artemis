@@ -297,3 +297,29 @@ it.each([
     ).toMatchObject({ contextWindow, reasoning: true, configured: false });
   },
 );
+
+it.each([
+  ["openai", "gpt-6.2-sol", 272_000],
+  ["openai", "gpt-6.2-astra", 272_000],
+  ["openai-codex", "gpt-6.2-sol", 500_000],
+  ["openai-codex", "gpt-6.2-astra", 272_000],
+  ["azure", "gpt-6.2-sol", 1_050_000],
+  ["azure", "gpt-6.2-astra", 1_050_000],
+] as const)(
+  "exposes the Pi 1.6 catalog model %s/%s without thinking off",
+  async (providerId, modelId, contextWindow) => {
+    const catalog = filterVisibleModels(await loadBundledModelCatalog());
+    const entry = catalog.find(
+      (model) => model.providerId === providerId && model.modelId === modelId,
+    );
+    expect(entry).toMatchObject({
+      contextWindow,
+      reasoning: true,
+      highestThinkingLevel: "max",
+      configured: false,
+    });
+    expect(entry?.thinkingLevels).not.toContain("off");
+    expect(entry?.thinkingLevels).toContain("low");
+    expect(entry?.thinkingLevels).toContain("max");
+  },
+);

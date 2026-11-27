@@ -211,6 +211,11 @@ export interface AgentRuntimeDependencies {
     error: unknown,
     fallbackDelayMilliseconds?: number,
   ): void;
+  recordProviderResponseBackoff(
+    providerId: string,
+    status: number,
+    headers?: Record<string, string>,
+  ): void;
   readonly parkedDelegationTurns: Set<string>;
   closeThread(threadId: string): void;
   readonly broker: AgentBroker;

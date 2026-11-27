@@ -110,6 +110,70 @@ export function retryAfterHeader(error: unknown): string | undefined {
     : String(retryAfter);
 }
 
+function clampBackoffMilliseconds(delay: number): number {
+  return Math.max(
+    0,
+    Math.min(PROVIDER_BACKOFF_MAX_MILLISECONDS, Math.ceil(delay)),
+  );
+}
+
+function parseRetryAfterSecondsOrDate(
+  value: string,
+  now: number,
+): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const seconds = Number(trimmed);
+  if (Number.isFinite(seconds)) {
+    return clampBackoffMilliseconds(seconds * 1_000);
+  }
+  const date = Date.parse(trimmed);
+  if (Number.isFinite(date)) {
+    return clampBackoffMilliseconds(date - now);
+  }
+  return undefined;
+}
+
+function headerLookup(
+  headers: Record<string, string> | undefined,
+  name: string,
+): string | undefined {
+  if (!headers) return undefined;
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === target && typeof value === "string") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+export function providerResponseRetryDelayMilliseconds(
+  status: number,
+  headers?: Record<string, string>,
+  now = Date.now(),
+): number | undefined {
+  const retryAfter = headerLookup(headers, "retry-after");
+  const retryAfterMs = headerLookup(headers, "retry-after-ms");
+  let explicitDelay: number | undefined;
+  if (retryAfter !== undefined) {
+    explicitDelay = parseRetryAfterSecondsOrDate(retryAfter, now);
+  }
+  if (explicitDelay === undefined && retryAfterMs !== undefined) {
+    const milliseconds = Number(retryAfterMs.trim());
+    if (Number.isFinite(milliseconds)) {
+      explicitDelay = clampBackoffMilliseconds(milliseconds);
+    }
+  }
+  if (status === 429) {
+    return explicitDelay ?? PROVIDER_BACKOFF_DEFAULT_MILLISECONDS;
+  }
+  if ((status === 503 || status === 529) && explicitDelay !== undefined) {
+    return explicitDelay;
+  }
+  return undefined;
+}
+
 export function providerRetryDelayMilliseconds(
   error: unknown,
   now = Date.now(),
@@ -126,18 +190,9 @@ export function providerRetryDelayMilliseconds(
     /retry-after[^\d]{0,12}(\d+(?:\.\d+)?)/iu,
   )?.[1];
   const value = header ?? messageSeconds;
-  let delay = PROVIDER_BACKOFF_DEFAULT_MILLISECONDS;
   if (value) {
-    const seconds = Number(value);
-    if (Number.isFinite(seconds)) {
-      delay = seconds * 1_000;
-    } else {
-      const date = Date.parse(value);
-      if (Number.isFinite(date)) delay = date - now;
-    }
+    const parsed = parseRetryAfterSecondsOrDate(value, now);
+    if (parsed !== undefined) return parsed;
   }
-  return Math.max(
-    0,
-    Math.min(PROVIDER_BACKOFF_MAX_MILLISECONDS, Math.ceil(delay)),
-  );
+  return PROVIDER_BACKOFF_DEFAULT_MILLISECONDS;
 }

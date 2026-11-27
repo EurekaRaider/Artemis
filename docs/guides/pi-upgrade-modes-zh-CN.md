@@ -4,7 +4,7 @@
 
 Artemis 只使用 Pi 作为 Agent 循环。新任务默认进入 **Work**。
 
-桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.5.2。Artemis 保留 MCP 任意 JSON 结构化结果，包括 `null`、`false`、零和数组。
+桌面端与 Agent Host 将 `pi-ai` 和 `pi-coding-agent` 固定到 1.6.1。Artemis 保留 MCP 任意 JSON 结构化结果，包括 `null`、`false`、零和数组。
 
 | 模式     | 工具与完成方式                                                                                                  |
 | -------- | --------------------------------------------------------------------------------------------------------------- |
@@ -59,7 +59,7 @@ Work 和 Codemode 中，本地 MCP 或受信任扩展工具在沙箱拒绝后，
 
 受信任的可执行扩展仍需项目／内容哈希信任，并使用原生沙箱。输出 Schema、命名空间、注解和结构化结果跨沙箱桥传递。终端 UI 渲染器、命令、快捷键与任意生命周期处理器不在桌面沙箱工具桥范围内；Artemis 报告不支持的扩展接口，不会在主进程运行它们。
 
-`model_capabilities` 返回各模型支持的 `input`。`classify` 在 `state` 和 `questions` 之外接受可选的 `images`，每项为 `{ type: "image", data, mimeType }`；Pi 会拒绝向不支持图片的分类模型传入图片。GPT-6 Luna 分类需要 OpenAI API Key，不能通过 Sign in with ChatGPT 使用。Plan 仍不能调用分类能力。
+`model_capabilities` 返回各模型支持的 `input`。`classify` 在 `state` 和 `questions` 之外接受可选的 `images`（每项为 `{ type: "image", data, mimeType }`），并在服务商提供时透传 `responseId`；Pi 会拒绝向不支持图片的分类模型传入图片。OpenAI 的 `gpt-6-luna` 分类需要 OpenAI API Key，不能通过 Sign in with ChatGPT 使用；同时也可使用已配置的 GitHub Copilot（`gpt-6-luna-decisions` 及账户可用的分类器）和 Radius 决策模型。Plan 仍不能调用分类能力。
 
 自定义子 Agent 继承当前模式和宿主权限。设置界面不再提供工具白名单；旧配置读取和保存时统一为 `inherit`，旧运行快照也不能恢复已取消的白名单限制。子 Agent 的 MCP 工具沿用宿主审批与沙箱路径，包括 Work／Codemode 中的写操作。Plan 限制、连接／信任校验、委派写入范围和 Agent 生命周期规则仍然生效。
 

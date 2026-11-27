@@ -373,11 +373,7 @@ function optionsForResolution(
     model.api === "anthropic-messages" &&
     threads === true &&
     Boolean(options?.sessionId);
-  if (
-    model.api === "anthropic-messages" &&
-    model.provider === "anthropic" &&
-    threads === undefined
-  ) {
+  if (model.api === "anthropic-messages" && threads === undefined) {
     try {
       const endpoint = new URL(model.baseUrl);
       anthropicSession =

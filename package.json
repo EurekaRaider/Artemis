@@ -1,6 +1,6 @@
 {
   "name": "artemis",
-  "version": "2.0.17",
+  "version": "2.0.18",
   "private": true,
   "description": "A local-first cross-platform desktop coding agent powered by Pi.",
   "type": "module",
@@ -29,7 +29,6 @@
   },
   "overrides": {
     "undici@7.29.1": "7.30.1",
-    "undici@8.10.2": "8.12.2",
     "lodash-es": "4.18.1",
     "officeparser": {
       "pdfjs-dist": "$pdfjs-dist"

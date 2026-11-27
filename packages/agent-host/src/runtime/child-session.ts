@@ -17,6 +17,7 @@ import {
   normalizedWritePaths,
   writePathAllowed,
 } from "./agent-team-policy.js";
+import { createProviderBackoffExtension } from "./provider-admission.js";
 import { createModelStreamIdleWatchdog } from "./stream-health.js";
 import type {
   OpenThreadRequest,
@@ -137,6 +138,7 @@ export function createChildSessionLauncher(
     | "descendantAgents"
     | "bashExecutions"
     | "recordProviderBackoff"
+    | "recordProviderResponseBackoff"
     | "concurrency"
   >,
   context: ChildSessionContext,
@@ -366,6 +368,15 @@ export function createChildSessionLauncher(
                 noExtensions: true,
                 extensionFactories: [
                   childHooksBridge.factory,
+                  createProviderBackoffExtension(
+                    () => childProviderId,
+                    (providerId, status, headers) =>
+                      services.recordProviderResponseBackoff(
+                        providerId,
+                        status,
+                        headers,
+                      ),
+                  ),
                   codemodePolicyExtension(() => input.mode),
                   createCodemodeExtension({
                     mode: "only",
